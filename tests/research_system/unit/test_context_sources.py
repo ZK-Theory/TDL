@@ -2,7 +2,7 @@ import pytest
 
 from research_system.canonical import sha256_hex
 from research_system.context.models import SourceFragment
-from research_system.context.spec_bridge import build_spec_context_snapshot
+from research_system.context.spec_bridge import _event_changes_spec_source_closure, build_spec_context_snapshot
 from research_system.context.sources import resolve_sources
 from research_system.errors import ArsError
 
@@ -71,6 +71,49 @@ def test_spec_replay_source_propagates_production_projection_rejection():
             projection_for_events=rejected,
             route_id="SPEC-GATE6-RUN-V1",
         )
+
+
+def test_spec_context_source_closure_tracks_new_and_preexisting_typed_inputs():
+    artefact_id = "art_relevant"
+    registration = {
+        "event_type": "ArtefactRegistered",
+        "stream_id": artefact_id,
+        "payload": {
+            "new_artefact_id": artefact_id,
+            "manifest": {
+                "artefact_id": artefact_id,
+                "artefact_type": "methods_asset",
+                "content_sha256": "1" * 64,
+            },
+        },
+    }
+    accepted = {
+        "event_type": "ArtefactUseAuthoritySet",
+        "stream_id": artefact_id,
+        "payload": {"artefact_id": artefact_id, "use_authority": "accepted_for_scope"},
+    }
+    arguments = {
+        "accepted_artefact_ids": set(),
+        "candidate_ids": set(),
+        "dossier_id": "obj_dossier",
+        "required_spec_source_sha256": "2" * 64,
+    }
+
+    assert _event_changes_spec_source_closure(
+        registration,
+        known_spec_artefact_ids=set(),
+        **arguments,
+    )
+    assert _event_changes_spec_source_closure(
+        accepted,
+        known_spec_artefact_ids={artefact_id},
+        **arguments,
+    )
+    assert not _event_changes_spec_source_closure(
+        {**accepted, "stream_id": "art_unrelated", "payload": {"artefact_id": "art_unrelated"}},
+        known_spec_artefact_ids={artefact_id},
+        **arguments,
+    )
 
 
 def _fragment(source_id, content):

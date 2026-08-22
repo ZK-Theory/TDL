@@ -4217,6 +4217,78 @@ def test_spec_context_recovery_ignores_an_unrelated_discovery_append(
 
 
 @pytest.mark.integration
+def test_spec_context_recovery_rejects_a_new_relevant_input_registration(
+    spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A newly accepted typed input invalidates an already frozen context."""
+
+    _seed_requested_spec_01(spec_inputs)
+    capsys.readouterr()
+    _accept_spec_01_brief_inputs(spec_inputs)
+    capsys.readouterr()
+    _prepare_spec_01(spec_inputs, execute=False)
+    action = "prepare_spec_01"
+    original = spec_flow_module.deliver_spec_owner_context
+    failed = False
+
+    def crash_then_append_relevant_input(*args: Any, **kwargs: Any) -> Any:
+        nonlocal failed
+        if failed:
+            operator = kwargs["operator"]
+            events = tuple(operator.ledger.iter_events())
+            artefact_id = "art_019ffe2b-fd4b-7000-8000-000000000453"
+            registration = {
+                "global_position": len(events) + 1,
+                "event_hash": "8" * 64,
+                "event_type": "ArtefactRegistered",
+                "stream_id": artefact_id,
+                "payload": {
+                    "new_artefact_id": artefact_id,
+                    "manifest": {
+                        "artefact_id": artefact_id,
+                        "artefact_type": "methods_asset",
+                        "content_sha256": "9" * 64,
+                    },
+                },
+            }
+            accepted = {
+                "global_position": len(events) + 2,
+                "event_hash": "a" * 64,
+                "event_type": "ArtefactUseAuthoritySet",
+                "stream_id": artefact_id,
+                "payload": {
+                    "artefact_id": artefact_id,
+                    "use_authority": "accepted_for_scope",
+                },
+            }
+            kwargs["operator"] = SimpleNamespace(
+                control_root=operator.control_root,
+                clock=operator.clock,
+                ledger=SimpleNamespace(
+                    iter_events=lambda: iter((*events, registration, accepted)),
+                    project_id=operator.ledger.project_id,
+                    store_identity=operator.ledger.store_identity,
+                ),
+            )
+        result = original(*args, **kwargs)
+        if not failed:
+            failed = True
+            raise RuntimeError("injected crash after durable SPEC context")
+        return result
+
+    monkeypatch.setattr(spec_flow_module, "deliver_spec_owner_context", crash_then_append_relevant_input)
+    with pytest.raises(RuntimeError, match="injected crash"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert failed
+
+    with pytest.raises(ArsError, match="accepted source changed after SPEC context delivery"):
+        cli.main(_advance_argv(spec_inputs, action))
+    assert not SpecFlow(load_discovery_operator(spec_inputs["config_path"]))._action_identity(
+        action, spec_inputs["packet"], publish=False
+    )
+
+
+@pytest.mark.integration
 def test_brief_input_registration_recovers_after_partial_publication_without_claiming_completion(
     spec_inputs: dict[str, Any], capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4567,6 +4639,12 @@ def test_public_spec_flow_rejects_malformed_and_wrongly_bound_spec_01_returns_wi
     duplicate = deepcopy(original)
     duplicate["document"]["artifact_hashes"].append(deepcopy(duplicate["document"]["artifact_hashes"][0]))
     mutations.append(duplicate)
+    ambiguous_hash = deepcopy(original)
+    ambiguous_hash["document"]["artifact_hashes"].insert(
+        0,
+        {"name": "embedded_artefact", "sha256": "0" * 64},
+    )
+    mutations.append(ambiguous_hash)
     tampered = deepcopy(original)
     tampered["document"]["embedded_artefact"]["recommendation"] = "PARK"
     mutations.append(tampered)

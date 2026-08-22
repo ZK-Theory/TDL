@@ -2149,11 +2149,11 @@ class SpecFlow:
             except SchemaError as exc:
                 raise IntegrityError("SPEC return embedded artefact is invalid") from exc
             embedded_sha256 = sha256_hex(canonical_bytes(embedded))
-            hashes = {
-                item.get("name"): item.get("sha256")
-                for item in document.get("artifact_hashes", ())
-                if isinstance(item, Mapping)
-            }
+            hashes: dict[object, object] = {}
+            for item in document.get("artifact_hashes", ()):
+                if not isinstance(item, Mapping) or item.get("name") in hashes:
+                    raise IntegrityError("SPEC return artefact hash names must be unique")
+                hashes[item.get("name")] = item.get("sha256")
             if hashes.get("embedded_artefact") != embedded_sha256:
                 raise IntegrityError("SPEC return does not bind the embedded artefact hash")
             if len(commands) != 1 or not isinstance(commands[0], Mapping):

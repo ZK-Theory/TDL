@@ -19,6 +19,10 @@ from research_system.errors import ArsError, IntegrityError
 from research_system.store.objects import ObjectStore
 
 
+_SPEC_CONTEXT_INPUT_ARTEFACT_TYPES = frozenset({"spec_operator_source", "methods_asset"})
+_SPEC_CONTEXT_ARTEFACT_TYPES = _SPEC_CONTEXT_INPUT_ARTEFACT_TYPES | {"spec_02_live_run_approval"}
+
+
 def _stable_id(kind: str, seed: str) -> str:
     value = int.from_bytes(hashlib.sha256(seed.encode("utf-8")).digest()[:16], "big")
     value = (value & ~(0xF << 76)) | (0x7 << 76)
@@ -107,10 +111,7 @@ def build_spec_context_snapshot(
             )
         if state.get("use_authority") != "accepted_for_scope":
             continue
-        if isinstance(manifest, Mapping) and manifest.get("artefact_type") in {
-            "spec_operator_source",
-            "methods_asset",
-        }:
+        if isinstance(manifest, Mapping) and manifest.get("artefact_type") in _SPEC_CONTEXT_INPUT_ARTEFACT_TYPES:
             if (
                 manifest.get("artefact_type") == "spec_operator_source"
                 and required_spec_source_sha256 is not None
@@ -172,21 +173,64 @@ def build_spec_context_snapshot(
     )
 
 
+def _registered_spec_context_artefact_id(
+    event: Mapping[str, Any],
+    *,
+    required_spec_source_sha256: str | None,
+) -> str | None:
+    if event.get("event_type") != "ArtefactRegistered":
+        return None
+    payload = event.get("payload")
+    manifest = payload.get("manifest") if isinstance(payload, Mapping) else None
+    if not isinstance(manifest, Mapping):
+        return None
+    artefact_type = manifest.get("artefact_type")
+    if artefact_type not in _SPEC_CONTEXT_ARTEFACT_TYPES or (
+        artefact_type == "spec_operator_source"
+        and required_spec_source_sha256 is not None
+        and manifest.get("content_sha256") != required_spec_source_sha256
+    ):
+        return None
+    artefact_id = payload.get("new_artefact_id")
+    if (
+        not isinstance(artefact_id, str)
+        or event.get("stream_id") != artefact_id
+        or manifest.get("artefact_id") != artefact_id
+    ):
+        return None
+    return artefact_id
+
+
 def _event_changes_spec_source_closure(
     event: Mapping[str, Any],
     *,
     accepted_artefact_ids: Collection[str],
+    known_spec_artefact_ids: Collection[str],
     candidate_ids: Collection[str],
     dossier_id: str,
+    required_spec_source_sha256: str | None,
 ) -> bool:
     """Return whether a later event can change the frozen SPEC source content."""
 
     stream_id = event.get("stream_id")
-    if stream_id in accepted_artefact_ids or stream_id in candidate_ids or stream_id == dossier_id:
+    if (
+        stream_id in accepted_artefact_ids
+        or stream_id in known_spec_artefact_ids
+        or stream_id in candidate_ids
+        or stream_id == dossier_id
+    ):
         return True
     payload = event.get("payload")
     if not isinstance(payload, Mapping):
         return False
+    if (
+        _registered_spec_context_artefact_id(
+            event,
+            required_spec_source_sha256=required_spec_source_sha256,
+        )
+        is not None
+    ):
+        return True
     if payload.get("artefact_id") in accepted_artefact_ids or payload.get("dossier_id") == dossier_id:
         return True
     if any(
@@ -305,12 +349,22 @@ def deliver_spec_owner_context(
         if durable_snapshot != expected_snapshot:
             raise IntegrityError("durable SPEC context source binding differs")
         snapshot = expected_snapshot
+        known_spec_artefact_ids = set(accepted_ids)
+        for event in events[:source_position]:
+            artefact_id = _registered_spec_context_artefact_id(
+                event,
+                required_spec_source_sha256=required_spec_source_sha256,
+            )
+            if artefact_id is not None:
+                known_spec_artefact_ids.add(artefact_id)
         for event in events[source_position:]:
             if _event_changes_spec_source_closure(
                 event,
                 accepted_artefact_ids=accepted_ids,
+                known_spec_artefact_ids=known_spec_artefact_ids,
                 candidate_ids=candidate_ids,
                 dossier_id=dossier_id,
+                required_spec_source_sha256=required_spec_source_sha256,
             ):
                 raise ArsError("Discovery replay or accepted source changed after SPEC context delivery")
     else:
