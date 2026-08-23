@@ -843,26 +843,17 @@ def test_stored_snapshot_rederivation_uses_resolved_documents() -> None:
 
 def test_concurrent_identical_producer_snapshot_writes_are_idempotent(
     tmp_path,
-    monkeypatch,
 ) -> None:
-    import research_system.store.objects as object_module
-
     _source, stored_manifest, _control = producer_snapshot()
     manifest = deepcopy(stored_manifest)
     reference = content_artefact_id(manifest)
     entered = threading.Barrier(3)
-    release = threading.Event()
-
-    def pause(_temporary):
-        entered.wait(timeout=2)
-        assert release.wait(2)
-
-    monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause)
     paths = []
     errors = []
 
     def publish():
         try:
+            entered.wait(timeout=10)
             paths.append(ObjectStore(tmp_path).write("artefact", reference, 1, manifest))
         except Exception as exc:  # pragma: no branch - asserted below
             errors.append(exc)
@@ -870,10 +861,9 @@ def test_concurrent_identical_producer_snapshot_writes_are_idempotent(
     writers = [threading.Thread(target=publish) for _ in range(2)]
     for writer in writers:
         writer.start()
-    entered.wait(timeout=2)
-    release.set()
+    entered.wait(timeout=10)
     for writer in writers:
-        writer.join(timeout=2)
+        writer.join(timeout=10)
         assert not writer.is_alive()
     assert errors == []
     assert len(set(paths)) == 1
@@ -1027,7 +1017,7 @@ def test_command_service_submit_preserves_public_signature_and_guard_metadata(
     )
     assert inspect.signature(implementation).parameters["release_append"].default is None
     harness = control_plane(tmp_path)
-    with pytest.raises(ArsError, match="guarded release continuation"):
+    with pytest.raises(ArsError, match="guarded continuations"):
         implementation(harness.service, publication_command())
     assert tuple(harness.ledger.iter_events()) == ()
 
@@ -1468,6 +1458,7 @@ def test_release_draft_cannot_supply_noop_validation_or_append_invalid_payload(
     assert {item.name for item in fields(EventDraft)} == {
         "envelope",
         "finalize_payload",
+        "admission",
     }
     ledger = EventLedger(tmp_path / "trusted", PROJECT_ID)
 
@@ -1716,54 +1707,77 @@ def test_index_first_receipt_crash_recovers_exactly_one_publication(
     assert len(tuple(harness.ledger.iter_events())) == 3
 
 
-def test_concurrent_exact_publications_serialize_to_one_original_receipt(
-    tmp_path,
-    monkeypatch,
-) -> None:
+def test_concurrent_exact_publications_serialize_to_one_original_receipt(tmp_path) -> None:
+    """preservation-green: actual writer contention spans independent services."""
     harness = canonical_publication_plane(tmp_path)
     _use_stub_publication_authority(harness, harness.authority_hash)
     harness.service.release_publication_evidence = evidence_resolver()
-    entered = threading.Event()
-    release = threading.Event()
-    crossed_former_cutoff = threading.Event()
-    logical_time = [0.0]
+    second_ledger = EventLedger(harness.ledger.control_root, PROJECT_ID, harness.service.schemas)
+    second_resolver = LedgerAuthorityGrantResolver(
+        harness.ledger.control_root,
+        PROJECT_ID,
+        harness.identity,
+        harness.service.schemas,
+        approved_witness=harness.identity.witness,
+        approved_witness_path=harness.identity.witness_path,
+    )
+    second_service = CommandService(
+        harness.ledger.control_root,
+        second_ledger,
+        ObjectStore(harness.ledger.control_root),
+        ReceiptStore(harness.ledger.control_root),
+        harness.service.schemas,
+        authority_resolver=second_resolver,
+    )
+    second_service.authority_resolver = _stub_publication_resolver(
+        second_resolver,
+        harness.authority_hash,
+    )
+    second_service.release_publication_evidence = evidence_resolver()
+    assert harness.service._restore_admission_sequence_lock is not second_service._restore_admission_sequence_lock
 
-    harness.service._monotonic = lambda: logical_time[0]
-
-    def advance_without_wall_sleep(_interval):
-        logical_time[0] += 1.1
-        if logical_time[0] > 5.0:
-            crossed_former_cutoff.set()
-            release.set()
-        threading.Event().wait(0.001)
-
-    harness.service._lock_wait = advance_without_wall_sleep
-
-    def pause(_temporary):
-        entered.set()
-        assert release.wait(2)
-
-    monkeypatch.setattr(harness.ledger, "_after_batch_fsync", pause)
+    first_locked = threading.Event()
+    release_first = threading.Event()
+    saw_real_contention = threading.Event()
     results = []
     errors = []
 
-    def submit(command):
+    def hold_first_after_lock(_command):
+        first_locked.set()
+        assert release_first.wait(2)
+
+    def observe_real_contention(interval):
+        # _submission_lock reaches this callback only after the real
+        # CompositeWriterLock raises WriterLockContentionError.
+        saw_real_contention.set()
+        threading.Event().wait(interval)
+
+    harness.service._before_authority_resolution = hold_first_after_lock
+    second_service._lock_wait = observe_real_contention
+
+    def submit(service, command):
         try:
-            results.append(harness.service.submit(command))
+            results.append(service.submit(command))
         except Exception as exc:  # pragma: no branch - asserted below
             errors.append(exc)
 
-    first = threading.Thread(target=submit, args=(canonical_publication_command(harness),))
+    first = threading.Thread(target=submit, args=(harness.service, canonical_publication_command(harness)))
     second = threading.Thread(
         target=submit,
-        args=(canonical_publication_command(harness, "cmd_01978abc-2014-7000-8000-000000002014"),),
+        args=(
+            second_service,
+            canonical_publication_command(harness, "cmd_01978abc-2014-7000-8000-000000002014"),
+        ),
     )
-    first.start()
-    assert entered.wait(2)
-    second.start()
+    try:
+        first.start()
+        assert first_locked.wait(2)
+        second.start()
+        assert saw_real_contention.wait(2)
+    finally:
+        release_first.set()
     first.join(4)
     second.join(4)
-    assert crossed_former_cutoff.is_set()
     assert not first.is_alive()
     assert not second.is_alive()
     assert errors == []

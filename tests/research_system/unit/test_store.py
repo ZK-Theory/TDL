@@ -17,7 +17,9 @@ from research_system.store import lock as lock_module
 from research_system.store import durability as durability_module
 from research_system.store.lock import (
     CompositeWriterLock,
+    LockObservation,
     WriterLock,
+    WriterLockContentionError,
     inspect_lock,
     process_instance_id,
     remove_stale_lock,
@@ -385,6 +387,7 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
     )
     handles = []
     close_attempts = []
+    followed_failed = False
 
     class FakeHandle:
         def __init__(self, name):
@@ -407,8 +410,10 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
         return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
 
     def fake_close(handle):
+        nonlocal followed_failed
         close_attempts.append(handle.name)
-        if handle.name == "followed":
+        if handle.name == "followed" and not followed_failed:
+            followed_failed = True
             raise RuntimeError("close failure")
         handle.closed = True
 
@@ -430,6 +435,9 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
     assert close_attempts == ["probe", "followed"]
     assert handles[0].closed is True
     assert handles[1].closed is False
+    assert len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 1
+    lock_module._drain_windows_close_quarantine()
+    assert handles[1].closed is True and not lock_module._WINDOWS_CLOSE_QUARANTINE
 
 
 def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
@@ -449,6 +457,7 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     )
     handles = []
     close_attempts = []
+    followed_failed = False
 
     class FakeHandle:
         def __init__(self, name):
@@ -471,10 +480,12 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
         return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
 
     def fake_close(handle):
+        nonlocal followed_failed
         close_attempts.append(handle.name)
         if handle.name == "probe" and close_attempts.count("probe") == 1:
             raise RuntimeError("first close failure")
-        if handle.name == "followed":
+        if handle.name == "followed" and not followed_failed:
+            followed_failed = True
             raise ValueError("second close failure")
         handle.closed = True
 
@@ -487,9 +498,13 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     with pytest.raises(RuntimeError, match="first close failure"):
         lock_module._open_windows_anchor(runtime, reject_reparse=True)
 
-    assert close_attempts == ["probe", "probe", "followed"]
-    assert handles[0].closed is True
+    assert close_attempts == ["probe", "followed"]
+    assert handles[0].closed is False
     assert handles[1].closed is False
+    assert len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 2
+    lock_module._drain_windows_close_quarantine()
+    assert all(handle.closed for handle in handles)
+    assert not lock_module._WINDOWS_CLOSE_QUARANTINE
 
 
 def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
@@ -521,10 +536,58 @@ def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
     with pytest.raises(RuntimeError, match="close failure"):
         anchor.close()
 
-    assert anchor._closed is False
+    assert anchor._closed is False and len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 1
     anchor.close()
-    assert anchor._closed is True
+    assert anchor._closed is True and not lock_module._WINDOWS_CLOSE_QUARANTINE
     assert len(close_attempts) == 2
+
+
+def test_windows_anchor_deferred_effect_and_guard_closes_preserve_the_primary(tmp_path, monkeypatch):
+    """remediation-red: a failed fence or guard close neither masks nor loses the operation."""
+    if os.name != "nt":
+        pytest.skip("Windows deferred anchor-close control")
+    import research_system.store.lock as lock_module
+
+    identity = lock_module.DirectoryIdentity("windows-file-id-v1", 1, b"cleanup".ljust(16, b"\0"))
+    anchor = lock_module._DirectoryAnchor(
+        identity, tmp_path, object(), lambda _handle: (identity, tmp_path), lambda _handle: None
+    )
+    fence = object()
+    fence_closes = 0
+
+    def close_fence(_handle):
+        nonlocal fence_closes
+        fence_closes += 1
+        if fence_closes == 1:
+            raise RuntimeError("fence close failure")
+
+    monkeypatch.setattr(lock_module, "_windows_open_handle", lambda *_args, **_kwargs: fence)
+    monkeypatch.setattr(lock_module, "_windows_anchor_refresh", lambda _handle: (identity, tmp_path))
+    monkeypatch.setattr(lock_module, "_windows_close_handle", close_fence)
+    with pytest.raises(ValueError, match="effect primary") as raised:
+        with anchor._effect_final_path(tmp_path):
+            raise ValueError("effect primary")
+    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert anchor.refresh() == (identity, tmp_path)
+    assert fence_closes == 2
+
+    real_close = os.close
+    guard_closes = 0
+
+    def close_guard(descriptor):
+        nonlocal guard_closes
+        guard_closes += 1
+        if guard_closes == 1:
+            raise RuntimeError("guard close failure")
+        real_close(descriptor)
+
+    monkeypatch.setattr(lock_module.os, "close", close_guard)
+    with pytest.raises(ValueError, match="guard primary") as raised:
+        with anchor.acquire_mutation_guard(".object-publication.guard"):
+            raise ValueError("guard primary")
+    assert isinstance(raised.value.__cause__, RuntimeError)
+    assert anchor.refresh() == (identity, tmp_path)
+    assert guard_closes == 2
 
 
 def test_posix_directory_anchor_propagates_delete_protection(tmp_path, monkeypatch):
@@ -622,7 +685,12 @@ def test_writer_lock_publishes_complete_process_instance_metadata(tmp_path):
         assert record["process_id"] == str(os.getpid())
         assert isinstance(record["process_instance_id"], str)
         assert canonical_bytes(record) == raw
-        assert inspect_lock(path)[0] == "live"
+        state, observed, inspected = inspect_lock(path)
+        assert state == "live"
+        assert isinstance(observed, LockObservation)
+        assert observed.data == raw
+        assert os.path.samestat(observed.identity, path.stat())
+        assert inspected == record
     assert not path.exists()
 
 
@@ -632,7 +700,8 @@ def test_malformed_lock_is_bounded_and_never_reclaimed_without_identity(tmp_path
 
     state, observed, _ = inspect_lock(path)
     assert state == "malformed"
-    assert observed is not None
+    assert isinstance(observed, LockObservation)
+    assert observed.data == b'{"process_id":"1"'
     assert not remove_stale_lock(path, observed)
     assert path.exists()
 
@@ -736,8 +805,6 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
     release = threading.Event()
     gate_used = False
     gate_guard = threading.Lock()
-    real_inspect = lock_module.inspect_lock
-    real_replace = lock_module.os.replace
 
     def pause_once() -> None:
         nonlocal gate_used
@@ -748,20 +815,11 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
         ready.set()
         assert release.wait(2)
 
-    def inspect(candidate):
-        result = real_inspect(candidate)
+    def before_exact_delete(candidate):
         if Path(candidate) == path:
             pause_once()
-        return result
 
-    def replace(source, target):
-        result = real_replace(source, target)
-        if Path(source) == path and Path(target).parent == path.parent:
-            pause_once()
-        return result
-
-    monkeypatch.setattr(lock_module, "inspect_lock", inspect)
-    monkeypatch.setattr(lock_module.os, "replace", replace)
+    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", before_exact_delete)
     results = []
     errors = []
 
@@ -784,7 +842,9 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
         first.join(timeout=2)
         assert not first.is_alive()
         assert errors == []
-        assert results == [True]
+        assert results == [False]
+        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+            WriterLock(path, {"writer_id": "third-contender"}).__enter__()
     finally:
         fresh.__exit__(None, None, None)
     assert not path.exists()
@@ -905,6 +965,9 @@ def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failur
     class FakeLock:
         def __init__(self, path: Path, _identity: dict[str, str]) -> None:
             self.label = path.parent.parent.name
+            self._posix_backend_entered = self.label == release_error_label
+            self._posix_release_complete = False
+            self.release_attempts = 0
 
         def __enter__(self):
             entered.append(self.label)
@@ -915,7 +978,10 @@ def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failur
         def __exit__(self, _exc_type, _exc, _traceback):
             exited.append(self.label)
             if self.label == release_error_label:
-                raise ValueError("second lock release failed")
+                self.release_attempts += 1
+                if self.release_attempts <= 3:
+                    raise ValueError("second lock release failed")
+                self._posix_release_complete = True
             return False
 
     candidate = CompositeWriterLock(
@@ -928,15 +994,13 @@ def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failur
         candidate.__enter__()
 
     assert entered == list(ordered_labels)
-    assert exited == list(reversed(ordered_labels[:-1]))
+    assert exited.count(release_error_label) == 3
     assert isinstance(raised.value.__cause__, ValueError)
-    assert candidate._acquired == []
-    expected_anchor_cleanup = []
-    for member in reversed(ordered_members):
-        expected_anchor_cleanup.extend([member.representative.runtime_final_path, member.representative.final_path])
-    assert closed_anchors == expected_anchor_cleanup
+    assert len(candidate._active_members) == len(candidate._acquired) == 1
     candidate.__exit__(None, None, None)
-    assert exited == list(reversed(ordered_labels[:-1]))
+    assert exited.count(release_error_label) == 4
+    assert candidate._active_members == candidate._acquired == []
+    assert len(closed_anchors) == 2 * len(ordered_members)
 
 
 def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
@@ -945,6 +1009,148 @@ def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
     assert first == second
     with pytest.raises(ConflictError, match="object revision already exists"):
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 2})
+
+
+@pytest.mark.parametrize("operation", ("revision_exists", "latest_revision", "read", "rollback_new_revision"))
+def test_object_public_operations_never_preflight_the_lexical_object_directory(tmp_path, monkeypatch, operation):
+    """remediation-red: reads and rollback start from an anchored generation, not ``Path.exists``."""
+    store = ObjectStore(tmp_path)
+    value = {"x": 1}
+    store.write("task", TASK_ID, 1, value)
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    real_exists = Path.exists
+
+    def reject_lexical_object_preflight(candidate):
+        if candidate == directory:
+            raise AssertionError("object operation used the lexical directory before anchoring it")
+        return real_exists(candidate)
+
+    monkeypatch.setattr(Path, "exists", reject_lexical_object_preflight)
+
+    if operation == "revision_exists":
+        assert store.revision_exists("task", TASK_ID, 1)
+    elif operation == "latest_revision":
+        assert store.latest_revision("task", TASK_ID) == 1
+    elif operation == "read":
+        assert store.read("task", TASK_ID, 1) == value
+    else:
+        store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+        assert not list(directory.glob("00000001-*.json"))
+
+
+@pytest.mark.parametrize("shape", ("missing-root", "root-only", "objects-only", "kind-only"))
+def test_object_public_operations_preserve_missing_object_contracts(tmp_path, shape):
+    """remediation-red: anchored traversal preserves the preflight absence contracts."""
+    root = tmp_path / "control"
+    if shape != "missing-root":
+        root.mkdir()
+    if shape in {"objects-only", "kind-only"}:
+        (root / "objects").mkdir()
+    if shape == "kind-only":
+        (root / "objects" / "task").mkdir()
+    store = ObjectStore(root)
+
+    assert not store.revision_exists("task", TASK_ID, 1)
+    assert store.latest_revision("task", TASK_ID) is None
+    store.rollback_new_revision("task", TASK_ID, 1, {"x": 1}, existed_before=False)
+    with pytest.raises(IntegrityError, match="object revision must resolve exactly once"):
+        store.read("task", TASK_ID, 1)
+
+
+def test_object_write_preserves_primary_error_when_anchor_close_also_fails(tmp_path, monkeypatch):
+    """remediation-red: directory cleanup cannot replace the write outcome."""
+    import research_system.store.objects as object_module
+
+    def fail_write(*_args, **_kwargs):
+        raise ConflictError("injected primary object write failure")
+
+    class Anchor:
+        def __init__(self, final_path, child=None, *, fail_close=False):
+            self.final_path = final_path
+            self.child = child
+            self.fail_close = fail_close
+            self.closed = False
+
+        def open_member_directory(self, _name, **_kwargs):
+            assert self.child is not None
+            return self.child
+
+        def acquire_mutation_guard(self, _name):
+            class Guard:
+                def __enter__(self):
+                    return object()
+
+                def __exit__(self, *_args):
+                    return False
+
+            return Guard()
+
+        def close(self):
+            self.closed = True
+            if self.fail_close:
+                raise OSError("injected object anchor close failure")
+
+    object_anchor = Anchor(tmp_path / "objects" / "task" / TASK_ID, fail_close=True)
+    kind_anchor = Anchor(tmp_path / "objects" / "task", object_anchor)
+    objects_anchor = Anchor(tmp_path / "objects", kind_anchor)
+    root_anchor = Anchor(tmp_path, objects_anchor)
+
+    monkeypatch.setattr(object_module, "_write_object_in_directory", fail_write)
+    monkeypatch.setattr(object_module, "open_registered_root_anchor", lambda *_args, **_kwargs: root_anchor)
+
+    with pytest.raises(ConflictError, match="primary object write failure") as raised:
+        write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert all(anchor.closed for anchor in (object_anchor, kind_anchor, objects_anchor, root_anchor))
+    assert isinstance(raised.value.__cause__, OSError)
+    assert "anchor close failure" in str(raised.value.__cause__)
+
+
+def test_object_write_creates_staging_file_with_least_privilege_mode(tmp_path, monkeypatch):
+    """remediation-red: private staged content is never created with process defaults."""
+    import research_system.store.objects as object_module
+
+    original_open = object_module.os.open
+    staging_modes: list[int | None] = []
+    target_name = f"00000001-{sha256_hex(canonical_bytes({'x': 1}))}.json"
+
+    def record_staging_mode(path, flags, *args, **kwargs):
+        candidate = Path(path)
+        if (
+            candidate.name.startswith(f".{target_name}.")
+            and candidate.name.endswith(".tmp")
+            and flags & os.O_CREAT
+            and flags & os.O_EXCL
+        ):
+            staging_modes.append(args[0] if args else kwargs.get("mode"))
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(object_module.os, "open", record_staging_mode)
+
+    write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert staging_modes == [0o600]
+
+
+def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_path, monkeypatch):
+    """remediation-red: a listed revision removed before proof is not unreadable."""
+    store = ObjectStore(tmp_path)
+    value = {"x": 1}
+    path = store.write("task", TASK_ID, 1, value)
+    removed = False
+
+    def remove_after_ownership_proof(candidate):
+        nonlocal removed
+        if str(candidate).endswith(path.name) and not removed:
+            removed = True
+            candidate.unlink()
+
+    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", remove_after_ownership_proof)
+
+    with pytest.raises(IntegrityError, match="cannot roll back a changed object revision"):
+        store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+
+    assert removed
 
 
 def test_object_write_rejects_matching_bytes_under_wrong_digest_name(tmp_path):
@@ -979,6 +1185,28 @@ def test_abandoned_object_claim_is_completed_by_later_writer(tmp_path):
     assert list(directory.glob(".*.tmp")) == []
 
 
+def test_persisted_final_claim_and_temp_crash_recovers_before_a_later_conflicting_write(tmp_path):
+    """remediation-red: an idempotent restart drains aliases from a post-final crash."""
+    data = canonical_bytes({"x": 1})
+    directory = tmp_path / "objects" / "task" / TASK_ID
+    directory.mkdir(parents=True)
+    target = f"00000001-{sha256_hex(data)}.json"
+    temporary = directory / f".{target}.crashed.tmp"
+    claim = directory / ".00000001.publication-claim"
+    final = directory / target
+    temporary.write_bytes(data)
+    os.link(temporary, claim, follow_symlinks=False)
+    os.link(claim, final, follow_symlinks=False)
+
+    store = ObjectStore(tmp_path)
+    store.write("task", TASK_ID, 1, {"x": 1})
+    assert not list(directory.glob(".*.tmp"))
+    assert not claim.exists()
+    store.rollback_new_revision("task", TASK_ID, 1, {"x": 1}, existed_before=False)
+    assert not store.revision_exists("task", TASK_ID, 1)
+    assert store.write("task", TASK_ID, 1, {"x": 2}).is_file()
+
+
 def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
@@ -1008,12 +1236,12 @@ def test_object_target_link_interruption_is_recovered_on_retry(tmp_path, monkeyp
     real_link = os.link
     interrupted = False
 
-    def interrupt_target_link(source, target):
+    def interrupt_target_link(source, target, *args, **kwargs):
         nonlocal interrupted
         if Path(target).suffix == ".json" and not interrupted:
             interrupted = True
             raise OSError("injected target link interruption")
-        return real_link(source, target)
+        return real_link(source, target, *args, **kwargs)
 
     monkeypatch.setattr(object_module.os, "link", interrupt_target_link)
     with pytest.raises(OSError, match="target link interruption"):
@@ -1033,19 +1261,28 @@ def test_object_target_link_interruption_is_recovered_on_retry(tmp_path, monkeyp
 
 
 def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeypatch):
-    import research_system.store.objects as object_module
+    import research_system.store.lock as lock_module
 
     observations = []
+    real_fsync = lock_module._DirectoryAnchor._fsync_directory
 
-    def observe(directory):
+    def observe(anchor, directory):
         target_exists = bool(list(directory.glob("00000001-*.json")))
         claim_exists = bool(list(directory.glob(".*.publication-claim")))
         observations.append((directory, target_exists, claim_exists))
+        return real_fsync(anchor, directory)
 
-    monkeypatch.setattr(object_module, "fsync_directory", observe)
+    monkeypatch.setattr(lock_module._DirectoryAnchor, "_fsync_directory", observe)
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
-    assert (path.parent, True, True) in observations
+    def normalise_path(candidate):
+        value = os.path.normcase(os.fspath(candidate))
+        return value.removeprefix("\\\\?\\")
+
+    assert any(
+        normalise_path(directory) == normalise_path(path.parent) and target_exists
+        for directory, target_exists, _claim_exists in observations
+    )
     assert list(path.parent.glob(".*.tmp")) == []
     assert list(path.parent.glob(".*.publication-claim")) == []
 
@@ -1053,29 +1290,44 @@ def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeyp
 def test_two_concurrent_identical_object_writers_publish_one_complete_revision(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
-    entered = threading.Barrier(3)
-    release = threading.Event()
+    first_staged = threading.Event()
+    second_entered = threading.Event()
+    second_staged = threading.Event()
+    stage_count = 0
+    stage_lock = threading.Lock()
 
     def pause(_temporary):
-        entered.wait(timeout=2)
-        assert release.wait(2)
+        nonlocal stage_count
+        if os.name == "nt":
+            with stage_lock:
+                stage_count += 1
+                first = stage_count == 1
+            if first:
+                first_staged.set()
+                assert second_entered.wait(2)
+                assert not second_staged.wait(0.05)
+            else:
+                second_staged.set()
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause)
     results = []
     errors = []
 
-    def write():
+    def write(second=False):
         try:
+            if second:
+                second_entered.set()
             results.append(write_object(tmp_path, "task", TASK_ID, 1, {"x": 1}))
         except Exception as exc:  # pragma: no branch - asserted below
             errors.append(exc)
 
-    writers = [threading.Thread(target=write) for _ in range(2)]
-    for writer in writers:
-        writer.start()
-    entered.wait(timeout=2)
-    release.set()
-    for writer in writers:
+    first_writer = threading.Thread(target=write)
+    second_writer = threading.Thread(target=write, args=(True,))
+    first_writer.start()
+    if os.name == "nt":
+        assert first_staged.wait(2)
+    second_writer.start()
+    for writer in (first_writer, second_writer):
         writer.join(timeout=2)
         assert not writer.is_alive()
     assert errors == []
@@ -1089,12 +1341,13 @@ def test_two_concurrent_identical_object_writers_publish_one_complete_revision(t
 def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
-    entered = threading.Barrier(3)
+    first_staged = threading.Event()
     release = threading.Event()
 
     def pause(_temporary):
-        entered.wait(timeout=2)
-        assert release.wait(2)
+        if os.name == "nt":
+            first_staged.set()
+            assert release.wait(2)
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause)
     results = []
@@ -1112,8 +1365,9 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
     ]
     for writer in writers:
         writer.start()
-    entered.wait(timeout=2)
-    release.set()
+    if os.name == "nt":
+        assert first_staged.wait(2)
+        release.set()
     for writer in writers:
         writer.join(timeout=2)
         assert not writer.is_alive()
@@ -1129,20 +1383,28 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
 
 
 def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monkeypatch):
+    import research_system.store.objects as object_module
+
     store = ObjectStore(tmp_path)
     path = store.write("task", TASK_ID, 1, {"x": 1})
-    original_read_bytes = Path.read_bytes
+    original_open = object_module.os.open
 
-    def fail_read(candidate):
-        if candidate == path:
+    def normalise_path(candidate):
+        value = object_module.os.path.normcase(object_module.os.fspath(candidate))
+        return value.removeprefix("\\\\?\\")
+
+    def fail_open(candidate, *args, **kwargs):
+        if candidate == path.name and kwargs.get("dir_fd") is not None:
             raise OSError("unreadable")
-        return original_read_bytes(candidate)
+        if normalise_path(candidate) == normalise_path(path):
+            raise OSError("unreadable")
+        return original_open(candidate, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_bytes", fail_read)
+    monkeypatch.setattr(object_module.os, "open", fail_open)
     with pytest.raises(IntegrityError, match="unreadable"):
         store.read("task", TASK_ID, 1)
 
-    monkeypatch.setattr(Path, "read_bytes", original_read_bytes)
+    monkeypatch.setattr(object_module.os, "open", original_open)
     path.unlink()
     float_bytes = b'{"x":1.5}'
     from research_system.canonical import sha256_hex
@@ -1350,7 +1612,7 @@ def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
         schemas=schemas,
     )
 
-    with pytest.raises(ArsError, match="inactive event schema"):
+    with pytest.raises(ArsError, match="unbound event producer: DispatchClaimed from LedgerInternalAppend"):
         ledger.append(
             [
                 {
@@ -1358,6 +1620,35 @@ def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
                     "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
                     "schema_id": "ars://core/event/DispatchClaimed",
                     "schema_version": "1.0.0",
+                    "command_schema_id": command_identity.schema_id,
+                    "command_schema_version": command_identity.schema_version,
+                    "command_schema_sha256": command_identity.sha256,
+                    "payload": {},
+                }
+            ]
+        )
+
+    assert tuple(ledger.iter_batches()) == ()
+
+
+def test_runtime_ledger_rejects_wrong_producer_for_active_full_only_event_schema(tmp_path):
+    schemas = runtime_schema_registry(SCHEMAS)
+    command_identity = schemas.resolve_identity("ars://core/command", "1.0.0")
+    ledger = EventLedger(
+        tmp_path,
+        project_id=PROJECT_ID,
+        schemas=schemas,
+    )
+
+    with pytest.raises(ArsError, match="unbound event producer"):
+        ledger.append(
+            [
+                {
+                    "event_type": "DispatchClaimed",
+                    "stream_id": "dsp_01978abc-0003-7000-8000-000000000003",
+                    "schema_id": "ars://core/event/DispatchClaimed",
+                    "schema_version": "1.0.0",
+                    "command_type": "WrongDispatchProducer",
                     "command_schema_id": command_identity.schema_id,
                     "command_schema_version": command_identity.schema_version,
                     "command_schema_sha256": command_identity.sha256,

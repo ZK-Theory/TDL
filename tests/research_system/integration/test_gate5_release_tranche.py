@@ -12,8 +12,9 @@ from research_system.command.models import Command
 from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
-from research_system.schema_registry import cached_schema_registry
+from research_system.schema_registry import cached_schema_registry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
 from tests.research_system.factories import (
     ACTORS,
     AUTHORITY_GRANT_ID,
@@ -50,6 +51,52 @@ def test_release_tranche_fails_closed_when_a_command_binding_is_missing(tmp_path
             task_ids=[TASK_RESTORE],
             command_types=("CreateTask",),
         )
+
+
+def test_release_tranche_activation_uses_active_command_binding(tmp_path, monkeypatch):
+    from research_system.command.service import CommandService
+
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    active_binding = schemas.command_binding("ActivateAuthorityGrant")
+    assert active_binding is not None
+    seen = []
+    original_submit = CommandService.submit
+
+    def capture(self, envelope, *args, **kwargs):
+        if envelope.get("command_type") == "ActivateAuthorityGrant":
+            seen.append(dict(envelope))
+        return original_submit(self, envelope, *args, **kwargs)
+
+    monkeypatch.setattr(CommandService, "submit", capture)
+    release_tranche._real_lifecycle_service(
+        tmp_path / "release-control",
+        schemas,
+        project_id=PROJECT_ID,
+        actor_id=ACTORS["actor-a"],
+        task_ids=[TASK_RESTORE],
+        command_types=("CreateTask",),
+    )
+
+    assert len(seen) == 1
+    assert (seen[0]["schema_id"], seen[0]["schema_version"]) == (
+        active_binding.schema_id,
+        active_binding.schema_version,
+    )
+    grant_binding = next(
+        binding for binding in schemas.active_bindings() if binding.schema_id == "ars://core/scoped-authority-grant"
+    )
+    administration_binding = next(
+        binding
+        for binding in schemas.active_bindings()
+        if binding.schema_id == "ars://core/owner-authority-administration-decision"
+    )
+    assert seen[0]["payload"]["new_grant"]["schema_version"] == grant_binding.schema_version
+    decision = ObjectStore(tmp_path / ".release-tranche-authority").read(
+        "assurance_record",
+        f"arec_{TASK_RESTORE.split('_', 1)[1]}",
+        1,
+    )
+    assert decision["schema_version"] == administration_binding.schema_version
 
 
 def test_restore_preflight_status_is_biconditional_with_failed_predicates():

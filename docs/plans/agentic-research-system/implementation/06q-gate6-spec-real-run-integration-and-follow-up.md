@@ -229,9 +229,49 @@ SPEC command; the existing backup and restore seams,
 one shared verified-binding admission. The loader produces one replay context
 that includes the exact registered-content resolver; every production replay,
 projection rebuild, backup, restore, and verification caller consumes that
-context rather than forwarding an optional resolver. A reviewed successor may
-move from the retired binding to integrated `main`; an arbitrary non-descendant
-is forbidden.
+context rather than forwarding an optional resolver. The current authority
+remains the append-only `manifests/binding-repair-current.json` lineage; this
+step must not create a parallel current-binding file, event family, or command
+path.
+
+The exact live predecessor is schema `ars://internal/store-binding-recovery`
+version `1.1.0`, raw SHA-256
+`317cb9623b13dbbf128234b987f4cb56db33d1b3f69c925b1b83e5db89f96f5d`,
+and Git subject `cf8faf48d3cd682bf7d8fe7b9202b0054249442c`. That retired
+subject is not an ancestor of the recovery baseline or the future squash-merged
+implementation, so the first transition cannot use the ordinary descendant
+rule. It is one uniquely typed, owner-reviewed divergence successor that binds
+the exact predecessor bytes and object, protected route and source hashes,
+project/store/origin identity, reviewed integrated-`main` commit, and new
+governed-code manifest in one transaction. It is admitted only from the legacy
+record that lacks that successor relation. Afterwards, every code-changing
+advance returns to the strict clean-descendant rule; an unbound or merely
+asserted non-descendant remains forbidden.
+
+The live pointer must also fail closed against the currently drifted physical
+candidate checkout: that path now resolves to `94f8bc1` with governed schema
+catalogue `1f3c2666…`, whereas the bound subject is `cf8faf48` with catalogue
+`b4c6e6cf…`. Neither the present drift nor restoring a convenient checkout may
+silently update authority. Admission resumes only from the exact bound bytes or
+through the reviewed divergence successor above.
+
+`SpecOperatorConfig` remains authority-neutral and does not grow an origin
+witness field. The shared loader obtains that independent trust anchor only
+from the fixed canonical foundation through `ApprovedProjectBinding`, then
+requires the foundation, operator config, store manifest, and current SPEC
+binding to agree on the control root, project, store, approved code roots,
+activated schema lineage, and origin witness before replay or mutation.
+
+To obey the review-size hard stop without recreating a monolith, STORE may land
+as three serial candidates under the single KAN-105 job. `STORE-1A-PUB` owns
+physical publication plus the diagnostic-precedence and preservation
+prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest and
+documentation-only-successor rule. `STORE-1B` owns the
+`SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
+binding lineage, transaction, shared verified context, public commands, and
+consumer migration. All three remain one incomplete STORE capability until
+the assembled public path passes. This split creates neither a competing Gate
+6 plan nor another Jira capability job.
 
 **Acceptance boundary:** the governed-code manifest versions code, config,
 schemas, contracts, locks, and the allowed documentation-only descendant. The
@@ -241,8 +281,11 @@ administration is distinct from SPEC semantic authority; schemas remain
 append-only. Immutable-file publication stages and fsyncs private bytes, keeps
 the staged identity available through the no-replace claim, verifies that the
 claimed final identity is that exact generation, and rolls back only a claim
-proved to be its own on substitution or failure. The exact internal retry
-discriminant is `research_system.store.lock.WriterLockContentionError`, an
+proved to be its own on substitution or failure. A substitution injected after
+the final identity check but before cleanup must preserve the foreign
+generation; `missing_ok` applies only to a proved absent owned generation, not
+to an identity mismatch. The exact internal retry discriminant is
+`research_system.store.lock.WriterLockContentionError`, an
 exported subclass of `ConflictError` raised only when the canonical writer lock
 already exists. Recovery retries that exact subclass, without string matching,
 until the existing 30-second deadline. Identity change, platform failure, and
@@ -251,10 +294,15 @@ and nonzero-exit mapping remains unchanged. Producer tests prove that only
 canonical lock contention emits the subclass, and consumer tests prove retry
 for that subclass plus immediate propagation for every non-retryable sibling.
 The pinned Windows runtime has a direct
-`os.link(..., follow_symlinks=False)` positive control. Negatives cover
-source substitution, final-name substitution, concurrent contenders, every
-crash phase, wrong root, stale binding, drift, documentation descendant,
-separate roots, and historical replay.
+`os.link(..., follow_symlinks=False)` positive control. Negatives cover an
+actual substituted/reparse source outcome, final-name substitution, concurrent
+contenders, every crash phase, wrong root, stale binding, drift, documentation
+descendant, separate roots, and historical replay. A governed manifest
+identifies repository and committed bytes independently of a local checkout
+path. The same subject in another clean physical worktree validates; a
+different repository, redirected checkout, or hidden modified governed or
+reviewed-documentation byte fails closed. The strict-descendant validator is
+the ordinary post-divergence transition, never the first reviewed divergence.
 
 Event admission has explicit diagnostic precedence. An inactive or full-only
 schema identity is rejected before producer selection; an active schema with
@@ -263,6 +311,26 @@ the wrong producer is rejected as an unbound producer. The existing
 STORE acceptance test, accompanied by the active-schema/wrong-producer
 negative. The STORE slice is not accepted while either case is conflated or
 the complete store module contains another unexplained failure.
+
+The STORE preservation package must also reach the immutable-publication seam.
+At the recovery base, the concurrent-identical producer-snapshot test is
+blocked earlier because calibration does not bind the S-014 `known_bad` case to
+its fixture-declared mutation ID. This is required STORE work, not an ignored
+baseline exception: calibration must derive the declared mutation identity for
+the known-bad execution, retain an unmutated known-good control, and the exact
+concurrency test must then pass through the real object-publication path.
+
+The unmasked release-publication module must then pass as a preservation gate.
+The S-014 repair exposes four shared-contract roots that the parent failure had
+hidden: the frozen Scenario-A event sequence is stale against its producer;
+release publication incorrectly inherited later scoped-command retry identity
+semantics; two test assertions predate plural guarded continuations and the
+mandatory `EventDraft.admission` discriminator; and the contention test uses a
+single service instance whose sequencing lock prevents the second submit from
+reaching the filesystem lock. Repair those roots, preserve the stricter C1 and
+scoped-command behavior, and exercise real contention with two services over
+the same roots. Do not classify the resulting cascaded schema, replay, receipt,
+or append failures as independent defects.
 
 ### Step 2 — `G6-SPEC-SOURCE-1`
 

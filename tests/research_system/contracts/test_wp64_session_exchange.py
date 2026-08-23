@@ -490,7 +490,10 @@ def test_interruption_before_r1_publication_allows_only_identical_retry(
         record_session_evidence(tmp_path, **kwargs)
     evidence_directory = _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID)
     assert evidence_directory.exists()
-    assert list(evidence_directory.iterdir()) == []
+    # This guard persists because unlinking it would split waiting and recreated lock inodes.
+    guard = evidence_directory / ".object-publication.guard"
+    entries = tuple(evidence_directory.iterdir())
+    assert len(entries) == 1 and entries[0] == guard and guard.is_file() and not guard.is_symlink()
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", lambda _temporary: None)
     published = record_session_evidence(tmp_path, **kwargs)

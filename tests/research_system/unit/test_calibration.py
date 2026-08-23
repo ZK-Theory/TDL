@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -47,6 +48,30 @@ def test_f001_known_bad_fails_twice_and_known_good_passes_twice():
     assert record.blocking_verdict is None
 
 
+def test_s014_known_bad_calibration_uses_its_declared_mutation() -> None:
+    calls = []
+    pre_expected = json.loads((FIXTURES / "S-014" / "expected" / "pre-control.json").read_text(encoding="utf-8"))[
+        "assertions"
+    ][0]["expected_evidence"]
+    post_expected = json.loads((FIXTURES / "S-014" / "expected" / "post-control.json").read_text(encoding="utf-8"))[
+        "assertions"
+    ][0]["expected_evidence"]
+
+    def spy(subject, payload):
+        calls.append((subject, dict(payload)))
+        return pre_expected if subject == "known_bad" else post_expected
+
+    record = calibrate_fixture("S-014", fixture_root=FIXTURES, execute=spy)
+
+    known_bad = [payload for subject, payload in calls if subject == "known_bad" and not payload.get("producer_passed")]
+    assert [payload["mutation_id"] for payload in known_bad] == [
+        "remove_registered_backup_restore_closure",
+        "remove_registered_backup_restore_closure",
+    ]
+    assert [item.verdict for item in record.known_bad] == ["fail", "fail"]
+    assert record.blocking_verdict is None
+
+
 def test_observed_mismatch_is_fixture_error_not_pass():
     record = calibrate_fixture(
         "F-001",
@@ -61,11 +86,11 @@ def test_mutations_are_executed_and_detection_is_derived():
     calls = []
 
     def spy(subject, payload):
-        calls.append((subject, payload.get("mutation_id")))
+        calls.append((subject, payload.get("mutation_id"), payload.get("producer_passed", False)))
         return require_executor("F-001")(subject, payload)
 
     record = calibrate_fixture("F-001", fixture_root=FIXTURES, execute=spy)
-    mutation_calls = [item for item in calls if item[1] is not None]
+    mutation_calls = [item for item in calls if item[1] is not None and item[2]]
     assert len(mutation_calls) == 2 * len(record.mutations)
     for mutation in record.mutations:
         assert [item.verdict for item in mutation.decisions] == ["pass", "pass"]
