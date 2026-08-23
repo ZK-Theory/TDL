@@ -719,6 +719,36 @@ instead of continuing specimen-by-specimen repair. PR #260 is the first
 application of this rule: cycle 2 reopened the store-publication and
 shared-replay families, so it is retired without a third remediation commit.
 
+### Functional review threshold and anti-tail-chasing rule
+
+For every remaining Gate 6 candidate, a review finding is merge-blocking only
+when exact-head evidence demonstrates at least one of the following on a
+reachable production path:
+
+1. the named public positive path is non-functional;
+2. durable data can be corrupted, mispublished, or the wrong governed object
+   can be deleted;
+3. replay can disagree with the accepted durable history; or
+4. an explicit actor, authority, paid-run, provider, merge, or final-owner gate
+   can be bypassed.
+
+Style comments, naming preferences, nits, dormant or deferred code, speculative
+hardening without a concrete production trace, and attacks outside the stated
+system contract are non-blocking. Record them only when they identify useful
+future work; they do not authorize a remediation commit, another assurance
+layer, or a new candidate. A blocking finding receives the smallest root fix
+that removes the demonstrated failure and one direct regression through the
+affected public seam. Comments on that fix are triaged again by this same
+threshold and do not automatically reopen scope. Once the bounded positive
+path and decisive corruption negatives pass, stop construction and publish;
+do not add edge-case tests or infrastructure merely to anticipate possible
+review comments.
+
+This threshold applies after compaction, across successor steps, and to both
+automated and human review. The two-round retire/rescope rule above counts only
+material findings that satisfy this functional threshold; it is not activated
+by nits, speculative edges, or out-of-scope deferred work.
+
 Stephen alone triggers or monitors CodeRabbit and authorizes merge. No agent
 may trigger CodeRabbit, poll it, merge a PR, or infer owner acceptance. No live
 store write occurs in construction slices.
