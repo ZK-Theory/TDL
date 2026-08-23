@@ -1392,6 +1392,57 @@ def _revisit_relation(
     }
 
 
+def test_discovery_runtime_forwards_its_authority_validator_to_preparation_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    original = discovery_runtime_module.replay_discovery
+    observed: list[object] = []
+
+    def capture_validator(events, *, schemas=None, authority_state_validator=None):
+        observed.append(authority_state_validator)
+        return original(
+            events,
+            schemas=schemas,
+            authority_state_validator=authority_state_validator,
+        )
+
+    monkeypatch.setattr(discovery_runtime_module, "replay_discovery", capture_validator)
+
+    assert runtime.submit(_genesis()).status == "accepted"
+    assert observed == [runtime.authority_resolver.validate_replayed_administration_state]
+
+
+def test_public_replay_forwards_its_authority_validator_to_nested_discovery_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = _runtime(tmp_path)
+    assert runtime.submit(_genesis()).status == "accepted"
+    original = discovery_runtime_module.replay_discovery
+    observed: list[object] = []
+
+    def capture_validator(events, *, schemas=None, authority_state_validator=None):
+        observed.append(authority_state_validator)
+        return original(
+            events,
+            schemas=schemas,
+            authority_state_validator=authority_state_validator,
+        )
+
+    monkeypatch.setattr(discovery_runtime_module, "replay_discovery", capture_validator)
+    validator = runtime.authority_resolver.validate_replayed_administration_state
+
+    replay_projection(
+        tuple(runtime.ledger.iter_events()),
+        schema_registry=runtime.schemas,
+        authority_state_validator=validator,
+    )
+
+    assert observed == [validator]
+
+
 def test_exact_w11_genesis_is_one_time_replay_safe_and_tamper_atomic(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     command = _genesis()

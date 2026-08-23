@@ -81,6 +81,9 @@ def _validate_persisted_event_envelopes(
         )
         try:
             validate_schema = position not in globally_validated_control_positions
+            command_binding = schemas.command_binding(command_type)
+            if command_binding is not None and event.get("command_schema_id") != command_binding.schema_id:
+                raise SchemaError("active command binding mismatch")
             if validate_schema:
                 if is_authority_shadow:
                     owner_row_id = shadow_payload.get("owner_row_id")
@@ -92,8 +95,7 @@ def _validate_persisted_event_envelopes(
                         != (shadow_payload.get("authority_kind"), event_type)
                     ):
                         raise IntegrityError("authority shadow producer mismatch")
-                command_binding = schemas.command_binding(command_type)
-                if command_binding is None or event.get("command_schema_id") != command_binding.schema_id:
+                if command_binding is None:
                     raise SchemaError("active command binding mismatch")
                 # New publication is constrained by the active binding in the
                 # writer. Replay accepts an exact registered predecessor identity

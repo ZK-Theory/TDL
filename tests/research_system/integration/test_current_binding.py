@@ -632,6 +632,22 @@ def test_discovery_replay_accepts_current_and_registered_historical_binding_even
     assert replay_discovery(historical_events, schemas=fixture.schemas)["candidates"] == {}
 
 
+def test_discovery_replay_rejects_a_control_event_from_another_registered_command_family(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    repair = fixture.schemas.command_binding("RepairStoreBinding")
+    assert repair is not None
+    repair_identity = fixture.schemas.resolve_identity(repair.schema_id, repair.schema_version)
+    events = _rewrite_last_event(
+        fixture,
+        command_schema_id=repair_identity.schema_id,
+        command_schema_version=repair_identity.schema_version,
+        command_schema_sha256=repair_identity.sha256,
+    )
+
+    with pytest.raises(IntegrityError, match="schema provenance mismatch"):
+        replay_discovery(events, schemas=fixture.schemas)
+
+
 def test_scrubbed_git_environment_forces_literal_pathspecs() -> None:
     environment = scrubbed_git_environment(
         {

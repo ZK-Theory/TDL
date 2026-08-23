@@ -472,7 +472,11 @@ class DiscoveryRuntime:
 
         snapshot = self.ledger.snapshot()
         try:
-            projection = replay_discovery(snapshot.events, schemas=self.schemas)
+            projection = replay_discovery(
+                snapshot.events,
+                schemas=self.schemas,
+                authority_state_validator=self.authority_resolver.validate_replayed_administration_state,
+            )
         except (IntegrityError, TypeError, ValueError) as exc:
             raise DiscoveryLedgerReplayError(
                 "persisted Discovery ledger failed replay before command preparation"
