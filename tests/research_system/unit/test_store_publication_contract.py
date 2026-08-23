@@ -75,6 +75,196 @@ def test_writer_lock_does_not_retype_identity_or_link_failures_as_contention(tmp
     assert not list(tmp_path.glob(".denied.lock.*.tmp"))
 
 
+def _defer_private_staging_cleanup(monkeypatch, writer: WriterLock, before_failure=None):
+    import research_system.store.lock as lock_module
+
+    real_delete = lock_module._delete_exact_regular_file
+    failures: list[bool] = []
+
+    def fail_once(candidate: Path, *args, **kwargs) -> None:
+        if candidate != writer.path and candidate.suffix == ".tmp" and not failures:
+            failures.append(True)
+            if before_failure is not None:
+                before_failure()
+            raise OSError("injected private staging cleanup failure")
+        return real_delete(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", fail_once)
+    return lock_module, failures
+
+
+@pytest.mark.parametrize("exit_state", [None, "missing", "foreign", "anchor-close"])
+def test_writer_lock_durable_temporary_cleanup_failure_defers_under_a_tracked_lease(
+    tmp_path: Path,
+    monkeypatch,
+    exit_state: str | None,
+) -> None:
+    """remediation-red: durable publication retains lock ownership until exit cleanup."""
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "failed-owner"})
+    lock_module, cleanup_failures = _defer_private_staging_cleanup(monkeypatch, writer)
+    if exit_state == "anchor-close":
+        real_close = lock_module._DirectoryAnchor.close
+
+        def fail_after_proof(anchor) -> None:
+            real_close(anchor)
+            raise OSError("injected parent anchor close failure")
+
+        monkeypatch.setattr(lock_module._DirectoryAnchor, "close", fail_after_proof)
+
+    assert writer.__enter__() is writer
+    assert cleanup_failures
+    assert path.read_bytes() == writer._data
+    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+        WriterLock(path, {"writer_id": "blocked-owner"}).__enter__()
+
+    foreign = WriterLock(path, {"writer_id": "foreign-owner"})._data
+    if exit_state in {"missing", "foreign"}:
+        path.unlink()
+    if exit_state == "foreign":
+        path.write_bytes(foreign)
+    if exit_state == "anchor-close":
+        with pytest.raises(OSError, match="parent anchor close failure"):
+            writer.__exit__(None, None, None)
+    elif exit_state is not None:
+        with pytest.raises(ConflictError):
+            writer.__exit__(None, None, None)
+    else:
+        assert writer.__exit__(None, None, None) is False
+
+    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
+    if exit_state == "foreign":
+        assert path.read_bytes() == foreign
+        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+            WriterLock(path, {"writer_id": "next-owner"}).__enter__()
+        return
+    assert not path.exists()
+    with WriterLock(path, {"writer_id": "next-owner"}):
+        assert path.is_file()
+    assert not path.exists()
+
+
+@pytest.mark.parametrize("foreign_canonical", [True, False], ids=["foreign", "proof-unavailable"])
+def test_writer_lock_cleanup_failure_preserves_foreign_or_rolls_back_owned_canonical(
+    tmp_path: Path,
+    monkeypatch,
+    foreign_canonical: bool,
+) -> None:
+    """A failed proof keeps a foreign lock but rolls back the exact owned generation."""
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "failed-owner"})
+    foreign = WriterLock(path, {"writer_id": "foreign-owner"})._data
+
+    def substitute_foreign() -> None:
+        assert path.read_bytes() == writer._data
+        path.unlink()
+        path.write_bytes(foreign)
+
+    lock_module, cleanup_failures = _defer_private_staging_cleanup(
+        monkeypatch,
+        writer,
+        substitute_foreign if foreign_canonical else None,
+    )
+    if not foreign_canonical:
+        monkeypatch.setattr(
+            lock_module,
+            "_open_directory_anchor",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("injected ownership proof failure")),
+        )
+
+    with pytest.raises(ConflictError, match="canonical ownership cannot be verified"):
+        writer.__enter__()
+
+    assert cleanup_failures
+    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
+    if foreign_canonical:
+        assert path.read_bytes() == foreign
+        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+            WriterLock(path, {"writer_id": "next-owner"}).__enter__()
+    else:
+        assert not path.exists()
+        with WriterLock(path, {"writer_id": "next-owner"}):
+            assert path.is_file()
+
+
+def test_writer_lock_post_publication_fsync_failure_rolls_back_and_raises(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """remediation-red: a non-durable canonical link is removed before entry fails."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "fsync-owner"})
+    real_fsync_directory = lock_module.fsync_directory
+    fsync_failed = False
+
+    def fail_post_publication_fsync(directory: Path) -> None:
+        nonlocal fsync_failed
+        if Path(directory) == path.parent and not fsync_failed:
+            fsync_failed = True
+            assert path.read_bytes() == writer._data
+            raise OSError("injected post-publication directory fsync failure")
+        return real_fsync_directory(directory)
+
+    monkeypatch.setattr(lock_module, "fsync_directory", fail_post_publication_fsync)
+
+    with pytest.raises(OSError, match="post-publication directory fsync failure"):
+        writer.__enter__()
+
+    assert fsync_failed
+    assert not path.exists()
+    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
+    with WriterLock(path, {"writer_id": "next-owner"}):
+        assert path.is_file()
+    assert not path.exists()
+
+
+def test_writer_lock_post_publication_fsync_and_rollback_failure_leaves_a_fail_closed_poison(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """remediation-red: a failed non-durable rollback cannot enter protected work."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "fsync-owner"})
+    real_delete = lock_module._delete_exact_regular_file
+    real_fsync_directory = lock_module.fsync_directory
+    fsync_failed = False
+    rollback_failed = False
+
+    def fail_post_publication_fsync(directory: Path) -> None:
+        nonlocal fsync_failed
+        if Path(directory) == path.parent and not fsync_failed:
+            fsync_failed = True
+            raise OSError("injected post-publication directory fsync failure")
+        return real_fsync_directory(directory)
+
+    def fail_canonical_rollback(candidate: Path, *args, **kwargs) -> None:
+        nonlocal rollback_failed
+        if candidate == path and not rollback_failed:
+            rollback_failed = True
+            raise OSError("injected canonical rollback failure")
+        return real_delete(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "fsync_directory", fail_post_publication_fsync)
+    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", fail_canonical_rollback)
+
+    with pytest.raises(OSError, match="post-publication directory fsync failure"):
+        writer.__enter__()
+
+    assert fsync_failed and rollback_failed
+    assert path.read_bytes() == writer._data
+    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+        WriterLock(path, {"writer_id": "next-owner"}).__enter__()
+    assert path.read_bytes() == writer._data
+
+
 def test_writer_lock_uses_no_follow_link_publication_on_windows(tmp_path: Path, monkeypatch) -> None:
     import research_system.store.lock as lock_module
 

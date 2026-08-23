@@ -1912,12 +1912,13 @@ class WriterLock:
                 raise ConflictError("writer lock foreign process requires process instance identity")
             self.identity["process_instance_id"] = current_process_instance_id()
         self._data = canonical_bytes(self.identity)
+        self._deferred_temporary: tuple[Path, os.stat_result, BaseException | None] | None = None
 
     def __enter__(self) -> Self:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(f".{self.path.name}.{secrets.token_hex(16)}.tmp")
         temporary_identity: os.stat_result | None = None
-        primary_error: BaseException | None = None
+        canonical_published = False
         try:
             with temporary.open("xb") as handle:
                 handle.write(self._data)
@@ -1930,12 +1931,44 @@ class WriterLock:
                 # A hard-link publication gives us a complete metadata file and
                 # an O_EXCL-equivalent claim on the final path in one operation.
                 _link_without_following(temporary, self.path)
+                canonical_published = True
             except FileExistsError as exc:
                 raise WriterLockContentionError(f"writer lock exists: {self.path}") from exc
             fsync_directory(self.path.parent)
-        except BaseException as exc:
-            primary_error = exc
-        cleanup_error: BaseException | None = None
+        except BaseException as primary_error:
+            canonical_cleanup_error: BaseException | None = None
+            temporary_cleanup_error: BaseException | None = None
+            if canonical_published:
+                assert temporary_identity is not None
+                try:
+                    _delete_exact_regular_file(
+                        self.path,
+                        temporary_identity,
+                        expected_bytes=self._data,
+                        label="writer lock rollback canonical",
+                    )
+                except FileNotFoundError:
+                    pass
+                except BaseException as cleanup_error:
+                    canonical_cleanup_error = cleanup_error
+            if temporary_identity is not None:
+                try:
+                    _delete_exact_regular_file(
+                        temporary,
+                        temporary_identity,
+                        expected_bytes=self._data,
+                        label="writer lock temporary",
+                    )
+                except FileNotFoundError:
+                    pass
+                except BaseException as cleanup_error:
+                    temporary_cleanup_error = cleanup_error
+            if canonical_cleanup_error is not None and temporary_cleanup_error is not None:
+                canonical_cleanup_error.add_note(
+                    f"writer lock temporary cleanup also failed: {temporary_cleanup_error!r}"
+                )
+            _raise_primary_with_cleanup(primary_error, canonical_cleanup_error or temporary_cleanup_error)
+
         if temporary_identity is not None:
             try:
                 _delete_exact_regular_file(
@@ -1946,12 +1979,63 @@ class WriterLock:
                 )
             except FileNotFoundError:
                 pass
-            except BaseException as exc:
-                cleanup_error = exc
-        if primary_error is not None:
-            _raise_primary_with_cleanup(primary_error, cleanup_error)
-        if cleanup_error is not None:
-            raise cleanup_error
+            except BaseException as cleanup_error:
+                parent_anchor: _DirectoryAnchor | None = None
+                ownership_error: BaseException | None = None
+                canonical_proven_exact = False
+                anchor_close_error: BaseException | None = None
+                try:
+                    parent_anchor = _open_directory_anchor(self.path.parent, reject_reparse=True)
+                    observed_bytes, observed_identity = parent_anchor._read_regular_file_with_identity(
+                        self.path.name,
+                        parent_anchor.final_path,
+                    )
+                    if not os.path.samestat(temporary_identity, observed_identity) or observed_bytes != self._data:
+                        raise ConflictError("writer lock ownership changed after durable publication")
+                    canonical_proven_exact = True
+                except BaseException as exc:
+                    ownership_error = exc
+                finally:
+                    if parent_anchor is not None:
+                        try:
+                            parent_anchor.close()
+                        except BaseException as close_error:
+                            anchor_close_error = close_error
+                if not canonical_proven_exact:
+                    canonical_rollback_error: BaseException | None = None
+                    retry_error: BaseException | None = None
+                    try:
+                        _delete_exact_regular_file(
+                            self.path,
+                            temporary_identity,
+                            expected_bytes=self._data,
+                            label="writer lock rejected canonical",
+                        )
+                    except FileNotFoundError:
+                        pass
+                    except BaseException as exc:
+                        canonical_rollback_error = exc
+                    try:
+                        _delete_exact_regular_file(
+                            temporary,
+                            temporary_identity,
+                            expected_bytes=self._data,
+                            label="writer lock rejected temporary",
+                        )
+                    except FileNotFoundError:
+                        pass
+                    except BaseException as exc:
+                        retry_error = exc
+                    error = ConflictError("writer lock canonical ownership cannot be verified after temporary cleanup")
+                    error.add_note(f"writer lock temporary cleanup failed: {cleanup_error!r}")
+                    if canonical_rollback_error is not None:
+                        error.add_note(
+                            f"writer lock rejected canonical rollback also failed: {canonical_rollback_error!r}"
+                        )
+                    if retry_error is not None:
+                        error.add_note(f"writer lock rejected temporary retry also failed: {retry_error!r}")
+                    raise error from ownership_error
+                self._deferred_temporary = (temporary, temporary_identity, anchor_close_error)
         return self
 
     def __exit__(
@@ -1960,23 +2044,59 @@ class WriterLock:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> bool:
+        deferred_temporary = self._deferred_temporary
+        self._deferred_temporary = None
+        canonical_error: BaseException | None = None
         try:
             expected_identity = _regular_file_identity(self.path, label="writer lock")
             recorded = json.loads(self.path.read_bytes())
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as read_error:
-            raise ConflictError("writer lock cannot be verified while held") from read_error
-        if recorded != self.identity or canonical_bytes(recorded) != self._data:
-            raise ConflictError("writer lock ownership changed while held")
+            canonical_error = ConflictError("writer lock cannot be verified while held")
+            canonical_error.__cause__ = read_error
+        else:
+            if recorded != self.identity or canonical_bytes(recorded) != self._data:
+                canonical_error = ConflictError("writer lock ownership changed while held")
+            else:
+                try:
+                    _delete_exact_regular_file(
+                        self.path,
+                        expected_identity,
+                        expected_bytes=self._data,
+                        label="writer lock",
+                    )
+                except FileNotFoundError as delete_error:
+                    canonical_error = ConflictError("writer lock disappeared while held")
+                    canonical_error.__cause__ = delete_error
+                except BaseException as delete_error:
+                    canonical_error = delete_error
+
+        temporary_error: BaseException | None = None
+        deferred_close_error: BaseException | None = None
+        if deferred_temporary is not None:
+            temporary, temporary_identity, deferred_close_error = deferred_temporary
+            try:
+                _delete_exact_regular_file(
+                    temporary,
+                    temporary_identity,
+                    expected_bytes=self._data,
+                    label="writer lock deferred temporary",
+                )
+            except FileNotFoundError:
+                pass
+            except BaseException as cleanup_error:
+                temporary_error = cleanup_error
+        if canonical_error is not None:
+            if temporary_error is not None and deferred_close_error is not None:
+                temporary_error.add_note(f"writer lock deferred anchor close also failed: {deferred_close_error!r}")
+            _raise_primary_with_cleanup(canonical_error, temporary_error or deferred_close_error)
+        if temporary_error is not None:
+            _raise_primary_with_cleanup(temporary_error, deferred_close_error)
         try:
-            _delete_exact_regular_file(
-                self.path,
-                expected_identity,
-                expected_bytes=self._data,
-                label="writer lock",
-            )
-        except FileNotFoundError as exc:
-            raise ConflictError("writer lock disappeared while held") from exc
-        fsync_directory(self.path.parent)
+            fsync_directory(self.path.parent)
+        except BaseException as fsync_error:
+            _raise_primary_with_cleanup(fsync_error, deferred_close_error)
+        if deferred_close_error is not None:
+            raise deferred_close_error
         return False
 
 
