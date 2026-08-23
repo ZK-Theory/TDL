@@ -1167,6 +1167,26 @@ def replay(
     )
 
 
+def _replay_shared_partitions(
+    events: Iterable[dict[str, Any]],
+    *,
+    schema_registry: SchemaRegistry,
+    projection_event_positions: frozenset[int],
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Validate a full ledger while reducing only shared-owned positions."""
+
+    return _replay(
+        events,
+        supported_major=1,
+        schema_registry=schema_registry,
+        grandfathered_missing_positions=frozenset(),
+        authority_state_validator=authority_state_validator,
+        validate_discovery_semantics=False,
+        projection_event_positions=projection_event_positions,
+    )
+
+
 def _replay(
     events: Iterable[dict[str, Any]],
     *,
@@ -1174,6 +1194,8 @@ def _replay(
     schema_registry: SchemaRegistry | None,
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
+    validate_discovery_semantics: bool = True,
+    projection_event_positions: frozenset[int] | None = None,
 ) -> dict[str, Any]:
     ordered_events = tuple(events)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
@@ -1316,11 +1338,12 @@ def _replay(
         transaction_events.append(projection_event)
         if transaction_seen == transaction_count:
             _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
-        state = apply_event(
-            state,
-            projection_event,
-            discovery_projection_event=discovery_projection_event,
-        )
+        if projection_event_positions is None or position in projection_event_positions:
+            state = apply_event(
+                state,
+                projection_event,
+                discovery_projection_event=discovery_projection_event,
+            )
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:
@@ -1329,7 +1352,7 @@ def _replay(
         if authority_state_validator is None:
             raise IntegrityError("authority administration decision validator unavailable")
         authority_state_validator(state)
-    if any(
+    if validate_discovery_semantics and any(
         is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids)
         for event in ordered_events
     ):

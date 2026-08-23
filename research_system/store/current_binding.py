@@ -205,8 +205,9 @@ def _schema_catalogue(root: Path, schema_root: Path, commit: str) -> str:
 
 
 def _load_foundation(path: Path) -> tuple[dict[str, Any], StoreOriginWitness, Path]:
+    physical = _require_physical_path(path, kind="file", label="current binding foundation")
     try:
-        value = yaml.safe_load(path.read_text(encoding="utf-8"))
+        value = yaml.safe_load(physical.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ConfigurationError("current binding foundation is unavailable") from exc
     if not isinstance(value, dict):
@@ -263,7 +264,91 @@ def _validate_binding_shape(value: dict[str, Any]) -> None:
         raise IntegrityError("current binding schema identity is invalid")
 
 
-def _validate_binding_chain(control_root: Path, current: dict[str, Any], current_sha256: str) -> None:
+def _binding_git_tree(repository_root: Path, binding: dict[str, Any]) -> str:
+    head = binding.get("git_head")
+    expected_tree = binding.get("git_tree")
+    if not (
+        isinstance(head, str)
+        and len(head) == 40
+        and all(character in "0123456789abcdef" for character in head)
+        and isinstance(expected_tree, str)
+        and len(expected_tree) == 40
+        and all(character in "0123456789abcdef" for character in expected_tree)
+    ):
+        raise IntegrityError("current binding transition Git identity is invalid")
+    commit = str(_git(repository_root, "rev-parse", "--verify", f"{head}^{{commit}}")).strip()
+    tree = str(_git(repository_root, "rev-parse", "--verify", f"{head}^{{tree}}")).strip()
+    if commit != head or tree != expected_tree:
+        raise IntegrityError("current binding transition Git subject is invalid")
+    return head
+
+
+def _validate_binding_transition(
+    repository_root: Path,
+    child: dict[str, Any],
+    predecessor: dict[str, Any],
+    predecessor_sha256: str,
+) -> None:
+    """Validate the authority mode joining one immutable binding-chain link."""
+
+    stable_fields = (
+        "project_id",
+        "store_identity",
+        "control_root",
+        "code_roots",
+        "schema_root",
+        "origin_witness_sha256",
+        "sources",
+        "prior_restore_transaction_id",
+        "prior_restore_intended_manifest_sha256",
+        "binding_config_path",
+        "binding_config_sha256",
+    )
+    if any(predecessor.get(field) != child.get(field) for field in stable_fields):
+        raise IntegrityError("current binding predecessor identity mismatch")
+    predecessor_head = _binding_git_tree(repository_root, predecessor)
+    child_head = _binding_git_tree(repository_root, child)
+    owner_action = child.get("owner_action")
+    if owner_action == "advance-clean-descendant-store-binding":
+        if any(predecessor.get(field) != child.get(field) for field in ("schema_catalogue_sha256", "route", "sources")):
+            raise IntegrityError("clean descendant current binding changed governed evidence")
+        relation = run_git(
+            repository_root,
+            "merge-base",
+            "--is-ancestor",
+            predecessor_head,
+            child_head,
+            unavailable_message="current binding Git ancestry inspection is unavailable",
+        )
+        if relation.returncode != 0:
+            if relation.returncode == 1:
+                raise IntegrityError("current binding subject is not a clean Git descendant")
+            raise IntegrityError("current binding Git ancestry inspection failed")
+        return
+    if owner_action == "advance-reviewed-route-successor-store-binding":
+        predecessor_route = predecessor.get("route")
+        successor_route = child.get("route")
+        expected_authority = {
+            "predecessor_binding_sha256": predecessor_sha256,
+            "candidate_git_head": child_head,
+            "predecessor_route_sha256": (
+                predecessor_route.get("sha256") if isinstance(predecessor_route, dict) else None
+            ),
+            "successor_route_sha256": successor_route.get("sha256") if isinstance(successor_route, dict) else None,
+        }
+        if child.get("route_successor_authority") != expected_authority:
+            raise IntegrityError("current binding reviewed route successor authority is invalid")
+        return
+    raise IntegrityError("current binding owner action is invalid")
+
+
+def _validate_binding_chain(
+    repository_root: Path,
+    control_root: Path,
+    schemas: SchemaRegistry,
+    current: dict[str, Any],
+    current_sha256: str,
+) -> None:
     seen = {current_sha256}
     child = current
     while child.get("schema_version") == "1.1.0":
@@ -278,11 +363,16 @@ def _validate_binding_chain(control_root: Path, current: dict[str, Any], current
         if sha256_hex(predecessor_raw) != predecessor_sha256:
             raise IntegrityError("current binding predecessor object hash mismatch")
         _validate_binding_shape(predecessor)
-        if any(
-            predecessor.get(field) != current.get(field)
-            for field in ("project_id", "store_identity", "control_root", "origin_witness_sha256")
-        ):
-            raise IntegrityError("current binding predecessor identity mismatch")
+        predecessor_schema_id = (
+            "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
+            if predecessor["schema_version"] == "1.1.0"
+            else "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
+        )
+        try:
+            schemas.validate(predecessor_schema_id, predecessor)
+        except SchemaError as exc:
+            raise IntegrityError("current binding predecessor object schema is invalid") from exc
+        _validate_binding_transition(repository_root, child, predecessor, predecessor_sha256)
         seen.add(predecessor_sha256)
         child = predecessor
     if child.get("schema_version") != "1.0.0":
@@ -350,7 +440,24 @@ def _validate_receipt_and_event(
     if len(matches) != 1 or not binding_events or matches[0] is not binding_events[-1]:
         raise IntegrityError("current binding event is missing, ambiguous, or stale")
     event = matches[0]
+    expected_event_provenance = {
+        "command_id": command_id,
+        "project_id": project_id,
+        "stream_id": project_id,
+        "actor_id": binding.get("owner_actor_id"),
+        "idempotency_key": binding.get("idempotency_key"),
+        "authority_grant_id": "store-binding-recovery",
+        "correlation_id": binding.get("idempotency_key"),
+        "causation_id": None,
+        "transaction_index": 1,
+        "transaction_count": 1,
+    }
+    if any(event.get(field) != expected for field, expected in expected_event_provenance.items()):
+        raise IntegrityError("current binding event provenance is invalid")
     try:
+        command_binding = schemas.command_binding(command_type)
+        if command_binding is None or event.get("command_schema_id") != command_binding.schema_id:
+            raise SchemaError("binding event command schema family mismatch")
         schemas.resolve_identity(
             str(event.get("command_schema_id")),
             str(event.get("command_schema_version")),
@@ -360,12 +467,14 @@ def _validate_receipt_and_event(
     except SchemaError as exc:
         raise IntegrityError("current binding event schema provenance is invalid") from exc
     payload = event.get("payload")
-    expected_relation = (
-        payload.get("predecessor_binding_sha256") == binding.get("predecessor_binding_sha256")
-        if advanced and isinstance(payload, dict)
-        else isinstance(payload, dict)
-        and payload.get("prior_manifest_sha256") == binding.get("prior_restore_intended_manifest_sha256")
-    )
+    if advanced:
+        expected_relation = isinstance(payload, dict) and (
+            payload.get("predecessor_binding_sha256") == binding.get("predecessor_binding_sha256")
+        )
+    else:
+        expected_relation = isinstance(payload, dict) and (
+            payload.get("prior_manifest_sha256") == binding.get("prior_restore_intended_manifest_sha256")
+        )
     object_path = control_root / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
     if (
         not isinstance(payload, dict)
@@ -402,6 +511,8 @@ def _validate_receipt_and_event(
         or index.get("receipt") != receipt
         or index.get("project_id") != project_id
         or index.get("target_stream_id") != project_id
+        or type(event.get("stream_version")) is not int
+        or index.get("expected_stream_version") != event["stream_version"] - 1
     ):
         raise IntegrityError("current binding scoped receipt is invalid")
 
@@ -418,9 +529,21 @@ class VerifiedCurrentBinding:
     origin_witness: StoreOriginWitness
     origin_witness_path: Path
     binding_sha256: str
-    binding: dict[str, Any]
-    manifest: dict[str, Any]
+    _binding_raw: bytes
+    _manifest_raw: bytes
     foundation_path: Path
+
+    @property
+    def binding(self) -> dict[str, Any]:
+        """Return an isolated copy of the admitted immutable binding."""
+
+        return json.loads(self._binding_raw)
+
+    @property
+    def manifest(self) -> dict[str, Any]:
+        """Return an isolated copy of the admitted immutable manifest."""
+
+        return json.loads(self._manifest_raw)
 
     def revalidate(self) -> "VerifiedCurrentBinding":
         """Re-read the admission and reject any changed current-binding generation."""
@@ -514,7 +637,7 @@ def load_current_binding(
         if len(raw) != source["size_bytes"] or sha256_hex(raw) != source["sha256"]:
             raise IntegrityError("bound SPEC source bytes changed")
 
-    schemas = runtime_schema_registry(schema_root)
+    schemas = runtime_schema_registry(schema_root, generation=f"{head}:{catalogue_sha256}")
     object_schema_id = (
         "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
         if binding["schema_version"] == "1.1.0"
@@ -528,7 +651,7 @@ def load_current_binding(
     _object, object_raw = _read_canonical_json(object_path, label="current binding immutable object")
     if object_raw != binding_raw:
         raise IntegrityError("current binding immutable object differs from the selected pointer")
-    _validate_binding_chain(control, binding, binding_sha256)
+    _validate_binding_chain(repository, control, schemas, binding, binding_sha256)
 
     expected_binding_config = canonical_bytes(
         {
@@ -590,9 +713,13 @@ def load_current_binding(
         origin_witness=witness,
         origin_witness_path=witness_path,
         binding_sha256=binding_sha256,
-        binding=binding,
-        manifest=manifest,
-        foundation_path=foundation_path,
+        _binding_raw=binding_raw,
+        _manifest_raw=canonical_bytes(manifest),
+        foundation_path=_require_physical_path(
+            foundation_path,
+            kind="file",
+            label="current binding foundation",
+        ),
     )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -9,7 +10,9 @@ import pytest
 import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.discovery.replay.driver import replay_discovery
 from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.git_execution import scrubbed_git_environment
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.current_binding import _schema_catalogue, load_current_binding
 from research_system.store.identity import load_restore_binding_transaction
@@ -43,6 +46,19 @@ def _write_json(path: Path, value: dict[str, object]) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(raw)
     return raw
+
+
+def _rewrite_last_event(fixture: _Fixture, **updates: object) -> tuple[dict[str, object], ...]:
+    paths = sorted(fixture.ledger.events_root.rglob("*.jsonl"))
+    assert paths
+    path = paths[-1]
+    events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    changed = {**events[-1], **updates}
+    changed.pop("event_hash", None)
+    changed["event_hash"] = sha256_hex(canonical_bytes(changed))
+    events[-1] = changed
+    path.write_bytes(b"".join(canonical_bytes(event) + b"\n" for event in events))
+    return tuple(fixture.ledger.iter_events())
 
 
 @dataclass(frozen=True)
@@ -255,8 +271,173 @@ def test_current_binding_loads_exact_subject_and_fails_closed_on_drift(tmp_path:
     pointer = fixture.control_root / "manifests/binding-repair-current.json"
     changed = {**fixture.binding, "git_tree": "0" * 40}
     pointer.write_bytes(canonical_bytes(changed))
-    with pytest.raises((ConflictError, IntegrityError)):
+    with pytest.raises(ConflictError, match="changed during the operation"):
         verified.revalidate()
+
+
+def test_verified_current_binding_does_not_expose_mutable_admission_evidence(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    verified = load_current_binding(
+        foundation_path=fixture.foundation_path,
+        repository_root=fixture.repository_root,
+        expected_control_root=fixture.control_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=str(fixture.binding["store_identity"]),
+    )
+
+    exposed_binding = verified.binding
+    exposed_binding["git_head"] = "0" * 40
+    exposed_binding["route"]["sha256"] = "0" * 64
+    exposed_manifest = verified.manifest
+    exposed_manifest["project_id"] = "prj_mutated"
+
+    assert verified.binding["git_head"] == fixture.binding["git_head"]
+    assert verified.binding["route"] == fixture.binding["route"]
+    assert verified.manifest["project_id"] == PROJECT_ID
+
+
+def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition(tmp_path: Path) -> None:
+    from research_system.store.current_binding import _validate_binding_transition
+
+    fixture = _bound_fixture(tmp_path)
+    object_root = fixture.control_root / "objects" / "binding-repair"
+    predecessor_sha256 = str(fixture.binding["predecessor_binding_sha256"])
+    predecessor = json.loads((object_root / f"sha256-{predecessor_sha256}.json").read_bytes())
+    (fixture.repository_root / "docs-only.txt").write_text("documentation\n", encoding="utf-8")
+    _git(fixture.repository_root, "add", "docs-only.txt")
+    _git(fixture.repository_root, "commit", "-m", "documentation descendant")
+    descendant = {
+        **fixture.binding,
+        "git_head": _git(fixture.repository_root, "rev-parse", "HEAD"),
+        "git_tree": _git(fixture.repository_root, "rev-parse", "HEAD^{tree}"),
+    }
+
+    _validate_binding_transition(fixture.repository_root, descendant, predecessor, predecessor_sha256)
+
+    changed_route = {**descendant, "route": {**descendant["route"], "sha256": "1" * 64}}
+    with pytest.raises(IntegrityError, match="governed evidence"):
+        _validate_binding_transition(fixture.repository_root, changed_route, predecessor, predecessor_sha256)
+
+    unrelated_head = _git(
+        fixture.repository_root,
+        "commit-tree",
+        str(descendant["git_tree"]),
+        "-m",
+        "unrelated root",
+    )
+    unrelated = {**descendant, "git_head": unrelated_head}
+    with pytest.raises(IntegrityError, match="not a clean Git descendant"):
+        _validate_binding_transition(fixture.repository_root, unrelated, predecessor, predecessor_sha256)
+
+    reviewed = {
+        **unrelated,
+        "owner_action": "advance-reviewed-route-successor-store-binding",
+        "route": {**unrelated["route"], "sha256": "2" * 64},
+        "route_successor_authority": {
+            "predecessor_binding_sha256": predecessor_sha256,
+            "candidate_git_head": unrelated_head,
+            "predecessor_route_sha256": predecessor["route"]["sha256"],
+            "successor_route_sha256": "2" * 64,
+        },
+    }
+    _validate_binding_transition(fixture.repository_root, reviewed, predecessor, predecessor_sha256)
+
+    for field, wrong in (
+        ("predecessor_binding_sha256", "3" * 64),
+        ("candidate_git_head", "4" * 40),
+        ("predecessor_route_sha256", "5" * 64),
+        ("successor_route_sha256", "6" * 64),
+    ):
+        attacked = {
+            **reviewed,
+            "route_successor_authority": {**reviewed["route_successor_authority"], field: wrong},
+        }
+        with pytest.raises(IntegrityError, match="reviewed route successor authority"):
+            _validate_binding_transition(fixture.repository_root, attacked, predecessor, predecessor_sha256)
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong"),
+    (
+        ("command_id", "binding-advance-wrong"),
+        ("project_id", "prj_wrong"),
+        ("stream_id", "prj_wrong"),
+        ("actor_id", "act_01978abc-4999-7000-8000-000000004999"),
+        ("idempotency_key", "wrong-idempotency-key"),
+        ("authority_grant_id", "wrong-authority"),
+    ),
+)
+def test_current_binding_rejects_event_provenance_not_bound_to_the_object(
+    tmp_path: Path,
+    field: str,
+    wrong: str,
+) -> None:
+    fixture = _bound_fixture(tmp_path)
+    _rewrite_last_event(fixture, **{field: wrong})
+
+    with pytest.raises(IntegrityError, match="event provenance"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_current_binding_rejects_scoped_index_from_another_stream_predecessor(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    index_path = next((fixture.control_root / "receipts" / "idempotency").glob("*.json"))
+    index = json.loads(index_path.read_bytes())
+    index["expected_stream_version"] = 99
+    index_path.write_bytes(canonical_bytes(index))
+
+    with pytest.raises(IntegrityError, match="scoped receipt"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_discovery_replay_accepts_current_and_registered_historical_binding_events(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    current_events = tuple(fixture.ledger.iter_events())
+
+    assert replay_discovery(current_events, schemas=fixture.schemas)["candidates"] == {}
+
+    historical_events = _rewrite_last_event(
+        fixture,
+        command_schema_version="1.0.0",
+        command_schema_sha256="5f15223aeec3cbe0825a49b5395467a62cda255378496a04fc83941557dbc3cb",
+    )
+    assert replay_discovery(historical_events, schemas=fixture.schemas)["candidates"] == {}
+
+
+def test_scrubbed_git_environment_forces_literal_pathspecs() -> None:
+    environment = scrubbed_git_environment(
+        {
+            "PATH": "preserved",
+            "GIT_GLOB_PATHSPECS": "1",
+            "git_noglob_pathspecs": "1",
+            "Git_Icase_Pathspecs": "1",
+            "GIT_LITERAL_PATHSPECS": "0",
+        }
+    )
+
+    assert environment["PATH"] == "preserved"
+    assert environment["GIT_LITERAL_PATHSPECS"] == "1"
+    assert not any(
+        key.casefold()
+        in {
+            "git_glob_pathspecs",
+            "git_noglob_pathspecs",
+            "git_icase_pathspecs",
+        }
+        for key in environment
+    )
 
 
 def test_binding_events_require_the_validated_service_continuation(tmp_path: Path) -> None:
@@ -265,6 +446,11 @@ def test_binding_events_require_the_validated_service_continuation(tmp_path: Pat
     command = schemas.command_binding("AdvanceStoreBinding")
     assert command is not None
     identity = schemas.resolve_identity(command.schema_id, command.schema_version)
+    with pytest.raises(TypeError, match="session"):
+        ledger._append_binding_repair_from_validated_service(  # type: ignore[call-arg]
+            {},
+            snapshot=ledger.snapshot(),
+        )
     with pytest.raises(ArsError, match="validated repair-service continuation"):
         ledger.append(
             [

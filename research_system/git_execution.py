@@ -59,6 +59,15 @@ _PROCESS_AND_TRANSPORT_ENVIRONMENT = frozenset(
     }
 )
 
+_PATHSPEC_ENVIRONMENT = frozenset(
+    {
+        "git_glob_pathspecs",
+        "git_icase_pathspecs",
+        "git_literal_pathspecs",
+        "git_noglob_pathspecs",
+    }
+)
+
 
 def git_blob_sha1(raw: bytes) -> str:
     """Return Git's SHA-1 object identity for exact blob bytes.
@@ -81,6 +90,7 @@ def scrubbed_git_environment(source: Mapping[str, str] | None = None) -> dict[st
         if (
             normalized in _REPOSITORY_ENVIRONMENT
             or normalized in _PROCESS_AND_TRANSPORT_ENVIRONMENT
+            or normalized in _PATHSPEC_ENVIRONMENT
             or normalized == "git_config"
             or normalized.startswith("git_config_")
         ):
@@ -97,6 +107,8 @@ def scrubbed_git_environment(source: Mapping[str, str] | None = None) -> dict[st
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     environment["GIT_NO_REPLACE_OBJECTS"] = "1"
     environment["GIT_GRAFT_FILE"] = os.devnull
+    # Callers pass exact repository-relative paths, never Git pathspec syntax.
+    environment["GIT_LITERAL_PATHSPECS"] = "1"
     # Never allow a validation probe to wait for credentials or a terminal.
     environment["GIT_TERMINAL_PROMPT"] = "0"
     return environment

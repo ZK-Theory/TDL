@@ -1330,12 +1330,18 @@ class SchemaRegistry:
                 active binding is unknown; or command/event discriminators are
                 bound more than once.
         """
+        try:
+            resolved_root = root.resolve(strict=True)
+        except OSError as exc:
+            raise SchemaError(f"invalid schema root: {root}") from exc
+        if not resolved_root.is_dir():
+            raise SchemaError(f"invalid schema root: {root}")
         self._schemas: dict[tuple[str, str | None], RegisteredSchema] = {}
         self._schemas_by_id: dict[str, dict[str | None, RegisteredSchema]] = {}
         self._schema_resources: dict[tuple[str, str | None], Resource] = {}
         self._historical_schemas: dict[tuple[str, str | None, str], RegisteredSchema] = {}
         self._historical_schema_resources: dict[tuple[str, str | None, str], Resource] = {}
-        for path in sorted(root.rglob("*.schema.json")):
+        for path in sorted(resolved_root.rglob("*.schema.json")):
             try:
                 source_path = path.resolve(strict=True)
                 raw_bytes = source_path.read_bytes()
@@ -1371,7 +1377,7 @@ class SchemaRegistry:
                 schema,
                 default_specification=DRAFT202012,
             )
-        self._historical_schemas = _load_schema_identity_history(root.resolve(strict=True))
+        self._historical_schemas = _load_schema_identity_history(resolved_root)
         for key, historical in self._historical_schemas.items():
             current = self._schemas.get(key[:2])
             if current is None or current.raw_bytes_sha256 == historical.raw_bytes_sha256:
@@ -1443,7 +1449,7 @@ class SchemaRegistry:
         current = self._resolve(schema_id, schema_version)
         if expected_sha256 is None or current.raw_bytes_sha256 == expected_sha256:
             return current
-        historical = self._historical_schemas.get((schema_id, schema_version, expected_sha256))
+        historical = self._historical_schemas.get((schema_id, current.schema_version, expected_sha256))
         if historical is None:
             raise SchemaError(f"schema hash mismatch: {schema_id} version {current.schema_version}")
         return historical
@@ -1574,11 +1580,14 @@ class SchemaRegistry:
         """Validate through one explicitly activated schema binding."""
         if not self.is_active(schema_id, schema_version):
             raise SchemaError(f"inactive schema: {schema_id} version {schema_version}")
+        current = self._resolve(schema_id, schema_version)
+        if expected_sha256 is not None and current.raw_bytes_sha256 != expected_sha256:
+            raise SchemaError(f"active schema hash mismatch: {schema_id} version {schema_version}")
         return self.validate(
             schema_id,
             value,
             schema_version=schema_version,
-            expected_sha256=expected_sha256,
+            expected_sha256=current.raw_bytes_sha256,
         )
 
     def contains(self, schema_id: str) -> bool:
@@ -1642,17 +1651,17 @@ def cached_schema_registry(root: Path | str) -> SchemaRegistry:
     return _registry_for_resolved_root(Path(root).resolve())
 
 
-@lru_cache(maxsize=8)
-def _runtime_registry_for_resolved_root(root: Path) -> SchemaRegistry:
+@lru_cache(maxsize=16)
+def _runtime_registry_for_resolved_root(root: Path, generation: str | None) -> SchemaRegistry:
     return SchemaRegistry(
         root,
         active_bindings=_RUNTIME_BINDINGS,
     )
 
 
-def runtime_schema_registry(root: Path | str) -> SchemaRegistry:
-    """Load the catalogue with the explicitly accepted runtime bindings."""
-    return _runtime_registry_for_resolved_root(Path(root).resolve())
+def runtime_schema_registry(root: Path | str, *, generation: str | None = None) -> SchemaRegistry:
+    """Load one exact catalogue generation with the accepted runtime bindings."""
+    return _runtime_registry_for_resolved_root(Path(root).resolve(), generation)
 
 
 @lru_cache(maxsize=1)

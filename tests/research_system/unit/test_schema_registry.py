@@ -1002,8 +1002,28 @@ def test_schema_identity_history_resolves_exact_superseded_bytes(tmp_path: Path)
         ).raw_bytes
         == superseded_raw
     )
+    assert (
+        registry.validate(
+            schema_id,
+            {"schema_version": "1.0.0"},
+            expected_sha256=superseded_sha256,
+        ).raw_bytes
+        == superseded_raw
+    )
     with pytest.raises(SchemaError, match="schema hash mismatch"):
         registry.resolve_identity(schema_id, "1.0.0", expected_sha256="0" * 64)
+
+    active_registry = SchemaRegistry(
+        tmp_path,
+        active_bindings=(SchemaBinding(schema_id, "1.0.0", command_type="TestCommand"),),
+    )
+    with pytest.raises(SchemaError, match="active schema hash mismatch"):
+        active_registry.validate_active(
+            schema_id,
+            {"schema_version": "1.0.0"},
+            schema_version="1.0.0",
+            expected_sha256=superseded_sha256,
+        )
 
 
 def test_advance_store_binding_history_is_replayable_but_v1_1_is_active() -> None:
@@ -1027,3 +1047,17 @@ def test_advance_store_binding_history_is_replayable_but_v1_1_is_active() -> Non
         "1.1.0",
         command_type="AdvanceStoreBinding",
     )
+
+
+def test_schema_registry_reports_a_missing_root_through_its_public_error_contract(tmp_path: Path) -> None:
+    with pytest.raises(SchemaError, match="schema root"):
+        SchemaRegistry(tmp_path / "missing")
+
+
+def test_runtime_schema_registry_cache_is_scoped_to_the_verified_catalogue_generation() -> None:
+    first = runtime_schema_registry(SCHEMAS, generation="head-a:catalogue")
+    same = runtime_schema_registry(SCHEMAS, generation="head-a:catalogue")
+    successor = runtime_schema_registry(SCHEMAS, generation="head-b:catalogue")
+
+    assert same is first
+    assert successor is not first

@@ -276,7 +276,7 @@ class EventLedger:
         envelope: Mapping[str, Any],
         *,
         snapshot: LedgerSnapshot,
-        session: object | None = None,
+        session: object,
     ) -> dict[str, Any]:
         """Append one binding event through the validated repair-service continuation."""
 
