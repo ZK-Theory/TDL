@@ -57,6 +57,40 @@ not make it the default empirical method.
   major findings. This meets this plan's mandatory retire/rescope condition;
   no third remediation commit belongs on PR #260. Its branch is retained as
   implementation and review evidence, not as a merge candidate.
+- PR #262 (`STORE-1A-PUB`) merged by squash at
+  `121e20ff50e11ecce9da93401dca543cd704f519`; its merged tree is exactly the
+  candidate tree at `af680b81f10df2bf0f0803a475e34656a926f766`. Five Codex
+  findings were submitted against that exact candidate 89 seconds before the
+  merge completed and remained unresolved at merge. Four reopened physical
+  lock/publication recovery; the independent fifth finding requires the
+  append-only `STORE-1A-RELEASE-V2` successor.
+- PR #263 (`STORE-1A-LOCK`) is closed unmerged and retired at published head
+  `b59b9de5bceb9b65d90c7b8654f3f8f0dcfe0dae`. That head passed its Windows
+  selection but failed the required Ubuntu workflow because temporary cleanup
+  derived a non-canonical guard. Two later uncommitted remediation iterations
+  are preserved in the dirty
+  `g6-spec-store-1a-postmerge-correction` worktree, not as candidates. They
+  reopened the same ownership invariant: effects and failed resource closes
+  could lose their sole owner, multiple drainers could race, and delayed
+  recovery used a different guard from object publication. The decisive P1
+  trace could delete a final object after a same-payload retry had reported it
+  successfully present. This meets the mandatory retire/rescope rule; no
+  further commit belongs on PR #263.
+- `STORE-1A-LOCK-V2` restarted cleanly from merged `main` on
+  `codex/g6-spec-store-1a-lock-v2`. The coherent implementation and migrated
+  controls exceeded the 5,000-added-line review hard stop, so it is being
+  extracted without compression or coverage deletion as two sequential
+  candidates: `STORE-1A-LOCK-V2A` owns the canonical directory transaction and
+  immutable `ObjectStore` path; `STORE-1A-LOCK-V2B` owns `WriterLock`,
+  `CompositeWriterLock`, `LockedRoot`, and the compatibility facade. Neither
+  candidate alone completes STORE publication. They do not port the retired
+  registry layering. One canonical per-directory transaction owns the mutation
+  guard, staged pin, namespace dispositions, durable recovery handoff, and
+  resource-close dispositions. Object recovery may not asynchronously delete
+  a final after any public success; every early existing-result return must
+  reconcile the transaction under that same canonical guard. Writer and
+  composite release must likewise have one serialized owner and preserve the
+  protected body exception as primary evidence.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -263,28 +297,86 @@ binding to agree on the control root, project, store, approved code roots,
 activated schema lineage, and origin witness before replay or mutation.
 
 To obey the review-size hard stop without recreating a monolith, STORE may land
-as three serial candidates under the single KAN-105 job. `STORE-1A-PUB` owns
-physical publication plus the diagnostic-precedence and preservation
-prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest and
+as serial candidates under the single KAN-105 job. `STORE-1A-PUB` is integrated
+but requires both bounded physical-transaction successors,
+`STORE-1A-LOCK-V2A` and `STORE-1A-LOCK-V2B`, and the independent append-only
+`STORE-1A-RELEASE-V2` successor before STORE publication is complete.
+`STORE-1A-MANIFEST` owns the governed-code manifest and
 documentation-only-successor rule. `STORE-1B` owns the
 `SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
 binding lineage, transaction, shared verified context, public commands, and
-consumer migration. All three remain one incomplete STORE capability until
-the assembled public path passes. This split creates neither a competing Gate
-6 plan nor another Jira capability job.
+consumer migration. All candidates remain one incomplete STORE capability until
+the assembled public path passes. This split creates neither a competing Gate 6
+plan nor another Jira capability job.
+
+Together `STORE-1A-LOCK-V2A` and `STORE-1A-LOCK-V2B` freeze the following
+replacement architecture. V2A introduces `store/anchor.py` and migrates
+`store/objects.py`; V2B introduces `store/writer.py`, migrates `LockedRoot`, and
+turns `store/lock.py` into the facade only after the writer half is present. New
+`store/anchor.py` owns physical directory identity, anchored traversal, exact
+member effects, the fixed per-directory transaction guard, retained generation
+pins, and close-only resource quarantine. New `store/writer.py` owns inspection,
+stale reclaim, `WriterLock`, and `CompositeWriterLock`. `store/lock.py` becomes
+the compatibility facade for current production imports; private monkeypatch
+tests migrate to the actual owner module rather than forcing implementation
+globals back into the facade. `store/objects.py` remains the immutable-object
+protocol owner and calls the anchor transaction rather than implementing a
+second filesystem state machine.
+
+Immutable object publication is commit-on-link. A successful final hard link is
+immediately recorded and is never a rollback target; a later exact retry adopts
+and fsyncs an uncertain content-addressed final before returning. New writes do
+not create publication claims, cleanup anchors, background deletion workers, or
+delayed final rollback. Reserved private residue is reconciled synchronously
+under the same guard. This prohibition applies to implicit cleanup within a
+publication attempt; it does not abolish the existing explicit
+`ObjectStore.rollback_new_revision` authority held by the higher-level command
+transaction after a successful returned write. That caller-owned rollback keeps
+its exact-generation and pre-existence checks and uses the same canonical guard.
+A separate close-only quarantine may retain descriptors or handles after
+namespace terminality, but it contains no link, unlink, rename, or publication
+callback. Writer release and Composite rollback retain one serialized release
+owner; a transferred member cannot self-register a second owner.
+
+Linux exactness is defined against all repository-controlled STORE participants,
+which must use the canonical transaction guard. A retained descriptor plus that
+guard detects and preserves an observed foreign generation. Python cannot make
+pathname unlink atomic against an uncooperative same-UID process that bypasses
+the guard; such direct filesystem mutation is out-of-contract tampering, not a
+capability silently claimed by this implementation. Requiring protection from
+that attacker would need a privileged filesystem broker or different storage
+primitive.
+
+The clean replacement baseline at `121e20ff...` is `143 passed, 6 skipped` on
+Windows and `19 failed, 104 passed, 26 skipped` on Linux for the cohesive store
+selection. The 19 Linux failures are inherited from merged `STORE-1A-PUB` and
+remain the direct replacement target. The exact required currency selection is
+`5 passed` on both platforms.
+
+A read-only no-follow census of the live
+`C:\Users\steph\TDL-ARS-WP64-Control` store found 432 canonical object revisions
+across 430 object identities, with no duplicate same-revision prefixes and zero
+publication claims, cleanup anchors, object-private temporary residues, or
+guard files. STORE-1A-LOCK-V2 therefore needs no legacy claim-residue migration
+reconciler. Historical canonical object bytes remain readable through the
+unchanged revision format; the retired claim protocol is removed rather than
+kept as a second publication path.
 
 **Acceptance boundary:** the governed-code manifest versions code, config,
 schemas, contracts, locks, and the allowed documentation-only descendant. The
 new command parsers and handlers are exercised through their public CLI seam.
 One verified-binding admission is shared by all consumers; local
 administration is distinct from SPEC semantic authority; schemas remain
-append-only. Immutable-file publication stages and fsyncs private bytes, keeps
-the staged identity available through the no-replace claim, verifies that the
-claimed final identity is that exact generation, and rolls back only a claim
-proved to be its own on substitution or failure. A substitution injected after
-the final identity check but before cleanup must preserve the foreign
-generation; `missing_ok` applies only to a proved absent owned generation, not
-to an identity mismatch. The exact internal retry discriminant is
+append-only. Immutable-file publication executes through one canonical
+per-directory transaction. It records O_EXCL/link/unlink dispositions before
+any later fallible work, retains the staged inode pin through ownership
+transfer, and separates namespace completion from every descriptor/anchor close
+disposition. A failed call may leave only a state that the next operation can
+reconcile under the same guard; no background rollback may delete a final after
+another call has exposed it as success. A substitution injected after the final
+identity check but before cleanup must preserve the foreign generation;
+`missing_ok` applies only to a proved absent owned generation, not to an
+identity mismatch. The exact internal retry discriminant is
 `research_system.store.lock.WriterLockContentionError`, an
 exported subclass of `ConflictError` raised only when the canonical writer lock
 already exists. Recovery retries that exact subclass, without string matching,
