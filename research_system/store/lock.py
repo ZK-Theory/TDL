@@ -5,12 +5,14 @@ import json
 import os
 import stat
 import sys
+import time
+from contextlib import contextmanager
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 import secrets
 from types import TracebackType
-from typing import Any, Literal, NoReturn, Protocol, Self
+from typing import Any, Iterator, Literal, NoReturn, Protocol, Self
 
 from research_system.canonical import canonical_bytes
 from research_system.errors import ConflictError
@@ -18,6 +20,14 @@ from research_system.store.durability import fsync_directory
 
 
 LockOwnerState = Literal["missing", "live", "stale", "unknown", "malformed"]
+
+
+@dataclass(frozen=True)
+class LockObservation:
+    """Bytes and physical generation captured from one opened lock file."""
+
+    data: bytes
+    identity: os.stat_result
 
 
 class WriterLockContentionError(ConflictError):
@@ -32,10 +42,27 @@ class _ExactGenerationBusyError(ConflictError):
     """A sealed generation is temporarily held by another Windows handle."""
 
 
+class DirectoryMutationGuard:
+    """An active, anchor-bound authority for one exclusive mutation."""
+
+    __slots__ = ("_anchor", "_active", "name")
+
+    def __init__(self, anchor: object, name: str) -> None:
+        self._anchor = anchor
+        self._active = False
+        self.name = name
+
+
 def _is_windows_sharing_violation(error: OSError) -> bool:
     """Recognize the native sharing-violation code across CPython OSError forms."""
 
     return getattr(error, "winerror", None) == 32 or error.errno == 32
+
+
+def _supports_exact_writer_lock_deletion() -> bool:
+    """Return whether the runtime has an accepted writer-lock backend."""
+
+    return os.name == "nt" or (os.name == "posix" and sys.platform == "linux")
 
 
 def _link_without_following(source: Path, destination: Path) -> None:
@@ -176,72 +203,130 @@ def _owner_state(record: object) -> LockOwnerState:
     return "unknown"
 
 
-def inspect_lock(path: Path) -> tuple[LockOwnerState, bytes | None, dict[str, Any] | None]:
-    """Read a lock without making an ownership decision from PID alone."""
+def _read_lock_observation(path: Path) -> LockObservation:
+    """Capture lock bytes and identity from one no-follow, held generation."""
+
+    if os.name == "nt":
+        handle: object | None = None
+        try:
+            handle = _windows_open_handle(
+                path,
+                open_reparse_point=True,
+                delete_protect=True,
+                read_contents=True,
+                share_mode=_FILE_SHARE_READ,
+            )
+            attributes, _ = _windows_file_attribute_tag(handle)
+            if attributes & _FILE_ATTRIBUTE_REPARSE_POINT or attributes & _FILE_ATTRIBUTE_DIRECTORY:
+                raise ConflictError("writer lock must be a physical regular file")
+            identity = _regular_file_identity(path, label="writer lock")
+            data = _windows_read_handle(handle)
+            if not os.path.samestat(identity, _regular_file_identity(path, label="writer lock")):
+                raise ConflictError("writer lock generation changed during inspection")
+            return LockObservation(data=data, identity=identity)
+        finally:
+            if handle is not None:
+                _windows_close_handle(handle)
+
+    nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow_flag:
+        raise ConflictError("platform cannot inspect a physical writer-lock generation")
+    descriptor = os.open(path, os.O_RDONLY | nofollow_flag)
     try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        return "missing", None, None
-    except OSError:
-        return "unknown", None, None
+        identity = os.fstat(descriptor)
+        if not stat.S_ISREG(identity.st_mode):
+            raise ConflictError("writer lock must be a physical regular file")
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        if not os.path.samestat(identity, _regular_file_identity(path, label="writer lock")):
+            raise ConflictError("writer lock generation changed during inspection")
+        return LockObservation(data=b"".join(chunks), identity=identity)
+    finally:
+        os.close(descriptor)
+
+
+def _classify_lock_data(data: bytes) -> tuple[LockOwnerState, dict[str, Any] | None]:
     try:
         record = json.loads(data)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return "malformed", data, None
+        return "malformed", None
     if not isinstance(record, dict):
-        return "malformed", data, record if isinstance(record, dict) else None
+        return "malformed", None
     try:
         canonical = canonical_bytes(record)
     except (TypeError, ValueError):
-        return "malformed", data, record
+        return "malformed", record
     if canonical != data:
-        return "malformed", data, record
-    return _owner_state(record), data, record
+        return "malformed", record
+    return _owner_state(record), record
 
 
-def _restore_recovery_claim(path: Path, claim: Path) -> None:
-    """Restore a non-stale claim without replacing a newer lock generation."""
+def inspect_lock(path: Path) -> tuple[LockOwnerState, LockObservation | None, dict[str, Any] | None]:
+    """Inspect one physical lock generation without a split path/byte read."""
+
     try:
-        _link_without_following(claim, path)
-    except FileExistsError:
-        claim.unlink(missing_ok=True)
-        fsync_directory(path.parent)
-        return
-    except OSError:
-        return
-    try:
-        claim.unlink()
+        observation = _read_lock_observation(path)
     except FileNotFoundError:
-        pass
-    fsync_directory(path.parent)
+        return "missing", None, None
+    except (OSError, ConflictError):
+        return "unknown", None, None
+    state, record = _classify_lock_data(observation.data)
+    return state, observation, record
 
 
-def remove_stale_lock(path: Path, observed: bytes) -> bool:
-    """Atomically claim and remove one observed stale lock generation."""
-    claim = path.with_name(f".{path.name}.{secrets.token_hex(16)}.reclaim")
-    try:
-        os.replace(path, claim)
-    except FileNotFoundError:
-        return True
-    except OSError:
+def remove_stale_lock(path: Path, observed: LockObservation) -> bool:
+    """Remove only the exact stale generation captured by ``inspect_lock``."""
+
+    if not isinstance(observed, LockObservation):
         return False
-    try:
-        if claim.read_bytes() != observed:
-            _restore_recovery_claim(path, claim)
-            return False
-        state, current, _ = inspect_lock(claim)
-        if state != "stale" or current != observed:
-            _restore_recovery_claim(path, claim)
-            return False
+    state, _ = _classify_lock_data(observed.data)
+    if state != "stale":
+        return False
+    if os.name == "posix" and sys.platform == "linux":
+        guard: int | None = None
+        parent_anchor: _DirectoryAnchor | None = None
+        outcome = False
+        primary_error: BaseException | None = None
         try:
-            claim.unlink()
+            parent_anchor = _open_directory_anchor(path.parent, reject_reparse=True)
+            guard = _acquire_posix_lock_guard(path, parent_anchor)
+            data, identity = parent_anchor.read_regular_file_with_identity(path.name)
+            current = LockObservation(data=data, identity=identity)
+            if current.data == observed.data and os.path.samestat(current.identity, observed.identity):
+                current_state, _ = _classify_lock_data(current.data)
+                if current_state == "stale":
+                    _verify_posix_lock_guard(path, guard, parent_anchor)
+                    _posix_guarded_delete_lock(path, observed, parent_anchor, guard)
+                    outcome = True
         except FileNotFoundError:
-            return True
-        fsync_directory(path.parent)
+            outcome = True
+        except (BlockingIOError, OSError, ConflictError):
+            outcome = False
+        except BaseException as error:
+            primary_error = error
+        cleanup_error = _close_posix_lock_resources(guard, parent_anchor)
+        if primary_error is not None:
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        if cleanup_error is not None:
+            raise cleanup_error
+        return outcome
+    try:
+        _delete_exact_regular_file(
+            path,
+            observed.identity,
+            expected_bytes=observed.data,
+            label="stale writer lock",
+        )
+    except FileNotFoundError:
         return True
-    except OSError:
-        _restore_recovery_claim(path, claim)
+    except (OSError, ConflictError):
         return False
+    fsync_directory(path.parent)
+    return True
 
 
 @dataclass(frozen=True, order=True)
@@ -271,13 +356,48 @@ class DirectoryAnchor(Protocol):
 
     def read_regular_file(self, name: str) -> bytes: ...
 
+    def read_regular_file_with_identity(self, name: str) -> tuple[bytes, os.stat_result]: ...
+
+    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]: ...
+
+    def link_exact_regular_file(
+        self,
+        source: str,
+        expected_identity: os.stat_result,
+        destination: str,
+        *,
+        guard: DirectoryMutationGuard | None = None,
+    ) -> os.stat_result: ...
+
+    def fsync(self) -> None: ...
+
+    def verify_unchanged(self) -> None: ...
+
     def write_exact_file(self, name: str, data: bytes) -> None: ...
 
     def replace_exact_file(self, name: str, expected: bytes, data: bytes) -> None: ...
 
     def remove_exact_file(self, name: str, expected: bytes) -> None: ...
 
-    def remove_exact_generation(self, name: str, expected: os.stat_result, expected_bytes: bytes) -> None: ...
+    def remove_exact_generation(
+        self,
+        name: str,
+        expected: os.stat_result,
+        expected_bytes: bytes,
+        *,
+        guard: DirectoryMutationGuard | None = None,
+    ) -> None: ...
+
+    def remove_exact_generation_after_parent_change(
+        self,
+        name: str,
+        expected: os.stat_result,
+        expected_bytes: bytes,
+        *,
+        guard: DirectoryMutationGuard,
+    ) -> None: ...
+
+    def acquire_mutation_guard(self, name: str) -> Iterator[DirectoryMutationGuard]: ...
 
     def close(self) -> None: ...
 
@@ -427,7 +547,11 @@ class LockedRoot:
 
         parent, name, opened = self._open_relative_file_parent(relative_path, create=True)
         try:
-            parent.write_exact_file(name, data)
+            if os.name == "nt":
+                parent.write_exact_file(name, data)
+            else:
+                with parent.acquire_mutation_guard(".locked-root-mutation.guard"):
+                    parent.write_exact_file(name, data)
         finally:
             self._close_relative_file_parents(opened)
 
@@ -436,7 +560,11 @@ class LockedRoot:
 
         parent, name, opened = self._open_relative_file_parent(relative_path, create=False)
         try:
-            parent.replace_exact_file(name, expected, data)
+            if os.name == "nt":
+                parent.replace_exact_file(name, expected, data)
+            else:
+                with parent.acquire_mutation_guard(".locked-root-mutation.guard"):
+                    parent.replace_exact_file(name, expected, data)
         finally:
             self._close_relative_file_parents(opened)
 
@@ -445,7 +573,11 @@ class LockedRoot:
 
         parent, name, opened = self._open_relative_file_parent(relative_path, create=False)
         try:
-            parent.remove_exact_file(name, expected)
+            if os.name == "nt":
+                parent.remove_exact_file(name, expected)
+            else:
+                with parent.acquire_mutation_guard(".locked-root-mutation.guard"):
+                    parent.remove_exact_file(name, expected)
         finally:
             self._close_relative_file_parents(opened)
 
@@ -454,9 +586,13 @@ class _DirectoryAnchor:
     __slots__ = (
         "identity",
         "final_path",
+        "_parent",
+        "_active_mutation_guard",
+        "_deferred_windows_closures",
         "_handle",
         "_refresh_impl",
         "_close_impl",
+        "_delete_protected",
         "_closed",
     )
 
@@ -467,23 +603,55 @@ class _DirectoryAnchor:
         handle: object,
         refresh_impl: Callable[[object], tuple[DirectoryIdentity, Path]],
         close_impl: Callable[[object], None],
+        parent: _DirectoryAnchor | None = None,
+        *,
+        delete_protected: bool = False,
     ) -> None:
         self.identity = identity
         self.final_path = final_path
+        self._parent = parent
+        self._active_mutation_guard: DirectoryMutationGuard | None = None
+        self._deferred_windows_closures: list[tuple[object, Callable[[object], None]]] = []
         self._handle = handle
         self._refresh_impl = refresh_impl
         self._close_impl = close_impl
+        self._delete_protected = delete_protected
         self._closed = False
 
     def refresh(self) -> tuple[DirectoryIdentity, Path]:
         if self._closed:
             raise ConflictError("directory anchor is no longer live")
+        self._retry_deferred_windows_closures()
         try:
             return self._refresh_impl(self._handle)
+        except FileNotFoundError:
+            raise
         except ConflictError:
             raise
         except (OSError, ValueError) as exc:
             raise ConflictError("directory anchor identity is unavailable") from exc
+
+    def _retry_deferred_windows_closures(self) -> None:
+        if not self._deferred_windows_closures:
+            return
+        pending = self._deferred_windows_closures
+        self._deferred_windows_closures = []
+        cleanup_error: BaseException | None = None
+        for resource, closer in pending:
+            try:
+                closer(resource)
+            except BaseException as exc:
+                self._deferred_windows_closures.append((resource, closer))
+                cleanup_error = _add_cleanup_error(cleanup_error, exc, "anchored Windows close retry failed")
+        if cleanup_error is not None:
+            raise ConflictError("anchored Windows resource cleanup remains pending") from cleanup_error
+
+    def _close_or_defer_windows_resource(self, resource: object, closer: Callable[[object], None]) -> None:
+        try:
+            closer(resource)
+        except BaseException:
+            self._deferred_windows_closures.append((resource, closer))
+            raise
 
     @staticmethod
     def _require_member_name(name: str) -> None:
@@ -500,7 +668,8 @@ class _DirectoryAnchor:
         """Open one no-reparse child relative to this held physical directory."""
 
         self._require_member_name(name)
-        parent_identity, parent_path = self.refresh()
+        self.verify_unchanged()
+        _parent_identity, parent_path = self.refresh()
         try:
             if os.name == "nt":
                 child_path = parent_path / name
@@ -541,6 +710,8 @@ class _DirectoryAnchor:
                         child_descriptor,
                         refresh,
                         lambda value: os.close(int(value)),
+                        self,
+                        delete_protected=delete_protect,
                     )
                 except BaseException as primary_error:
                     try:
@@ -548,12 +719,16 @@ class _DirectoryAnchor:
                     except BaseException as cleanup_error:
                         raise primary_error from cleanup_error
                     raise
+        except FileNotFoundError:
+            raise
         except ConflictError:
             raise
         except OSError as exc:
             raise ConflictError(f"{name} is not a physical member directory") from exc
-        refreshed_identity, refreshed_path = self.refresh()
-        if refreshed_identity != parent_identity or refreshed_path != parent_path:
+        child._parent = self
+        try:
+            self.verify_unchanged()
+        except BaseException:
             child.close()
             raise ConflictError("anchored parent directory changed during member traversal")
         return child
@@ -561,14 +736,17 @@ class _DirectoryAnchor:
     def list_names(self) -> tuple[str, ...]:
         """List immediate names while retaining this directory's physical fence."""
 
+        self.verify_unchanged()
         identity, final_path = self.refresh()
         try:
-            if os.name == "nt":
-                names = tuple(entry.name for entry in final_path.iterdir())
-            else:
-                names = tuple(os.listdir(int(self._handle)))
+            with self._effect_final_path(final_path) as effect_path:
+                if os.name == "nt":
+                    names = tuple(entry.name for entry in effect_path.iterdir())
+                else:
+                    names = tuple(os.listdir(int(self._handle)))
         except OSError as exc:
             raise ConflictError("anchored directory cannot be listed") from exc
+        self.verify_unchanged()
         refreshed_identity, refreshed_path = self.refresh()
         if refreshed_identity != identity or refreshed_path != final_path:
             raise ConflictError("anchored directory identity changed during listing")
@@ -623,6 +801,8 @@ class _DirectoryAnchor:
             if not os.path.samestat(opened, after):
                 raise ConflictError("anchored directory member changed during read")
             return data, after
+        except FileNotFoundError:
+            raise
         except ConflictError:
             raise
         except OSError as exc:
@@ -634,21 +814,107 @@ class _DirectoryAnchor:
     def read_regular_file(self, name: str) -> bytes:
         """Read one no-follow regular file relative to this held directory."""
 
-        identity, final_path = self.refresh()
         try:
-            data, _ = self._read_regular_file_with_identity(name, final_path)
+            data, _ = self.read_regular_file_with_identity(name)
+            return data
         except FileNotFoundError as exc:
             raise ConflictError("anchored regular file cannot be read") from exc
-        refreshed_identity, refreshed_path = self.refresh()
-        if refreshed_identity != identity or refreshed_path != final_path:
-            raise ConflictError("anchored directory identity changed during file read")
-        return data
+
+    def read_regular_file_with_identity(self, name: str) -> tuple[bytes, os.stat_result]:
+        """Read one no-follow regular file and return its exact opened generation."""
+
+        self.verify_unchanged()
+        _identity, final_path = self.refresh()
+        with self._effect_final_path(final_path) as effect_path:
+            result = self._read_regular_file_with_identity(name, effect_path)
+        self.verify_unchanged()
+        return result
 
     def _fsync_directory(self, final_path: Path) -> None:
         if os.name == "nt":
             fsync_directory(final_path)
         else:
             os.fsync(int(self._handle))
+
+    def fsync(self) -> None:
+        """Synchronize the held physical directory, never its lexical replacement."""
+
+        self.verify_unchanged()
+        _identity, final_path = self.refresh()
+        with self._effect_final_path(final_path) as effect_path:
+            self._fsync_directory(effect_path)
+        self.verify_unchanged()
+
+    def verify_unchanged(self) -> None:
+        """Reject publication if this anchor no longer names its opening generation."""
+
+        if self._parent is not None:
+            self._parent.verify_unchanged()
+        identity, final_path = self.refresh()
+        if identity != self.identity or final_path != self.final_path:
+            raise ConflictError("anchored directory identity changed during object operation")
+
+    @contextmanager
+    def _effect_final_path(self, final_path: Path) -> Iterable[Path]:
+        """Yield the exact Windows generation while one lexical effect is in flight.
+
+        The retained anchor keeps its identity and parent chain observable across
+        the whole operation.  Windows path APIs nevertheless need a short-lived
+        DELETE-capable leaf handle to prevent an ancestor rename between resolving
+        ``final_path`` and using it. A retained DELETE-capable anchor is already
+        that fence; otherwise a short-lived handle fences one effect only, so
+        concurrent writers still overlap outside their individual filesystem calls.
+        """
+
+        if os.name != "nt":
+            yield final_path
+            return
+        if self._delete_protected:
+            self.verify_unchanged()
+            _identity, guarded_path = self.refresh()
+            yield guarded_path
+            self.verify_unchanged()
+            return
+        fence: object | None = None
+        primary_error: BaseException | None = None
+        cleanup_error: BaseException | None = None
+        try:
+            for attempt in range(64):
+                try:
+                    fence = _windows_open_handle(
+                        final_path,
+                        open_reparse_point=False,
+                        delete_protect=True,
+                        delete_access=True,
+                    )
+                except OSError as exc:
+                    if not _is_windows_sharing_violation(exc) or attempt == 63:
+                        raise
+                    # Another anchored writer holds its short filesystem
+                    # fence.  Revalidate the retained chain before retrying;
+                    # waiting never licenses a stale lexical path.
+                    self.verify_unchanged()
+                    time.sleep(0.005)
+                    continue
+                break
+            if fence is None:  # pragma: no cover - the final retry raises
+                raise ConflictError("anchored directory filesystem fence is unavailable")
+            identity, guarded_path = _windows_anchor_refresh(fence)
+            if identity != self.identity:
+                raise ConflictError("anchored directory identity changed before filesystem effect")
+            yield guarded_path
+        except BaseException as exc:
+            primary_error = exc
+        finally:
+            if fence is not None:
+                try:
+                    self._close_or_defer_windows_resource(fence, _windows_close_handle)
+                except BaseException as exc:
+                    cleanup_error = exc
+        if primary_error is not None:
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        if cleanup_error is not None:
+            raise cleanup_error
 
     def _link_member(self, source: str, destination: str, final_path: Path) -> None:
         if os.name == "nt":
@@ -661,6 +927,31 @@ class _DirectoryAnchor:
             dst_dir_fd=int(self._handle),
             follow_symlinks=False,
         )
+
+    def link_exact_regular_file(
+        self,
+        source: str,
+        expected_identity: os.stat_result,
+        destination: str,
+        *,
+        guard: DirectoryMutationGuard | None = None,
+    ) -> os.stat_result:
+        """Hard-link one exact held generation without entering a replacement directory."""
+
+        self._require_member_name(source)
+        self._require_member_name(destination)
+        if guard is not None:
+            self._validate_mutation_guard(guard)
+        self.verify_unchanged()
+        _directory_identity, final_path = self.refresh()
+        with self._effect_final_path(final_path) as effect_path:
+            if not os.path.samestat(expected_identity, self._member_identity(source, effect_path)):
+                raise ConflictError("anchored file changed before link publication")
+            self._link_member(source, destination, effect_path)
+            destination_identity = self._member_identity(destination, effect_path)
+            if not os.path.samestat(expected_identity, destination_identity):
+                raise ConflictError("anchored linked generation changed during publication")
+        return destination_identity
 
     def _unlink_member(
         self,
@@ -676,28 +967,196 @@ class _DirectoryAnchor:
             raise ConflictError("anchored file changed before exact generation deletion")
         if data != expected_bytes:
             raise ConflictError("anchored file bytes changed before exact generation deletion")
-        _delete_exact_regular_file(
-            final_path / name,
-            expected_identity,
-            expected_bytes=expected_bytes,
-            label="anchored file",
-            parent_descriptor=int(self._handle) if os.name != "nt" else None,
-        )
+        if os.name == "nt":
+            _delete_exact_regular_file(
+                final_path / name,
+                expected_identity,
+                expected_bytes=expected_bytes,
+                label="anchored file",
+            )
+            return
+        if self._active_mutation_guard is None:
+            raise ConflictError("POSIX exact generation deletion requires an anchored exclusive guard")
+        _before_exact_generation_unlink(final_path / name)
+        data, observed_identity = self._read_regular_file_with_identity(name, final_path)
+        if not os.path.samestat(expected_identity, observed_identity):
+            raise ConflictError("anchored file changed before exact generation deletion")
+        if data != expected_bytes:
+            raise ConflictError("anchored file bytes changed before exact generation deletion")
+        try:
+            os.unlink(name, dir_fd=int(self._handle))
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise ConflictError("anchored exact generation cannot be deleted") from exc
 
     def remove_exact_generation(
         self,
         name: str,
         expected_identity: os.stat_result,
         expected_bytes: bytes,
+        *,
+        guard: DirectoryMutationGuard | None = None,
     ) -> None:
         """Remove one physical member generation held by this directory anchor."""
 
+        self.verify_unchanged()
+        if os.name != "nt" and guard is None:
+            raise ConflictError("POSIX exact generation deletion requires an anchored exclusive guard")
+        if guard is not None:
+            self._validate_mutation_guard(guard)
         directory_identity, final_path = self.refresh()
-        self._unlink_member(name, expected_identity, expected_bytes, final_path)
-        self._fsync_directory(final_path)
+        with self._effect_final_path(final_path) as effect_path:
+            self._unlink_member(name, expected_identity, expected_bytes, effect_path)
+            self._fsync_directory(effect_path)
         refreshed_identity, refreshed_path = self.refresh()
         if refreshed_identity != directory_identity or refreshed_path != final_path:
             raise ConflictError("anchored directory identity changed during exact generation deletion")
+
+    def remove_exact_generation_after_parent_change(
+        self,
+        name: str,
+        expected_identity: os.stat_result,
+        expected_bytes: bytes,
+        *,
+        guard: DirectoryMutationGuard,
+    ) -> None:
+        """Roll back an exact owned member through its held leaf after a parent move.
+
+        This recovery-only operation deliberately does not revalidate the parent
+        chain: it is used after that chain has already failed, to remove a final
+        generation that this operation just linked through the held leaf.  The
+        leaf identity, bytes, generation, and supplied active guard remain exact.
+        """
+
+        self._require_member_name(name)
+        self._validate_mutation_guard(guard)
+        directory_identity, final_path = self.refresh()
+        if directory_identity != self.identity:
+            raise ConflictError("anchored directory identity changed during recovery deletion")
+        with self._effect_final_path(final_path) as effect_path:
+            self._unlink_member(name, expected_identity, expected_bytes, effect_path)
+            self._fsync_directory(effect_path)
+        refreshed_identity, _refreshed_path = self.refresh()
+        if refreshed_identity != directory_identity:
+            raise ConflictError("anchored directory identity changed during recovery deletion")
+
+    def _validate_mutation_guard(self, guard: DirectoryMutationGuard) -> None:
+        if guard._anchor is not self or not guard._active or self._active_mutation_guard is not guard:
+            raise ConflictError("anchored directory mutation guard is not active")
+
+    @contextmanager
+    def acquire_mutation_guard(self, name: str) -> Iterator[DirectoryMutationGuard]:
+        """Acquire a persistent no-follow cooperative guard for this anchor."""
+
+        self._require_member_name(name)
+        self.verify_unchanged()
+        if self._active_mutation_guard is not None:
+            raise ConflictError("anchored directory mutation guard is already active")
+        guard = DirectoryMutationGuard(self, name)
+        if os.name == "nt":
+            descriptor: int | None = None
+            locked = False
+            primary_error: BaseException | None = None
+            cleanup_error: BaseException | None = None
+            try:
+                _identity, final_path = self.refresh()
+                with self._effect_final_path(final_path) as effect_path:
+                    descriptor = os.open(
+                        effect_path / name,
+                        os.O_CREAT | os.O_RDWR | getattr(os, "O_BINARY", 0),
+                        0o600,
+                    )
+                    observed = self._member_identity(name, effect_path)
+                    if not os.path.samestat(observed, os.fstat(descriptor)):
+                        raise ConflictError("anchored exclusive guard changed during open")
+                    self._fsync_directory(effect_path)
+                import msvcrt
+
+                for attempt in range(64):
+                    try:
+                        os.lseek(descriptor, 0, 0)
+                        msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                    except OSError:
+                        if attempt == 63:
+                            raise
+                        time.sleep(0.005)
+                        continue
+                    locked = True
+                    break
+                if not locked:  # pragma: no cover - the final retry raises
+                    raise ConflictError("anchored exclusive guard is unavailable")
+                guard._active = True
+                self._active_mutation_guard = guard
+                yield guard
+            except BaseException as exc:
+                primary_error = exc
+            finally:
+                guard._active = False
+                self._active_mutation_guard = None
+                if locked:
+                    try:
+                        os.lseek(descriptor, 0, 0)
+                        msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
+                    except BaseException as exc:
+                        cleanup_error = _add_cleanup_error(cleanup_error, exc, "mutation-guard unlock also failed")
+                if descriptor is not None:
+                    try:
+                        self._close_or_defer_windows_resource(descriptor, os.close)
+                    except BaseException as exc:
+                        cleanup_error = _add_cleanup_error(cleanup_error, exc, "mutation-guard close also failed")
+            if primary_error is not None:
+                _raise_primary_with_cleanup(primary_error, cleanup_error)
+            if cleanup_error is not None:
+                raise cleanup_error
+            return
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        if not nofollow or os.open not in os.supports_dir_fd:
+            raise ConflictError("platform cannot create an anchored exclusive guard")
+        descriptor: int | None = None
+        locked = False
+        primary_error: BaseException | None = None
+        try:
+            descriptor = os.open(
+                name,
+                os.O_CREAT | os.O_RDWR | nofollow,
+                0o600,
+                dir_fd=int(self._handle),
+            )
+            observed = os.fstat(descriptor)
+            if not stat.S_ISREG(observed.st_mode):
+                raise ConflictError("anchored exclusive guard is not a regular file")
+            os.fsync(int(self._handle))
+            try:
+                import fcntl
+            except ImportError as exc:  # pragma: no cover - non-POSIX fallback
+                raise ConflictError("platform cannot lock an anchored exclusive guard") from exc
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            locked = True
+            guard._active = True
+            self._active_mutation_guard = guard
+            self.verify_unchanged()
+            yield guard
+        except BaseException as error:
+            primary_error = error
+        finally:
+            cleanup_error: BaseException | None = None
+            if locked:
+                guard._active = False
+                self._active_mutation_guard = None
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                except BaseException as error:
+                    cleanup_error = error
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except BaseException as error:
+                    cleanup_error = _add_cleanup_error(cleanup_error, error, "mutation-guard close also failed")
+        if primary_error is not None:
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        if cleanup_error is not None:
+            raise cleanup_error
 
     def _stage_private_file(self, name: str, data: bytes, final_path: Path) -> tuple[str, os.stat_result]:
         temporary = f".{name}.{secrets.token_hex(16)}.tmp"
@@ -743,6 +1202,17 @@ class _DirectoryAnchor:
                     if cleanup_error is None:
                         cleanup_error = exc
             _raise_primary_with_cleanup(primary_error, cleanup_error)
+
+    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]:
+        """Durably stage private bytes beneath this held physical directory."""
+
+        self._require_member_name(name)
+        if not isinstance(data, bytes):
+            raise TypeError("anchored file content must be bytes")
+        self.verify_unchanged()
+        _identity, final_path = self.refresh()
+        with self._effect_final_path(final_path) as effect_path:
+            return self._stage_private_file(name, data, effect_path)
 
     def _claim_generation(
         self,
@@ -881,7 +1351,8 @@ class _DirectoryAnchor:
                 existing, published_identity = self._read_regular_file_with_identity(name, final_path)
                 if existing != data:
                     raise ConflictError("anchored file identity already binds different bytes")
-            if self.read_regular_file(name) != data:
+            final_data, _ = self._read_regular_file_with_identity(name, final_path)
+            if final_data != data:
                 raise ConflictError("anchored regular file publication did not remain exact")
             self._unlink_claimed_generation(claim, claim_identity, data, final_path)
             self._fsync_directory(final_path)
@@ -920,7 +1391,9 @@ class _DirectoryAnchor:
         if not isinstance(expected, bytes) or not isinstance(data, bytes):
             raise TypeError("anchored file content must be bytes")
         if expected == data:
-            if self.read_regular_file(name) != expected:
+            _directory_identity, final_path = self.refresh()
+            current, _ = self._read_regular_file_with_identity(name, final_path)
+            if current != expected:
                 raise ConflictError("anchored file replacement expected bytes differ")
             return
 
@@ -1067,6 +1540,7 @@ class _DirectoryAnchor:
     def close(self) -> None:
         if self._closed:
             return
+        self._retry_deferred_windows_closures()
         self._close_impl(self._handle)
         self._closed = True
 
@@ -1155,6 +1629,7 @@ if os.name == "nt":
     _SYNCHRONIZE = 0x00100000
     _FILE_SHARE_READ = 0x00000001
     _FILE_SHARE_WRITE = 0x00000002
+    _FILE_SHARE_DELETE = 0x00000004
     _OPEN_EXISTING = 3
     _FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
     _FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
@@ -1164,6 +1639,8 @@ if os.name == "nt":
 
 def _windows_api_error(operation: str) -> OSError:
     error_code = ctypes.get_last_error()
+    if error_code in {2, 3}:  # ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
+        return FileNotFoundError(error_code, f"{operation} failed: {ctypes.FormatError(error_code)}")
     return OSError(error_code, f"{operation} failed: {ctypes.FormatError(error_code)}")
 
 
@@ -1172,6 +1649,7 @@ def _windows_open_handle(
     *,
     open_reparse_point: bool,
     delete_protect: bool = False,
+    delete_access: bool | None = None,
     read_contents: bool = False,
     share_mode: int | None = None,
 ) -> object:
@@ -1179,14 +1657,20 @@ def _windows_open_handle(
     if open_reparse_point:
         flags |= _FILE_FLAG_OPEN_REPARSE_POINT
     access = _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
-    if delete_protect:
+    if delete_access is None:
+        delete_access = delete_protect
+    if delete_access:
         access |= _DELETE
     if read_contents:
         access |= _GENERIC_READ
+    if share_mode is None:
+        share_mode = _FILE_SHARE_READ | _FILE_SHARE_WRITE
+        if not delete_protect:
+            share_mode |= _FILE_SHARE_DELETE
     handle = _KERNEL32.CreateFileW(
         str(path),
         access,
-        _FILE_SHARE_READ | _FILE_SHARE_WRITE if share_mode is None else share_mode,
+        share_mode,
         None,
         _OPEN_EXISTING,
         flags,
@@ -1286,205 +1770,6 @@ def _regular_file_identity(path: Path, *, label: str) -> os.stat_result:
     return observed
 
 
-def _posix_private_quarantine(
-    parent_descriptor: int,
-    name: str,
-    *,
-    label: str,
-) -> tuple[str, int]:
-    """Reserve one same-parent, private directory for an exact deletion.
-
-    A POSIX pathname unlink cannot carry the caller's observed inode identity.
-    Moving the name into an operation-private directory first makes subsequent
-    no-follow reads and unlink operations relative to a held descriptor rather
-    than an attacker-controlled outer path.
-    """
-
-    directory_flag = getattr(os, "O_DIRECTORY", 0)
-    nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
-    if (
-        not directory_flag
-        or not nofollow_flag
-        or os.mkdir not in os.supports_dir_fd
-        or os.open not in os.supports_dir_fd
-    ):
-        raise ConflictError("platform cannot reserve a private exact-deletion quarantine")
-    for _attempt in range(8):
-        quarantine = f".{name}.{secrets.token_hex(16)}.exact-delete-quarantine"
-        try:
-            os.mkdir(quarantine, 0o700, dir_fd=parent_descriptor)
-        except FileExistsError:
-            continue
-        descriptor: int | None = None
-        try:
-            descriptor = os.open(
-                quarantine,
-                os.O_RDONLY | directory_flag | nofollow_flag,
-                dir_fd=parent_descriptor,
-            )
-            os.fchmod(descriptor, 0o700)
-            observed = os.fstat(descriptor)
-            if not stat.S_ISDIR(observed.st_mode) or stat.S_IMODE(observed.st_mode) != 0o700:
-                raise ConflictError(f"{label} exact-deletion quarantine is not private")
-            os.fsync(descriptor)
-            os.fsync(parent_descriptor)
-            return quarantine, descriptor
-        except BaseException as primary_error:
-            if descriptor is not None:
-                try:
-                    os.close(descriptor)
-                except BaseException as close_error:
-                    raise primary_error from close_error
-            # The reservation is empty on this failure path.  Its randomly
-            # named parent entry may be removed without touching the source.
-            try:
-                os.rmdir(quarantine, dir_fd=parent_descriptor)
-                os.fsync(parent_descriptor)
-            except OSError:
-                pass
-            raise
-    raise ConflictError(f"{label} exact-deletion quarantine cannot be acquired")
-
-
-def _posix_quarantined_generation_matches(
-    quarantine_descriptor: int,
-    name: str,
-    expected_identity: os.stat_result,
-    expected_bytes: bytes,
-) -> bool:
-    """Read one no-follow quarantined member and compare both generation and bytes."""
-
-    nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
-    if not nofollow_flag or os.open not in os.supports_dir_fd:
-        raise ConflictError("platform cannot verify an exact-deletion quarantine")
-    descriptor: int | None = None
-    try:
-        observed = os.stat(name, dir_fd=quarantine_descriptor, follow_symlinks=False)
-        if not stat.S_ISREG(observed.st_mode) or not os.path.samestat(observed, expected_identity):
-            return False
-        descriptor = os.open(name, os.O_RDONLY | nofollow_flag, dir_fd=quarantine_descriptor)
-        opened = os.fstat(descriptor)
-        if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(opened, expected_identity):
-            return False
-        chunks: list[bytes] = []
-        while True:
-            chunk = os.read(descriptor, 1024 * 1024)
-            if not chunk:
-                break
-            chunks.append(chunk)
-        current = os.stat(name, dir_fd=quarantine_descriptor, follow_symlinks=False)
-        return (
-            stat.S_ISREG(current.st_mode)
-            and os.path.samestat(current, expected_identity)
-            and b"".join(chunks) == expected_bytes
-        )
-    except FileNotFoundError:
-        return False
-    except OSError as exc:
-        raise ConflictError("exact-deletion quarantine generation is unavailable") from exc
-    finally:
-        if descriptor is not None:
-            os.close(descriptor)
-
-
-def _posix_delete_exact_regular_file(
-    path: Path,
-    expected_identity: os.stat_result,
-    expected_bytes: bytes,
-    *,
-    label: str,
-    parent_descriptor: int | None,
-) -> None:
-    """Delete one exact generation through a same-parent private quarantine.
-
-    The outer name is atomically renamed into the private directory before any
-    unlink.  A replacement selected by that rename is preserved in quarantine
-    if its identity or bytes differ; a replacement published afterwards stays
-    at the outer name and is reported as a conflict after the owned generation
-    has been removed.
-    """
-
-    if os.rename not in os.supports_dir_fd or os.unlink not in os.supports_dir_fd:
-        raise ConflictError("platform cannot seal an exact regular-file deletion")
-    owns_parent_descriptor = parent_descriptor is None
-    descriptor = parent_descriptor
-    if descriptor is None:
-        directory_flag = getattr(os, "O_DIRECTORY", 0)
-        nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
-        if not directory_flag or not nofollow_flag:
-            raise ConflictError("platform cannot anchor an exact regular-file deletion")
-        try:
-            descriptor = os.open(path.parent, os.O_RDONLY | directory_flag | nofollow_flag)
-        except OSError as exc:
-            raise ConflictError(f"{label} parent directory cannot be anchored") from exc
-
-    quarantine: str | None = None
-    quarantine_descriptor: int | None = None
-    moved = False
-    deleted = False
-    primary_error: BaseException | None = None
-    try:
-        assert descriptor is not None
-        quarantine, quarantine_descriptor = _posix_private_quarantine(descriptor, path.name, label=label)
-        os.rename(
-            path.name,
-            path.name,
-            src_dir_fd=descriptor,
-            dst_dir_fd=quarantine_descriptor,
-        )
-        moved = True
-        os.fsync(quarantine_descriptor)
-        os.fsync(descriptor)
-        if not _posix_quarantined_generation_matches(
-            quarantine_descriptor,
-            path.name,
-            expected_identity,
-            expected_bytes,
-        ):
-            raise ConflictError(
-                f"{label} generation changed during exact deletion; current generation remains quarantined"
-            )
-        os.unlink(path.name, dir_fd=quarantine_descriptor)
-        deleted = True
-        os.fsync(quarantine_descriptor)
-        os.fsync(descriptor)
-    except BaseException as exc:
-        primary_error = exc
-    finally:
-        if quarantine_descriptor is not None:
-            try:
-                os.close(quarantine_descriptor)
-            except BaseException as close_error:
-                if primary_error is None:
-                    primary_error = close_error
-        if primary_error is None and deleted and quarantine is not None:
-            # The directory was private and just emptied via its held
-            # descriptor.  Normal operations leave no quarantine residue.
-            try:
-                assert descriptor is not None
-                os.rmdir(quarantine, dir_fd=descriptor)
-                os.fsync(descriptor)
-            except OSError as cleanup_error:
-                primary_error = ConflictError(f"{label} exact-deletion quarantine cannot be cleaned")
-                primary_error.__cause__ = cleanup_error
-        elif primary_error is not None and not moved and quarantine is not None:
-            # No source was moved, so this empty reservation is safe to remove.
-            try:
-                assert descriptor is not None
-                os.rmdir(quarantine, dir_fd=descriptor)
-                os.fsync(descriptor)
-            except OSError:
-                pass
-        if owns_parent_descriptor and descriptor is not None:
-            try:
-                os.close(descriptor)
-            except BaseException as close_error:
-                if primary_error is None:
-                    primary_error = close_error
-    if primary_error is not None:
-        raise primary_error
-
-
 def _delete_exact_regular_file(
     path: Path,
     expected_identity: os.stat_result,
@@ -1495,25 +1780,13 @@ def _delete_exact_regular_file(
 ) -> None:
     """Seal and delete precisely one current regular-file generation.
 
-    Windows uses a delete-protected handle.  POSIX moves the selected name into
-    a same-parent 0700 quarantine and only unlinks relative to that held
-    directory descriptor.  Both paths reject a substituted outer generation.
+    Windows uses a delete-protected handle. POSIX callers must use an explicit
+    anchored mutation guard and their directory-relative deletion seam.
     """
 
     _before_exact_generation_unlink(path)
     if os.name != "nt":
-        _posix_delete_exact_regular_file(
-            path,
-            expected_identity,
-            expected_bytes,
-            label=label,
-            parent_descriptor=parent_descriptor,
-        )
-        try:
-            _regular_file_identity(path, label=label)
-        except FileNotFoundError:
-            return
-        raise ConflictError(f"{label} name was replaced during exact generation deletion")
+        raise ConflictError(f"{label} deletion requires an explicit held POSIX guard")
 
     handle: object | None = None
     primary_error: BaseException | None = None
@@ -1522,6 +1795,7 @@ def _delete_exact_regular_file(
             path,
             open_reparse_point=True,
             delete_protect=True,
+            delete_access=True,
             read_contents=True,
             # The handle owns DELETE access and permits readers only.  A
             # replacement or mutation cannot enter after the handle has sealed
@@ -1606,7 +1880,11 @@ def _open_windows_anchor(
         handle = _windows_open_handle(
             path,
             open_reparse_point=False,
-            delete_protect=delete_protect and not reject_reparse,
+            # A directory anchor withholds FILE_SHARE_DELETE, while its
+            # ordinary inspection handle deliberately does not request DELETE
+            # access. Independent anchors can therefore coexist, but no peer
+            # can rename or delete the held generation.
+            delete_protect=delete_protect,
         )
         attributes, _ = _windows_file_attribute_tag(handle)
         if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
@@ -1623,27 +1901,6 @@ def _open_windows_anchor(
                 first_close_error = close_error
             else:
                 probe = None
-            if first_close_error is None and delete_protect:
-                # The live no-follow probe deliberately does not share delete,
-                # so the followed comparison handle cannot request DELETE
-                # until the probe has closed. Reopen the same final path with
-                # DELETE access and compare its FileIdInfo before publishing.
-                try:
-                    _windows_close_handle(handle)
-                except BaseException as close_error:
-                    first_close_error = close_error
-                else:
-                    handle = None
-                if first_close_error is None:
-                    handle = _windows_open_handle(
-                        final_path,
-                        open_reparse_point=False,
-                        delete_protect=True,
-                    )
-                    guarded_identity, guarded_final_path = _windows_anchor_refresh(handle)
-                    if guarded_identity != identity:
-                        raise ConflictError(f"{path} physical identity changed before delete-protected anchor")
-                    identity, final_path = guarded_identity, guarded_final_path
 
         if first_close_error is None:
             anchor = _DirectoryAnchor(
@@ -1652,8 +1909,11 @@ def _open_windows_anchor(
                 handle,
                 _windows_anchor_refresh,
                 _windows_close_handle,
+                delete_protected=delete_protect,
             )
             handle = None
+    except FileNotFoundError as exc:
+        primary_error = exc
     except ConflictError as exc:
         primary_error = exc
     except OSError as exc:
@@ -1745,6 +2005,8 @@ def _open_posix_anchor(
         flags |= nofollow_flag
     try:
         file_descriptor = os.open(path, flags)
+    except FileNotFoundError:
+        raise
     except OSError as exc:
         raise ConflictError(f"{path} is not an existing directory") from exc
     try:
@@ -1759,6 +2021,7 @@ def _open_posix_anchor(
             file_descriptor,
             refresh,
             lambda descriptor: os.close(int(descriptor)),
+            delete_protected=delete_protect,
         )
     except BaseException as primary_error:
         try:
@@ -1858,11 +2121,11 @@ def _capture_claim(alias: Path) -> _RootClaim:
     root_anchor: _DirectoryAnchor | None = None
     runtime_anchor: _DirectoryAnchor | None = None
     try:
-        root_anchor = _open_directory_anchor(alias)
-        runtime_anchor = _open_directory_anchor(
-            root_anchor.final_path / "runtime",
-            reject_reparse=True,
-        )
+        try:
+            root_anchor = _open_directory_anchor(alias)
+            runtime_anchor = _open_directory_anchor(root_anchor.final_path / "runtime", reject_reparse=True)
+        except FileNotFoundError as exc:
+            raise ConflictError(f"{alias} is not an existing directory") from exc
         current_identity, current_final_path = root_anchor.refresh()
         if current_identity != root_anchor.identity or current_final_path != root_anchor.final_path:
             raise ConflictError(f"{alias} changed while its identity was captured")
@@ -1899,6 +2162,120 @@ def _capture_claim(alias: Path) -> _RootClaim:
     return claim
 
 
+def _posix_lock_guard_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}.guard")
+
+
+def _posix_flock(descriptor: int, *, unlock: bool = False) -> None:
+    if os.name != "posix" or sys.platform != "linux":
+        raise ConflictError("POSIX writer-lock guards require Linux flock")
+    import fcntl
+
+    operation = fcntl.LOCK_UN if unlock else fcntl.LOCK_EX | fcntl.LOCK_NB
+    fcntl.flock(descriptor, operation)
+
+
+def _acquire_posix_lock_guard(path: Path, parent_anchor: _DirectoryAnchor) -> int:
+    """Acquire the persistent inode that serializes every canonical lock mutation."""
+
+    nofollow_flag = getattr(os, "O_NOFOLLOW", 0)
+    if not nofollow_flag:
+        raise ConflictError("platform cannot open a no-follow writer-lock guard")
+    guard = _posix_lock_guard_path(path)
+    descriptor = os.open(
+        guard.name,
+        os.O_RDWR | os.O_CREAT | nofollow_flag,
+        0o600,
+        dir_fd=int(parent_anchor._handle),
+    )
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode):
+            raise ConflictError("writer-lock guard must be a physical regular file")
+        os.fchmod(descriptor, 0o600)
+        opened = os.fstat(descriptor)
+        if stat.S_IMODE(opened.st_mode) != 0o600:
+            raise ConflictError("writer-lock guard must remain private")
+        _posix_flock(descriptor)
+        current = os.stat(guard.name, dir_fd=int(parent_anchor._handle), follow_symlinks=False)
+        if not os.path.samestat(opened, current):
+            raise ConflictError("writer-lock guard generation changed during acquisition")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _close_posix_lock_guard(descriptor: int) -> None:
+    try:
+        _posix_flock(descriptor, unlock=True)
+    finally:
+        os.close(descriptor)
+
+
+def _add_cleanup_error(
+    current: BaseException | None,
+    error: BaseException,
+    label: str,
+) -> BaseException:
+    if current is None:
+        return error
+    current.add_note(f"{label}: {error!r}")
+    return current
+
+
+def _close_posix_lock_resources(
+    guard: int | None,
+    parent_anchor: _DirectoryAnchor | None,
+) -> BaseException | None:
+    cleanup_error: BaseException | None = None
+    if guard is not None:
+        try:
+            _close_posix_lock_guard(guard)
+        except BaseException as error:
+            cleanup_error = _add_cleanup_error(cleanup_error, error, "writer-lock guard close also failed")
+    if parent_anchor is not None:
+        try:
+            parent_anchor.close()
+        except BaseException as error:
+            cleanup_error = _add_cleanup_error(cleanup_error, error, "writer-lock parent close also failed")
+    return cleanup_error
+
+
+def _after_posix_lock_unlink(_path: Path) -> None:
+    """Test seam while the persistent guard still excludes every contender."""
+
+
+def _verify_posix_lock_guard(path: Path, descriptor: int, parent_anchor: _DirectoryAnchor) -> None:
+    opened = os.fstat(descriptor)
+    current = os.stat(
+        _posix_lock_guard_path(path).name,
+        dir_fd=int(parent_anchor._handle),
+        follow_symlinks=False,
+    )
+    if not os.path.samestat(opened, current):
+        raise ConflictError("writer-lock guard generation changed while held")
+
+
+def _posix_guarded_delete_lock(
+    path: Path,
+    expected: LockObservation,
+    parent_anchor: _DirectoryAnchor,
+    guard_descriptor: int,
+) -> None:
+    """Delete one canonical generation relative to a held parent and flock guard."""
+
+    _verify_posix_lock_guard(path, guard_descriptor, parent_anchor)
+    _before_exact_generation_unlink(path)
+    data, identity = parent_anchor.read_regular_file_with_identity(path.name)
+    if data != expected.data or not os.path.samestat(identity, expected.identity):
+        raise ConflictError("writer lock generation changed before guarded deletion")
+    os.unlink(path.name, dir_fd=int(parent_anchor._handle))
+    _after_posix_lock_unlink(path)
+    parent_anchor.fsync()
+    parent_anchor.verify_unchanged()
+
+
 def _verify_writer_lock(lock: Any, expected_runtime_path: Path) -> None:
     try:
         path = Path(lock.path)
@@ -1908,15 +2285,38 @@ def _verify_writer_lock(lock: Any, expected_runtime_path: Path) -> None:
     expected_path = expected_runtime_path / "writer.lock"
     if path != expected_path:
         raise ConflictError("writer lock path is not under its runtime anchor")
+    generation = getattr(lock, "_posix_lock_identity", None)
+    parent_anchor = getattr(lock, "_posix_parent_anchor", None)
     try:
-        recorded = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        if parent_anchor is None:
+            raw = path.read_bytes()
+        else:
+            raw, _ = parent_anchor.read_regular_file_with_identity(path.name)
+        recorded = json.loads(raw)
+    except (OSError, ConflictError, json.JSONDecodeError) as exc:
         raise ConflictError("writer lock ownership record cannot be verified") from exc
     if recorded != identity:
         raise ConflictError("writer lock ownership changed before protected work")
+    if generation is not None:
+        guard = getattr(lock, "_posix_guard_descriptor", None)
+        if guard is None or parent_anchor is None:
+            raise ConflictError("writer-lock guard ownership is unavailable")
+        _verify_posix_lock_guard(path, guard, parent_anchor)
+        _, observed = parent_anchor.read_regular_file_with_identity(path.name)
+        if not os.path.samestat(generation, observed):
+            raise ConflictError("writer lock generation changed before protected work")
 
 
 class WriterLock:
+    """Cross-platform writer exclusion for compliant store operations.
+
+    Windows seals the canonical file with delete-protected handles. Linux
+    serializes every canonical mutation through a persistent, anchored flock
+    guard. Same-permission processes that deliberately ignore advisory flock
+    are outside exclusion, but substitutions at each mutation seam are still
+    detected and never authorize deletion of the replacement generation.
+    """
+
     def __init__(self, path: Path, identity: dict[str, str]):
         self.path = path
         self.identity = dict(identity)
@@ -1927,8 +2327,116 @@ class WriterLock:
             self.identity["process_instance_id"] = current_process_instance_id()
         self._data = canonical_bytes(self.identity)
         self._deferred_temporary: tuple[Path, os.stat_result, BaseException | None] | None = None
+        self._posix_guard_descriptor: int | None = None
+        self._posix_lock_identity: os.stat_result | None = None
+        self._posix_parent_anchor: _DirectoryAnchor | None = None
+        self._posix_deferred_temporary: tuple[str, os.stat_result] | None = None
+        self._posix_backend_entered = False
+        self._posix_release_complete = False
+
+    def _enter_posix(self) -> Self:
+        if self._posix_backend_entered and not self._posix_release_complete:
+            raise ConflictError("POSIX writer lock is already active")
+        if self._posix_release_complete:
+            self._posix_backend_entered = False
+            self._posix_release_complete = False
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        parent_anchor: _DirectoryAnchor | None = None
+        guard: int | None = None
+        temporary: str | None = None
+        temporary_identity: os.stat_result | None = None
+        canonical_identity: os.stat_result | None = None
+        try:
+            parent_anchor = _open_directory_anchor(self.path.parent, reject_reparse=True)
+            try:
+                guard = _acquire_posix_lock_guard(self.path, parent_anchor)
+            except BlockingIOError as exc:
+                raise WriterLockContentionError(f"writer lock exists: {self.path}") from exc
+            temporary, temporary_identity = parent_anchor.stage_private_file(self.path.name, self._data)
+            try:
+                canonical_identity = temporary_identity
+                published_identity = parent_anchor.link_exact_regular_file(
+                    temporary,
+                    temporary_identity,
+                    self.path.name,
+                )
+                parent_anchor.fsync()
+            except FileExistsError as exc:
+                canonical_identity = None
+                _posix_guarded_delete_lock(
+                    parent_anchor.final_path / temporary,
+                    LockObservation(self._data, temporary_identity),
+                    parent_anchor,
+                    guard,
+                )
+                temporary = None
+                raise WriterLockContentionError(f"writer lock exists: {self.path}") from exc
+            try:
+                _posix_guarded_delete_lock(
+                    parent_anchor.final_path / temporary,
+                    LockObservation(self._data, temporary_identity),
+                    parent_anchor,
+                    guard,
+                )
+                temporary = None
+            except (ConflictError, OSError):
+                pass
+            data, verified_identity = parent_anchor.read_regular_file_with_identity(self.path.name)
+            if data != self._data or not os.path.samestat(published_identity, verified_identity):
+                raise ConflictError("writer lock publication did not remain exact")
+            _verify_posix_lock_guard(self.path, guard, parent_anchor)
+            parent_anchor.verify_unchanged()
+            self._posix_guard_descriptor = guard
+            self._posix_lock_identity = verified_identity
+            self._posix_parent_anchor = parent_anchor
+            self._posix_backend_entered = True
+            if temporary is not None:
+                self._posix_deferred_temporary = (temporary, temporary_identity)
+                temporary = None
+            return self
+        except BaseException as primary_error:
+            cleanup_error: BaseException | None = None
+            if canonical_identity is not None and parent_anchor is not None and guard is not None:
+                try:
+                    _posix_guarded_delete_lock(
+                        self.path,
+                        LockObservation(self._data, canonical_identity),
+                        parent_anchor,
+                        guard,
+                    )
+                except FileNotFoundError:
+                    pass
+                except BaseException as error:
+                    cleanup_error = error
+            if temporary is not None and temporary_identity is not None and parent_anchor is not None:
+                try:
+                    _posix_guarded_delete_lock(
+                        parent_anchor.final_path / temporary,
+                        LockObservation(self._data, temporary_identity),
+                        parent_anchor,
+                        guard,
+                    )
+                except FileNotFoundError:
+                    pass
+                except BaseException as error:
+                    cleanup_error = _add_cleanup_error(
+                        cleanup_error, error, "writer lock temporary cleanup also failed"
+                    )
+            resource_error = _close_posix_lock_resources(guard, parent_anchor)
+            if resource_error is not None:
+                cleanup_error = _add_cleanup_error(
+                    cleanup_error, resource_error, "writer-lock resource cleanup also failed"
+                )
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
 
     def __enter__(self) -> Self:
+        if not _supports_exact_writer_lock_deletion():
+            raise ConflictError("writer lock leases require Windows or Linux inode-safe locking")
+        if os.name == "posix":
+            return self._enter_posix()
+        return self._enter_path_published()
+
+    def _enter_path_published(self) -> Self:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.path.with_name(f".{self.path.name}.{secrets.token_hex(16)}.tmp")
         temporary_identity: os.stat_result | None = None
@@ -2064,6 +2572,74 @@ class WriterLock:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> bool:
+        if self._posix_backend_entered:
+            if self._posix_release_complete:
+                return False
+            guard = self._posix_guard_descriptor
+            identity = self._posix_lock_identity
+            parent_anchor = self._posix_parent_anchor
+            deferred_temporary = self._posix_deferred_temporary
+            if guard is None or identity is None or parent_anchor is None:
+                raise ConflictError("POSIX writer lock ownership state is incomplete")
+            release_error: BaseException | None = None
+            release_finished = False
+            try:
+                _verify_posix_lock_guard(self.path, guard, parent_anchor)
+                _posix_guarded_delete_lock(
+                    self.path,
+                    LockObservation(self._data, identity),
+                    parent_anchor,
+                    guard,
+                )
+                release_finished = True
+            except FileNotFoundError:
+                release_finished = True
+            except BaseException as error:
+                release_error = error
+                try:
+                    current_data, current_identity = parent_anchor.read_regular_file_with_identity(self.path.name)
+                except FileNotFoundError:
+                    release_finished = True
+                except BaseException as classification_error:
+                    error.add_note(f"writer lock release state cannot be classified: {classification_error!r}")
+                    raise error from classification_error
+                else:
+                    if current_data == self._data and os.path.samestat(current_identity, identity):
+                        raise
+                    release_finished = True
+            if not release_finished:  # pragma: no cover - every branch above classifies or raises
+                raise ConflictError("POSIX writer lock release state is unresolved")
+
+            cleanup_error: BaseException | None = None
+            if deferred_temporary is not None:
+                temporary, temporary_identity = deferred_temporary
+                try:
+                    _posix_guarded_delete_lock(
+                        parent_anchor.final_path / temporary,
+                        LockObservation(self._data, temporary_identity),
+                        parent_anchor,
+                        guard,
+                    )
+                except FileNotFoundError:
+                    pass
+                except BaseException as error:
+                    cleanup_error = error
+            resource_error = _close_posix_lock_resources(guard, parent_anchor)
+            if resource_error is not None:
+                cleanup_error = _add_cleanup_error(
+                    cleanup_error, resource_error, "writer-lock resource cleanup also failed"
+                )
+            self._posix_guard_descriptor = None
+            self._posix_lock_identity = None
+            self._posix_parent_anchor = None
+            self._posix_deferred_temporary = None
+            self._posix_release_complete = True
+            if release_error is not None:
+                _raise_primary_with_cleanup(release_error, cleanup_error)
+            if cleanup_error is not None:
+                raise cleanup_error
+            return False
+
         deferred_temporary = self._deferred_temporary
         self._deferred_temporary = None
         canonical_error: BaseException | None = None
@@ -2256,21 +2832,43 @@ class CompositeWriterLock:
         for acquired in reversed(members):
             if not acquired.lock_entered or acquired.lock is None:
                 continue
-            try:
-                acquired.lock.__exit__(exc_type, exc, traceback)
-            except BaseException as release_error:
-                if first_error is None:
-                    first_error = release_error
-            finally:
-                acquired.lock_entered = False
+            release_error: BaseException | None = None
+            for _attempt in range(3):
+                try:
+                    acquired.lock.__exit__(exc_type, exc, traceback)
+                except BaseException as error:
+                    release_error = error
+                    retryable = bool(
+                        getattr(acquired.lock, "_posix_backend_entered", False)
+                        and not getattr(acquired.lock, "_posix_release_complete", False)
+                    )
+                    if retryable:
+                        if _attempt < 2:
+                            time.sleep(0.01 * (_attempt + 1))
+                        continue
+                    acquired.lock_entered = False
+                    break
+                else:
+                    acquired.lock_entered = False
+                    release_error = None
+                    break
+            if release_error is not None and first_error is None:
+                first_error = release_error
 
         for acquired in reversed(members):
-            for anchor in (acquired.runtime_anchor, acquired.root_anchor):
+            if acquired.lock_entered:
+                continue
+            for attribute in ("runtime_anchor", "root_anchor"):
+                anchor = getattr(acquired, attribute)
                 try:
                     _close_anchor(anchor)
                 except BaseException as close_error:
                     if first_error is None:
                         first_error = close_error
+                else:
+                    setattr(acquired, attribute, None)
+            if acquired.runtime_anchor is None and acquired.root_anchor is None:
+                acquired.lock = None
         return first_error
 
     def __enter__(self) -> Self:
@@ -2314,9 +2912,14 @@ class CompositeWriterLock:
                 exc=None,
                 traceback=None,
             )
-            self._active_members = []
-            self._locks = ()
-            self._acquired = []
+            pending = [
+                member
+                for member in acquired_members
+                if member.lock_entered or member.runtime_anchor is not None or member.root_anchor is not None
+            ]
+            self._active_members = pending
+            self._locks = tuple(member.lock for member in pending)
+            self._acquired = list(self._locks)
             self._lease_token = None
             self._locked_roots = ()
             self.paths = ()
@@ -2355,20 +2958,26 @@ class CompositeWriterLock:
         exc: BaseException | None,
         traceback: TracebackType | None,
     ) -> bool:
-        active_members, self._active_members = self._active_members, []
+        active_members = self._active_members
         lease_token, self._lease_token = self._lease_token, None
         if lease_token is not None:
             lease_token.invalidate()
         self._locked_roots = ()
         self.paths = ()
-        self._locks = ()
-        self._acquired = []
         first_error = self._cleanup_members(
             active_members,
             exc_type=exc_type,
             exc=exc,
             traceback=traceback,
         )
+        pending = [
+            member
+            for member in active_members
+            if member.lock_entered or member.runtime_anchor is not None or member.root_anchor is not None
+        ]
+        self._active_members = pending
+        self._locks = tuple(member.lock for member in pending)
+        self._acquired = list(self._locks)
         if first_error is not None:
             if exc is not None:
                 raise exc.with_traceback(traceback) from first_error

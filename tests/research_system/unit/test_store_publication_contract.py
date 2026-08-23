@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import os
 from pathlib import Path
 import stat
-import threading
+import sys
 
 import pytest
 
@@ -34,16 +34,9 @@ def _locked_root(root: Path):
 
 
 def _assert_generation_preserved_after_posix_quarantine(path: Path, expected: bytes) -> None:
-    """Assert the platform-specific safe outcome of exact-generation refusal."""
+    """A refused deletion must leave the substituted owner at its canonical name."""
 
-    if os.name == "nt":
-        assert path.read_bytes() == expected
-        return
-    quarantines = list(path.parent.glob(f".{path.name}.*.exact-delete-quarantine"))
-    assert not path.exists()
-    assert len(quarantines) == 1
-    assert (quarantines[0] / path.name).read_bytes() == expected
-    assert stat.S_IMODE(quarantines[0].lstat().st_mode) == 0o700
+    assert path.read_bytes() == expected
 
 
 def test_writer_lock_reports_only_existing_lock_as_typed_contention(tmp_path: Path) -> None:
@@ -55,6 +48,144 @@ def test_writer_lock_reports_only_existing_lock_as_typed_contention(tmp_path: Pa
                 raise AssertionError("second writer entered lock")
 
     assert issubclass(WriterLockContentionError, ConflictError)
+
+
+def test_writer_lock_fails_closed_before_publication_without_windows_exact_deletion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """preservation-green: unsupported POSIX cannot publish an unreleasable lease."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "uncreated" / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "unsupported-platform"})
+    monkeypatch.setattr(lock_module, "_supports_exact_writer_lock_deletion", lambda: False)
+
+    with pytest.raises(ConflictError, match="require Windows or Linux inode-safe locking"):
+        writer.__enter__()
+
+    assert not path.parent.exists()
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+@pytest.mark.parametrize("failure", ["fsync", "verification"])
+def test_linux_writer_rolls_back_an_exact_canonical_after_post_link_failure(
+    tmp_path: Path,
+    monkeypatch,
+    failure: str,
+) -> None:
+    """A failed acquisition cannot strand the current process as canonical owner."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    failed = False
+    method_name = "fsync" if failure == "fsync" else "read_regular_file_with_identity"
+    original = getattr(lock_module._DirectoryAnchor, method_name)
+
+    def fail_once(anchor, *args, **kwargs):
+        nonlocal failed
+        targets_canonical = failure == "fsync" or args == (path.name,)
+        if targets_canonical and not failed:
+            failed = True
+            raise ConflictError(f"post-link {failure} failed")
+        return original(anchor, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module._DirectoryAnchor, method_name, fail_once)
+    with pytest.raises(ConflictError, match=f"post-link {failure} failed"):
+        WriterLock(path, {"writer_id": "rejected-owner"}).__enter__()
+
+    assert failed
+    assert not path.exists()
+    with WriterLock(path, {"writer_id": "next-owner"}):
+        assert path.is_file()
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+def test_linux_writer_retains_release_state_for_an_exact_retry(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "release-owner"})
+    writer.__enter__()
+    original = lock_module._posix_guarded_delete_lock
+    failed = False
+
+    def fail_once(candidate, *args, **kwargs):
+        nonlocal failed
+        if candidate == path and not failed:
+            failed = True
+            raise OSError("transient pre-delete failure")
+        return original(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "_posix_guarded_delete_lock", fail_once)
+    with pytest.raises(OSError, match="transient pre-delete failure"):
+        writer.__exit__(None, None, None)
+    assert path.is_file()
+
+    assert writer.__exit__(None, None, None) is False
+    assert not path.exists()
+    assert writer.__exit__(None, None, None) is False
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+def test_linux_writer_rejects_active_reentry_and_supports_sequential_reuse(tmp_path: Path) -> None:
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "reusable-owner"})
+
+    writer.__enter__()
+    with pytest.raises(ConflictError, match="already active"):
+        writer.__enter__()
+    writer.__exit__(None, None, None)
+
+    writer.__enter__()
+    writer.__exit__(None, None, None)
+    assert not path.exists()
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+@pytest.mark.parametrize("during_enter_rollback", [False, True])
+def test_linux_composite_retries_a_transient_member_release(
+    tmp_path: Path, monkeypatch, during_enter_rollback: bool
+) -> None:
+    import research_system.store.lock as lock_module
+
+    roots = tuple(tmp_path / name for name in (("a", "b") if during_enter_rollback else ("a",)))
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+    enabled = not during_enter_rollback
+    failed = False
+    original_delete = lock_module._posix_guarded_delete_lock
+
+    def fail_release_once(candidate, *args, **kwargs):
+        nonlocal failed
+        if enabled and candidate.name == "writer.lock" and not failed:
+            failed = True
+            raise OSError("transient composite release")
+        return original_delete(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "_posix_guarded_delete_lock", fail_release_once)
+    if during_enter_rollback:
+        created = 0
+
+        def factory(path, identity):
+            nonlocal created, enabled
+            created += 1
+            if created == 2:
+                enabled = True
+                raise RuntimeError("later member acquisition failed")
+            return WriterLock(path, identity)
+
+        candidate = CompositeWriterLock(roots, {"command_id": "cmd_enter-rollback"}, lock_factory=factory)
+        with pytest.raises(RuntimeError, match="later member acquisition failed"):
+            candidate.__enter__()
+    else:
+        candidate = CompositeWriterLock(roots, {"command_id": "cmd_normal-release"})
+        candidate.__enter__()
+        candidate.__exit__(None, None, None)
+    assert failed and not candidate._active_members
+    assert all(not (root / "runtime" / "writer.lock").exists() for root in roots)
 
 
 def test_writer_lock_does_not_retype_identity_or_link_failures_as_contention(tmp_path: Path, monkeypatch) -> None:
@@ -119,6 +250,7 @@ def _defer_private_staging_cleanup(monkeypatch, writer: WriterLock, before_failu
     return lock_module, failures
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
 @pytest.mark.parametrize("exit_state", [None, "missing", "foreign", "anchor-close"])
 def test_writer_lock_durable_temporary_cleanup_failure_defers_under_a_tracked_lease(
     tmp_path: Path,
@@ -171,6 +303,7 @@ def test_writer_lock_durable_temporary_cleanup_failure_defers_under_a_tracked_le
     assert not path.exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
 @pytest.mark.parametrize("foreign_canonical", [True, False], ids=["foreign", "proof-unavailable"])
 def test_writer_lock_cleanup_failure_preserves_foreign_or_rolls_back_owned_canonical(
     tmp_path: Path,
@@ -215,6 +348,7 @@ def test_writer_lock_cleanup_failure_preserves_foreign_or_rolls_back_owned_canon
             assert path.is_file()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
 def test_writer_lock_cleanup_failure_preserves_canonical_when_anchored_observation_is_unsafe(
     tmp_path: Path,
     monkeypatch,
@@ -249,6 +383,7 @@ def test_writer_lock_cleanup_failure_preserves_canonical_when_anchored_observati
         WriterLock(path, {"writer_id": "next-owner"}).__enter__()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected publication rollback")
 def test_writer_lock_post_publication_fsync_failure_rolls_back_and_raises(
     tmp_path: Path,
     monkeypatch,
@@ -283,6 +418,7 @@ def test_writer_lock_post_publication_fsync_failure_rolls_back_and_raises(
     assert not path.exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected publication rollback")
 def test_writer_lock_post_publication_fsync_and_rollback_failure_leaves_a_fail_closed_poison(
     tmp_path: Path,
     monkeypatch,
@@ -330,18 +466,18 @@ def test_writer_lock_uses_no_follow_link_publication_on_windows(tmp_path: Path, 
 
     path = tmp_path / "writer.lock"
     real_link = os.link
-    calls: list[bool] = []
+    calls: list[tuple[bool, bool, bool]] = []
 
-    def observe(source, destination, *, follow_symlinks=True):
-        calls.append(follow_symlinks)
-        return real_link(source, destination, follow_symlinks=follow_symlinks)
+    def observe(source, destination, *args, follow_symlinks=True, **kwargs):
+        calls.append((follow_symlinks, "src_dir_fd" in kwargs, "dst_dir_fd" in kwargs))
+        return real_link(source, destination, *args, follow_symlinks=follow_symlinks, **kwargs)
 
     monkeypatch.setattr(lock_module.os, "link", observe)
 
     with WriterLock(path, {"writer_id": "no-follow"}):
         assert path.is_file()
 
-    assert calls == [False]
+    assert calls == [(False, os.name != "nt", os.name != "nt")]
 
 
 def test_composite_writer_lock_still_enters_and_releases_its_canonical_lock(tmp_path: Path) -> None:
@@ -359,55 +495,115 @@ def test_object_publication_uses_no_follow_hard_links(tmp_path: Path, monkeypatc
     import research_system.store.objects as object_module
 
     real_link = os.link
-    calls: list[bool] = []
+    calls: list[tuple[bool, bool, bool]] = []
 
-    def observe(source, destination, *, follow_symlinks=True):
-        calls.append(follow_symlinks)
-        return real_link(source, destination, follow_symlinks=follow_symlinks)
+    def observe(source, destination, *args, follow_symlinks=True, **kwargs):
+        calls.append((follow_symlinks, "src_dir_fd" in kwargs, "dst_dir_fd" in kwargs))
+        return real_link(source, destination, *args, follow_symlinks=follow_symlinks, **kwargs)
 
     monkeypatch.setattr(object_module.os, "link", observe)
 
     write_object(tmp_path, "task", TASK_ID, 1, {"value": "no-follow"})
 
-    assert calls == [False, False]
+    assert calls == [(False, os.name != "nt", os.name != "nt")] * 2
 
 
-def test_identical_object_writers_share_the_claim_without_cleanup_conflict(tmp_path: Path, monkeypatch) -> None:
+@pytest.mark.parametrize("swap_level", ("control-root", "objects", "kind", "object"))
+def test_object_publication_keeps_every_effect_in_the_opened_object_directory_generation(
+    tmp_path: Path,
+    monkeypatch,
+    swap_level: str,
+) -> None:
+    """remediation-red: no ancestor swap redirects an object transaction."""
+
     import research_system.store.objects as object_module
 
-    staged = threading.Barrier(3)
-    release = threading.Event()
-    results: list[Path] = []
-    errors: list[BaseException] = []
+    control_root = tmp_path / "control"
+    directory = _object_directory(control_root)
+    swap_path, replacement_tail = {
+        "control-root": (control_root, ("objects", "task", TASK_ID)),
+        "objects": (control_root / "objects", ("task", TASK_ID)),
+        "kind": (control_root / "objects" / "task", (TASK_ID,)),
+        "object": (directory, ()),
+    }[swap_level]
+    held_path = swap_path.with_name(f"{swap_path.name}-held-generation")
+    held_directory = held_path.joinpath(*replacement_tail)
+    real_open = object_module.os.open
+    swapped = False
+    rename_rejected = False
 
-    def pause_after_stage(_temporary: Path) -> None:
-        staged.wait(timeout=2)
-        assert release.wait(2)
+    def swap_before_private_stage(path, flags, *args, **kwargs):
+        nonlocal swapped, rename_rejected
+        if not swapped and Path(path).name.endswith(".tmp") and flags & os.O_CREAT:
+            try:
+                swap_path.rename(held_path)
+                directory.mkdir(parents=True)
+            except OSError:
+                rename_rejected = True
+                raise
+            swapped = True
+        return real_open(path, flags, *args, **kwargs)
 
-    def publish() -> None:
-        try:
-            results.append(write_object(tmp_path, "task", TASK_ID, 1, {"value": "same"}))
-        except BaseException as exc:  # pragma: no branch - asserted below
-            errors.append(exc)
+    monkeypatch.setattr(object_module.os, "open", swap_before_private_stage)
 
-    monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause_after_stage)
-    writers = [threading.Thread(target=publish), threading.Thread(target=publish)]
-    for writer in writers:
-        writer.start()
-    staged.wait(timeout=2)
-    release.set()
-    for writer in writers:
-        writer.join(timeout=2)
-        assert not writer.is_alive()
+    if os.name == "nt":
+        with pytest.raises(OSError):
+            write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
+        assert rename_rejected
+        assert not held_path.exists()
+        assert not list(directory.glob("00000001-*.json"))
+        return
 
-    directory = _object_directory(tmp_path)
-    assert errors == []
-    assert len(set(results)) == 1
-    assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"value": "same"}
-    assert len(list(directory.glob("00000001-*.json"))) == 1
-    assert not list(directory.glob(".*.tmp"))
-    assert not list(directory.glob(".*.publication-claim"))
-    assert not list(directory.glob(".*.cleanup-anchor"))
+    with pytest.raises(ConflictError, match="final generation is unavailable|directory identity changed"):
+        write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
+
+    assert swapped
+    assert not list(directory.iterdir())
+    assert not list(held_directory.glob("00000001-*.json"))
+    assert len(list(held_directory.glob(".*.tmp"))) == 1
+
+
+def test_object_publication_rolls_back_its_owned_final_after_an_ancestor_move(tmp_path: Path, monkeypatch) -> None:
+    """remediation-red: parent-chain failure after final publication leaves no final behind."""
+
+    import research_system.store.objects as object_module
+
+    control_root = tmp_path / "control"
+    directory = _object_directory(control_root)
+    swap_path = directory if os.name == "nt" else control_root
+    held_path = swap_path.with_name(f"{swap_path.name}-held-generation")
+    held_directory = held_path if os.name == "nt" else _object_directory(held_path)
+    real_require = object_module._require_exact_generation
+    swapped = False
+
+    def swap_after_final(anchor, name, expected, data, label, **kwargs):
+        nonlocal swapped
+        if label == "final" and not swapped:
+            swap_path.rename(held_path)
+            directory.mkdir(parents=True)
+            swapped = True
+        return real_require(anchor, name, expected, data, label, **kwargs)
+
+    monkeypatch.setattr(object_module, "_require_exact_generation", swap_after_final)
+
+    if os.name == "nt":
+        # The held DELETE-capable anchor fences this attempted leaf replacement
+        # before it can create a second namespace.  POSIX exercises the later
+        # recovery path below, where a moved ancestor remains reachable by fd.
+        with pytest.raises(OSError):
+            write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
+        assert not swapped
+        assert not held_path.exists()
+        assert not list(directory.glob("00000001-*.json"))
+        return
+
+    with pytest.raises(ConflictError, match="directory identity changed"):
+        write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
+
+    assert swapped
+    assert not list(directory.glob("00000001-*.json"))
+    assert not list(held_directory.glob("00000001-*.json"))
+    assert len(list(held_directory.glob(".*.publication-claim"))) == 1
 
 
 def test_object_publication_rejects_replaced_temporary_without_publishing_foreign_bytes(
@@ -418,8 +614,10 @@ def test_object_publication_rejects_replaced_temporary_without_publishing_foreig
 
     expected = {"value": "expected"}
     foreign = canonical_bytes({"value": "foreign"})
+    directory = _object_directory(tmp_path)
 
-    def replace_temporary(temporary: Path) -> None:
+    def replace_temporary(temporary_name: str) -> None:
+        temporary = directory / temporary_name
         temporary.unlink()
         temporary.write_bytes(foreign)
 
@@ -428,7 +626,6 @@ def test_object_publication_rejects_replaced_temporary_without_publishing_foreig
     with pytest.raises(ConflictError, match="temporary.*generation changed"):
         write_object(tmp_path, "task", TASK_ID, 1, expected)
 
-    directory = _object_directory(tmp_path)
     assert not list(directory.glob("00000001-*.json"))
     assert not list(directory.glob(".*.publication-claim"))
     temporary = list(directory.glob(".*.tmp"))
@@ -511,39 +708,6 @@ def test_object_publication_rejects_foreign_claim_collision_without_cleanup(tmp_
     assert not list(directory.glob("00000001-*.json"))
     assert claim.read_bytes() == foreign
     assert not list(directory.glob(".*.tmp"))
-
-
-def test_object_rollback_preserves_replaced_final_generation(tmp_path: Path, monkeypatch) -> None:
-    store = ObjectStore(tmp_path)
-    value = {"value": "expected"}
-    path = store.write("task", TASK_ID, 1, value)
-    foreign = canonical_bytes({"value": "foreign"})
-    import research_system.store.objects as object_module
-
-    real_read_generation = object_module._read_physical_generation
-    replaced = False
-
-    def read_then_replace(
-        candidate: Path,
-        expected_generation,
-        label: str,
-        *,
-        missing_ok: bool = False,
-    ) -> bytes | None:
-        nonlocal replaced
-        data = real_read_generation(candidate, expected_generation, label, missing_ok=missing_ok)
-        if label == "rollback final" and not replaced:
-            replaced = True
-            candidate.unlink()
-            candidate.write_bytes(foreign)
-        return data
-
-    monkeypatch.setattr(object_module, "_read_physical_generation", read_then_replace)
-
-    with pytest.raises(IntegrityError, match="changed object revision"):
-        store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
-
-    assert path.read_bytes() == foreign
 
 
 def test_locked_root_publishes_and_reads_exact_relative_file_bytes(tmp_path: Path) -> None:
@@ -787,26 +951,32 @@ def test_locked_root_replacement_finishes_committed_recovery_after_predecessor_c
     assert not target.with_name(f".{target.name}.replacement-publication-claim").exists()
 
 
+@pytest.mark.parametrize("same_bytes", [False, True], ids=["different-bytes", "same-bytes-new-inode"])
 def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_check(
     tmp_path: Path,
     monkeypatch,
+    same_bytes: bool,
 ) -> None:
-    """remediation-red: lock release must not unlink a replacement after verifying its owner."""
+    """remediation-red: A's release cannot vacate B or admit C after an ABA substitution."""
 
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
     writer = WriterLock(path, {"writer_id": "owner"})
     writer.__enter__()
-    foreign = b'{"writer_id":"foreign"}'
+    foreign = writer._data if same_bytes else WriterLock(path, {"writer_id": "foreign"})._data
     substituted = False
+    contender_blocked = False
 
     def replace_after_check(candidate: Path) -> None:
-        nonlocal substituted
+        nonlocal substituted, contender_blocked
         if candidate == path and not substituted:
             substituted = True
             candidate.unlink()
             candidate.write_bytes(foreign)
+            with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+                WriterLock(path, {"writer_id": "contender"}).__enter__()
+            contender_blocked = True
 
     monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", replace_after_check, raising=False)
 
@@ -814,7 +984,69 @@ def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_
         writer.__exit__(None, None, None)
 
     assert substituted
+    assert contender_blocked
     _assert_generation_preserved_after_posix_quarantine(path, foreign)
+    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+        WriterLock(path, {"writer_id": "contender"}).__enter__()
+
+
+@pytest.mark.parametrize("same_bytes", [False, True], ids=["different-bytes", "same-bytes-new-inode"])
+def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
+    tmp_path: Path,
+    monkeypatch,
+    same_bytes: bool,
+) -> None:
+    """remediation-red: reclaiming stale A cannot vacate substituted B or admit C."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    stale = canonical_bytes(
+        {"process_id": "919191", "process_instance_id": "dead-process-instance", "writer_id": "stale-a"}
+    )
+    path.write_bytes(stale)
+    monkeypatch.setattr(lock_module, "process_instance_id", lambda _pid: None)
+    monkeypatch.setattr(
+        lock_module.os,
+        "kill",
+        lambda _pid, _signal: (_ for _ in ()).throw(ProcessLookupError()),
+    )
+    state, observed, _ = lock_module.inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+
+    live_identity = {
+        "process_id": str(os.getpid()),
+        "process_instance_id": "test-live-process-instance",
+        "writer_id": "live-b",
+    }
+    contender_identity = {
+        "process_id": str(os.getpid()),
+        "process_instance_id": "test-contender-process-instance",
+        "writer_id": "contender-c",
+    }
+    live = stale if same_bytes else WriterLock(path, live_identity)._data
+    substituted = False
+    contender_blocked = False
+
+    def replace_before_delete(candidate: Path) -> None:
+        nonlocal substituted, contender_blocked
+        if candidate == path and not substituted:
+            substituted = True
+            candidate.unlink()
+            candidate.write_bytes(live)
+            with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+                WriterLock(path, contender_identity).__enter__()
+            contender_blocked = True
+
+    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", replace_before_delete)
+
+    assert not lock_module.remove_stale_lock(path, observed)
+    assert substituted
+    assert contender_blocked
+    assert path.read_bytes() == live
+    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+        WriterLock(path, contender_identity).__enter__()
 
 
 def test_writer_lock_release_rejects_an_in_place_byte_mutation_after_ownership_check(
@@ -977,19 +1209,26 @@ def test_object_temporary_cleanup_allows_an_absence_before_its_generation_rechec
 
     import research_system.store.objects as object_module
 
-    real_existing = object_module._existing_revision
+    real_remove = object_module._remove_owned_generation
     removed = False
 
-    def existing_then_remove_temporary(directory, *args, **kwargs):
+    def remove_then_observe_absence(anchor, name, expected, data, label, guard, *, missing_ok=False, **kwargs):
         nonlocal removed
-        result = real_existing(directory, *args, **kwargs)
-        if result is not None and not removed:
-            temporary = next(directory.glob(".*.tmp"))
-            temporary.unlink()
+        if label == "temporary" and not removed:
+            anchor.remove_exact_generation(name, expected, data, guard=guard)
             removed = True
-        return result
+        return real_remove(
+            anchor,
+            name,
+            expected,
+            data,
+            label,
+            guard,
+            missing_ok=missing_ok,
+            **kwargs,
+        )
 
-    monkeypatch.setattr(object_module, "_existing_revision", existing_then_remove_temporary)
+    monkeypatch.setattr(object_module, "_remove_owned_generation", remove_then_observe_absence)
 
     target = write_object(tmp_path, "task", TASK_ID, 1, {"value": "expected"})
 
@@ -1046,52 +1285,3 @@ def test_locked_root_rejects_a_real_reparse_substituted_after_claim_check(
         assert len(quarantines) == 1
         assert (quarantines[0] / target.name).is_symlink()
         assert stat.S_IMODE(quarantines[0].lstat().st_mode) == 0o700
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX directory-fd quarantine contract")
-def test_posix_object_publication_releases_its_claim_without_quarantine_residue(tmp_path: Path) -> None:
-    """Normal immutable publication remains usable on the Ubuntu CI platform."""
-
-    target = write_object(tmp_path, "task", TASK_ID, 1, {"value": "posix"})
-
-    assert target.read_bytes() == canonical_bytes({"value": "posix"})
-    assert not list(target.parent.glob(".*.publication-claim"))
-    assert not list(target.parent.glob(".*.exact-delete-quarantine"))
-    assert not list(target.parent.glob(".*.tmp"))
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX directory-fd quarantine contract")
-def test_posix_exact_generation_deletion_retains_a_postcheck_foreign_source_in_private_quarantine(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    """A post-proof foreign source is moved aside, never unlinked or overwritten."""
-
-    import research_system.store.lock as lock_module
-
-    control_root = tmp_path / "control"
-    relative_path = "runtime/manifests/spec-current-binding.json"
-    target = control_root / relative_path.replace("/", os.sep)
-    foreign = b"foreign"
-    substituted = False
-
-    def replace_after_check(candidate: Path) -> None:
-        nonlocal substituted
-        if candidate.name == target.name and not substituted:
-            substituted = True
-            candidate.unlink()
-            candidate.write_bytes(foreign)
-
-    with _locked_root(control_root) as locked_root:
-        locked_root.write_exact_file(relative_path, b"expected")
-        monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", replace_after_check, raising=False)
-        with pytest.raises(ConflictError, match="quarantined|generation changed|exact generation"):
-            locked_root.remove_exact_file(relative_path, b"expected")
-
-    assert substituted
-    assert not target.exists()
-    quarantines = list(target.parent.glob(f".{target.name}.*.exact-delete-quarantine"))
-    assert len(quarantines) == 1
-    quarantined = quarantines[0] / target.name
-    assert quarantined.read_bytes() == foreign
-    assert stat.S_IMODE(quarantines[0].lstat().st_mode) == 0o700
