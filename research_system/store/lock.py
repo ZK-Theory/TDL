@@ -8,7 +8,7 @@ import sys
 import time
 from contextlib import contextmanager
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import secrets
 import threading
@@ -85,12 +85,34 @@ class _WindowsQuarantineBusyError(ConflictError):
 
 
 class DirectoryMutationGuard:
-    __slots__ = ("_anchor", "_active", "name")
+    __slots__ = ("_anchor", "_active", "_descriptor", "name")
 
     def __init__(self, anchor: object, name: str) -> None:
         self._anchor = anchor
         self._active = False
+        self._descriptor: int | None = None
         self.name = name
+
+    def _verify_canonical_generation(self) -> None:
+        """Prove the held POSIX flock still names the guard generation in the anchor."""
+
+        if os.name != "posix":
+            return
+        descriptor = self._descriptor
+        anchor = self._anchor
+        if descriptor is None or not isinstance(anchor, _DirectoryAnchor):
+            raise ConflictError("anchored directory mutation guard ownership is unavailable")
+        try:
+            opened = os.fstat(descriptor)
+            current = os.stat(self.name, dir_fd=int(anchor._handle), follow_symlinks=False)
+        except (OSError, ValueError) as exc:
+            raise ConflictError("anchored directory mutation guard generation is unavailable") from exc
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(current.st_mode)
+            or not os.path.samestat(opened, current)
+        ):
+            raise ConflictError("anchored directory mutation guard generation changed while held")
 
 
 def _is_windows_sharing_violation(error: OSError) -> bool:
@@ -729,6 +751,7 @@ class _DirectoryAnchor:
                 descriptor = int(self._handle)
                 if create:
                     try:
+                        self._verify_active_posix_mutation_guard()
                         os.mkdir(name, 0o700, dir_fd=descriptor)
                     except FileExistsError:
                         pass
@@ -930,6 +953,7 @@ class _DirectoryAnchor:
         if os.name == "nt":
             _link_without_following(final_path / source, final_path / destination)
             return
+        self._verify_active_posix_mutation_guard()
         os.link(
             source,
             destination,
@@ -990,6 +1014,7 @@ class _DirectoryAnchor:
             raise ConflictError("anchored file changed before exact generation deletion")
         if data != expected_bytes:
             raise ConflictError("anchored file bytes changed before exact generation deletion")
+        self._verify_active_posix_mutation_guard()
         try:
             os.unlink(name, dir_fd=int(self._handle))
         except FileNotFoundError:
@@ -1041,6 +1066,14 @@ class _DirectoryAnchor:
     def _validate_mutation_guard(self, guard: DirectoryMutationGuard) -> None:
         if guard._anchor is not self or not guard._active or self._active_mutation_guard is not guard:
             raise ConflictError("anchored directory mutation guard is not active")
+        guard._verify_canonical_generation()
+
+    def _verify_active_posix_mutation_guard(self) -> None:
+        if os.name != "posix":
+            return
+        guard = self._active_mutation_guard
+        if guard is not None:
+            self._validate_mutation_guard(guard)
 
     @contextmanager
     def acquire_mutation_guard(self, name: str) -> Iterator[DirectoryMutationGuard]:
@@ -1128,6 +1161,8 @@ class _DirectoryAnchor:
                 raise ConflictError("platform cannot lock an anchored exclusive guard") from exc
             fcntl.flock(descriptor, fcntl.LOCK_EX)
             locked = True
+            guard._descriptor = descriptor
+            guard._verify_canonical_generation()
             guard._active = True
             self._active_mutation_guard = guard
             self.verify_unchanged()
@@ -1148,6 +1183,8 @@ class _DirectoryAnchor:
                     os.close(descriptor)
                 except BaseException as error:
                     cleanup_error = _add_cleanup_error(cleanup_error, error, "mutation-guard close also failed")
+                finally:
+                    guard._descriptor = None
         if primary_error is not None:
             _raise_primary_with_cleanup(primary_error, cleanup_error)
         if cleanup_error is not None:
@@ -1165,6 +1202,7 @@ class _DirectoryAnchor:
                 nofollow = getattr(os, "O_NOFOLLOW", 0)
                 if not nofollow or os.open not in os.supports_dir_fd:
                     raise ConflictError("platform cannot write an anchored regular file")
+                self._verify_active_posix_mutation_guard()
                 descriptor = os.open(temporary, flags | nofollow, 0o600, dir_fd=int(self._handle))
             temporary_identity = os.fstat(descriptor)
             if not stat.S_ISREG(temporary_identity.st_mode):
@@ -2265,11 +2303,16 @@ def _after_posix_lock_unlink(_path: Path) -> None:
 
 def _verify_posix_lock_guard(path: Path, descriptor: int, parent_anchor: _DirectoryAnchor) -> None:
     opened = os.fstat(descriptor)
-    current = os.stat(
-        _posix_lock_guard_path(path).name,
-        dir_fd=int(parent_anchor._handle),
-        follow_symlinks=False,
-    )
+    try:
+        current = os.stat(
+            _posix_lock_guard_path(path).name,
+            dir_fd=int(parent_anchor._handle),
+            follow_symlinks=False,
+        )
+    except FileNotFoundError as exc:
+        raise ConflictError("writer-lock guard generation changed while held") from exc
+    except OSError as exc:
+        raise ConflictError("writer-lock guard generation is unavailable") from exc
     if not os.path.samestat(opened, current):
         raise ConflictError("writer-lock guard generation changed while held")
 
@@ -2285,6 +2328,7 @@ def _posix_guarded_delete_lock(
     data, identity = parent_anchor.read_regular_file_with_identity(path.name)
     if data != expected.data or not os.path.samestat(identity, expected.identity):
         raise ConflictError("writer lock generation changed before guarded deletion")
+    _verify_posix_lock_guard(path, guard_descriptor, parent_anchor)
     os.unlink(path.name, dir_fd=int(parent_anchor._handle))
     _after_posix_lock_unlink(path)
     parent_anchor.fsync()
@@ -2359,9 +2403,11 @@ class WriterLock:
                 guard = _acquire_posix_lock_guard(self.path, parent_anchor)
             except BlockingIOError as exc:
                 raise WriterLockContentionError(f"writer lock exists: {self.path}") from exc
+            _verify_posix_lock_guard(self.path, guard, parent_anchor)
             temporary, temporary_identity = parent_anchor.stage_private_file(self.path.name, self._data)
             try:
                 canonical_identity = temporary_identity
+                _verify_posix_lock_guard(self.path, guard, parent_anchor)
                 published_identity = parent_anchor.link_exact_regular_file(
                     temporary,
                     temporary_identity,
@@ -2626,7 +2672,9 @@ class WriterLock:
                     guard,
                 )
                 release_finished = True
-            except FileNotFoundError:
+            except FileNotFoundError as missing_error:
+                release_error = ConflictError("writer lock disappeared while held")
+                release_error.__cause__ = missing_error
                 release_finished = True
             except BaseException as error:
                 release_error = error
@@ -2901,7 +2949,7 @@ class CompositeWriterLock:
                     fence_error = exc
                 close_error: BaseException | None = None
                 try:
-                    observer.close()
+                    _close_anchor(observer)
                 except BaseException as exc:
                     close_error = exc
                 if fence_error is not None:
@@ -2925,8 +2973,8 @@ class CompositeWriterLock:
                 raise ConflictError("composite runtime anchor changed before protected work")
             _verify_writer_lock(lock, runtime_anchor.final_path)
 
+    @staticmethod
     def _cleanup_members(
-        self,
         acquired_members: Iterable[_AcquiredMember],
         *,
         exc_type: type[BaseException] | None,
@@ -2982,6 +3030,7 @@ class CompositeWriterLock:
         if self._lease_token is not None or self._active_members:
             raise RuntimeError("composite writer lock cannot be entered twice")
 
+        _drain_pending_composite_releases(self._members)
         lease_token = _LeaseState()
         self._lease_token = lease_token
         acquired_members: list[_AcquiredMember] = []
@@ -3013,20 +3062,22 @@ class CompositeWriterLock:
             return self
         except BaseException as acquisition_error:
             lease_token.invalidate()
-            cleanup_error = self._cleanup_members(
-                acquired_members,
-                exc_type=None,
-                exc=None,
-                traceback=None,
-            )
-            pending = [
-                member
-                for member in acquired_members
-                if member.lock_entered or member.runtime_anchor is not None or member.root_anchor is not None
-            ]
-            self._active_members = pending
-            self._locks = tuple(member.lock for member in pending)
-            self._acquired = list(self._locks)
+            owner = _retain_pending_composite_release(acquired_members)
+            cleanup_error: BaseException | None = None
+            if owner is not None:
+                drain = _drain_pending_composite_release(owner, blocking=True)
+                cleanup_error = drain.cleanup_error
+                if drain.pending:
+                    retry_start_error = _start_pending_composite_release_retry(owner)
+                    if retry_start_error is not None:
+                        cleanup_error = _add_cleanup_error(
+                            cleanup_error,
+                            retry_start_error,
+                            "pending composite cleanup retry could not start",
+                        )
+            self._active_members = []
+            self._locks = ()
+            self._acquired = []
             self._lease_token = None
             self._locked_roots = ()
             self.paths = ()
@@ -3043,8 +3094,14 @@ class CompositeWriterLock:
             matches = tuple(
                 locked_root for locked_root in self._locked_roots if locked_root.identity == observer.identity
             )
-        finally:
-            observer.close()
+        except BaseException as primary_error:
+            cleanup_error: BaseException | None = None
+            try:
+                _close_anchor(observer)
+            except BaseException as error:
+                cleanup_error = error
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        _close_anchor(observer)
         if len(matches) != 1:
             raise ConflictError("path does not resolve to exactly one locked root")
         return self._validate_locked_root(matches[0])
@@ -3090,3 +3147,149 @@ class CompositeWriterLock:
                 raise exc.with_traceback(traceback) from first_error
             raise first_error
         return False
+
+
+@dataclass
+class _PendingCompositeRelease:
+    """Process-local ownership of cleanup stranded by a failed acquisition."""
+
+    members: list[_AcquiredMember]
+    drain_lock: threading.Lock = field(default_factory=threading.Lock)
+    retry_deadline: float | None = None
+    retry_thread: threading.Thread | None = None
+
+
+@dataclass(frozen=True)
+class _PendingCompositeReleaseDrain:
+    cleanup_error: BaseException | None
+    pending: bool
+    in_progress: bool = False
+
+
+_PENDING_COMPOSITE_RELEASES: dict[DirectoryIdentity, list[_PendingCompositeRelease]] = {}
+_PENDING_COMPOSITE_RELEASES_LOCK = threading.RLock()
+_PENDING_COMPOSITE_RETRY_DELAY_SECONDS = 0.01
+_PENDING_COMPOSITE_RETRY_DEADLINE_SECONDS = 0.5
+
+
+def _pending_composite_members(members: Iterable[_AcquiredMember]) -> list[_AcquiredMember]:
+    return [
+        member
+        for member in members
+        if member.lock_entered or member.runtime_anchor is not None or member.root_anchor is not None
+    ]
+
+
+def _remove_pending_composite_release(owner: _PendingCompositeRelease) -> None:
+    with _PENDING_COMPOSITE_RELEASES_LOCK:
+        for identity, owners in tuple(_PENDING_COMPOSITE_RELEASES.items()):
+            remaining = [candidate for candidate in owners if candidate is not owner]
+            if remaining:
+                _PENDING_COMPOSITE_RELEASES[identity] = remaining
+            else:
+                del _PENDING_COMPOSITE_RELEASES[identity]
+
+
+def _retain_pending_composite_release(members: Iterable[_AcquiredMember]) -> _PendingCompositeRelease | None:
+    pending = _pending_composite_members(members)
+    if not pending:
+        return None
+    owner = _PendingCompositeRelease(pending)
+    with _PENDING_COMPOSITE_RELEASES_LOCK:
+        for member in pending:
+            _PENDING_COMPOSITE_RELEASES.setdefault(member.member.identity, []).append(owner)
+    return owner
+
+
+def _drain_pending_composite_release(
+    owner: _PendingCompositeRelease,
+    *,
+    blocking: bool,
+) -> _PendingCompositeReleaseDrain:
+    """Attempt the cleanup a module-owned failed acquisition still requires.
+
+    Registry membership is independent from the owner drain lock: unrelated
+    roots can proceed while one owner's arbitrary release or close is pending.
+    """
+
+    if not owner.drain_lock.acquire(blocking=blocking):
+        return _PendingCompositeReleaseDrain(cleanup_error=None, pending=True, in_progress=True)
+    try:
+        cleanup_error = CompositeWriterLock._cleanup_members(
+            owner.members,
+            exc_type=None,
+            exc=None,
+            traceback=None,
+        )
+        owner.members[:] = _pending_composite_members(owner.members)
+        pending = bool(owner.members)
+    finally:
+        owner.drain_lock.release()
+    if not pending:
+        _remove_pending_composite_release(owner)
+    return _PendingCompositeReleaseDrain(cleanup_error=cleanup_error, pending=pending)
+
+
+def _start_pending_composite_release_retry(owner: _PendingCompositeRelease) -> BaseException | None:
+    """Give a retained owner one bounded autonomous cleanup lifecycle.
+
+    The owner is already present in the identity registry when this is called.
+    Its retry thread only attempts release; overlapping acquisitions still take
+    the registry lock and synchronously drain or reject before they can enter.
+    """
+
+    with owner.drain_lock:
+        if not owner.members or owner.retry_thread is not None:
+            return None
+        owner.retry_deadline = time.monotonic() + _PENDING_COMPOSITE_RETRY_DEADLINE_SECONDS
+        retry_thread = threading.Thread(
+            target=_retry_pending_composite_release,
+            args=(owner,),
+            daemon=True,
+            name="ars-pending-composite-lock-release",
+        )
+        owner.retry_thread = retry_thread
+    try:
+        retry_thread.start()
+    except BaseException as error:
+        with owner.drain_lock:
+            if owner.retry_thread is retry_thread:
+                owner.retry_thread = None
+        return error
+    return None
+
+
+def _retry_pending_composite_release(owner: _PendingCompositeRelease) -> None:
+    deadline = owner.retry_deadline
+    try:
+        while deadline is not None and time.monotonic() < deadline:
+            time.sleep(_PENDING_COMPOSITE_RETRY_DELAY_SECONDS)
+            drain = _drain_pending_composite_release(owner, blocking=False)
+            if not drain.pending:
+                return
+    finally:
+        with owner.drain_lock:
+            if owner.retry_thread is threading.current_thread():
+                owner.retry_thread = None
+
+
+def _drain_pending_composite_releases(members: Iterable[_RootMember]) -> None:
+    """Finish failed-acquisition cleanup before a later overlapping lease can enter."""
+
+    with _PENDING_COMPOSITE_RELEASES_LOCK:
+        owners: list[_PendingCompositeRelease] = []
+        seen: set[int] = set()
+        for member in members:
+            for owner in _PENDING_COMPOSITE_RELEASES.get(member.identity, ()):
+                if id(owner) not in seen:
+                    seen.add(id(owner))
+                    owners.append(owner)
+    for owner in owners:
+        drain = _drain_pending_composite_release(owner, blocking=False)
+        if drain.in_progress:
+            raise ConflictError("pending composite writer-lock cleanup is in progress")
+        if drain.pending:
+            error = ConflictError("pending composite writer-lock cleanup remains")
+            if drain.cleanup_error is not None:
+                raise error from drain.cleanup_error
+            raise error

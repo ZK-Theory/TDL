@@ -160,6 +160,38 @@ def test_composite_writer_lock_maps_verified_windows_sharing_denial_to_writer_co
             candidate._prepare_member(acquired)
 
 
+def test_locked_root_preserves_the_observer_open_failure(tmp_path, monkeypatch):
+    """remediation-red: observer cleanup cannot mask the failed physical lookup."""
+
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd-observer-open"})
+
+    with candidate:
+
+        def fail_open(_path, **_kwargs):
+            raise ConflictError("observer root is unavailable")
+
+        monkeypatch.setattr(lock_module, "_open_directory_anchor", fail_open)
+        with pytest.raises(ConflictError, match="observer root is unavailable"):
+            candidate.locked_root(root)
+
+
+def test_final_fence_preserves_the_observer_open_failure(tmp_path, monkeypatch):
+    """remediation-red: a failed final-fence observer remains the reported error."""
+
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd-final-fence-observer"})
+
+    def fail_open(_path, **_kwargs):
+        raise ConflictError("final-fence observer is unavailable")
+
+    monkeypatch.setattr(lock_module, "_open_directory_anchor", fail_open)
+    with pytest.raises(ConflictError, match="final-fence observer is unavailable"):
+        candidate._final_fence([])
+
+
 @pytest.mark.parametrize("message", ["missing root", "reparse root", "identity changed"])
 def test_composite_writer_lock_preserves_nonsharing_anchor_conflict_with_lock_residue(tmp_path, monkeypatch, message):
     root = tmp_path / "control"
@@ -935,72 +967,326 @@ def test_recovery_lock_reclaims_a_recycled_pid_and_a_revalidated_dead_owner(tmp_
     assert not path.exists()
 
 
-def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failure(tmp_path, monkeypatch):
-    import research_system.store.lock as lock_module
+def test_failed_composite_acquisition_transfers_owner_before_cleanup_and_retries(tmp_path):
+    """remediation-red: module ownership precedes cleanup and retries without a later acquirer."""
 
-    roots = tuple(tmp_path / name for name in ("a", "b", "c"))
+    roots = tuple(tmp_path / name for name in ("a", "b"))
     for root in roots:
         (root / "runtime").mkdir(parents=True)
-    candidate = CompositeWriterLock(
-        roots,
-        {"command_id": "cmd_composite-cleanup"},
-    )
-    ordered_members = tuple(candidate._members)
-    ordered_labels = tuple(member.representative.final_path.name for member in ordered_members)
+    shape = CompositeWriterLock(roots, {"command_id": "cmd-pending-owner-shape"})
+    ordered_labels = tuple(member.representative.final_path.name for member in shape._members)
+    pending_label = ordered_labels[0]
     failure_label = ordered_labels[-1]
-    release_error_label = ordered_labels[-2]
-    entered: list[str] = []
-    exited: list[str] = []
-    closed_anchors = []
+    release_enabled = threading.Event()
+    release_completed = threading.Event()
+    cleanup_ownership: list[bool] = []
+    release_attempts: list[str] = []
 
-    original_close_anchor = lock_module._close_anchor
-
-    def observed_close_anchor(anchor):
-        if anchor is not None:
-            closed_anchors.append(anchor.final_path)
-        return original_close_anchor(anchor)
-
-    monkeypatch.setattr(lock_module, "_close_anchor", observed_close_anchor)
-
-    class FakeLock:
+    class PendingLock:
         def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.path = path
             self.label = path.parent.parent.name
-            self._posix_backend_entered = self.label == release_error_label
+            self._posix_backend_entered = False
             self._posix_release_complete = False
-            self.release_attempts = 0
+            self.release_pending = False
 
         def __enter__(self):
-            entered.append(self.label)
             if self.label == failure_label:
-                raise RuntimeError("third lock acquisition failed")
+                raise RuntimeError("second member acquisition failed")
+            self._posix_backend_entered = True
             return self
 
         def __exit__(self, _exc_type, _exc, _traceback):
-            exited.append(self.label)
-            if self.label == release_error_label:
-                self.release_attempts += 1
-                if self.release_attempts <= 3:
-                    raise ValueError("second lock release failed")
-                self._posix_release_complete = True
+            cleanup_ownership.append(bool(lock_module._PENDING_COMPOSITE_RELEASES))
+            release_attempts.append(self.label)
+            if not release_enabled.is_set():
+                self.release_pending = True
+                raise OSError("first member release remains pending")
+            self.release_pending = False
+            self._posix_release_complete = True
+            release_completed.set()
             return False
 
-    candidate = CompositeWriterLock(
+    failed = CompositeWriterLock(
         roots,
-        {"command_id": "cmd_composite-cleanup"},
-        lock_factory=FakeLock,
+        {"command_id": "cmd-pending-owner"},
+        lock_factory=PendingLock,
     )
-    closed_anchors.clear()
-    with pytest.raises(RuntimeError, match="third lock acquisition failed") as raised:
-        candidate.__enter__()
+    with pytest.raises(RuntimeError, match="second member acquisition failed") as raised:
+        failed.__enter__()
 
-    assert entered == list(ordered_labels)
-    assert exited.count(release_error_label) == 3
-    assert isinstance(raised.value.__cause__, ValueError)
-    assert len(candidate._active_members) == len(candidate._acquired) == 1
-    candidate.__exit__(None, None, None)
-    assert exited.count(release_error_label) == 4
-    assert candidate._active_members == candidate._acquired == []
-    assert len(closed_anchors) == 2 * len(ordered_members)
+    assert isinstance(raised.value.__cause__, OSError)
+    assert failed._active_members == failed._acquired == []
+    assert cleanup_ownership and all(cleanup_ownership)
+    assert lock_module._PENDING_COMPOSITE_RELEASES
+    owners = {
+        id(owner): owner
+        for pending_owners in lock_module._PENDING_COMPOSITE_RELEASES.values()
+        for owner in pending_owners
+    }
+    assert len(owners) == 1
+    retry_thread = next(iter(owners.values())).retry_thread
+    assert retry_thread is not None
+
+    release_enabled.set()
+    assert release_completed.wait(timeout=1.0)
+    assert release_attempts.count(pending_label) >= 4
+    retry_thread.join(timeout=1.0)
+    assert not retry_thread.is_alive()
+    assert not lock_module._PENDING_COMPOSITE_RELEASES
+
+
+def test_failed_composite_acquisition_transfers_pending_release_to_module_owner(tmp_path):
+    """remediation-red: a discarded failed acquisition cannot strand a live sibling lock."""
+
+    roots = tuple(tmp_path / name for name in ("a", "b"))
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+    shape = CompositeWriterLock(roots, {"command_id": "cmd-pending-owner-shape"})
+    ordered_labels = tuple(member.representative.final_path.name for member in shape._members)
+    pending_label = ordered_labels[0]
+    failure_label = ordered_labels[-1]
+    pending_root = next(root for root in roots if root.name == pending_label)
+    release_enabled = threading.Event()
+    release_completed = threading.Event()
+    release_attempts: list[str] = []
+
+    class PendingLock:
+        def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.path = path
+            self.label = path.parent.parent.name
+            self._posix_backend_entered = False
+            self._posix_release_complete = False
+            self.release_pending = False
+
+        def __enter__(self):
+            if self.label == failure_label:
+                raise RuntimeError("second member acquisition failed")
+            self._posix_backend_entered = True
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            release_attempts.append(self.label)
+            if not release_enabled.is_set():
+                self.release_pending = True
+                raise OSError("first member release remains pending")
+            self.release_pending = False
+            self._posix_release_complete = True
+            release_completed.set()
+            return False
+
+    failed = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd-pending-owner"},
+        lock_factory=PendingLock,
+    )
+    with pytest.raises(RuntimeError, match="second member acquisition failed"):
+        failed.__enter__()
+
+    assert failed._active_members == []
+    assert lock_module._PENDING_COMPOSITE_RELEASES
+    owners = {
+        id(owner): owner
+        for pending_owners in lock_module._PENDING_COMPOSITE_RELEASES.values()
+        for owner in pending_owners
+    }
+    assert len(owners) == 1
+    retry_thread = next(iter(owners.values())).retry_thread
+    assert retry_thread is not None
+
+    class UnexpectedOverlapLock:
+        def __init__(self, _path: Path, _identity: dict[str, str]) -> None:
+            pass
+
+        def __enter__(self):
+            pytest.fail("overlapping acquisition bypassed pending cleanup")
+
+    with pytest.raises(ConflictError, match="pending composite writer-lock cleanup remains"):
+        with CompositeWriterLock(
+            (pending_root,),
+            {"command_id": "cmd-blocked-by-pending-owner"},
+            lock_factory=UnexpectedOverlapLock,
+        ):
+            pass
+
+    release_enabled.set()
+    assert release_completed.wait(timeout=1.0)
+    assert release_attempts.count(pending_label) >= 4
+    retry_thread.join(timeout=1.0)
+    assert not retry_thread.is_alive()
+    assert not lock_module._PENDING_COMPOSITE_RELEASES
+
+
+def test_pending_composite_cleanup_isolated_by_root_and_rejects_same_owner_overlap(tmp_path):
+    """remediation-red: one blocked cleanup cannot serialize unrelated roots globally."""
+
+    roots_a = tuple(tmp_path / name for name in ("a", "a-fail"))
+    root_b = tmp_path / "b"
+    for root in (*roots_a, root_b):
+        (root / "runtime").mkdir(parents=True)
+    shape = CompositeWriterLock(roots_a, {"command_id": "cmd-pending-owner-shape"})
+    failure_label = shape._members[-1].representative.final_path.name
+    retry_cleanup_started = threading.Event()
+    allow_cleanup = threading.Event()
+    release_attempts: list[str] = []
+
+    class BlockingPendingLock:
+        def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.path = path
+            self.label = path.parent.parent.name
+            self._posix_backend_entered = False
+            self._posix_release_complete = False
+            self.release_pending = False
+
+        def __enter__(self):
+            if self.label == failure_label:
+                raise RuntimeError("second member acquisition failed")
+            self._posix_backend_entered = True
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            release_attempts.append(self.label)
+            if len(release_attempts) < 4:
+                self.release_pending = True
+                raise OSError("first member release remains pending")
+            retry_cleanup_started.set()
+            assert allow_cleanup.wait(timeout=2.0)
+            self.release_pending = False
+            self._posix_release_complete = True
+            return False
+
+    failed = CompositeWriterLock(
+        roots_a,
+        {"command_id": "cmd-pending-owner-a"},
+        lock_factory=BlockingPendingLock,
+    )
+    with pytest.raises(RuntimeError, match="second member acquisition failed"):
+        failed.__enter__()
+
+    owners = {
+        id(owner): owner
+        for pending_owners in lock_module._PENDING_COMPOSITE_RELEASES.values()
+        for owner in pending_owners
+    }
+    assert len(owners) == 1
+    retry_thread = next(iter(owners.values())).retry_thread
+    assert retry_thread is not None
+    assert retry_cleanup_started.wait(timeout=1.0)
+
+    unrelated_acquired = threading.Event()
+    unrelated_errors: list[BaseException] = []
+    overlap_finished = threading.Event()
+    overlap_errors: list[BaseException] = []
+
+    def acquire_unrelated() -> None:
+        try:
+            with CompositeWriterLock((root_b,), {"command_id": "cmd-unrelated-root"}):
+                unrelated_acquired.set()
+        except BaseException as error:  # pragma: no cover - asserted below
+            unrelated_errors.append(error)
+
+    class UnexpectedOverlapLock:
+        def __init__(self, _path: Path, _identity: dict[str, str]) -> None:
+            pass
+
+        def __enter__(self):
+            pytest.fail("same-owner acquisition bypassed pending cleanup")
+
+    def acquire_overlap() -> None:
+        try:
+            with CompositeWriterLock(
+                (roots_a[0],),
+                {"command_id": "cmd-overlap-root-a"},
+                lock_factory=UnexpectedOverlapLock,
+            ):
+                pass
+        except BaseException as error:  # pragma: no cover - asserted below
+            overlap_errors.append(error)
+        finally:
+            overlap_finished.set()
+
+    unrelated_thread = threading.Thread(target=acquire_unrelated)
+    overlap_thread = threading.Thread(target=acquire_overlap)
+    unrelated_thread.start()
+    overlap_thread.start()
+    try:
+        assert unrelated_acquired.wait(timeout=1.0)
+        assert not unrelated_errors
+        assert overlap_finished.wait(timeout=1.0)
+        assert len(overlap_errors) == 1
+        assert isinstance(overlap_errors[0], ConflictError)
+        assert "cleanup is in progress" in str(overlap_errors[0])
+    finally:
+        allow_cleanup.set()
+        unrelated_thread.join(timeout=2.0)
+        overlap_thread.join(timeout=2.0)
+        retry_thread.join(timeout=2.0)
+
+    assert not unrelated_thread.is_alive()
+    assert not overlap_thread.is_alive()
+    assert not retry_thread.is_alive()
+    assert not lock_module._PENDING_COMPOSITE_RELEASES
+
+
+def test_failed_composite_acquisition_preserves_primary_when_retry_thread_will_not_start(tmp_path, monkeypatch):
+    """remediation-red: retry-start failure is cleanup evidence, not a replacement acquisition error."""
+
+    roots = tuple(tmp_path / name for name in ("a", "b"))
+    for root in roots:
+        (root / "runtime").mkdir(parents=True)
+    shape = CompositeWriterLock(roots, {"command_id": "cmd-pending-owner-shape"})
+    pending_label = shape._members[0].representative.final_path.name
+    failure_label = shape._members[-1].representative.final_path.name
+    release_enabled = threading.Event()
+
+    class PendingLock:
+        def __init__(self, path: Path, _identity: dict[str, str]) -> None:
+            self.path = path
+            self.label = path.parent.parent.name
+            self._posix_backend_entered = False
+            self._posix_release_complete = False
+            self.release_pending = False
+
+        def __enter__(self):
+            if self.label == failure_label:
+                raise RuntimeError("second member acquisition failed")
+            self._posix_backend_entered = True
+            return self
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            if self.label != pending_label:
+                raise AssertionError("only the acquired member may be released")
+            if not release_enabled.is_set():
+                self.release_pending = True
+                raise OSError("first member release remains pending")
+            self.release_pending = False
+            self._posix_release_complete = True
+            return False
+
+    def fail_thread_start(_thread) -> None:
+        raise OSError("pending cleanup retry thread unavailable")
+
+    monkeypatch.setattr(lock_module.threading.Thread, "start", fail_thread_start)
+    failed = CompositeWriterLock(
+        roots,
+        {"command_id": "cmd-pending-owner-thread-start"},
+        lock_factory=PendingLock,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="second member acquisition failed") as raised:
+            failed.__enter__()
+
+        assert isinstance(raised.value.__cause__, OSError)
+        assert any(
+            "pending composite cleanup retry could not start" in note
+            for note in getattr(raised.value.__cause__, "__notes__", ())
+        )
+        assert lock_module._PENDING_COMPOSITE_RELEASES
+    finally:
+        release_enabled.set()
+        lock_module._drain_pending_composite_releases(failed._members)
+
+    assert not lock_module._PENDING_COMPOSITE_RELEASES
 
 
 def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):

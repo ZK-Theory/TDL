@@ -113,6 +113,81 @@ def test_linux_writer_retains_release_state_for_an_exact_retry(tmp_path: Path, m
 
 
 @pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+def test_linux_writer_reports_a_canonical_lock_that_disappears_during_release(tmp_path: Path) -> None:
+    """remediation-red: release cannot silently accept a missing owned generation."""
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "missing-release-owner"})
+    writer.__enter__()
+    path.unlink()
+
+    with pytest.raises(ConflictError, match="writer lock disappeared while held"):
+        writer.__exit__(None, None, None)
+
+    assert writer._posix_release_complete is True
+    assert writer._posix_guard_descriptor is None
+    assert writer._posix_parent_anchor is None
+    assert writer.__exit__(None, None, None) is False
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+@pytest.mark.parametrize("guard_name", (".object-publication.guard", ".locked-root-mutation.guard"))
+@pytest.mark.parametrize("operation", ("stage", "link", "unlink"))
+def test_linux_substituted_mutation_guard_cannot_authorize_another_effect(
+    tmp_path: Path,
+    guard_name: str,
+    operation: str,
+) -> None:
+    """remediation-red: only the canonical guard generation may authorize a mutation."""
+
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "guarded"
+    root.mkdir()
+    source = root / "source"
+    source.write_bytes(b"source")
+    first = lock_module._open_directory_anchor(root, reject_reparse=True)
+    second = lock_module._open_directory_anchor(root, reject_reparse=True)
+    try:
+        with first.acquire_mutation_guard(guard_name) as first_guard:
+            guard_path = root / guard_name
+            guard_path.unlink()
+            guard_path.write_bytes(b"replacement")
+            with second.acquire_mutation_guard(guard_name) as second_guard:
+                temporary, temporary_identity = second.stage_private_file("second", b"second")
+                second.remove_exact_generation(
+                    temporary,
+                    temporary_identity,
+                    b"second",
+                    guard=second_guard,
+                )
+                with pytest.raises(ConflictError, match="mutation guard generation changed while held"):
+                    if operation == "stage":
+                        first.stage_private_file("staged", b"staged")
+                    elif operation == "link":
+                        first.link_exact_regular_file(
+                            "source",
+                            source.stat(follow_symlinks=False),
+                            "linked",
+                            guard=first_guard,
+                        )
+                    else:
+                        first.remove_exact_generation(
+                            "source",
+                            source.stat(follow_symlinks=False),
+                            b"source",
+                            guard=first_guard,
+                        )
+    finally:
+        second.close()
+        first.close()
+
+    assert source.read_bytes() == b"source"
+    assert not (root / "linked").exists()
+    assert not (root / "staged").exists()
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
 def test_linux_writer_rejects_active_reentry_and_supports_sequential_reuse(tmp_path: Path) -> None:
     path = tmp_path / "writer.lock"
     writer = WriterLock(path, {"writer_id": "reusable-owner"})

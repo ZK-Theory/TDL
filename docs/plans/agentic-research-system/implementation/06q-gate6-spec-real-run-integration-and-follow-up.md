@@ -1,7 +1,7 @@
 # 06q — Gate 6 Recovery and Closure Plan
 
 **Date:** 2026-08-22
-**Status:** `INCOMPLETE — historical real SPEC run PROVEN; no Gate 6 implementation integrated on main`
+**Status:** `INCOMPLETE — historical real SPEC run PROVEN; STORE-1A-PUB merged with mandatory post-merge corrections pending; no public Gate 6 path integrated`
 **Authority:** sole active Gate 6 recovery and closure plan. Do not create a
 06s or another master plan.
 **Integrated control-reset base:** `d65d74912e2edf385702f67c85c4df340c900651`
@@ -14,8 +14,9 @@ integrated Gate 6 and final closure evidence.
 ## 1. Purpose and capability contract
 
 Gate 6 is not complete. A historical real run has proved the research route
-can produce a durable, reviewable result, but the implementation that produced
-that evidence has not been integrated on `main`.
+can produce a durable, reviewable result. The physical STORE publication slice
+is now on `main`, but the assembled public implementation that can repeat that
+result is not integrated.
 
 The target outcome is one connected public path: an authorised Discovery start
 and submission, durable SPEC evidence, replay and recovery, task closure, a
@@ -57,6 +58,18 @@ not make it the default empirical method.
   major findings. This meets this plan's mandatory retire/rescope condition;
   no third remediation commit belongs on PR #260. Its branch is retained as
   implementation and review evidence, not as a merge candidate.
+- PR #262 (`STORE-1A-PUB`) merged by squash at
+  `121e20ff50e11ecce9da93401dca543cd704f519`; its merged tree is exactly the
+  candidate tree at `af680b81f10df2bf0f0803a475e34656a926f766`. Five Codex
+  findings were submitted against that exact candidate 89 seconds before the
+  merge completed and remained unresolved at merge: three P1 findings reopen
+  physical lock/publication recovery, one P2 masks an observer-open failure,
+  and one independent P1 changes the frozen release-derivation contract without
+  a version change. The merge is retained; destructive reversion was not
+  authorised. Before `STORE-1A-MANIFEST`, land two bounded latest-`main`
+  successors: `STORE-1A-LOCK` for the four lock-lifecycle findings, then
+  `STORE-1A-RELEASE-V2` for append-only version-directed release replay. Reply
+  to and resolve the five merged-PR threads only with successor evidence.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -262,14 +275,21 @@ requires the foundation, operator config, store manifest, and current SPEC
 binding to agree on the control root, project, store, approved code roots,
 activated schema lineage, and origin witness before replay or mutation.
 
-To obey the review-size hard stop without recreating a monolith, STORE may land
-as three serial candidates under the single KAN-105 job. `STORE-1A-PUB` owns
-physical publication plus the diagnostic-precedence and preservation
-prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest and
-documentation-only-successor rule. `STORE-1B` owns the
+To obey the review-size hard stop without recreating a monolith, STORE lands
+as bounded serial candidates under the single KAN-105 job. `STORE-1A-PUB`
+integrated physical publication plus the diagnostic-precedence and preservation
+prerequisites. Its mandatory `STORE-1A-LOCK` corrective successor makes failed
+multi-root acquisition retain subsystem-owned cleanup, binds POSIX mutation
+authority to the still-canonical flocked generation, reports a disappeared
+held lock, and preserves observer-open diagnostics. The independent
+`STORE-1A-RELEASE-V2` corrective successor preserves the historical five-event
+release derivation as v1, emits the current three-event derivation only as an
+append-only v2/control-schema successor, and selects replay validation from the
+immutable control binding. `STORE-1A-MANIFEST` then owns the governed-code
+manifest and documentation-only-successor rule. `STORE-1B` owns the
 `SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
 binding lineage, transaction, shared verified context, public commands, and
-consumer migration. All three remain one incomplete STORE capability until
+consumer migration. All candidates remain one incomplete STORE capability until
 the assembled public path passes. This split creates neither a competing Gate
 6 plan nor another Jira capability job.
 
