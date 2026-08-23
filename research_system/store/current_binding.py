@@ -34,6 +34,7 @@ from research_system.store.identity import (
 )
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger
+from research_system.store.receipts import validate_scoped_receipt_index
 
 
 CURRENT_BINDING_RELATIVE_PATH = Path("manifests/binding-repair-current.json")
@@ -160,6 +161,18 @@ def _read_bound_file(root: Path, relative: Path, commit: str, *, label: str) -> 
     return raw
 
 
+def _is_schema_registry_input(relative: Path) -> bool:
+    if relative.name.endswith(".schema.json") or relative == Path("schema-identity-history.json"):
+        return True
+    if (
+        relative.parent != Path("history")
+        or not relative.name.startswith("sha256-")
+        or not relative.name.endswith(".json")
+    ):
+        return False
+    return _is_sha256(relative.name.removeprefix("sha256-").removesuffix(".json"))
+
+
 def _schema_catalogue(root: Path, schema_root: Path, commit: str) -> str:
     archive = bytes(
         _git(
@@ -177,11 +190,19 @@ def _schema_catalogue(root: Path, schema_root: Path, commit: str) -> str:
         with tarfile.open(fileobj=BytesIO(archive), mode="r:") as bundle:
             for member in bundle.getmembers():
                 path = Path(member.name)
-                if not path.name.endswith(".schema.json"):
+                if path.is_absolute() or ".." in path.parts:
+                    raise IntegrityError("current binding schema catalogue contains an invalid path")
+                try:
+                    relative_path = path.relative_to(Path(".research-system/schemas"))
+                except ValueError:
                     continue
-                if path.is_absolute() or ".." in path.parts or not member.isfile():
+                if relative_path == Path("."):
+                    continue
+                relative = relative_path.as_posix()
+                if not _is_schema_registry_input(Path(relative)):
+                    continue
+                if not member.isfile():
                     raise IntegrityError("current binding schema catalogue contains a non-regular path")
-                relative = path.relative_to(Path(".research-system/schemas")).as_posix()
                 handle = bundle.extractfile(member)
                 if relative in committed or handle is None:
                     raise IntegrityError("current binding schema catalogue is ambiguous")
@@ -189,7 +210,10 @@ def _schema_catalogue(root: Path, schema_root: Path, commit: str) -> str:
     except (tarfile.TarError, OSError, ValueError) as exc:
         raise IntegrityError("current binding Git schema catalogue is invalid") from exc
     physical_root = _require_physical_path(schema_root, kind="directory", label="current binding schema root")
-    physical_paths = sorted(physical_root.rglob("*.schema.json"), key=lambda value: value.as_posix())
+    physical_paths = sorted(
+        (path for path in physical_root.rglob("*") if _is_schema_registry_input(path.relative_to(physical_root))),
+        key=lambda value: value.as_posix(),
+    )
     relatives = {path.relative_to(physical_root).as_posix() for path in physical_paths}
     if not committed or relatives != set(committed):
         raise IntegrityError("current binding schema catalogue differs from the bound Git subject")
@@ -393,6 +417,22 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
         previous_hash = str(recorded)
 
 
+def _validate_binding_event_lineage(binding_events: list[dict[str, Any]]) -> None:
+    previous_binding_sha256: str | None = None
+    for event in binding_events:
+        payload = event.get("payload")
+        if not isinstance(payload, dict) or not _is_sha256(payload.get("recovery_binding_sha256")):
+            raise IntegrityError("current binding event lineage is invalid")
+        recovery_binding_sha256 = payload["recovery_binding_sha256"]
+        if (
+            event.get("event_type") == "StoreBindingAdvanced"
+            and previous_binding_sha256 is not None
+            and payload.get("predecessor_binding_sha256") != previous_binding_sha256
+        ):
+            raise IntegrityError("current binding event lineage is invalid")
+        previous_binding_sha256 = recovery_binding_sha256
+
+
 def _validate_receipt_and_event(
     *,
     control_root: Path,
@@ -419,6 +459,11 @@ def _validate_receipt_and_event(
         schemas.validate(receipt_schema_id, receipt)
     except SchemaError as exc:
         raise IntegrityError("current binding receipt schema is invalid") from exc
+    _require_physical_path(
+        control_root / "events" / project_id,
+        kind="directory",
+        label="current binding project event directory",
+    )
     ledger = EventLedger(control_root, project_id, schemas, store_identity=store_identity)
     events = tuple(ledger.iter_events())
     _validate_hash_chain(events)
@@ -437,6 +482,7 @@ def _validate_receipt_and_event(
     binding_events = [
         event for event in events if event.get("event_type") in {"StoreBindingRepaired", "StoreBindingAdvanced"}
     ]
+    _validate_binding_event_lineage(binding_events)
     if len(matches) != 1 or not binding_events or matches[0] is not binding_events[-1]:
         raise IntegrityError("current binding event is missing, ambiguous, or stale")
     event = matches[0]
@@ -504,16 +550,21 @@ def _validate_receipt_and_event(
     expected_authority = sha256_hex(
         canonical_bytes({"actor_id": binding.get("owner_actor_id"), "action": binding.get("owner_action")})
     )
-    if (
-        index.get("scope") != scope
-        or index.get("payload_hash") != payload_hash
-        or index.get("authority_grant_sha256") != expected_authority
-        or index.get("receipt") != receipt
-        or index.get("project_id") != project_id
-        or index.get("target_stream_id") != project_id
-        or type(event.get("stream_version")) is not int
-        or index.get("expected_stream_version") != event["stream_version"] - 1
-    ):
+    if type(event.get("stream_version")) is not int:
+        raise IntegrityError("current binding scoped receipt is invalid")
+    try:
+        validate_scoped_receipt_index(
+            index,
+            tuple(scope),
+            payload_hash,
+            expected_authority,
+            event["stream_version"] - 1,
+            project_id=project_id,
+            target_stream_id=project_id,
+        )
+    except (ConflictError, ValueError) as exc:
+        raise IntegrityError("current binding scoped receipt is invalid") from exc
+    if index.get("receipt") != receipt:
         raise IntegrityError("current binding scoped receipt is invalid")
 
 
@@ -702,6 +753,10 @@ def load_current_binding(
     )
     if _read_canonical_json(pointer_path, label="current store binding")[1] != binding_raw:
         raise ConflictError("current store binding changed during admission")
+    final_head = str(_git(repository, "rev-parse", "HEAD")).strip()
+    final_tree = str(_git(repository, "rev-parse", "HEAD^{tree}")).strip()
+    if final_head != head or final_tree != tree:
+        raise IntegrityError("current store binding Git subject changed during admission")
     if str(_git(repository, "status", "--porcelain=v1", "--untracked-files=all")).strip():
         raise IntegrityError("current store binding repository changed during admission")
     return VerifiedCurrentBinding(

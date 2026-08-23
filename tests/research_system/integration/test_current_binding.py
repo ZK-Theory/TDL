@@ -251,6 +251,80 @@ def _bound_fixture(tmp_path: Path) -> _Fixture:
     )
 
 
+def _publish_binding_advance(fixture: _Fixture, binding: dict[str, object]) -> str:
+    binding_raw = canonical_bytes(binding)
+    binding_sha256 = sha256_hex(binding_raw)
+    object_path = fixture.control_root / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
+    object_path.write_bytes(binding_raw)
+    command = fixture.schemas.command_binding("AdvanceStoreBinding")
+    assert command is not None
+    command_identity = fixture.schemas.resolve_identity(command.schema_id, command.schema_version)
+    payload_hash = str(binding["command_payload_hash"])
+    idempotency_key = str(binding["idempotency_key"])
+    result = fixture.ledger._append_binding_repair_from_validated_service(
+        {
+            "event_type": "StoreBindingAdvanced",
+            "stream_id": PROJECT_ID,
+            "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
+            "schema_version": "1.0.0",
+            "command_id": f"binding-advance-{payload_hash}",
+            "command_type": "AdvanceStoreBinding",
+            "idempotency_key": idempotency_key,
+            "command_payload_hash": payload_hash,
+            "correlation_id": idempotency_key,
+            "causation_id": None,
+            "actor_id": ACTOR_ID,
+            "authority_grant_id": "store-binding-recovery",
+            "occurred_at": "2026-08-23T13:00:00Z",
+            "command_schema_id": command_identity.schema_id,
+            "command_schema_version": command_identity.schema_version,
+            "command_schema_sha256": command_identity.sha256,
+            "payload": {
+                "recovery_binding_sha256": binding_sha256,
+                "recovery_binding_path": "manifests/binding-repair-current.json",
+                "object_path": f"objects/binding-repair/sha256-{binding_sha256}.json",
+                "git_head": binding["git_head"],
+                "git_tree": binding["git_tree"],
+                "predecessor_binding_sha256": binding["predecessor_binding_sha256"],
+            },
+        },
+        snapshot=fixture.ledger.snapshot(),
+        session=_issue_validated_service_session(fixture.ledger),
+    )
+    observed_version = result["resulting_stream_versions"][PROJECT_ID]
+    receipt = {
+        "schema_id": "ars://core/receipt",
+        "schema_version": "1.0.0",
+        "command_id": f"binding-advance-{payload_hash}",
+        "status": "accepted",
+        "payload_hash": payload_hash,
+        "outcome": {
+            "event_batch_id": result["event_batch_id"],
+            "observed_stream_version": observed_version,
+            "reason_code": None,
+        },
+    }
+    _write_json(fixture.control_root / "receipts" / f"binding-advance-{payload_hash}.json", receipt)
+    scope = [ACTOR_ID, "store-binding-recovery", "AdvanceStoreBinding", idempotency_key]
+    authority_hash = sha256_hex(canonical_bytes({"actor_id": ACTOR_ID, "action": binding["owner_action"]}))
+    _write_json(
+        fixture.control_root / "receipts" / "idempotency" / f"{sha256_hex(canonical_bytes(scope))}.json",
+        {
+            "schema_id": "ars://core/authority-receipt-index",
+            "schema_version": "1.2.0",
+            "scope": scope,
+            "payload_hash": payload_hash,
+            "authority_grant_sha256": authority_hash,
+            "receipt": receipt,
+            "project_id": PROJECT_ID,
+            "target_stream_id": PROJECT_ID,
+            "expected_stream_version": observed_version - 1,
+        },
+    )
+    _write_json(fixture.control_root / "manifests" / "binding-repair-current.json", binding)
+    return binding_sha256
+
+
 def test_current_binding_loads_exact_subject_and_fails_closed_on_drift(tmp_path: Path) -> None:
     fixture = _bound_fixture(tmp_path)
     verified = load_current_binding(
@@ -400,6 +474,148 @@ def test_current_binding_rejects_scoped_index_from_another_stream_predecessor(tm
             expected_project_id=PROJECT_ID,
             expected_store_identity=str(fixture.binding["store_identity"]),
         )
+
+
+def test_current_binding_rejects_an_advance_forked_from_the_preceding_binding_event(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    preceding_binding_sha256 = sha256_hex(fixture.binding_raw)
+    fork = {
+        **fixture.binding,
+        "command_payload_hash": sha256_hex(canonical_bytes({"fixture": "forked-current-binding"})),
+        "idempotency_key": "gate6-fork-binding-fixture",
+    }
+    assert fork["predecessor_binding_sha256"] != preceding_binding_sha256
+    _publish_binding_advance(fixture, fork)
+
+    with pytest.raises(IntegrityError, match="binding event lineage"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_current_binding_rejects_hidden_modified_schema_history_inputs(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    schema_root = fixture.repository_root / ".research-system" / "schemas"
+    command = fixture.schemas.command_binding("AdvanceStoreBinding")
+    assert command is not None
+    active = fixture.schemas.resolve_identity(command.schema_id, command.schema_version)
+    altered_schema = json.loads(active.raw_bytes)
+    altered_schema["description"] = "hidden alternate historical command bytes"
+    altered_raw = canonical_bytes(altered_schema)
+    altered_sha256 = sha256_hex(altered_raw)
+    archive_relative = Path("history") / f"sha256-{altered_sha256}.json"
+    (schema_root / archive_relative).write_bytes(altered_raw)
+    manifest_path = schema_root / "schema-identity-history.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["aliases"].append(
+        {
+            "schema_id": command.schema_id,
+            "schema_version": command.schema_version,
+            "raw_bytes_sha256": altered_sha256,
+            "archive_ref": archive_relative.as_posix(),
+        }
+    )
+    manifest_path.write_bytes(canonical_bytes(manifest))
+    _git(
+        fixture.repository_root,
+        "update-index",
+        "--assume-unchanged",
+        ".research-system/schemas/schema-identity-history.json",
+    )
+    exclude_path = fixture.repository_root / ".git" / "info" / "exclude"
+    exclude_path.write_text(
+        exclude_path.read_text(encoding="utf-8") + f"\n/.research-system/schemas/{archive_relative.as_posix()}\n",
+        encoding="utf-8",
+    )
+    _rewrite_last_event(fixture, command_schema_sha256=altered_sha256)
+    assert _git(fixture.repository_root, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    with pytest.raises(IntegrityError, match="schema catalogue differs"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_current_binding_rechecks_the_exact_git_subject_before_return(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import research_system.store.current_binding as current_binding_module
+
+    fixture = _bound_fixture(tmp_path)
+    original = current_binding_module._validate_receipt_and_event
+
+    def switch_clean_head_after_validation(**kwargs: object) -> None:
+        original(**kwargs)
+        _git(fixture.repository_root, "commit", "--allow-empty", "-m", "concurrent clean head")
+
+    monkeypatch.setattr(
+        current_binding_module,
+        "_validate_receipt_and_event",
+        switch_clean_head_after_validation,
+    )
+
+    with pytest.raises(IntegrityError, match="Git subject changed during admission"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "wrong"),
+    (
+        ("schema_id", "ars://wrong/index"),
+        ("schema_version", "1.1.0"),
+        ("extra", "not-exact"),
+    ),
+)
+def test_current_binding_rejects_noncanonical_publication_receipt_indexes(
+    tmp_path: Path,
+    field: str,
+    wrong: str,
+) -> None:
+    fixture = _bound_fixture(tmp_path)
+    index_path = next((fixture.control_root / "receipts" / "idempotency").glob("*.json"))
+    index = json.loads(index_path.read_bytes())
+    index[field] = wrong
+    index_path.write_bytes(canonical_bytes(index))
+
+    with pytest.raises(IntegrityError, match="scoped receipt is invalid"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_failed_current_binding_admission_does_not_create_the_project_event_directory(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    project_events = fixture.control_root / "events" / PROJECT_ID
+    shutil.rmtree(project_events)
+
+    with pytest.raises(IntegrityError, match="project event directory is unavailable"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+    assert not project_events.exists()
 
 
 def test_discovery_replay_accepts_current_and_registered_historical_binding_events(tmp_path: Path) -> None:
