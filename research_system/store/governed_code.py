@@ -39,6 +39,8 @@ _CATEGORIES = frozenset(
 )
 _REQUIRED_CATEGORIES = _CATEGORIES
 _DEPENDENCY_INPUTS = frozenset({".python-version", "pyproject.toml", "uv.lock"})
+_RUNTIME_AUTHORITY_DATA_PREFIX = "research_system/projection/data/"
+_RUNTIME_AUTHORITY_DATA_SUFFIXES = frozenset({".json", ".yaml", ".yml"})
 _REDIRECT_ATTRIBUTE = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
 
 
@@ -71,6 +73,14 @@ def _require_commit_oid(value: object, *, label: str) -> str:
 def _category_for_path(path: str) -> str | None:
     if path.startswith("research_system/") and path.endswith(".py"):
         return "executable_python"
+    if (
+        path.startswith(_RUNTIME_AUTHORITY_DATA_PREFIX)
+        and PurePosixPath(path).suffix in _RUNTIME_AUTHORITY_DATA_SUFFIXES
+    ):
+        # `projection.grandfather` reads these serialized authority records at
+        # runtime.  The constrained package-data rule deliberately excludes
+        # prose and interpreter caches from the governed code subject.
+        return "operational_config"
     if path.startswith(".research-system/schemas/"):
         return "schema"
     if path.startswith(".research-system/contracts/"):
@@ -154,7 +164,7 @@ def _run_git(root: Path, *arguments: str, input_bytes: bytes | None = None) -> b
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise IntegrityError("governed repository Git inspection is unavailable") from exc
     if completed.returncode != 0:
-        raise IntegrityError("governed repository Git inspection failed")
+        raise IntegrityError(f"governed repository Git inspection failed with exit status {completed.returncode}")
     return completed.stdout
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+import research_system.store.governed_code as governed_code
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError
 from research_system.store.governed_code import (
@@ -69,7 +70,24 @@ def governed_repository(tmp_path: Path) -> Path:
     _git(repository, "config", "user.email", "governed-code@example.test")
     _git(repository, "config", "user.name", "Governed code test")
     _git(repository, "remote", "add", "origin", origin.as_uri())
+    empty_hooks = repository / "empty-hooks"
+    empty_hooks.mkdir()
+    _git(repository, "config", "commit.gpgSign", "false")
+    _git(repository, "config", "core.hooksPath", str(empty_hooks))
+    _git(repository, "config", "core.autocrlf", "false")
     _write(repository, "research_system/runtime.py", "VALUE = 'base'\n")
+    _write(
+        repository,
+        "research_system/projection/data/wp6_1_06h_grandfather_authority.yaml",
+        "schema_id: ars://tests/grandfather-authority\n",
+    )
+    _write(
+        repository,
+        "research_system/projection/data/06h-g-rm-8-grandfather-decision.json",
+        '{"decision":"GRANDFATHER"}\n',
+    )
+    _write(repository, "research_system/projection/data/README.md", "# Package notes\n")
+    _write(repository, "research_system/projection/__pycache__/grandfather.pyc", "not runtime authority\n")
     _write(repository, ".research-system/config/operator.yaml", "route: SPEC-GATE6-RUN-V1\n")
     _write(repository, ".research-system/adapters/operator.yaml", "provider: operator\n")
     _write(repository, ".research-system/schemas/operations/example.schema.json", '{"type":"object"}\n')
@@ -103,6 +121,17 @@ def test_manifest_binds_complete_category_inventory_to_committed_git_bytes(
         "uv.lock",
     }
     runtime = next(item for item in manifest.governed_files if item.path == "research_system/runtime.py")
+    runtime_authority_paths = {
+        "research_system/projection/data/wp6_1_06h_grandfather_authority.yaml",
+        "research_system/projection/data/06h-g-rm-8-grandfather-decision.json",
+    }
+    assert {
+        item.path for item in manifest.governed_files if item.category == "operational_config"
+    } >= runtime_authority_paths
+    assert "research_system/projection/data/README.md" not in {item.path for item in manifest.governed_files}
+    assert "research_system/projection/__pycache__/grandfather.pyc" not in {
+        item.path for item in manifest.governed_files
+    }
     committed_runtime = subprocess.run(
         ["git", "-C", str(governed_repository), "show", f"HEAD:{runtime.path}"],
         check=True,
@@ -176,6 +205,35 @@ def test_manifest_rejects_hidden_index_state_even_when_status_reports_clean(
 
     with pytest.raises(IntegrityError, match="assume-unchanged or skip-worktree"):
         build_governed_code_manifest(governed_repository)
+
+
+@pytest.mark.parametrize("index_flag", ["--assume-unchanged", "--skip-worktree"])
+def test_manifest_rejects_hidden_runtime_authority_data_bytes(
+    governed_repository: Path,
+    index_flag: str,
+) -> None:
+    governed_path = "research_system/projection/data/wp6_1_06h_grandfather_authority.yaml"
+    _git(governed_repository, "update-index", index_flag, governed_path)
+    _write(governed_repository, governed_path, "schema_id: ars://tests/hidden-authority-drift\n")
+    assert _git(governed_repository, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    with pytest.raises(IntegrityError, match="assume-unchanged or skip-worktree"):
+        build_governed_code_manifest(governed_repository)
+
+
+def test_git_inspection_failure_reports_exit_status_without_command_output(
+    governed_repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failed_git(*arguments, **_kwargs):
+        return subprocess.CompletedProcess(arguments, 17, stdout=b"", stderr=b"credential=secret")
+
+    monkeypatch.setattr(governed_code.subprocess, "run", failed_git)
+
+    with pytest.raises(IntegrityError, match="exit status 17") as error:
+        build_governed_code_manifest(governed_repository)
+
+    assert "credential=secret" not in str(error.value)
 
 
 @pytest.mark.parametrize(
