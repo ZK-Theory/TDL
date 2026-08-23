@@ -57,6 +57,75 @@ not make it the default empirical method.
   major findings. This meets this plan's mandatory retire/rescope condition;
   no third remediation commit belongs on PR #260. Its branch is retained as
   implementation and review evidence, not as a merge candidate.
+- PR #262 (`STORE-1A-PUB`) merged by squash at
+  `121e20ff50e11ecce9da93401dca543cd704f519`; its merged tree is exactly the
+  candidate tree at `af680b81f10df2bf0f0803a475e34656a926f766`. Five Codex
+  findings were submitted against that exact candidate 89 seconds before the
+  merge completed and remained unresolved at merge. Four reopened physical
+  lock/publication recovery; the independent fifth finding requires the
+  append-only `STORE-1A-RELEASE-V2` successor.
+- PR #263 (`STORE-1A-LOCK`) is closed unmerged and retired at published head
+  `b59b9de5bceb9b65d90c7b8654f3f8f0dcfe0dae`. That head passed its Windows
+  selection but failed the required Ubuntu workflow because temporary cleanup
+  derived a non-canonical guard. Two later uncommitted remediation iterations
+  are preserved in the dirty
+  `g6-spec-store-1a-postmerge-correction` worktree, not as candidates. They
+  reopened the same ownership invariant: effects and failed resource closes
+  could lose their sole owner, multiple drainers could race, and delayed
+  recovery used a different guard from object publication. The decisive P1
+  trace could delete a final object after a same-payload retry had reported it
+  successfully present. This meets the mandatory retire/rescope rule; no
+  further commit belongs on PR #263.
+- `STORE-1A-LOCK-V2` restarted cleanly from merged `main` on
+  `codex/g6-spec-store-1a-lock-v2`. The coherent implementation and migrated
+  controls exceeded the 5,000-added-line review hard stop. Its first extraction,
+  `STORE-1A-LOCK-V2A`, still included dormant Writer/`LockedRoot` transaction
+  APIs and therefore failed the ownership split it was meant to create. That
+  candidate is retired at `07431d2210f8ac652ba03e3e6a11a51ec783b3d1`.
+  `STORE-1A-OBJECT-R2` is its bounded replacement: it owns only the canonical
+  directory transaction and immutable `ObjectStore` path. `STORE-1A-LOCK-V2B`
+  owns `WriterLock`, `CompositeWriterLock`, `LockedRoot`, and the compatibility
+  facade. Neither candidate alone completes STORE publication. One canonical
+  per-directory transaction owns the mutation guard, staged pin, namespace
+  dispositions, durable recovery handoff, and resource-close dispositions.
+  Object recovery may not asynchronously delete a final after any public
+  success; every early existing-result return must reconcile the transaction
+  under that same canonical guard. Writer and composite release must likewise
+  have one serialized owner and preserve the protected body exception as
+  primary evidence.
+- The first exact-head review of `STORE-1A-LOCK-V2A` at `175bce138...` was
+  `REWORK_REQUIRED`. It exposed one ownership family rather than isolated line
+  defects: a retained leaf transaction did not retain the ancestor anchors
+  needed for later verification; Windows exact deletion compared mutable path
+  identity but not the already-open delete handle; and integer descriptor close
+  failures could be retried after the operating system had already reused the
+  descriptor number. The replacement model retains the complete anchor chain,
+  binds every deletion-capable Windows handle to the captured generation, and
+  treats CRT/POSIX descriptor close as a one-shot terminal-uncertain operation.
+  A fresh exact-head review is required after the batched remediation; the
+  superseded review is defect evidence, not acceptance.
+- The batched V2A remediation at `07431d221...` passed its construction
+  selection, but its second material exact-head review was `REWORK_REQUIRED`.
+  The review found one ownership breach and four connected active-path defects:
+  dormant V2B Writer/`LockedRoot` APIs duplicated the still-live `store/lock.py`;
+  Windows member creation was not fenced to the held physical parent; a native
+  HANDLE could lose its typed cleanup owner when validation and close both
+  failed; cleanup could replace the primary member/read error; and an explicit
+  rollback retry could report an absent revision without re-establishing
+  directory durability. Under this plan's two-round convergence rule,
+  `07431d221...` is frozen as failed review evidence and receives no further
+  remediation commit.
+- `STORE-1A-OBJECT-R2` starts from that frozen evidence on
+  `codex/g6-spec-store-1a-object-r2`, removes the dormant V2B surface, and fixes
+  the four active defects as one ownership/lifetime correction. Its local
+  construction evidence is Windows `180 passed, 11 skipped` across the direct
+  transaction, immutable-store, publication, session-exchange, and durability
+  modules; Linux direct transaction/durability is `18 passed, 8 skipped`, and
+  the full Linux `test_store.py` result is `70 passed, 7 skipped, 4 failed`.
+  Those four failures are the already-recorded unchanged `store/lock.py`
+  Writer/`LockedRoot` baseline and remain V2B's replacement target. These
+  construction results do not replace the fresh frozen-head test and review
+  gates.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -263,28 +332,105 @@ binding to agree on the control root, project, store, approved code roots,
 activated schema lineage, and origin witness before replay or mutation.
 
 To obey the review-size hard stop without recreating a monolith, STORE may land
-as three serial candidates under the single KAN-105 job. `STORE-1A-PUB` owns
-physical publication plus the diagnostic-precedence and preservation
-prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest and
+as serial candidates under the single KAN-105 job. `STORE-1A-PUB` is integrated
+but requires both bounded physical-transaction successors,
+`STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B`, and the independent append-only
+`STORE-1A-RELEASE-V2` successor before STORE publication is complete.
+`STORE-1A-MANIFEST` owns the governed-code manifest and
 documentation-only-successor rule. `STORE-1B` owns the
 `SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
 binding lineage, transaction, shared verified context, public commands, and
-consumer migration. All three remain one incomplete STORE capability until
-the assembled public path passes. This split creates neither a competing Gate
-6 plan nor another Jira capability job.
+consumer migration. All candidates remain one incomplete STORE capability until
+the assembled public path passes. This split creates neither a competing Gate 6
+plan nor another Jira capability job.
+
+Together `STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B` freeze the following
+replacement architecture. Object R2 introduces `store/anchor.py` and migrates
+`store/objects.py`; V2B introduces `store/writer.py`, migrates `LockedRoot`, and
+turns `store/lock.py` into the facade only after the writer half is present. New
+`store/anchor.py` owns physical directory identity, anchored traversal, exact
+member effects, the fixed per-directory transaction guard, retained generation
+pins, and close-only resource quarantine. New `store/writer.py` owns inspection,
+stale reclaim, `WriterLock`, and `CompositeWriterLock`. `store/lock.py` becomes
+the compatibility facade for current production imports; private monkeypatch
+tests migrate to the actual owner module rather than forcing implementation
+globals back into the facade. `store/objects.py` remains the immutable-object
+protocol owner and calls the anchor transaction rather than implementing a
+second filesystem state machine.
+
+Immutable object publication is commit-on-link. A successful final hard link is
+immediately recorded and is never a rollback target; a later exact retry adopts
+and fsyncs an uncertain content-addressed final before returning. New writes do
+not create publication claims, cleanup anchors, background deletion workers, or
+delayed final rollback. Reserved private residue is reconciled synchronously
+under the same guard. This prohibition applies to implicit cleanup within a
+publication attempt; it does not abolish the existing explicit
+`ObjectStore.rollback_new_revision` authority held by the higher-level command
+transaction after a successful returned write. That caller-owned rollback keeps
+its exact-generation and pre-existence checks and uses the same canonical guard.
+A separate close-only quarantine may retain only typed native Windows HANDLE
+owners after namespace terminality; it contains no integer CRT/POSIX descriptor
+and no link, unlink, rename, or publication callback. An integer descriptor
+close is attempted once because an error does not prove that its number remains
+owned; later retry by number could act on an unrelated descriptor. Guard
+acquisition is bounded so an uncertain surviving lock fails closed instead of
+hanging another operation. Writer release and Composite rollback retain one
+serialized release owner; a transferred member cannot self-register a second
+owner.
+
+Every Windows deletion-capable seam compares `FileIdInfo` from the already-open
+native handle with the captured volume and file identity before applying
+`Delete=True`, in addition to same-handle bytes and mutable-path revalidation.
+The V2B successor must apply the same handle-bound identity proof to writer file
+leases and audit its retained-close paths against the native-HANDLE-only rule;
+those lease and writer changes do not belong in Object R2. V2B must also make
+mutable-file replacement recovery total: if every reserved stage for the exact
+operation contains the same desired bytes, it selects one deterministically,
+publishes it, and reconciles the extras; any mixed or different reserved-stage
+set rejects closed. It must not strand an equal multi-stage set as permanently
+ambiguous, retry a descriptor in `terminal_uncertain`, or retain a close ticket
+without a native Windows HANDLE owner.
+
+Linux exactness is defined against all repository-controlled STORE participants,
+which must use the canonical transaction guard. While it is live, a retained
+descriptor plus that guard detects and preserves an observed foreign generation.
+Python cannot make
+pathname unlink atomic against an uncooperative same-UID process that bypasses
+the guard; such direct filesystem mutation is out-of-contract tampering, not a
+capability silently claimed by this implementation. Requiring protection from
+that attacker would need a privileged filesystem broker or different storage
+primitive.
+
+The clean replacement baseline at `121e20ff...` is `143 passed, 6 skipped` on
+Windows and `19 failed, 104 passed, 26 skipped` on Linux for the cohesive store
+selection. The 19 Linux failures are inherited from merged `STORE-1A-PUB` and
+remain the direct replacement target. The exact required currency selection is
+`5 passed` on both platforms.
+
+A read-only no-follow census of the live
+`C:\Users\steph\TDL-ARS-WP64-Control` store found 432 canonical object revisions
+across 430 object identities, with no duplicate same-revision prefixes and zero
+publication claims, cleanup anchors, object-private temporary residues, or
+guard files. STORE-1A-LOCK-V2 therefore needs no legacy claim-residue migration
+reconciler. Historical canonical object bytes remain readable through the
+unchanged revision format; the retired claim protocol is removed rather than
+kept as a second publication path.
 
 **Acceptance boundary:** the governed-code manifest versions code, config,
 schemas, contracts, locks, and the allowed documentation-only descendant. The
 new command parsers and handlers are exercised through their public CLI seam.
 One verified-binding admission is shared by all consumers; local
 administration is distinct from SPEC semantic authority; schemas remain
-append-only. Immutable-file publication stages and fsyncs private bytes, keeps
-the staged identity available through the no-replace claim, verifies that the
-claimed final identity is that exact generation, and rolls back only a claim
-proved to be its own on substitution or failure. A substitution injected after
-the final identity check but before cleanup must preserve the foreign
-generation; `missing_ok` applies only to a proved absent owned generation, not
-to an identity mismatch. The exact internal retry discriminant is
+append-only. Immutable-file publication executes through one canonical
+per-directory transaction. It records O_EXCL/link/unlink dispositions before
+any later fallible work, retains the staged inode pin through ownership
+transfer, and separates namespace completion from every descriptor/anchor close
+disposition. A failed call may leave only a state that the next operation can
+reconcile under the same guard; no background rollback may delete a final after
+another call has exposed it as success. A substitution injected after the final
+identity check but before cleanup must preserve the foreign generation;
+`missing_ok` applies only to a proved absent owned generation, not to an
+identity mismatch. The exact internal retry discriminant is
 `research_system.store.lock.WriterLockContentionError`, an
 exported subclass of `ConflictError` raised only when the canonical writer lock
 already exists. Recovery retries that exact subclass, without string matching,
@@ -293,6 +439,9 @@ every sibling `ConflictError` propagate immediately; the public conflict/error
 and nonzero-exit mapping remains unchanged. Producer tests prove that only
 canonical lock contention emits the subclass, and consumer tests prove retry
 for that subclass plus immediate propagation for every non-retryable sibling.
+Windows member creation must also remain beneath the captured physical parent:
+the public creation path proves the positive case, and a recreated-parent
+negative must fail before creating a member in either physical generation.
 The pinned Windows runtime has a direct
 `os.link(..., follow_symlinks=False)` positive control. Negatives cover an
 actual substituted/reparse source outcome, final-name substitution, concurrent
@@ -572,6 +721,37 @@ reopening a P1 in the same invariant family, retires or rescopes the candidate
 instead of continuing specimen-by-specimen repair. PR #260 is the first
 application of this rule: cycle 2 reopened the store-publication and
 shared-replay families, so it is retired without a third remediation commit.
+
+### Functional review threshold and anti-tail-chasing rule
+
+For every remaining Gate 6 candidate, a review finding is merge-blocking only
+when exact-head evidence demonstrates at least one of the following on a
+reachable production path:
+
+1. the named public positive path is non-functional;
+2. durable data can be corrupted, mispublished, or the wrong governed object
+   can be deleted;
+3. replay can disagree with the accepted durable history; or
+4. an explicit actor, authority, paid-run, provider, merge, or final-owner gate
+   can be bypassed.
+
+Style comments, naming preferences, nits, dormant or deferred code, speculative
+hardening without a concrete production trace, and attacks outside the stated
+system contract are non-blocking. Record them only when they identify useful
+future work; they do not authorize a remediation commit, another assurance
+layer, or a new candidate. A blocking finding receives the smallest root fix
+that removes the demonstrated failure and one direct regression through the
+affected public seam. Comments on that fix are triaged again by this same
+threshold and do not automatically reopen scope. Once the bounded positive
+path, decisive corruption negatives, affected shared-seam regressions, and any
+explicitly mandated exact-head final gate pass, stop construction and publish;
+do not add edge-case tests or infrastructure merely to anticipate possible
+review comments.
+
+This threshold applies after compaction, across successor steps, and to both
+automated and human review. The two-round retire/rescope rule above counts only
+material findings that satisfy this functional threshold; it is not activated
+by nits, speculative edges, or out-of-scope deferred work.
 
 Stephen alone triggers or monitors CodeRabbit and authorizes merge. No agent
 may trigger CodeRabbit, poll it, merge a PR, or infer owner acceptance. No live
