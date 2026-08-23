@@ -536,6 +536,20 @@ def test_current_binding_rejects_a_corrupted_historical_binding_event(tmp_path: 
         )
 
 
+def test_current_binding_requires_the_registered_binding_event_schema(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    _rewrite_last_event(fixture, schema_id="ars://core/event")
+
+    with pytest.raises(IntegrityError, match="event schema provenance"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "wrong"),
     (
