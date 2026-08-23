@@ -387,6 +387,7 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
     )
     handles = []
     close_attempts = []
+    followed_failed = False
 
     class FakeHandle:
         def __init__(self, name):
@@ -409,8 +410,10 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
         return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
 
     def fake_close(handle):
+        nonlocal followed_failed
         close_attempts.append(handle.name)
-        if handle.name == "followed":
+        if handle.name == "followed" and not followed_failed:
+            followed_failed = True
             raise RuntimeError("close failure")
         handle.closed = True
 
@@ -432,6 +435,9 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
     assert close_attempts == ["probe", "followed"]
     assert handles[0].closed is True
     assert handles[1].closed is False
+    assert len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 1
+    lock_module._drain_windows_close_quarantine()
+    assert handles[1].closed is True and not lock_module._WINDOWS_CLOSE_QUARANTINE
 
 
 def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
@@ -451,6 +457,7 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     )
     handles = []
     close_attempts = []
+    followed_failed = False
 
     class FakeHandle:
         def __init__(self, name):
@@ -473,10 +480,12 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
         return lock_module._FILE_ATTRIBUTE_DIRECTORY, 0
 
     def fake_close(handle):
+        nonlocal followed_failed
         close_attempts.append(handle.name)
         if handle.name == "probe" and close_attempts.count("probe") == 1:
             raise RuntimeError("first close failure")
-        if handle.name == "followed":
+        if handle.name == "followed" and not followed_failed:
+            followed_failed = True
             raise ValueError("second close failure")
         handle.closed = True
 
@@ -489,9 +498,13 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     with pytest.raises(RuntimeError, match="first close failure"):
         lock_module._open_windows_anchor(runtime, reject_reparse=True)
 
-    assert close_attempts == ["probe", "probe", "followed"]
-    assert handles[0].closed is True
+    assert close_attempts == ["probe", "followed"]
+    assert handles[0].closed is False
     assert handles[1].closed is False
+    assert len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 2
+    lock_module._drain_windows_close_quarantine()
+    assert all(handle.closed for handle in handles)
+    assert not lock_module._WINDOWS_CLOSE_QUARANTINE
 
 
 def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
@@ -523,15 +536,14 @@ def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
     with pytest.raises(RuntimeError, match="close failure"):
         anchor.close()
 
-    assert anchor._closed is False
+    assert anchor._closed is False and len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 1
     anchor.close()
-    assert anchor._closed is True
+    assert anchor._closed is True and not lock_module._WINDOWS_CLOSE_QUARANTINE
     assert len(close_attempts) == 2
 
 
 def test_windows_anchor_deferred_effect_and_guard_closes_preserve_the_primary(tmp_path, monkeypatch):
     """remediation-red: a failed fence or guard close neither masks nor loses the operation."""
-
     if os.name != "nt":
         pytest.skip("Windows deferred anchor-close control")
     import research_system.store.lock as lock_module
@@ -1002,7 +1014,6 @@ def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
 @pytest.mark.parametrize("operation", ("revision_exists", "latest_revision", "read", "rollback_new_revision"))
 def test_object_public_operations_never_preflight_the_lexical_object_directory(tmp_path, monkeypatch, operation):
     """remediation-red: reads and rollback start from an anchored generation, not ``Path.exists``."""
-
     store = ObjectStore(tmp_path)
     value = {"x": 1}
     store.write("task", TASK_ID, 1, value)
@@ -1030,7 +1041,6 @@ def test_object_public_operations_never_preflight_the_lexical_object_directory(t
 @pytest.mark.parametrize("shape", ("missing-root", "root-only", "objects-only", "kind-only"))
 def test_object_public_operations_preserve_missing_object_contracts(tmp_path, shape):
     """remediation-red: anchored traversal preserves the preflight absence contracts."""
-
     root = tmp_path / "control"
     if shape != "missing-root":
         root.mkdir()
@@ -1049,7 +1059,6 @@ def test_object_public_operations_preserve_missing_object_contracts(tmp_path, sh
 
 def test_object_write_preserves_primary_error_when_anchor_close_also_fails(tmp_path, monkeypatch):
     """remediation-red: directory cleanup cannot replace the write outcome."""
-
     import research_system.store.objects as object_module
 
     def fail_write(*_args, **_kwargs):
@@ -1099,7 +1108,6 @@ def test_object_write_preserves_primary_error_when_anchor_close_also_fails(tmp_p
 
 def test_object_write_creates_staging_file_with_least_privilege_mode(tmp_path, monkeypatch):
     """remediation-red: private staged content is never created with process defaults."""
-
     import research_system.store.objects as object_module
 
     original_open = object_module.os.open
@@ -1126,7 +1134,6 @@ def test_object_write_creates_staging_file_with_least_privilege_mode(tmp_path, m
 
 def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_path, monkeypatch):
     """remediation-red: a listed revision removed before proof is not unreadable."""
-
     store = ObjectStore(tmp_path)
     value = {"x": 1}
     path = store.write("task", TASK_ID, 1, value)
@@ -1180,7 +1187,6 @@ def test_abandoned_object_claim_is_completed_by_later_writer(tmp_path):
 
 def test_persisted_final_claim_and_temp_crash_recovers_before_a_later_conflicting_write(tmp_path):
     """remediation-red: an idempotent restart drains aliases from a post-final crash."""
-
     data = canonical_bytes({"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
     directory.mkdir(parents=True)

@@ -264,13 +264,14 @@ activated schema lineage, and origin witness before replay or mutation.
 
 To obey the review-size hard stop without recreating a monolith, STORE may land
 as three serial candidates under the single KAN-105 job. `STORE-1A-PUB` owns
-physical publication plus the configuration, diagnostic-precedence, and
-preservation prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest
-and documentation-only-successor rule. `STORE-1B` owns the historical binding
-lineage, transaction, shared verified context, public commands, and consumer
-migration. All three remain one incomplete STORE capability until the assembled
-public path passes. This split creates neither a competing Gate 6 plan nor
-another Jira capability job.
+physical publication plus the diagnostic-precedence and preservation
+prerequisites. `STORE-1A-MANIFEST` owns the governed-code manifest and
+documentation-only-successor rule. `STORE-1B` owns the
+`SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
+binding lineage, transaction, shared verified context, public commands, and
+consumer migration. All three remain one incomplete STORE capability until
+the assembled public path passes. This split creates neither a competing Gate
+6 plan nor another Jira capability job.
 
 **Acceptance boundary:** the governed-code manifest versions code, config,
 schemas, contracts, locks, and the allowed documentation-only descendant. The

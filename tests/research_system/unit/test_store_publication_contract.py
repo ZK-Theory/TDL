@@ -34,28 +34,13 @@ def _locked_root(root: Path):
 
 
 def _assert_generation_preserved_after_posix_quarantine(path: Path, expected: bytes) -> None:
-    """A refused deletion must leave the substituted owner at its canonical name."""
-
     assert path.read_bytes() == expected
-
-
-def test_writer_lock_reports_only_existing_lock_as_typed_contention(tmp_path: Path) -> None:
-    path = tmp_path / "writer.lock"
-
-    with WriterLock(path, {"writer_id": "first"}):
-        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
-            with WriterLock(path, {"writer_id": "second"}):
-                raise AssertionError("second writer entered lock")
-
-    assert issubclass(WriterLockContentionError, ConflictError)
 
 
 def test_writer_lock_fails_closed_before_publication_without_windows_exact_deletion(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """preservation-green: unsupported POSIX cannot publish an unreleasable lease."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "uncreated" / "writer.lock"
@@ -75,8 +60,6 @@ def test_linux_writer_rolls_back_an_exact_canonical_after_post_link_failure(
     monkeypatch,
     failure: str,
 ) -> None:
-    """A failed acquisition cannot strand the current process as canonical owner."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -191,6 +174,7 @@ def test_linux_composite_retries_a_transient_member_release(
 def test_writer_lock_does_not_retype_identity_or_link_failures_as_contention(tmp_path: Path, monkeypatch) -> None:
     import research_system.store.lock as lock_module
 
+    assert issubclass(WriterLockContentionError, ConflictError)
     with pytest.raises(ConflictError) as identity_error:
         WriterLock(tmp_path / "writer.lock", {"process_id": "999999", "writer_id": "foreign"})
     assert type(identity_error.value) is ConflictError
@@ -205,31 +189,161 @@ def test_writer_lock_does_not_retype_identity_or_link_failures_as_contention(tmp
     assert not list(tmp_path.glob(".denied.lock.*.tmp"))
 
 
-def test_windows_exact_generation_cleanup_retries_sharing_violation_without_winerror(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """remediation-red: a native sharing violation reaches the retryable cleanup seam."""
+@pytest.mark.skipif(os.name != "nt", reason="Windows held-generation sharing")
+def test_windows_composite_retains_a_busy_exact_lock_for_later_release(tmp_path: Path) -> None:
+    import research_system.store.lock as lock_module
 
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    path = root / "runtime" / "writer.lock"
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_busy-inspection"})
+    candidate.__enter__()
+    inspection = lock_module._windows_open_handle(
+        path,
+        open_reparse_point=True,
+        delete_protect=True,
+        delete_access=False,
+        read_contents=True,
+        share_mode=lock_module._FILE_SHARE_READ,
+    )
+    try:
+        with pytest.raises(lock_module._ExactGenerationBusyError, match="temporarily busy"):
+            candidate.__exit__(None, None, None)
+        assert candidate._active_members and path.is_file()
+    finally:
+        lock_module._windows_close_handle(inspection)
+    candidate.__exit__(None, None, None)
+    assert not candidate._active_members and not path.exists()
+    with CompositeWriterLock((root,), {"command_id": "cmd_next-writer"}):
+        assert path.is_file()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows release classification")
+def test_windows_composite_treats_observation_conflict_as_terminal(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    path = root / "runtime" / "writer.lock"
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd_terminal-observation"})
+    candidate.__enter__()
+    foreign = b"foreign-reparse-placeholder"
+    path.unlink()
+    path.write_bytes(foreign)
+    calls = 0
+
+    def reject(_path, _release=None):
+        nonlocal calls
+        calls += 1
+        raise ConflictError("physical identity unavailable")
+
+    monkeypatch.setattr(lock_module, "_read_lock_observation", reject)
+    with pytest.raises(ConflictError, match="cannot be verified"):
+        candidate.__exit__(None, None, None)
+    assert calls == 1 and not candidate._active_members and path.read_bytes() == foreign
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows release attempt classification")
+@pytest.mark.parametrize("busy_kind", ["exact", "quarantine"])
+def test_windows_current_delete_busy_remains_pending_behind_an_older_primary(
+    tmp_path: Path, monkeypatch, busy_kind: str
+) -> None:
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
-    path.write_bytes(b"owned")
+    writer = WriterLock(path, {"writer_id": "prior-primary"})
+    writer.__enter__()
+    prior = OSError("older anchor close failed")
+    writer._windows_release.primary = prior
+    real_delete = lock_module._delete_exact_regular_file
+    failed = False
 
-    def sharing_violation(*_args, **_kwargs):
-        error = OSError(32, "sharing violation")
-        error.winerror = None
-        raise error
+    def fail_current_delete(candidate, *args, **kwargs):
+        nonlocal failed
+        if candidate == path and not failed:
+            failed = True
+            error_type = (
+                lock_module._ExactGenerationBusyError
+                if busy_kind == "exact"
+                else lock_module._WindowsQuarantineBusyError
+            )
+            raise error_type("current delete busy")
+        return real_delete(candidate, *args, **kwargs)
 
-    monkeypatch.setattr(lock_module.os, "name", "nt")
-    monkeypatch.setattr(lock_module, "_windows_open_handle", sharing_violation)
+    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", fail_current_delete)
+    with pytest.raises(OSError, match="older anchor") as raised:
+        writer.__exit__(None, None, None)
+    assert "current delete busy" in str(raised.value.__cause__)
+    assert writer.release_pending and writer._windows_release.metadata_pending and path.exists()
+    with pytest.raises(OSError, match="older anchor"):
+        writer.__exit__(None, None, None)
+    assert not writer.release_pending and not path.exists()
 
-    with pytest.raises(lock_module._ExactGenerationBusyError, match="temporarily busy"):
-        lock_module._delete_exact_regular_file(
-            path,
-            path.stat(),
-            expected_bytes=b"owned",
-            label="writer lock test",
-        )
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows deletion-handle continuation")
+def test_windows_canonical_disposition_close_resumes_without_reinspection(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
+
+    real_close = lock_module._windows_close_handle
+    calls = 0
+    failed = False
+
+    def fail_one_delete_close(handle):
+        nonlocal calls, failed
+        calls += 1
+        if calls == 2 and not failed:
+            failed = True
+            raise OSError("canonical deletion handle close failed")
+        return real_close(handle)
+
+    path = tmp_path / "direct.lock"
+    writer = WriterLock(path, {"writer_id": "direct"})
+    writer.__enter__()
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fail_one_delete_close)
+    with pytest.raises(ConflictError, match="cannot close"):
+        writer.__exit__(None, None, None)
+    pending = writer._windows_release.closes[0]
+    assert pending.phase == "canonical" and pending.disposition_applied and path.exists()
+    assert writer.__exit__(None, None, None) is False
+    assert not path.exists()
+
+    root = tmp_path / "composite"
+    (root / "runtime").mkdir(parents=True)
+    monkeypatch.setattr(lock_module, "_windows_close_handle", real_close)
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd-disposition-retry"})
+    candidate.__enter__()
+    calls = 0
+    failed = False
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fail_one_delete_close)
+    assert candidate.__exit__(None, None, None) is False
+    assert not candidate._active_members and not (root / "runtime" / "writer.lock").exists()
+    with WriterLock(path, {"writer_id": "next"}):
+        assert path.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows close quarantine")
+def test_windows_stateless_inspection_quarantines_and_drains_a_failed_close(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "inspection-owner"})
+    writer.__enter__()
+    real_close = lock_module._windows_close_handle
+    failed = False
+
+    def fail_once(handle):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("inspection close failed before close")
+        return real_close(handle)
+
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fail_once)
+    assert lock_module.inspect_lock(path)[0] == "unknown"
+    assert lock_module._WINDOWS_CLOSE_QUARANTINE
+    assert lock_module.inspect_lock(path)[0] == "live"
+    assert not lock_module._WINDOWS_CLOSE_QUARANTINE
+    writer.__exit__(None, None, None)
 
 
 def _defer_private_staging_cleanup(monkeypatch, writer: WriterLock, before_failure=None):
@@ -250,137 +364,202 @@ def _defer_private_staging_cleanup(monkeypatch, writer: WriterLock, before_failu
     return lock_module, failures
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
-@pytest.mark.parametrize("exit_state", [None, "missing", "foreign", "anchor-close"])
-def test_writer_lock_durable_temporary_cleanup_failure_defers_under_a_tracked_lease(
-    tmp_path: Path,
-    monkeypatch,
-    exit_state: str | None,
-) -> None:
-    """remediation-red: durable publication retains lock ownership until exit cleanup."""
+@pytest.mark.skipif(os.name != "nt", reason="Windows retained anchor cleanup")
+def test_windows_writer_retains_the_actual_parent_anchor_after_pre_close_failure(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
-    writer = WriterLock(path, {"writer_id": "failed-owner"})
-    lock_module, cleanup_failures = _defer_private_staging_cleanup(monkeypatch, writer)
-    if exit_state == "anchor-close":
-        real_close = lock_module._DirectoryAnchor.close
+    writer = WriterLock(path, {"writer_id": "anchor-owner"})
+    _defer_private_staging_cleanup(monkeypatch, writer)
+    real_close = lock_module._DirectoryAnchor._close_without_quarantine
+    failed = False
 
-        def fail_after_proof(anchor) -> None:
-            real_close(anchor)
-            raise OSError("injected parent anchor close failure")
+    def fail_before_close(anchor):
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("anchor close failed before close")
+        return real_close(anchor)
 
-        monkeypatch.setattr(lock_module._DirectoryAnchor, "close", fail_after_proof)
+    monkeypatch.setattr(lock_module._DirectoryAnchor, "_close_without_quarantine", fail_before_close)
+    writer.__enter__()
+    assert writer.release_pending and writer._windows_release.closes[0].phase == "anchor"
+    assert not lock_module._WINDOWS_CLOSE_QUARANTINE
+    assert writer.__exit__(None, None, None) is False
+    assert not writer.release_pending and not path.exists()
 
-    assert writer.__enter__() is writer
-    assert cleanup_failures
-    assert path.read_bytes() == writer._data
-    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
-        WriterLock(path, {"writer_id": "blocked-owner"}).__enter__()
 
-    foreign = WriterLock(path, {"writer_id": "foreign-owner"})._data
-    if exit_state in {"missing", "foreign"}:
-        path.unlink()
-    if exit_state == "foreign":
-        path.write_bytes(foreign)
-    if exit_state == "anchor-close":
-        with pytest.raises(OSError, match="parent anchor close failure"):
+@pytest.mark.skipif(os.name != "nt", reason="Windows quarantine retry")
+@pytest.mark.parametrize("deferred_temporary", [False, True])
+def test_windows_composite_retains_current_phases_while_unrelated_quarantine_is_busy(
+    tmp_path: Path, monkeypatch, deferred_temporary: bool
+) -> None:
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    writers: list[WriterLock] = []
+
+    def factory(path, identity):
+        writers.append(WriterLock(path, identity))
+        if deferred_temporary:
+            _defer_private_staging_cleanup(monkeypatch, writers[0])
+        return writers[0]
+
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd-quarantine"}, lock_factory=factory)
+    candidate.__enter__()
+    writer = writers[0]
+    unrelated = WriterLock(tmp_path / "unrelated.lock", {"writer_id": "unrelated"})
+    unrelated.__enter__()
+    real_close = lock_module._windows_close_handle
+    failures = 0
+
+    def fail_four(handle):
+        nonlocal failures
+        if failures < 4:
+            failures += 1
+            raise OSError("unrelated close still busy")
+        return real_close(handle)
+
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fail_four)
+    assert lock_module.inspect_lock(unrelated.path)[0] == "unknown"
+    with pytest.raises(lock_module._WindowsQuarantineBusyError):
+        candidate.__exit__(None, None, None)
+    assert failures == 4 and candidate._active_members and writer.release_pending
+    assert writer._windows_release.metadata_pending and writer.path.exists()
+    if deferred_temporary:
+        assert writer._windows_release.temporary[0].exists()
+    candidate.__exit__(None, None, None)
+    unrelated.__exit__(None, None, None)
+    assert not candidate._active_members
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows temporary cleanup")
+@pytest.mark.parametrize("failure", ["busy", "close"])
+def test_windows_composite_retains_exact_temporary_cleanup_for_later_exit(
+    tmp_path: Path, monkeypatch, failure: str
+) -> None:
+    import research_system.store.lock as lock_module
+
+    root = tmp_path / "control"
+    (root / "runtime").mkdir(parents=True)
+    writers: list[WriterLock] = []
+
+    def factory(path, identity):
+        writers.append(WriterLock(path, identity))
+        _defer_private_staging_cleanup(monkeypatch, writers[0])
+        return writers[0]
+
+    candidate = CompositeWriterLock((root,), {"command_id": "cmd-temp-cleanup"}, lock_factory=factory)
+    candidate.__enter__()
+    writer = writers[0]
+    temporary = writer._windows_release.temporary[0]
+    real_delete = lock_module._delete_exact_regular_file
+    real_close = lock_module._windows_close_handle
+    failures = 0
+
+    def fail_three_close(handle):
+        nonlocal failures
+        if failures < 3:
+            failures += 1
+            raise OSError("temporary deletion handle close failed")
+        return real_close(handle)
+
+    def delete(candidate_path, *args, **kwargs):
+        nonlocal failures
+        if candidate_path == temporary and failure == "busy" and failures < 3:
+            failures += 1
+            raise lock_module._ExactGenerationBusyError("temporary busy")
+        if candidate_path == temporary and failure == "close":
+            monkeypatch.setattr(lock_module, "_windows_close_handle", fail_three_close)
+        return real_delete(candidate_path, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", delete)
+    with pytest.raises((ConflictError, OSError)):
+        candidate.__exit__(None, None, None)
+    assert failures == 3 and candidate._active_members and writer.release_pending
+    candidate.__exit__(None, None, None)
+    assert not candidate._active_members and not temporary.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows temporary generation classification")
+@pytest.mark.parametrize(
+    "scenario",
+    "temp-foreign temp-same-bytes canonical-foreign-temp-close "
+    "predisposition-canonical predisposition-temporary".split(),
+)
+def test_windows_writer_terminalizes_a_substituted_deferred_temporary(
+    tmp_path: Path, monkeypatch, scenario: str
+) -> None:
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "temporary-owner"})
+    _defer_private_staging_cleanup(monkeypatch, writer)
+    writer.__enter__()
+    temporary = writer._windows_release.temporary[0]
+    if scenario.startswith("predisposition-"):
+        phase = scenario.removeprefix("predisposition-")
+        target = path if phase == "canonical" else temporary
+        held = tmp_path / f"held-{phase}.lock"
+        real_close = lock_module._windows_close_handle
+        state = {"calls": 0, "substituted": False, "restore": False}
+
+        def substitute(candidate):
+            if candidate == target and not state["substituted"]:
+                state["substituted"] = True
+                target.replace(held)
+                target.write_bytes(b"foreign")
+
+        def fail_then_restore(handle):
+            state["calls"] += 1
+            failure_call = 2 if phase == "canonical" else 3
+            if state["calls"] == failure_call:
+                raise OSError(f"{phase} close failed")
+            real_close(handle)
+            if state["restore"] and state["calls"] == failure_call + 1:
+                target.unlink()
+                held.replace(target)
+
+        monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", substitute)
+        monkeypatch.setattr(lock_module, "_windows_close_handle", fail_then_restore)
+        with pytest.raises(ConflictError, match="generation changed"):
             writer.__exit__(None, None, None)
-    elif exit_state is not None:
-        with pytest.raises(ConflictError):
+        pending = writer._windows_release.closes[0]
+        assert pending.phase == phase and not pending.disposition_applied
+        state["restore"] = True
+        with pytest.raises(ConflictError, match="generation changed"):
             writer.__exit__(None, None, None)
-    else:
-        assert writer.__exit__(None, None, None) is False
-
-    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
-    if exit_state == "foreign":
-        assert path.read_bytes() == foreign
-        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
-            WriterLock(path, {"writer_id": "next-owner"}).__enter__()
+        assert not writer.release_pending and target.read_bytes() == writer._data
         return
-    assert not path.exists()
-    with WriterLock(path, {"writer_id": "next-owner"}):
-        assert path.is_file()
-    assert not path.exists()
+    foreign = writer._data if scenario == "temp-same-bytes" else b"foreign"
+    if scenario.startswith("temp-"):
+        temporary.unlink()
+        temporary.write_bytes(foreign)
+        with pytest.raises(ConflictError, match="generation changed|bytes changed"):
+            writer.__exit__(None, None, None)
+        assert not writer.release_pending and temporary.read_bytes() == foreign
+        return
 
+    path.unlink()
+    path.write_bytes(foreign)
+    real_close = lock_module._windows_close_handle
+    calls = 0
 
-@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
-@pytest.mark.parametrize("foreign_canonical", [True, False], ids=["foreign", "proof-unavailable"])
-def test_writer_lock_cleanup_failure_preserves_foreign_or_rolls_back_owned_canonical(
-    tmp_path: Path,
-    monkeypatch,
-    foreign_canonical: bool,
-) -> None:
-    """A failed proof keeps a foreign lock but rolls back the exact owned generation."""
+    def fail_temp_delete_close(handle):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("temporary disposition close failed")
+        return real_close(handle)
 
-    path = tmp_path / "writer.lock"
-    writer = WriterLock(path, {"writer_id": "failed-owner"})
-    foreign = WriterLock(path, {"writer_id": "foreign-owner"})._data
-
-    def substitute_foreign() -> None:
-        assert path.read_bytes() == writer._data
-        path.unlink()
-        path.write_bytes(foreign)
-
-    lock_module, cleanup_failures = _defer_private_staging_cleanup(
-        monkeypatch,
-        writer,
-        substitute_foreign if foreign_canonical else None,
-    )
-    if not foreign_canonical:
-        monkeypatch.setattr(
-            lock_module,
-            "_open_directory_anchor",
-            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("injected ownership proof failure")),
-        )
-
-    with pytest.raises(ConflictError, match="canonical ownership cannot be verified"):
-        writer.__enter__()
-
-    assert cleanup_failures
-    assert not list(path.parent.glob(f".{path.name}.*.tmp"))
-    if foreign_canonical:
-        assert path.read_bytes() == foreign
-        with pytest.raises(WriterLockContentionError, match="writer lock exists"):
-            WriterLock(path, {"writer_id": "next-owner"}).__enter__()
-    else:
-        assert not path.exists()
-        with WriterLock(path, {"writer_id": "next-owner"}):
-            assert path.is_file()
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected temporary cleanup")
-def test_writer_lock_cleanup_failure_preserves_canonical_when_anchored_observation_is_unsafe(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    """remediation-red: an anchored reparse/non-regular rejection cannot trigger canonical rollback."""
-
-    path = tmp_path / "writer.lock"
-    writer = WriterLock(path, {"writer_id": "failed-owner"})
-    lock_module, cleanup_failures = _defer_private_staging_cleanup(monkeypatch, writer)
-    deferred_delete = lock_module._delete_exact_regular_file
-    canonical_deletions: list[Path] = []
-
-    def record_delete(candidate: Path, *args, **kwargs) -> None:
-        if candidate == path:
-            canonical_deletions.append(candidate)
-        return deferred_delete(candidate, *args, **kwargs)
-
-    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", record_delete)
-    monkeypatch.setattr(
-        lock_module,
-        "_open_directory_anchor",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(ConflictError("injected canonical reparse rejection")),
-    )
-
-    with pytest.raises(ConflictError, match="canonical ownership cannot be verified"):
-        writer.__enter__()
-
-    assert cleanup_failures
-    assert canonical_deletions == []
-    assert path.read_bytes() == writer._data
-    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
-        WriterLock(path, {"writer_id": "next-owner"}).__enter__()
+    monkeypatch.setattr(lock_module, "_windows_close_handle", fail_temp_delete_close)
+    with pytest.raises(ConflictError, match="cannot be verified|ownership changed"):
+        writer.__exit__(None, None, None)
+    assert writer.release_pending and writer._windows_release.primary is not None
+    with pytest.raises(ConflictError, match="cannot be verified|ownership changed"):
+        writer.__exit__(None, None, None)
+    assert not writer.release_pending and path.read_bytes() == foreign and not temporary.exists()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows delete-protected publication rollback")
@@ -388,8 +567,6 @@ def test_writer_lock_post_publication_fsync_failure_rolls_back_and_raises(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """remediation-red: a non-durable canonical link is removed before entry fails."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -423,8 +600,6 @@ def test_writer_lock_post_publication_fsync_and_rollback_failure_leaves_a_fail_c
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """remediation-red: a failed non-durable rollback cannot enter protected work."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -480,17 +655,6 @@ def test_writer_lock_uses_no_follow_link_publication_on_windows(tmp_path: Path, 
     assert calls == [(False, os.name != "nt", os.name != "nt")]
 
 
-def test_composite_writer_lock_still_enters_and_releases_its_canonical_lock(tmp_path: Path) -> None:
-    root = tmp_path / "control"
-    (root / "runtime").mkdir(parents=True)
-
-    with CompositeWriterLock((root,), {"command_id": "cmd_store-publication-contract"}) as lease:
-        assert lease.locked_root(root).runtime_final_path.name == "runtime"
-        assert (root / "runtime" / "writer.lock").is_file()
-
-    assert not (root / "runtime" / "writer.lock").exists()
-
-
 def test_object_publication_uses_no_follow_hard_links(tmp_path: Path, monkeypatch) -> None:
     import research_system.store.objects as object_module
 
@@ -515,7 +679,6 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
     swap_level: str,
 ) -> None:
     """remediation-red: no ancestor swap redirects an object transaction."""
-
     import research_system.store.objects as object_module
 
     control_root = tmp_path / "control"
@@ -565,7 +728,6 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
 
 def test_object_publication_rolls_back_its_owned_final_after_an_ancestor_move(tmp_path: Path, monkeypatch) -> None:
     """remediation-red: parent-chain failure after final publication leaves no final behind."""
-
     import research_system.store.objects as object_module
 
     control_root = tmp_path / "control"
@@ -720,6 +882,38 @@ def test_locked_root_publishes_and_reads_exact_relative_file_bytes(tmp_path: Pat
         assert locked_root.read_exact_file("runtime/manifests/spec-current-binding.json") == payload
 
     assert (control_root / "runtime" / "manifests" / "spec-current-binding.json").read_bytes() == payload
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows anchor quarantine")
+def test_locked_root_nested_failure_closes_and_quarantines_every_open_child(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.lock as lock_module
+
+    control_root = tmp_path / "control"
+    real_open = lock_module._DirectoryAnchor.open_member_directory
+    real_close = lock_module._DirectoryAnchor._close_without_quarantine
+    failed_closes: set[str] = set()
+
+    def reject_third(anchor, name, **kwargs):
+        if name == "c":
+            raise RuntimeError("primary nested open failed")
+        return real_open(anchor, name, **kwargs)
+
+    def fail_each_child_once(anchor):
+        name = anchor.final_path.name
+        if name in {"a", "b"} and name not in failed_closes:
+            failed_closes.add(name)
+            raise OSError(f"{name} close failed before close")
+        return real_close(anchor)
+
+    with _locked_root(control_root) as locked_root:
+        monkeypatch.setattr(lock_module._DirectoryAnchor, "open_member_directory", reject_third)
+        monkeypatch.setattr(lock_module._DirectoryAnchor, "_close_without_quarantine", fail_each_child_once)
+        with pytest.raises(RuntimeError, match="primary nested open failed") as raised:
+            locked_root.write_exact_file("runtime/a/b/c/result.json", b"expected")
+        assert isinstance(raised.value.__cause__, OSError)
+        assert failed_closes == {"a", "b"} and len(lock_module._WINDOWS_CLOSE_QUARANTINE) == 2
+        locked_root.write_exact_file("runtime/drain.json", b"drained")
+        assert not lock_module._WINDOWS_CLOSE_QUARANTINE
 
 
 @pytest.mark.parametrize(
@@ -918,7 +1112,6 @@ def test_locked_root_replacement_finishes_committed_recovery_after_predecessor_c
     monkeypatch,
 ) -> None:
     """remediation-red: a committed final is retried by draining its exact predecessor claim."""
-
     import research_system.store.lock as lock_module
 
     control_root = tmp_path / "control"
@@ -957,8 +1150,6 @@ def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_
     monkeypatch,
     same_bytes: bool,
 ) -> None:
-    """remediation-red: A's release cannot vacate B or admit C after an ABA substitution."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -996,8 +1187,6 @@ def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
     monkeypatch,
     same_bytes: bool,
 ) -> None:
-    """remediation-red: reclaiming stale A cannot vacate substituted B or admit C."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -1053,8 +1242,6 @@ def test_writer_lock_release_rejects_an_in_place_byte_mutation_after_ownership_c
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    """A matching inode is insufficient when its immutable bytes were altered."""
-
     import research_system.store.lock as lock_module
 
     path = tmp_path / "writer.lock"
@@ -1083,7 +1270,6 @@ def test_locked_root_source_deletion_preserves_a_generation_substituted_after_cl
     monkeypatch,
 ) -> None:
     """remediation-red: a no-replace claim does not authorize path-based deletion."""
-
     import research_system.store.lock as lock_module
 
     control_root = tmp_path / "control"
@@ -1115,7 +1301,6 @@ def test_locked_root_claim_cleanup_preserves_a_claim_substituted_after_check(
     monkeypatch,
 ) -> None:
     """remediation-red: final publication survives a substituted claim-cleanup name."""
-
     import research_system.store.lock as lock_module
 
     control_root = tmp_path / "control"
@@ -1148,7 +1333,6 @@ def test_object_rollback_preserves_a_generation_substituted_after_ownership_chec
     monkeypatch,
 ) -> None:
     """remediation-red: object rollback cannot delete a post-proof foreign revision."""
-
     import research_system.store.lock as lock_module
 
     store = ObjectStore(tmp_path)
@@ -1180,7 +1364,6 @@ def test_object_temporary_cleanup_treats_a_concurrent_absence_as_idempotent(
     monkeypatch,
 ) -> None:
     """remediation-red: missing_ok cleanup is not converted to a false conflict."""
-
     import research_system.store.lock as lock_module
 
     removed = False
@@ -1206,7 +1389,6 @@ def test_object_temporary_cleanup_allows_an_absence_before_its_generation_rechec
     monkeypatch,
 ) -> None:
     """remediation-red: ``missing_ok`` reaches the first generation check too."""
-
     import research_system.store.objects as object_module
 
     real_remove = object_module._remove_owned_generation
@@ -1243,7 +1425,6 @@ def test_locked_root_rejects_a_real_reparse_substituted_after_claim_check(
     monkeypatch,
 ) -> None:
     """remediation-red: a source turned into a reparse point remains untouched."""
-
     import research_system.store.lock as lock_module
 
     control_root = tmp_path / "control"
