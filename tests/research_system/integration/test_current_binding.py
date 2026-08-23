@@ -416,6 +416,22 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
     }
     _validate_binding_transition(fixture.repository_root, reviewed, predecessor, predecessor_sha256)
 
+    repeated = {
+        **reviewed,
+        "route_successor_authority": {
+            **reviewed["route_successor_authority"],
+            "predecessor_binding_sha256": sha256_hex(fixture.binding_raw),
+            "predecessor_route_sha256": fixture.binding["route"]["sha256"],
+        },
+    }
+    with pytest.raises(IntegrityError, match="legacy repair root"):
+        _validate_binding_transition(
+            fixture.repository_root,
+            repeated,
+            fixture.binding,
+            sha256_hex(fixture.binding_raw),
+        )
+
     for field, wrong in (
         ("predecessor_binding_sha256", "3" * 64),
         ("candidate_git_head", "4" * 40),
@@ -487,6 +503,8 @@ def test_current_binding_rejects_an_advance_forked_from_the_preceding_binding_ev
     assert fork["predecessor_binding_sha256"] != preceding_binding_sha256
     _publish_binding_advance(fixture, fork)
 
+    with pytest.raises(IntegrityError, match="binding advance event continuity"):
+        replay_discovery(tuple(fixture.ledger.iter_events()), schemas=fixture.schemas)
     with pytest.raises(IntegrityError, match="binding event lineage"):
         load_current_binding(
             foundation_path=fixture.foundation_path,
@@ -645,6 +663,21 @@ def test_discovery_replay_rejects_a_control_event_from_another_registered_comman
     )
 
     with pytest.raises(IntegrityError, match="schema provenance mismatch"):
+        replay_discovery(events, schemas=fixture.schemas)
+
+
+def test_discovery_replay_binds_the_binding_object_path_to_its_recovery_digest(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    current = tuple(fixture.ledger.iter_events())[-1]
+    events = _rewrite_last_event(
+        fixture,
+        payload={
+            **current["payload"],
+            "object_path": f"objects/binding-repair/sha256-{'f' * 64}.json",
+        },
+    )
+
+    with pytest.raises(IntegrityError, match="binding advance event relation"):
         replay_discovery(events, schemas=fixture.schemas)
 
 

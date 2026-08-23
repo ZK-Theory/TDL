@@ -362,6 +362,8 @@ def _validate_binding_transition(
         }
         if child.get("route_successor_authority") != expected_authority:
             raise IntegrityError("current binding reviewed route successor authority is invalid")
+        if predecessor.get("schema_version") != "1.0.0":
+            raise IntegrityError("current binding reviewed route successor requires the legacy repair root")
         return
     raise IntegrityError("current binding owner action is invalid")
 

@@ -1063,6 +1063,8 @@ def apply_event(
             or not isinstance(payload, dict)
             or set(payload) != expected
             or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+            or payload.get("object_path")
+            != f"objects/binding-repair/sha256-{payload.get('recovery_binding_sha256')}.json"
         ):
             raise IntegrityError("binding repair event relation is invalid")
         projection = {
@@ -1093,8 +1095,18 @@ def apply_event(
             or not isinstance(payload, dict)
             or set(payload) != expected
             or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+            or payload.get("object_path")
+            != f"objects/binding-repair/sha256-{payload.get('recovery_binding_sha256')}.json"
         ):
             raise IntegrityError("binding advance event relation is invalid")
+        prior_bindings = [
+            *updated.get("binding_repairs", {}).values(),
+            *updated.get("binding_advances", {}).values(),
+        ]
+        if prior_bindings:
+            latest_binding = max(prior_bindings, key=lambda item: int(item["global_position"]))
+            if payload.get("predecessor_binding_sha256") != latest_binding.get("recovery_binding_sha256"):
+                raise IntegrityError("binding advance event continuity is invalid")
         projection = {
             **deepcopy(payload),
             "event_id": event["event_id"],
