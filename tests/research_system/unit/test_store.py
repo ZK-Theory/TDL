@@ -13,6 +13,7 @@ from research_system.errors import ArsError, ConflictError, IntegrityError, Sche
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
+from research_system.store import anchor as anchor_module
 from research_system.store import lock as lock_module
 from research_system.store import durability as durability_module
 from research_system.store.lock import (
@@ -1064,44 +1065,26 @@ def test_object_write_preserves_primary_error_when_anchor_close_also_fails(tmp_p
     def fail_write(*_args, **_kwargs):
         raise ConflictError("injected primary object write failure")
 
-    class Anchor:
-        def __init__(self, final_path, child=None, *, fail_close=False):
-            self.final_path = final_path
-            self.child = child
-            self.fail_close = fail_close
-            self.closed = False
+    original_close = anchor_module._DirectoryAnchor.close
+    closed_paths: list[Path] = []
+    close_failed = False
 
-        def open_member_directory(self, _name, **_kwargs):
-            assert self.child is not None
-            return self.child
-
-        def acquire_mutation_guard(self, _name):
-            class Guard:
-                def __enter__(self):
-                    return object()
-
-                def __exit__(self, *_args):
-                    return False
-
-            return Guard()
-
-        def close(self):
-            self.closed = True
-            if self.fail_close:
-                raise OSError("injected object anchor close failure")
-
-    object_anchor = Anchor(tmp_path / "objects" / "task" / TASK_ID, fail_close=True)
-    kind_anchor = Anchor(tmp_path / "objects" / "task", object_anchor)
-    objects_anchor = Anchor(tmp_path / "objects", kind_anchor)
-    root_anchor = Anchor(tmp_path, objects_anchor)
+    def close_after_leaf(anchor):
+        nonlocal close_failed
+        result = original_close(anchor)
+        closed_paths.append(anchor.final_path)
+        if anchor.final_path.name == TASK_ID and not close_failed:
+            close_failed = True
+            raise OSError("injected object anchor close failure")
+        return result
 
     monkeypatch.setattr(object_module, "_write_object_in_directory", fail_write)
-    monkeypatch.setattr(object_module, "open_registered_root_anchor", lambda *_args, **_kwargs: root_anchor)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "close", close_after_leaf)
 
     with pytest.raises(ConflictError, match="primary object write failure") as raised:
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
-    assert all(anchor.closed for anchor in (object_anchor, kind_anchor, objects_anchor, root_anchor))
+    assert close_failed and len(closed_paths) == 4
     assert isinstance(raised.value.__cause__, OSError)
     assert "anchor close failure" in str(raised.value.__cause__)
 
@@ -1110,26 +1093,35 @@ def test_object_write_creates_staging_file_with_least_privilege_mode(tmp_path, m
     """remediation-red: private staged content is never created with process defaults."""
     import research_system.store.objects as object_module
 
-    original_open = object_module.os.open
-    staging_modes: list[int | None] = []
-    target_name = f"00000001-{sha256_hex(canonical_bytes({'x': 1}))}.json"
+    directory = tmp_path / "objects" / "task" / TASK_ID
 
-    def record_staging_mode(path, flags, *args, **kwargs):
-        candidate = Path(path)
-        if (
-            candidate.name.startswith(f".{target_name}.")
-            and candidate.name.endswith(".tmp")
-            and flags & os.O_CREAT
-            and flags & os.O_EXCL
-        ):
-            staging_modes.append(args[0] if args else kwargs.get("mode"))
-        return original_open(path, flags, *args, **kwargs)
+    if os.name == "nt":
+        original_open = anchor_module.os.open
+        requested_modes: list[int | None] = []
 
-    monkeypatch.setattr(object_module.os, "open", record_staging_mode)
+        def record_windows_creation(path, flags, *args, **kwargs):
+            candidate = Path(path)
+            if (
+                candidate.name.startswith(".00000001-")
+                and candidate.name.endswith(".tmp")
+                and flags & os.O_CREAT
+                and flags & os.O_EXCL
+            ):
+                requested_modes.append(args[0] if args else kwargs.get("mode"))
+            return original_open(path, flags, *args, **kwargs)
+
+        monkeypatch.setattr(anchor_module.os, "open", record_windows_creation)
+    else:
+        requested_modes = []
+
+        def record_posix_creation(temporary_name):
+            requested_modes.append((directory / temporary_name).stat().st_mode & 0o777)
+
+        monkeypatch.setattr(object_module, "_after_object_temp_fsync", record_posix_creation)
 
     write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
-    assert staging_modes == [0o600]
+    assert requested_modes == [0o600]
 
 
 def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_path, monkeypatch):
@@ -1145,7 +1137,7 @@ def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_pa
             removed = True
             candidate.unlink()
 
-    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", remove_after_ownership_proof)
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", remove_after_ownership_proof)
 
     with pytest.raises(IntegrityError, match="cannot roll back a changed object revision"):
         store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
@@ -1165,12 +1157,11 @@ def test_object_write_rejects_matching_bytes_under_wrong_digest_name(tmp_path):
 
     canonical = directory / f"00000001-{sha256_hex(data)}.json"
     assert not canonical.exists()
-    assert list(directory.glob(".*.publication-claim")) == []
     with pytest.raises(IntegrityError, match="filename hash mismatch"):
         ObjectStore(tmp_path).read("task", TASK_ID, 1)
 
 
-def test_abandoned_object_claim_is_completed_by_later_writer(tmp_path):
+def test_legacy_claim_residue_is_neither_authorized_nor_removed_by_v2_writer(tmp_path):
     data = canonical_bytes({"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
     directory.mkdir(parents=True)
@@ -1181,12 +1172,12 @@ def test_abandoned_object_claim_is_completed_by_later_writer(tmp_path):
 
     assert path.name == f"00000001-{sha256_hex(data)}.json"
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
-    assert not claim.exists()
+    assert claim.read_bytes() == data
     assert list(directory.glob(".*.tmp")) == []
 
 
-def test_persisted_final_claim_and_temp_crash_recovers_before_a_later_conflicting_write(tmp_path):
-    """remediation-red: an idempotent restart drains aliases from a post-final crash."""
+def test_v2_writer_preserves_legacy_crash_residue_while_its_canonical_final_remains_valid(tmp_path):
+    """V2 treats former claim files as foreign residue, never as cleanup authority."""
     data = canonical_bytes({"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
     directory.mkdir(parents=True)
@@ -1200,14 +1191,16 @@ def test_persisted_final_claim_and_temp_crash_recovers_before_a_later_conflictin
 
     store = ObjectStore(tmp_path)
     store.write("task", TASK_ID, 1, {"x": 1})
-    assert not list(directory.glob(".*.tmp"))
-    assert not claim.exists()
+    assert temporary.read_bytes() == data
+    assert claim.read_bytes() == data
     store.rollback_new_revision("task", TASK_ID, 1, {"x": 1}, existed_before=False)
     assert not store.revision_exists("task", TASK_ID, 1)
     assert store.write("task", TASK_ID, 1, {"x": 2}).is_file()
+    assert temporary.read_bytes() == data
+    assert claim.read_bytes() == data
 
 
-def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers(tmp_path, monkeypatch):
+def test_object_write_interruption_retains_owned_stage_until_exact_retry_recovers(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
     def interrupt(_temporary):
@@ -1218,7 +1211,9 @@ def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
     assert list(directory.glob("00000001-*.json")) == []
-    assert list(directory.glob(".*.tmp")) == []
+    retained = list(directory.glob(".*.tmp"))
+    assert len(retained) == 1
+    assert retained[0].read_bytes() == canonical_bytes({"x": 1})
 
     monkeypatch.setattr(
         object_module,
@@ -1231,48 +1226,62 @@ def test_object_write_interruption_leaves_no_partial_revision_and_retry_recovers
 
 
 def test_object_target_link_interruption_is_recovered_on_retry(tmp_path, monkeypatch):
-    import research_system.store.objects as object_module
-
-    real_link = os.link
     interrupted = False
 
-    def interrupt_target_link(source, target, *args, **kwargs):
-        nonlocal interrupted
-        if Path(target).suffix == ".json" and not interrupted:
-            interrupted = True
-            raise OSError("injected target link interruption")
-        return real_link(source, target, *args, **kwargs)
+    if os.name == "nt":
+        real_link = anchor_module._link_without_following
 
-    monkeypatch.setattr(object_module.os, "link", interrupt_target_link)
+        def interrupt_target_link(source, target):
+            nonlocal interrupted
+            if Path(target).suffix == ".json" and not interrupted:
+                interrupted = True
+                raise OSError("injected target link interruption")
+            return real_link(source, target)
+
+        monkeypatch.setattr(anchor_module, "_link_without_following", interrupt_target_link)
+    else:
+        real_link = anchor_module.os.link
+
+        def interrupt_target_link(source, target, *args, **kwargs):
+            nonlocal interrupted
+            if Path(target).suffix == ".json" and not interrupted:
+                interrupted = True
+                raise OSError("injected target link interruption")
+            return real_link(source, target, *args, **kwargs)
+
+        monkeypatch.setattr(anchor_module.os, "link", interrupt_target_link)
+
+    def restore_link() -> None:
+        if os.name == "nt":
+            monkeypatch.setattr(anchor_module, "_link_without_following", real_link)
+        else:
+            monkeypatch.setattr(anchor_module.os, "link", real_link)
+
     with pytest.raises(OSError, match="target link interruption"):
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
-    claim = directory / ".00000001.publication-claim"
-    assert claim.read_bytes() == canonical_bytes({"x": 1})
     assert list(directory.glob("00000001-*.json")) == []
-    assert list(directory.glob(".*.tmp")) == []
+    retained = list(directory.glob(".*.tmp"))
+    assert len(retained) == 1
+    assert retained[0].read_bytes() == canonical_bytes({"x": 1})
 
-    monkeypatch.setattr(object_module.os, "link", real_link)
+    restore_link()
     write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
     assert len(list(directory.glob("00000001-*.json"))) == 1
     assert list(directory.glob(".*.tmp")) == []
-    assert list(directory.glob(".*.publication-claim")) == []
 
 
 def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeypatch):
-    import research_system.store.lock as lock_module
-
     observations = []
-    real_fsync = lock_module._DirectoryAnchor._fsync_directory
+    real_fsync = anchor_module._DirectoryAnchor._fsync_directory
 
     def observe(anchor, directory):
         target_exists = bool(list(directory.glob("00000001-*.json")))
-        claim_exists = bool(list(directory.glob(".*.publication-claim")))
-        observations.append((directory, target_exists, claim_exists))
+        observations.append((directory, target_exists))
         return real_fsync(anchor, directory)
 
-    monkeypatch.setattr(lock_module._DirectoryAnchor, "_fsync_directory", observe)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_fsync_directory", observe)
     path = write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
 
     def normalise_path(candidate):
@@ -1281,10 +1290,9 @@ def test_object_publication_fsyncs_directory_after_target_link(tmp_path, monkeyp
 
     assert any(
         normalise_path(directory) == normalise_path(path.parent) and target_exists
-        for directory, target_exists, _claim_exists in observations
+        for directory, target_exists in observations
     )
     assert list(path.parent.glob(".*.tmp")) == []
-    assert list(path.parent.glob(".*.publication-claim")) == []
 
 
 def test_two_concurrent_identical_object_writers_publish_one_complete_revision(tmp_path, monkeypatch):
@@ -1335,7 +1343,6 @@ def test_two_concurrent_identical_object_writers_publish_one_complete_revision(t
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) == {"x": 1}
     directory = tmp_path / "objects" / "task" / TASK_ID
     assert list(directory.glob(".*.tmp")) == []
-    assert list(directory.glob(".*.publication-claim")) == []
 
 
 def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, monkeypatch):
@@ -1379,18 +1386,15 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
     assert ObjectStore(tmp_path).read("task", TASK_ID, 1) in ({"x": 1}, {"x": 2})
     directory = tmp_path / "objects" / "task" / TASK_ID
     assert list(directory.glob(".*.tmp")) == []
-    assert list(directory.glob(".*.publication-claim")) == []
 
 
 def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monkeypatch):
-    import research_system.store.objects as object_module
-
     store = ObjectStore(tmp_path)
     path = store.write("task", TASK_ID, 1, {"x": 1})
-    original_open = object_module.os.open
+    original_open = anchor_module.os.open
 
     def normalise_path(candidate):
-        value = object_module.os.path.normcase(object_module.os.fspath(candidate))
+        value = anchor_module.os.path.normcase(anchor_module.os.fspath(candidate))
         return value.removeprefix("\\\\?\\")
 
     def fail_open(candidate, *args, **kwargs):
@@ -1400,11 +1404,11 @@ def test_object_read_normalizes_io_and_canonicalization_failures(tmp_path, monke
             raise OSError("unreadable")
         return original_open(candidate, *args, **kwargs)
 
-    monkeypatch.setattr(object_module.os, "open", fail_open)
+    monkeypatch.setattr(anchor_module.os, "open", fail_open)
     with pytest.raises(IntegrityError, match="unreadable"):
         store.read("task", TASK_ID, 1)
 
-    monkeypatch.setattr(object_module.os, "open", original_open)
+    monkeypatch.setattr(anchor_module.os, "open", original_open)
     path.unlink()
     float_bytes = b'{"x":1.5}'
     from research_system.canonical import sha256_hex

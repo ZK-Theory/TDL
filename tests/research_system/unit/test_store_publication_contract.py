@@ -656,7 +656,7 @@ def test_writer_lock_uses_no_follow_link_publication_on_windows(tmp_path: Path, 
 
 
 def test_object_publication_uses_no_follow_hard_links(tmp_path: Path, monkeypatch) -> None:
-    import research_system.store.objects as object_module
+    import research_system.store.anchor as anchor_module
 
     real_link = os.link
     calls: list[tuple[bool, bool, bool]] = []
@@ -665,11 +665,11 @@ def test_object_publication_uses_no_follow_hard_links(tmp_path: Path, monkeypatc
         calls.append((follow_symlinks, "src_dir_fd" in kwargs, "dst_dir_fd" in kwargs))
         return real_link(source, destination, *args, follow_symlinks=follow_symlinks, **kwargs)
 
-    monkeypatch.setattr(object_module.os, "link", observe)
+    monkeypatch.setattr(anchor_module.os, "link", observe)
 
     write_object(tmp_path, "task", TASK_ID, 1, {"value": "no-follow"})
 
-    assert calls == [(False, os.name != "nt", os.name != "nt")] * 2
+    assert calls == [(False, os.name != "nt", os.name != "nt")]
 
 
 @pytest.mark.parametrize("swap_level", ("control-root", "objects", "kind", "object"))
@@ -679,7 +679,7 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
     swap_level: str,
 ) -> None:
     """remediation-red: no ancestor swap redirects an object transaction."""
-    import research_system.store.objects as object_module
+    import research_system.store.anchor as anchor_module
 
     control_root = tmp_path / "control"
     directory = _object_directory(control_root)
@@ -691,13 +691,13 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
     }[swap_level]
     held_path = swap_path.with_name(f"{swap_path.name}-held-generation")
     held_directory = held_path.joinpath(*replacement_tail)
-    real_open = object_module.os.open
+    original_hook = anchor_module._after_stage_opened
     swapped = False
     rename_rejected = False
 
-    def swap_before_private_stage(path, flags, *args, **kwargs):
+    def swap_after_stage_opened(_name: str, _descriptor: int) -> None:
         nonlocal swapped, rename_rejected
-        if not swapped and Path(path).name.endswith(".tmp") and flags & os.O_CREAT:
+        if not swapped:
             try:
                 swap_path.rename(held_path)
                 directory.mkdir(parents=True)
@@ -705,9 +705,9 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
                 rename_rejected = True
                 raise
             swapped = True
-        return real_open(path, flags, *args, **kwargs)
+        original_hook(_name, _descriptor)
 
-    monkeypatch.setattr(object_module.os, "open", swap_before_private_stage)
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", swap_after_stage_opened)
 
     if os.name == "nt":
         with pytest.raises(OSError):
@@ -717,55 +717,39 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
         assert not list(directory.glob("00000001-*.json"))
         return
 
-    with pytest.raises(ConflictError, match="final generation is unavailable|directory identity changed"):
+    with pytest.raises(ConflictError, match="identity changed|final generation|changed"):
         write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
 
     assert swapped
     assert not list(directory.iterdir())
     assert not list(held_directory.glob("00000001-*.json"))
-    assert len(list(held_directory.glob(".*.tmp"))) == 1
-
-
-def test_object_publication_rolls_back_its_owned_final_after_an_ancestor_move(tmp_path: Path, monkeypatch) -> None:
-    """remediation-red: parent-chain failure after final publication leaves no final behind."""
-    import research_system.store.objects as object_module
-
-    control_root = tmp_path / "control"
-    directory = _object_directory(control_root)
-    swap_path = directory if os.name == "nt" else control_root
-    held_path = swap_path.with_name(f"{swap_path.name}-held-generation")
-    held_directory = held_path if os.name == "nt" else _object_directory(held_path)
-    real_require = object_module._require_exact_generation
-    swapped = False
-
-    def swap_after_final(anchor, name, expected, data, label, **kwargs):
-        nonlocal swapped
-        if label == "final" and not swapped:
-            swap_path.rename(held_path)
-            directory.mkdir(parents=True)
-            swapped = True
-        return real_require(anchor, name, expected, data, label, **kwargs)
-
-    monkeypatch.setattr(object_module, "_require_exact_generation", swap_after_final)
-
-    if os.name == "nt":
-        # The held DELETE-capable anchor fences this attempted leaf replacement
-        # before it can create a second namespace.  POSIX exercises the later
-        # recovery path below, where a moved ancestor remains reachable by fd.
-        with pytest.raises(OSError):
-            write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
-        assert not swapped
-        assert not held_path.exists()
-        assert not list(directory.glob("00000001-*.json"))
-        return
-
-    with pytest.raises(ConflictError, match="directory identity changed"):
-        write_object(control_root, "task", TASK_ID, 1, {"value": "anchored"})
-
-    assert swapped
-    assert not list(directory.glob("00000001-*.json"))
     assert not list(held_directory.glob("00000001-*.json"))
-    assert len(list(held_directory.glob(".*.publication-claim"))) == 1
+
+
+def test_object_final_link_is_a_commit_and_an_identical_retry_adopts(tmp_path: Path, monkeypatch) -> None:
+    """A post-link failure leaves the final for a same-content retry to adopt."""
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "commit-on-link"}
+    target = _object_target(tmp_path, value)
+    original = anchor_module._DirectoryAnchor._member_identity
+    failed = False
+
+    def fail_once(anchor, name, final_path):
+        nonlocal failed
+        if name == target.name and target.exists() and not failed:
+            failed = True
+            raise OSError("injected post-link identity failure")
+        return original(anchor, name, final_path)
+
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_member_identity", fail_once)
+    with pytest.raises((ConflictError, OSError), match="post-link identity failure|final"):
+        ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
+
+    assert failed
+    assert target.read_bytes() == canonical_bytes(value)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_member_identity", original)
+    assert ObjectStore(tmp_path).write("task", TASK_ID, 1, value) == target
 
 
 def test_object_publication_rejects_replaced_temporary_without_publishing_foreign_bytes(
@@ -785,91 +769,78 @@ def test_object_publication_rejects_replaced_temporary_without_publishing_foreig
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", replace_temporary)
 
-    with pytest.raises(ConflictError, match="temporary.*generation changed"):
+    with pytest.raises(ConflictError, match="stage.*generation changed|temporary.*changed"):
         write_object(tmp_path, "task", TASK_ID, 1, expected)
 
     assert not list(directory.glob("00000001-*.json"))
-    assert not list(directory.glob(".*.publication-claim"))
     temporary = list(directory.glob(".*.tmp"))
     assert len(temporary) == 1
     assert temporary[0].read_bytes() == foreign
 
 
+def test_object_recovery_drains_only_reserved_same_guard_stage_residue(tmp_path: Path, monkeypatch) -> None:
+    """A pre-pin failure reserves its exact stage; a retry cannot delete lookalikes."""
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "reserved-stage"}
+    target = _object_target(tmp_path, value)
+    original = anchor_module._after_stage_opened
+    injected = False
+
+    def fail_after_exclusive_create(name: str, descriptor: int) -> None:
+        nonlocal injected
+        if not injected:
+            injected = True
+            os.write(descriptor, b"partial")
+            raise ConflictError("injected post-create failure")
+        original(name, descriptor)
+
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", fail_after_exclusive_create)
+    with pytest.raises(ConflictError, match="post-create failure"):
+        ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
+    assert injected
+
+    reserved = list(target.parent.glob(f".{target.name}.*.tmp"))
+    assert len(reserved) == 1
+    foreign = target.parent / f".{target.name}.foreign.tmp"
+    foreign.write_bytes(b"foreign")
+
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", original)
+    assert ObjectStore(tmp_path).write("task", TASK_ID, 1, value) == target
+    assert not reserved[0].exists()
+    assert foreign.read_bytes() == b"foreign"
+
+
 def test_object_publication_preserves_substituted_final_generation(tmp_path: Path, monkeypatch) -> None:
-    import research_system.store.objects as object_module
+    import research_system.store.anchor as anchor_module
 
     expected = {"value": "expected"}
     foreign = canonical_bytes({"value": "foreign"})
     target = _object_target(tmp_path, expected)
-    real_link = os.link
+    original = anchor_module._DirectoryAnchor._link_member
     replaced = False
 
-    def link_then_replace(source, destination, *args, **kwargs):
+    def link_then_replace(anchor, source, destination, final_path):
         nonlocal replaced
-        result = real_link(source, destination, *args, **kwargs)
-        if Path(destination).name == target.name and not replaced:
+        result = original(anchor, source, destination, final_path)
+        if destination == target.name and not replaced:
             replaced = True
             target.unlink()
             target.write_bytes(foreign)
         return result
 
-    monkeypatch.setattr(object_module.os, "link", link_then_replace)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_link_member", link_then_replace)
 
     with pytest.raises(ConflictError, match="final.*changed|object revision already exists"):
         write_object(tmp_path, "task", TASK_ID, 1, expected)
 
     directory = _object_directory(tmp_path)
     assert target.read_bytes() == foreign
-    assert not list(directory.glob(".*.tmp"))
-    claim = directory / ".00000001.publication-claim"
-    assert claim.read_bytes() == canonical_bytes(expected)
-
-
-def test_object_publication_preserves_substituted_claim_without_publishing_it(tmp_path: Path, monkeypatch) -> None:
-    import research_system.store.objects as object_module
-
-    expected = {"value": "expected"}
-    foreign = canonical_bytes({"value": "foreign"})
-    real_link = os.link
-    replaced = False
-
-    def link_then_replace(source, destination, *args, **kwargs):
-        nonlocal replaced
-        result = real_link(source, destination, *args, **kwargs)
-        if Path(destination).name.endswith(".publication-claim") and not replaced:
-            replaced = True
-            claim = Path(destination)
-            claim.unlink()
-            claim.write_bytes(foreign)
-        return result
-
-    monkeypatch.setattr(object_module.os, "link", link_then_replace)
-
-    with pytest.raises(ConflictError, match="claim.*changed"):
-        write_object(tmp_path, "task", TASK_ID, 1, expected)
-
-    directory = _object_directory(tmp_path)
-    assert not list(directory.glob("00000001-*.json"))
-    claims = list(directory.glob(".*.publication-claim"))
-    assert len(claims) == 1
-    assert claims[0].read_bytes() == foreign
-    assert not list(directory.glob(".*.tmp"))
-
-
-def test_object_publication_rejects_foreign_claim_collision_without_cleanup(tmp_path: Path) -> None:
-    expected = {"value": "expected"}
-    foreign = canonical_bytes({"value": "foreign"})
-    directory = _object_directory(tmp_path)
-    directory.mkdir(parents=True)
-    claim = directory / ".00000001.publication-claim"
-    claim.write_bytes(foreign)
-
-    with pytest.raises(ConflictError, match="claim.*changed"):
-        write_object(tmp_path, "task", TASK_ID, 1, expected)
-
-    assert not list(directory.glob("00000001-*.json"))
-    assert claim.read_bytes() == foreign
-    assert not list(directory.glob(".*.tmp"))
+    # The private stage is retained rather than guessing whether the foreign
+    # final made this transaction's namespace state safe to clean up.
+    retained = list(directory.glob(".*.tmp"))
+    assert len(retained) == 1
+    assert retained[0].read_bytes() == canonical_bytes(expected)
 
 
 def test_locked_root_publishes_and_reads_exact_relative_file_bytes(tmp_path: Path) -> None:
@@ -1328,12 +1299,13 @@ def test_locked_root_claim_cleanup_preserves_a_claim_substituted_after_check(
     assert not list(target.parent.glob(f".{target.name}.*.tmp"))
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX exact-unlink race control")
 def test_object_rollback_preserves_a_generation_substituted_after_ownership_check(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     """remediation-red: object rollback cannot delete a post-proof foreign revision."""
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as anchor_module
 
     store = ObjectStore(tmp_path)
     value = {"value": "expected"}
@@ -1348,76 +1320,47 @@ def test_object_rollback_preserves_a_generation_substituted_after_ownership_chec
             candidate.unlink()
             candidate.write_bytes(foreign)
 
-    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", replace_after_check, raising=False)
+    original = anchor_module._before_exact_generation_unlink
+
+    def replace(candidate: Path) -> None:
+        replace_after_check(candidate)
+        original(candidate)
+
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", replace)
 
     with pytest.raises(IntegrityError, match="changed object revision"):
         store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
 
     assert substituted
-    _assert_generation_preserved_after_posix_quarantine(path, foreign)
+    assert path.read_bytes() == foreign
     assert not list(path.parent.glob(".*.tmp"))
-    assert not list(path.parent.glob(".*.cleanup-anchor"))
 
 
-def test_object_temporary_cleanup_treats_a_concurrent_absence_as_idempotent(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    """remediation-red: missing_ok cleanup is not converted to a false conflict."""
-    import research_system.store.lock as lock_module
+@pytest.mark.skipif(os.name != "posix", reason="POSIX stage-cleanup interruption control")
+def test_object_stage_cleanup_loss_is_recoverable_by_an_identical_retry(tmp_path: Path, monkeypatch) -> None:
+    """A concurrent private-stage disappearance never rolls back the committed final."""
+    import research_system.store.anchor as anchor_module
 
+    value = {"value": "missing-private-stage"}
+    target = _object_target(tmp_path, value)
+    original = anchor_module._before_exact_generation_unlink
     removed = False
 
-    def remove_after_check(candidate: Path) -> None:
+    def remove_once(candidate: Path) -> None:
         nonlocal removed
         if candidate.name.endswith(".tmp") and not removed:
             removed = True
             candidate.unlink()
+        original(candidate)
 
-    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", remove_after_check, raising=False)
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", remove_once)
+    with pytest.raises(FileNotFoundError):
+        ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
+    assert removed and target.read_bytes() == canonical_bytes(value)
 
-    target = write_object(tmp_path, "task", TASK_ID, 1, {"value": "expected"})
-
-    assert removed
-    assert target.read_bytes() == canonical_bytes({"value": "expected"})
-    assert not list(target.parent.glob(".*.tmp"))
-    assert not list(target.parent.glob(".*.publication-claim"))
-
-
-def test_object_temporary_cleanup_allows_an_absence_before_its_generation_recheck(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    """remediation-red: ``missing_ok`` reaches the first generation check too."""
-    import research_system.store.objects as object_module
-
-    real_remove = object_module._remove_owned_generation
-    removed = False
-
-    def remove_then_observe_absence(anchor, name, expected, data, label, guard, *, missing_ok=False, **kwargs):
-        nonlocal removed
-        if label == "temporary" and not removed:
-            anchor.remove_exact_generation(name, expected, data, guard=guard)
-            removed = True
-        return real_remove(
-            anchor,
-            name,
-            expected,
-            data,
-            label,
-            guard,
-            missing_ok=missing_ok,
-            **kwargs,
-        )
-
-    monkeypatch.setattr(object_module, "_remove_owned_generation", remove_then_observe_absence)
-
-    target = write_object(tmp_path, "task", TASK_ID, 1, {"value": "expected"})
-
-    assert removed
-    assert target.read_bytes() == canonical_bytes({"value": "expected"})
-    assert not list(target.parent.glob(".*.tmp"))
-    assert not list(target.parent.glob(".*.publication-claim"))
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", original)
+    assert ObjectStore(tmp_path).write("task", TASK_ID, 1, value) == target
+    assert not list(target.parent.glob(f".{target.name}.*.tmp"))
 
 
 def test_locked_root_rejects_a_real_reparse_substituted_after_claim_check(
