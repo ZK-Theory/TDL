@@ -5,7 +5,6 @@ from __future__ import annotations
 import ctypes
 import os
 import stat
-import sys
 import time
 from contextlib import contextmanager
 from collections.abc import Callable, Iterable
@@ -14,13 +13,10 @@ from pathlib import Path
 import secrets
 import threading
 from types import TracebackType
-from typing import Any, Iterator, Literal, NoReturn, Protocol, Self
+from typing import Iterator, Literal, NoReturn, Protocol
 
 from research_system.errors import ConflictError
 from research_system.store.durability import fsync_directory
-
-
-LockOwnerState = Literal["missing", "live", "stale", "unknown", "malformed"]
 
 
 class _NativeWindowsHandle(int):
@@ -293,20 +289,6 @@ def _add_cleanup_error(
 
 
 @dataclass(frozen=True)
-class WindowsFinalRemoval:
-    """A Windows delete disposition awaiting the owning handle's close.
-
-    ``Delete=True`` is not namespace-terminal until the same handle has
-    closed.  This token intentionally has no closer, so it cannot be placed
-    in the close-only quarantine.
-    """
-
-    name: str
-    identity: os.stat_result
-    data: bytes
-
-
-@dataclass(frozen=True)
 class TransactionExitStatus:
     """Whether guard ownership is active, released, retained, or terminal-uncertain."""
 
@@ -399,14 +381,21 @@ def _is_windows_sharing_violation(error: OSError) -> bool:
     return getattr(error, "winerror", None) == 32 or error.errno == 32
 
 
-def _supports_exact_writer_lock_deletion() -> bool:
-    return os.name == "nt" or (os.name == "posix" and sys.platform == "linux")
-
-
 def _link_without_following(source: str | Path, destination: str | Path, **kwargs: object) -> None:
     """Call the one no-follow hard-link seam on every supported platform."""
 
     os.link(source, destination, follow_symlinks=False, **kwargs)
+
+
+def _windows_ordinary_path(path: Path) -> Path:
+    """Return the ordinary spelling of a held Windows final path."""
+
+    value = str(path)
+    if value.startswith("\\\\?\\UNC\\"):
+        return Path("\\\\" + value[8:])
+    if value.startswith("\\\\?\\"):
+        return Path(value[4:])
+    return path
 
 
 def _before_exact_generation_unlink(_path: Path) -> None:
@@ -464,193 +453,9 @@ class DirectoryAnchor(Protocol):
         guard: DirectoryMutationGuard | None = None,
     ) -> None: ...
 
-    def remove_exact_generation_after_parent_change(
-        self,
-        name: str,
-        expected: os.stat_result,
-        expected_bytes: bytes,
-        *,
-        guard: DirectoryMutationGuard,
-    ) -> None: ...
-
     def acquire_mutation_guard(self, name: str) -> Iterator[DirectoryMutationGuard]: ...
 
     def close(self) -> None: ...
-
-
-class _LeaseState:
-    __slots__ = ("_live",)
-
-    def __init__(self) -> None:
-        self._live = True
-
-    @property
-    def live(self) -> bool:
-        return self._live
-
-    def invalidate(self) -> None:
-        self._live = False
-
-
-@dataclass(frozen=True, init=False)
-class LockedRoot:
-    identity: DirectoryIdentity
-    final_path: Path
-    runtime_identity: DirectoryIdentity
-    runtime_final_path: Path
-    aliases: tuple[Path, ...]
-    _lease_token: _LeaseState
-    _anchor: DirectoryAnchor
-    _runtime_anchor: DirectoryAnchor
-
-    def __init__(self, *_args: object, **_kwargs: object) -> None:
-        raise TypeError("LockedRoot is a lock-created capability")
-
-    @classmethod
-    def _create(
-        cls,
-        *,
-        identity: DirectoryIdentity,
-        final_path: Path,
-        runtime_identity: DirectoryIdentity,
-        runtime_final_path: Path,
-        aliases: tuple[Path, ...],
-        lease_token: _LeaseState,
-        anchor: DirectoryAnchor,
-        runtime_anchor: DirectoryAnchor,
-    ) -> Self:
-        instance = object.__new__(cls)
-        object.__setattr__(instance, "identity", identity)
-        object.__setattr__(instance, "final_path", final_path)
-        object.__setattr__(instance, "runtime_identity", runtime_identity)
-        object.__setattr__(instance, "runtime_final_path", runtime_final_path)
-        object.__setattr__(instance, "aliases", aliases)
-        object.__setattr__(instance, "_lease_token", lease_token)
-        object.__setattr__(instance, "_anchor", anchor)
-        object.__setattr__(instance, "_runtime_anchor", runtime_anchor)
-        return instance
-
-    def _require_live_anchor(self, *, runtime: bool) -> DirectoryAnchor:
-        if not self._lease_token.live:
-            raise ConflictError("locked root lease is no longer live")
-        anchor = self._runtime_anchor if runtime else self._anchor
-        expected_identity = self.runtime_identity if runtime else self.identity
-        expected_path = self.runtime_final_path if runtime else self.final_path
-        identity, final_path = anchor.refresh()
-        if identity != expected_identity or final_path != expected_path:
-            raise ConflictError(
-                "locked runtime physical identity changed" if runtime else "locked root physical identity changed"
-            )
-        return anchor
-
-    def open_member_directory(
-        self,
-        name: str,
-        *,
-        create: bool = False,
-        delete_protect: bool = True,
-    ) -> DirectoryAnchor:
-        return self._require_live_anchor(runtime=False).open_member_directory(
-            name,
-            create=create,
-            delete_protect=delete_protect,
-        )
-
-    def open_runtime_member_directory(self, name: str, *, create: bool = False) -> DirectoryAnchor:
-        return self._require_live_anchor(runtime=True).open_member_directory(name, create=create)
-
-    @staticmethod
-    def _relative_file_parts(relative_path: str) -> tuple[str, ...]:
-        if (
-            not isinstance(relative_path, str)
-            or not relative_path
-            or "\x00" in relative_path
-            or "\\" in relative_path
-            or relative_path.startswith("/")
-        ):
-            raise ConflictError("anchored relative file path is invalid")
-        parts = tuple(relative_path.split("/"))
-        if any(part in {"", ".", ".."} for part in parts):
-            raise ConflictError("anchored relative file path is invalid")
-        if len(parts) == 1 and parts[0] == "runtime":
-            raise ConflictError("anchored relative file path requires a file name")
-        return parts
-
-    def _open_relative_file_parent(
-        self,
-        relative_path: str,
-        *,
-        create: bool,
-    ) -> tuple[DirectoryAnchor, str, tuple[DirectoryAnchor, ...]]:
-        parts = self._relative_file_parts(relative_path)
-        if parts[0] == "runtime":
-            anchor = self._require_live_anchor(runtime=True)
-            parts = parts[1:]
-        else:
-            anchor = self._require_live_anchor(runtime=False)
-        opened: list[DirectoryAnchor] = []
-        try:
-            for part in parts[:-1]:
-                child = anchor.open_member_directory(part, create=create)
-                opened.append(child)
-                anchor = child
-            return anchor, parts[-1], tuple(opened)
-        except BaseException as primary_error:
-            try:
-                self._close_all_relative_file_parents(tuple(opened))
-            except BaseException as cleanup_error:
-                raise primary_error from cleanup_error
-            raise
-
-    @staticmethod
-    def _close_all_relative_file_parents(opened: tuple[DirectoryAnchor, ...]) -> None:
-        first_error: BaseException | None = None
-        for child in reversed(opened):
-            try:
-                child.close()
-            except BaseException as error:
-                first_error = _add_cleanup_error(first_error, error, "nested directory close also failed")
-        if first_error is not None:
-            raise first_error
-
-    @classmethod
-    @contextmanager
-    def _closing_relative_file_parents(cls, opened: tuple[DirectoryAnchor, ...]) -> Iterator[None]:
-        try:
-            yield
-        except BaseException as primary_error:
-            try:
-                cls._close_all_relative_file_parents(opened)
-            except BaseException as cleanup_error:
-                raise primary_error from cleanup_error
-            raise
-        cls._close_all_relative_file_parents(opened)
-
-    def read_exact_file(self, relative_path: str) -> bytes:
-        parent, name, opened = self._open_relative_file_parent(relative_path, create=False)
-        with self._closing_relative_file_parents(opened):
-            return parent.read_regular_file(name)
-
-    def write_exact_file(self, relative_path: str, data: bytes) -> None:
-        parent, name, opened = self._open_relative_file_parent(relative_path, create=True)
-        with self._closing_relative_file_parents(opened):
-            with DirectoryTransaction(parent) as transaction:
-                transaction.write_exact_final(name, data)
-
-    def replace_exact_file(self, relative_path: str, expected: bytes, data: bytes) -> None:
-        parent, name, opened = self._open_relative_file_parent(relative_path, create=False)
-        with self._closing_relative_file_parents(opened):
-            with DirectoryTransaction(parent) as transaction:
-                transaction.replace_exact_final(name, expected, data)
-
-    def remove_exact_file(self, relative_path: str, expected: bytes) -> None:
-        parent, name, opened = self._open_relative_file_parent(relative_path, create=False)
-        with self._closing_relative_file_parents(opened):
-            with DirectoryTransaction(parent) as transaction:
-                observed_data, observed_identity = parent.read_regular_file_with_identity(name)
-                if observed_data != expected:
-                    raise ConflictError("locked-root removal expected bytes differ")
-                transaction.remove_exact_final(name, observed_identity, expected)
 
 
 class _DirectoryAnchor:
@@ -739,20 +544,26 @@ class _DirectoryAnchor:
         self._require_member_name(name)
         self.verify_unchanged()
         _parent_identity, parent_path = self.refresh()
+        child: _DirectoryAnchor | None = None
         try:
             if os.name == "nt":
-                child_path = parent_path / name
-                if create:
-                    try:
-                        child_path.mkdir()
-                    except FileExistsError:
-                        pass
-                    fsync_directory(parent_path)
-                child = _open_windows_anchor(
-                    child_path,
-                    reject_reparse=True,
-                    delete_protect=delete_protect,
-                )
+                # The same held parent-generation fence covers both the
+                # namespace effect and acquisition of the child anchor.  A
+                # post-effect identity check would detect a root replacement
+                # only after mkdir had already mutated the replacement root.
+                with self._effect_final_path(parent_path) as protected_parent:
+                    child_path = _windows_ordinary_path(protected_parent) / name
+                    if create:
+                        try:
+                            child_path.mkdir()
+                        except FileExistsError:
+                            pass
+                        fsync_directory(protected_parent)
+                    child = _open_windows_anchor(
+                        child_path,
+                        reject_reparse=True,
+                        delete_protect=delete_protect,
+                    )
             else:
                 nofollow = getattr(os, "O_NOFOLLOW", 0)
                 directory_flag = getattr(os, "O_DIRECTORY", 0)
@@ -788,18 +599,46 @@ class _DirectoryAnchor:
                     except BaseException as cleanup_error:
                         raise primary_error from cleanup_error
                     raise
-        except FileNotFoundError:
-            raise
-        except ConflictError:
-            raise
+        except (FileNotFoundError, ConflictError) as primary_error:
+            cleanup_error: BaseException | None = None
+            if child is not None:
+                try:
+                    child.close()
+                except BaseException as error:
+                    cleanup_error = error
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
         except OSError as exc:
-            raise ConflictError(f"{name} is not a physical member directory") from exc
+            if os.name == "nt" and _is_windows_sharing_violation(exc):
+                primary_error = ConflictError("anchored parent directory changed during member traversal")
+            else:
+                primary_error = ConflictError(f"{name} is not a physical member directory")
+            primary_error.__cause__ = exc
+            cleanup_error = None
+            if child is not None:
+                try:
+                    child.close()
+                except BaseException as error:
+                    cleanup_error = error
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        except BaseException as primary_error:
+            cleanup_error = None
+            if child is not None:
+                try:
+                    child.close()
+                except BaseException as error:
+                    cleanup_error = error
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        assert child is not None
         child._parent = self
         try:
             self.verify_unchanged()
-        except BaseException:
-            child.close()
-            raise ConflictError("anchored parent directory changed during member traversal")
+        except BaseException as primary_error:
+            cleanup_error = None
+            try:
+                child.close()
+            except BaseException as error:
+                cleanup_error = error
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
         return child
 
     def list_names(self) -> tuple[str, ...]:
@@ -846,6 +685,9 @@ class _DirectoryAnchor:
     def _read_regular_file_with_identity(self, name: str, final_path: Path) -> tuple[bytes, os.stat_result]:
         before = self._member_identity(name, final_path)
         descriptor: int | None = None
+        primary_error: BaseException | None = None
+        cleanup_error: BaseException | None = None
+        result: tuple[bytes, os.stat_result] | None = None
         try:
             if os.name == "nt":
                 descriptor = os.open(final_path / name, os.O_RDONLY | getattr(os, "O_BINARY", 0))
@@ -854,25 +696,43 @@ class _DirectoryAnchor:
                 if not nofollow or os.open not in os.supports_dir_fd:
                     raise ConflictError("platform cannot read an anchored regular file")
                 descriptor = os.open(name, os.O_RDONLY | nofollow, dir_fd=int(self._handle))
-            with os.fdopen(descriptor, "rb") as handle:
-                descriptor = None
-                opened = os.fstat(handle.fileno())
-                if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
-                    raise ConflictError("anchored directory member is not the observed regular file")
-                data = handle.read()
+            opened = os.fstat(descriptor)
+            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
+                raise ConflictError("anchored directory member is not the observed regular file")
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(descriptor, 1024 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            data = b"".join(chunks)
             after = self._member_identity(name, final_path)
             if not os.path.samestat(opened, after):
                 raise ConflictError("anchored directory member changed during read")
-            return data, after
-        except FileNotFoundError:
-            raise
-        except ConflictError:
-            raise
+            result = data, after
+        except FileNotFoundError as exc:
+            primary_error = exc
+        except ConflictError as exc:
+            primary_error = exc
         except OSError as exc:
-            raise ConflictError("anchored regular file cannot be read") from exc
+            wrapped = ConflictError("anchored regular file cannot be read")
+            wrapped.__cause__ = exc
+            primary_error = wrapped
         finally:
             if descriptor is not None:
-                os.close(descriptor)
+                try:
+                    # A CRT/POSIX descriptor close is one-shot.  An exception
+                    # may mean the integer was already consumed and reused, so
+                    # it is never retained or retried by number.
+                    os.close(descriptor)
+                except BaseException as error:
+                    cleanup_error = error
+        if primary_error is not None:
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
+        if cleanup_error is not None:
+            raise ConflictError("anchored regular file descriptor cannot be closed") from cleanup_error
+        assert result is not None
+        return result
 
     def read_regular_file(self, name: str) -> bytes:
         try:
@@ -1048,26 +908,6 @@ class _DirectoryAnchor:
         refreshed_identity, refreshed_path = self.refresh()
         if refreshed_identity != directory_identity or refreshed_path != final_path:
             raise ConflictError("anchored directory identity changed during exact generation deletion")
-
-    def remove_exact_generation_after_parent_change(
-        self,
-        name: str,
-        expected_identity: os.stat_result,
-        expected_bytes: bytes,
-        *,
-        guard: DirectoryMutationGuard,
-    ) -> None:
-        self._require_member_name(name)
-        self._validate_mutation_guard(guard)
-        directory_identity, final_path = self.refresh()
-        if directory_identity != self.identity:
-            raise ConflictError("anchored directory identity changed during recovery deletion")
-        with self._effect_final_path(final_path) as effect_path:
-            self._unlink_member(name, expected_identity, expected_bytes, effect_path)
-            self._fsync_directory(effect_path)
-        refreshed_identity, _refreshed_path = self.refresh()
-        if refreshed_identity != directory_identity:
-            raise ConflictError("anchored directory identity changed during recovery deletion")
 
     def _validate_mutation_guard(self, guard: DirectoryMutationGuard) -> None:
         if guard._anchor is not self or not guard._active or self._active_mutation_guard is not guard:
@@ -1656,8 +1496,6 @@ def _delete_exact_regular_file(
     expected_bytes: bytes,
     label: str,
     close_phase: Literal["canonical", "temporary"],
-    parent_descriptor: int | None = None,
-    release: Any | None = None,
 ) -> None:
     _before_exact_generation_unlink(path)
     if os.name != "nt":
@@ -1732,17 +1570,36 @@ def _delete_exact_regular_file(
                     pending_error = _WindowsDeleteClosePendingError(pending)
                     pending_error.__cause__ = close_error
                     primary_error = pending_error
-                elif primary_error is None:
-                    _retain_close_ticket(
-                        _close_only_ticket(
-                            close_phase,
-                            "native-windows-handle",
-                            handle,
+                else:
+                    # No Delete=True disposition was applied, so this native
+                    # HANDLE is resource-only cleanup authority. Transfer it
+                    # even when validation already supplied the primary error;
+                    # otherwise preserving that primary silently leaks its
+                    # live HANDLE and loses the only retryable owner.
+                    try:
+                        _retain_close_ticket(
+                            _close_only_ticket(
+                                close_phase,
+                                "native-windows-handle",
+                                handle,
+                            )
                         )
-                    )
-                    wrapped = ConflictError(f"{label} exact generation deletion handle cannot close")
-                    wrapped.__cause__ = close_error
-                    primary_error = wrapped
+                    except BaseException as retention_error:
+                        close_error = _add_cleanup_error(
+                            close_error,
+                            retention_error,
+                            "native HANDLE close-ticket retention also failed",
+                        )
+                    if primary_error is None:
+                        wrapped = ConflictError(f"{label} exact generation deletion handle cannot close")
+                        wrapped.__cause__ = close_error
+                        primary_error = wrapped
+                    else:
+                        primary_error = _add_cleanup_error(
+                            primary_error,
+                            close_error,
+                            "exact-generation validation HANDLE close also failed and was retained",
+                        )
         if primary_error is not None:
             raise primary_error
     try:
@@ -1967,102 +1824,6 @@ def open_registered_root_anchor(path: Path, *, delete_protect: bool) -> Director
     """
 
     return _open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)
-
-
-def open_registered_member_directory_anchor(path: Path) -> DirectoryAnchor:
-    """Open one non-reparse member directory with replacement protection."""
-
-    return _open_directory_anchor(path, reject_reparse=True, delete_protect=True)
-
-
-def _root_sort_key(path: Path) -> tuple[str, str]:
-    normalized = os.path.normcase(str(path))
-    display = normalized
-    for prefix in ("\\\\?\\", "//?/"):
-        if display.startswith(prefix):
-            display = display[len(prefix) :]
-            break
-    return display, normalized
-
-
-@dataclass(frozen=True)
-class _RootClaim:
-    alias: Path
-    identity: DirectoryIdentity
-    final_path: Path
-    runtime_identity: DirectoryIdentity
-    runtime_final_path: Path
-
-
-@dataclass(frozen=True)
-class _RootMember:
-    identity: DirectoryIdentity
-    representative: _RootClaim
-    aliases: tuple[Path, ...]
-    runtime_identity: DirectoryIdentity
-
-
-@dataclass
-class _AcquiredMember:
-    member: _RootMember
-    root_anchor: _DirectoryAnchor | None = None
-    runtime_anchor: _DirectoryAnchor | None = None
-    lock: Any | None = None
-    lock_entered: bool = False
-
-
-def _close_anchor(anchor: _DirectoryAnchor | None) -> None:
-    if anchor is not None:
-        anchor._close_without_quarantine()
-
-
-def _capture_claim(alias: Path) -> _RootClaim:
-    root_anchor: _DirectoryAnchor | None = None
-    runtime_anchor: _DirectoryAnchor | None = None
-    try:
-        try:
-            root_anchor = _open_directory_anchor(alias)
-            runtime_anchor = _open_directory_anchor(root_anchor.final_path / "runtime", reject_reparse=True)
-        except FileNotFoundError as exc:
-            raise ConflictError(f"{alias} is not an existing directory") from exc
-        current_identity, current_final_path = root_anchor.refresh()
-        if current_identity != root_anchor.identity or current_final_path != root_anchor.final_path:
-            raise ConflictError(f"{alias} changed while its identity was captured")
-        runtime_identity, runtime_final_path = runtime_anchor.refresh()
-        if runtime_identity != runtime_anchor.identity or runtime_final_path != runtime_anchor.final_path:
-            raise ConflictError(f"{alias}/runtime changed while its identity was captured")
-        claim = _RootClaim(
-            alias=alias,
-            identity=root_anchor.identity,
-            final_path=root_anchor.final_path,
-            runtime_identity=runtime_anchor.identity,
-            runtime_final_path=runtime_anchor.final_path,
-        )
-    except BaseException as capture_error:
-        first_cleanup_error: BaseException | None = None
-        for anchor in (runtime_anchor, root_anchor):
-            if anchor is None:
-                continue
-            try:
-                anchor.close()
-            except BaseException as cleanup_error:
-                if first_cleanup_error is None:
-                    first_cleanup_error = cleanup_error
-        if first_cleanup_error is not None:
-            _raise_primary_with_cleanup(capture_error, first_cleanup_error)
-        raise
-    first_cleanup_error: BaseException | None = None
-    for anchor in (runtime_anchor, root_anchor):
-        if anchor is None:
-            continue
-        try:
-            anchor.close()
-        except BaseException as cleanup_error:
-            if first_cleanup_error is None:
-                first_cleanup_error = cleanup_error
-    if first_cleanup_error is not None:
-        raise first_cleanup_error
-    return claim
 
 
 TRANSACTION_GUARD_NAME = ".store-transaction-v2.guard"
@@ -2595,96 +2356,6 @@ class DirectoryTransaction:
 
         return self._publish(stage, final_name, adopt_existing=True)
 
-    def publish_exclusive(self, stage: StagePin, final_name: str) -> os.stat_result:
-        """Publish a final that must be absent, propagating ``FileExistsError``.
-
-        Writer leases use this rather than adoption: equal metadata at an
-        existing ``writer.lock`` is still live contention, never idempotency.
-        """
-
-        return self._publish(stage, final_name, adopt_existing=False)
-
-    def begin_windows_exact_final_removal(
-        self,
-        name: str,
-        expected_identity: os.stat_result,
-        data: bytes,
-        handle: object,
-    ) -> WindowsFinalRemoval:
-        """Apply Windows delete disposition without claiming terminal absence.
-
-        ``handle`` remains exclusively owned by the caller.  It must be the
-        held exact-generation lease: this operation re-proves the pathname
-        under the transaction guard before applying the disposition, then
-        returns a receipt *without* appending an ``unlinked`` effect.  The
-        caller must close that same handle and call
-        :meth:`complete_windows_exact_final_removal`.
-        """
-
-        self._require_active()
-        if os.name != "nt":
-            raise ConflictError("Windows final removal requires a Windows lease handle")
-        if not isinstance(data, bytes):
-            raise TypeError("directory transaction final data must be bytes")
-        # The caller's native lease intentionally denies a second open.  Use
-        # its exact handle bytes plus no-open lexical identity probes while
-        # the transaction guard serializes cooperative writers.
-        self._anchor.verify_unchanged()
-        _directory_identity, final_path = self._anchor.refresh()
-        observed_identity = _regular_file_identity(final_path / name, label="directory transaction final")
-        attributes, _tag = _windows_file_attribute_tag(handle)
-        if attributes & _FILE_ATTRIBUTE_REPARSE_POINT or attributes & _FILE_ATTRIBUTE_DIRECTORY:
-            raise ConflictError("directory transaction final lease is not a physical regular file")
-        if not _windows_handle_matches_stat(handle, expected_identity):
-            raise ConflictError("directory transaction final lease generation changed")
-        observed_data = _windows_read_handle(handle)
-        confirmed_identity = _regular_file_identity(final_path / name, label="directory transaction final")
-        if (
-            observed_data != data
-            or not self._same_generation(expected_identity, observed_identity)
-            or not self._same_generation(expected_identity, confirmed_identity)
-        ):
-            raise ConflictError("directory transaction final generation changed")
-        disposition = _FILE_DISPOSITION_INFO(True)
-        if not _KERNEL32.SetFileInformationByHandle(
-            handle,
-            _FILE_DISPOSITION_INFO_CLASS,
-            ctypes.byref(disposition),
-            ctypes.sizeof(disposition),
-        ):
-            error = _windows_api_error("SetFileInformationByHandle(FileDispositionInfo)")
-            if _is_windows_sharing_violation(error):
-                raise _ExactGenerationBusyError("directory transaction final deletion is temporarily busy") from error
-            raise ConflictError("directory transaction final deletion cannot be sealed") from error
-        return WindowsFinalRemoval(name, observed_identity, data)
-
-    def complete_windows_exact_final_removal(self, removal: WindowsFinalRemoval) -> None:
-        """Prove a closed Windows disposition is absent, durable, then receipt it."""
-
-        self._require_active()
-        if os.name != "nt":
-            raise ConflictError("Windows final removal completion requires Windows")
-        if not isinstance(removal, WindowsFinalRemoval):
-            raise TypeError("directory transaction final removal receipt is invalid")
-        try:
-            observed_data, observed_identity = self._anchor.read_regular_file_with_identity(removal.name)
-        except FileNotFoundError:
-            pass
-        else:
-            if observed_data == removal.data and self._same_generation(removal.identity, observed_identity):
-                raise ConflictError("directory transaction final deletion is still pending handle close")
-            raise ConflictError("directory transaction final name was substituted during deletion")
-        # Successful same-handle close plus observed absence is the terminal
-        # namespace effect.  A later fsync failure is durability ambiguity,
-        # not authority to delete (or retry deleting) a final that is gone.
-        self.effects.append(TransactionEffect("unlinked", removal.name, removal.identity))
-        self._anchor.fsync()
-        try:
-            self._anchor.read_regular_file_with_identity(removal.name)
-        except FileNotFoundError:
-            return
-        raise ConflictError("directory transaction final name reappeared during deletion")
-
     def remove_exact_final(self, name: str, expected_identity: os.stat_result, data: bytes) -> None:
         """Unlink one exact final under this guard, then establish durability.
 
@@ -2784,64 +2455,6 @@ class DirectoryTransaction:
             staged_data, staged_identity = self._anchor.read_regular_file_with_identity(name)
             self._stages[name] = StagePin(name, staged_identity, staged_data)
             self.discard_stage(self._stages[name])
-
-    def write_exact_final(self, name: str, data: bytes) -> None:
-        """Write an absent immutable final, or adopt an equal existing one."""
-
-        self._require_active()
-        if not isinstance(data, bytes):
-            raise TypeError("directory transaction final data must be bytes")
-        try:
-            observed_data, _observed_identity = self._anchor.read_regular_file_with_identity(name)
-        except FileNotFoundError:
-            stage = self.stage(name, data)
-            self.adopt_or_publish(stage, name)
-            self.discard_stage(stage, missing_ok=True)
-        else:
-            if observed_data != data:
-                raise ConflictError("directory transaction final already binds different bytes")
-        self.recover_private_stages(name, data)
-
-    def replace_exact_final(self, name: str, expected: bytes, data: bytes) -> None:
-        """Synchronously recover or perform one guarded exact replacement.
-
-        Mutable ``LockedRoot`` files are not object publications.  Their only
-        recovery state is the same reserved temporary owned by this guarded
-        transaction; there are no claim files, rollback anchors, background
-        workers, or deferred namespace callbacks.
-        """
-
-        self._require_active()
-        if not isinstance(expected, bytes) or not isinstance(data, bytes):
-            raise TypeError("directory transaction final data must be bytes")
-        try:
-            current_data, current_identity = self._anchor.read_regular_file_with_identity(name)
-        except FileNotFoundError:
-            matching: list[StagePin] = []
-            for candidate in self._anchor.list_names():
-                if not self._is_reserved_stage_name(candidate, name):
-                    continue
-                staged_data, staged_identity = self._anchor.read_regular_file_with_identity(candidate)
-                if staged_data == data:
-                    matching.append(StagePin(candidate, staged_identity, data))
-            if len(matching) != 1:
-                raise ConflictError("directory transaction replacement recovery is ambiguous")
-            stage = matching[0]
-            self._stages[stage.name] = stage
-            self.publish_exclusive(stage, name)
-            self.discard_stage(stage, missing_ok=True)
-            self.recover_private_stages(name, data)
-            return
-        if current_data != expected:
-            raise ConflictError("directory transaction replacement expected bytes differ")
-        if expected == data:
-            self.recover_private_stages(name, data)
-            return
-        stage = self.stage(name, data)
-        self.remove_exact_final(name, current_identity, expected)
-        self.publish_exclusive(stage, name)
-        self.discard_stage(stage, missing_ok=True)
-        self.recover_private_stages(name, data)
 
     def __exit__(
         self,

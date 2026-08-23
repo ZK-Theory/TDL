@@ -21,10 +21,20 @@ def fsync_directory(path: Path) -> None:
         if exc.errno in {errno.EACCES, errno.EINVAL, errno.ENOTSUP}:
             return
         raise
+    primary_error: BaseException | None = None
     try:
-        os.fsync(descriptor)
-    except OSError as exc:
-        if os.name != "nt" or getattr(exc, "winerror", None) not in {1, 5, 87}:
-            raise
+        try:
+            os.fsync(descriptor)
+        except BaseException as exc:
+            if not (isinstance(exc, OSError) and os.name == "nt" and getattr(exc, "winerror", None) in {1, 5, 87}):
+                primary_error = exc
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except BaseException as cleanup_error:
+            if primary_error is not None:
+                raise primary_error from cleanup_error
+            raise
+
+    if primary_error is not None:
+        raise primary_error

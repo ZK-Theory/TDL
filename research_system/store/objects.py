@@ -250,6 +250,14 @@ class ObjectStore:
                 with DirectoryTransaction(anchor) as transaction:
                     matches = _revision_names(anchor, f"{revision:08d}-")
                     if not matches:
+                        # A prior rollback may have unlinked this revision but
+                        # failed before its directory flush.  Visibility alone
+                        # is not durable rollback success: re-establish the
+                        # anchored directory durability and then prove that no
+                        # revision reappeared while doing so.
+                        anchor.fsync()
+                        if _revision_names(anchor, f"{revision:08d}-"):
+                            raise IntegrityError("cannot roll back a changed object revision")
                         anchor.verify_unchanged()
                         return
                     expected_name = f"{revision:08d}-{sha256_hex(data)}.json"

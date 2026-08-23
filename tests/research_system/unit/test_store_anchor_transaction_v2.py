@@ -192,7 +192,10 @@ def test_object_namespace_uses_one_fixed_persistent_guard(tmp_path: Path, monkey
     store.write("task", TASK_ID, 1, value)
 
     assert calls
-    assert [name for _path, name in calls] == [TRANSACTION_GUARD_NAME, TRANSACTION_GUARD_NAME]
+    assert [name for _path, name in calls] == [
+        ".store-transaction-v2.guard",
+        ".store-transaction-v2.guard",
+    ]
     assert all(".tmp" not in name and "publication-claim" not in name for _path, name in calls)
     assert len({path for path, _name in calls}) == 1
 
@@ -346,21 +349,21 @@ def test_windows_close_only_tickets_retry_only_native_handles_and_anchors(tmp_pa
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX close-ticket descriptor-reuse control")
 def test_posix_close_ticket_cannot_close_a_reused_descriptor(tmp_path: Path, monkeypatch) -> None:
-    """A close error after real close must not later close a reused fd."""
+    """A mutation-guard close error must not later close a reused fd."""
 
     import research_system.store.anchor as anchor_module
 
     reuse_path = tmp_path / "reused-descriptor"
     real_close = os.close
     real_open = os.open
-    ready_for_guard_close = False
     injected = False
     target_fd: int | None = None
     reused_fd: int | None = None
+    original_release = DirectoryMutationGuard._release_resource
 
     def close_after_real_close(fd: int) -> None:
         nonlocal injected, target_fd, reused_fd
-        if ready_for_guard_close and not injected:
+        if fd == target_fd and not injected:
             injected = True
             target_fd = fd
             # The underlying descriptor is already closed when the injected
@@ -375,15 +378,12 @@ def test_posix_close_ticket_cannot_close_a_reused_descriptor(tmp_path: Path, mon
             raise OSError("injected close error after descriptor close")
         real_close(fd)
 
-    original_link = DirectoryTransaction._link_with_immediate_receipt
+    def capture_guard_release(guard, resource, unlocker, closer):
+        nonlocal target_fd
+        target_fd = int(resource)
+        return original_release(guard, resource, unlocker, closer)
 
-    def mark_guard_close_ready(transaction, stage, final_name, guard):
-        nonlocal ready_for_guard_close
-        result = original_link(transaction, stage, final_name, guard)
-        ready_for_guard_close = True
-        return result
-
-    monkeypatch.setattr(DirectoryTransaction, "_link_with_immediate_receipt", mark_guard_close_ready)
+    monkeypatch.setattr(DirectoryMutationGuard, "_release_resource", capture_guard_release)
     monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
 
     try:
@@ -404,6 +404,94 @@ def test_posix_close_ticket_cannot_close_a_reused_descriptor(tmp_path: Path, mon
                 real_close(reused_fd)
             except OSError:
                 pass
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX regular-file descriptor close precedence control")
+def test_posix_read_validation_primary_survives_one_shot_descriptor_close(tmp_path: Path, monkeypatch) -> None:
+    """A read validation error remains primary after its consumed descriptor close fails."""
+
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "posix-read-primary-over-close"}
+    target = ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
+    anchor = open_registered_root_anchor(target.parent, delete_protect=False)
+    sentinel_path = tmp_path / "reused-posix-read-descriptor"
+    real_open = os.open
+    real_close = os.close
+    real_fstat = os.fstat
+    target_descriptor: int | None = None
+    reused_descriptor: int | None = None
+    primary_injected = False
+    close_injected = False
+
+    def capture_target_open(path, *args, **kwargs):
+        nonlocal target_descriptor
+        descriptor = real_open(path, *args, **kwargs)
+        if str(path) == target.name:
+            target_descriptor = descriptor
+        return descriptor
+
+    def inject_reused_descriptor(descriptor: int) -> None:
+        nonlocal close_injected, reused_descriptor
+        if descriptor != target_descriptor or close_injected:
+            return
+        close_injected = True
+        candidate = real_open(sentinel_path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.write(candidate, b"posix-read-descriptor-sentinel")
+        if candidate != descriptor:
+            os.dup2(candidate, descriptor)
+            real_close(candidate)
+        reused_descriptor = descriptor
+        raise OSError("injected POSIX read descriptor close after consumption")
+
+    def close_after_real_close(descriptor: int) -> None:
+        if descriptor == target_descriptor and not close_injected:
+            real_close(descriptor)
+            inject_reused_descriptor(descriptor)
+            return
+        real_close(descriptor)
+
+    def fail_target_validation(descriptor: int):
+        nonlocal primary_injected
+        if descriptor == target_descriptor and not primary_injected:
+            primary_injected = True
+            raise ConflictError("injected POSIX read validation primary")
+        return real_fstat(descriptor)
+
+    supported_dir_fd = anchor_module.os.supports_dir_fd
+    if isinstance(supported_dir_fd, tuple):
+        patched_supports_dir_fd = tuple(
+            capture_target_open if candidate is real_open else candidate for candidate in supported_dir_fd
+        )
+        if capture_target_open not in patched_supports_dir_fd:
+            patched_supports_dir_fd += (capture_target_open,)
+    else:
+        patched_supports_dir_fd = set(supported_dir_fd)
+        patched_supports_dir_fd.discard(real_open)
+        patched_supports_dir_fd.add(capture_target_open)
+    monkeypatch.setattr(anchor_module.os, "supports_dir_fd", patched_supports_dir_fd)
+    monkeypatch.setattr(anchor_module.os, "open", capture_target_open)
+    monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
+    monkeypatch.setattr(anchor_module.os, "fstat", fail_target_validation)
+
+    try:
+        with pytest.raises(ConflictError, match="injected POSIX read validation primary") as raised:
+            anchor.read_regular_file_with_identity(target.name)
+        assert raised.value.__cause__ is not None
+        assert "POSIX read descriptor close after consumption" in repr(raised.value.__cause__)
+        assert primary_injected and close_injected and reused_descriptor == target_descriptor
+
+        drain_close_quarantine()
+        os.fstat(reused_descriptor)
+        os.lseek(reused_descriptor, 0, os.SEEK_SET)
+        assert os.read(reused_descriptor, 128) == b"posix-read-descriptor-sentinel"
+    finally:
+        if reused_descriptor is not None:
+            try:
+                real_close(reused_descriptor)
+            except OSError:
+                pass
+        anchor.close()
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX stage descriptor-reuse control")
@@ -990,6 +1078,259 @@ def test_windows_object_store_retry_drains_stage_owner_and_anchor_chain(tmp_path
     assert store.write("task", TASK_ID, 2, {"value": "after-owner-drain"}).is_file()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows member creation fence control")
+def test_windows_object_store_member_creation_never_mutates_recreated_root(tmp_path: Path, monkeypatch) -> None:
+    """A root move before lexical mkdir cannot create a replacement-root member."""
+
+    root = tmp_path / "control-root"
+    moved_root = tmp_path / "moved-control-root"
+    replacement_member = root / "objects"
+    original_mkdir = Path.mkdir
+    moved = False
+
+    def move_root_before_member_create(path: Path, *args, **kwargs) -> None:
+        nonlocal moved
+        if path == replacement_member and not moved:
+            moved = True
+            os.replace(root, moved_root)
+            original_mkdir(root)
+        return original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", move_root_before_member_create)
+
+    with pytest.raises(ConflictError, match="identity changed|parent directory changed"):
+        ObjectStore(root).write("task", TASK_ID, 1, {"value": "recreated-root"})
+
+    assert moved
+    assert not replacement_member.exists()
+    # The original physical root remains separate evidence; no member is
+    # created there because the operation rejected before the requested effect.
+    assert not (moved_root / "objects").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows typed validation-close ownership control")
+def test_windows_delete_validation_primary_retains_native_handle_until_drain(tmp_path: Path, monkeypatch) -> None:
+    """A failed Delete=True validation retains its HANDLE without hiding the primary error."""
+
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "retain-validation-handle"}
+    store = ObjectStore(tmp_path)
+    target = store.write("task", TASK_ID, 1, value)
+    target_handles: list[object] = []
+    close_attempts = 0
+    target_closed = False
+    real_open_handle = anchor_module._windows_open_handle
+    real_read_handle = anchor_module._windows_read_handle
+    real_close_handle = anchor_module._windows_close_handle
+
+    def capture_target_handle(path, *args, **kwargs):
+        handle = real_open_handle(path, *args, **kwargs)
+        if Path(path).name == target.name:
+            target_handles.append(handle)
+        return handle
+
+    def wrong_target_bytes(handle):
+        if handle in target_handles:
+            return b"foreign-bytes"
+        return real_read_handle(handle)
+
+    def fail_target_close_once(handle):
+        nonlocal close_attempts, target_closed
+        if handle in target_handles:
+            close_attempts += 1
+            if close_attempts == 1:
+                raise OSError("injected validation-handle CloseHandle failure")
+            target_closed = True
+        return real_close_handle(handle)
+
+    monkeypatch.setattr(anchor_module, "_windows_open_handle", capture_target_handle)
+    monkeypatch.setattr(anchor_module, "_windows_read_handle", wrong_target_bytes)
+    monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_target_close_once)
+
+    try:
+        with pytest.raises(IntegrityError, match="changed object revision") as raised:
+            store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+        assert raised.value.__cause__ is not None
+        assert "bytes changed before exact deletion" in str(raised.value.__cause__)
+        assert target_handles and close_attempts == 1
+        assert any(
+            ticket.disposition == "native-windows-handle" and ticket.resource in target_handles
+            for ticket in anchor_module._WINDOWS_CLOSE_QUARANTINE
+        )
+
+        drain_close_quarantine()
+        assert close_attempts == 2 and target_closed
+        assert target.exists()
+    finally:
+        if target_handles and not target_closed:
+            try:
+                real_close_handle(target_handles[-1])
+            except OSError:
+                pass
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows member traversal cleanup precedence control")
+def test_windows_member_close_failure_preserves_parent_revalidation_error(tmp_path: Path, monkeypatch) -> None:
+    """A child-close failure stays retained and cannot replace the parent traversal failure."""
+
+    import research_system.store.anchor as anchor_module
+
+    root = tmp_path / "member-revalidation-root"
+    child_path = root / "child"
+    child_path.mkdir(parents=True)
+    root_anchor = open_registered_root_anchor(root, delete_protect=False)
+    child_anchors: list[object] = []
+    root_verifications = 0
+    close_attempts = 0
+    real_open_child = anchor_module._open_windows_anchor
+    real_verify = anchor_module._DirectoryAnchor.verify_unchanged
+    real_close_handle = anchor_module._windows_close_handle
+
+    def capture_child(path, *args, **kwargs):
+        child = real_open_child(path, *args, **kwargs)
+        if Path(path).name == child_path.name:
+            child_anchors.append(child)
+        return child
+
+    def fail_second_root_verification(current_anchor):
+        nonlocal root_verifications
+        if current_anchor is root_anchor:
+            root_verifications += 1
+            if root_verifications == 2:
+                raise ConflictError("injected parent revalidation primary")
+        return real_verify(current_anchor)
+
+    def fail_child_close_once(handle):
+        nonlocal close_attempts
+        if child_anchors and handle is child_anchors[0]._handle:
+            close_attempts += 1
+            if close_attempts == 1:
+                raise OSError("injected child anchor CloseHandle failure")
+        return real_close_handle(handle)
+
+    monkeypatch.setattr(anchor_module, "_open_windows_anchor", capture_child)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "verify_unchanged", fail_second_root_verification)
+    monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_child_close_once)
+
+    try:
+        with pytest.raises(ConflictError, match="injected parent revalidation primary") as raised:
+            root_anchor.open_member_directory("child", create=False, delete_protect=False)
+        assert raised.value.__cause__ is not None
+        assert "child anchor CloseHandle failure" in repr(raised.value.__cause__)
+        assert child_anchors and close_attempts == 1
+        child = child_anchors[0]
+        assert any(ticket.resource is child for ticket in anchor_module._WINDOWS_CLOSE_QUARANTINE)
+
+        drain_close_quarantine()
+        assert close_attempts == 2 and child._closed
+    finally:
+        try:
+            root_anchor.close()
+        except OSError:
+            pass
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows regular-file descriptor close precedence control")
+def test_windows_read_validation_primary_survives_one_shot_descriptor_close(tmp_path: Path, monkeypatch) -> None:
+    """Read validation remains primary when its consumed CRT descriptor close also fails."""
+
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "read-primary-over-close"}
+    target = ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
+    anchor = open_registered_root_anchor(target.parent, delete_protect=False)
+    sentinel_path = tmp_path / "reused-read-descriptor"
+    real_open = os.open
+    real_close = os.close
+    real_fdopen = os.fdopen
+    real_fstat = os.fstat
+    target_descriptor: int | None = None
+    reused_descriptor: int | None = None
+    primary_injected = False
+    close_injected = False
+
+    def capture_target_open(path, *args, **kwargs):
+        nonlocal target_descriptor
+        descriptor = real_open(path, *args, **kwargs)
+        if Path(path).name == target.name:
+            target_descriptor = descriptor
+        return descriptor
+
+    def inject_reused_descriptor(descriptor: int) -> None:
+        nonlocal close_injected, reused_descriptor
+        if descriptor != target_descriptor or close_injected:
+            return
+        close_injected = True
+        candidate = real_open(sentinel_path, os.O_CREAT | os.O_RDWR, 0o600)
+        os.write(candidate, b"read-descriptor-sentinel")
+        if candidate != descriptor:
+            os.dup2(candidate, descriptor)
+            real_close(candidate)
+        reused_descriptor = descriptor
+        raise OSError("injected read descriptor close after consumption")
+
+    class _ClosingFile:
+        def __init__(self, inner) -> None:
+            self._inner = inner
+            self._descriptor = inner.fileno()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> bool:
+            self._inner.close()
+            inject_reused_descriptor(self._descriptor)
+            return False
+
+        def fileno(self) -> int:
+            return self._inner.fileno()
+
+        def read(self, *args, **kwargs):
+            return self._inner.read(*args, **kwargs)
+
+    def close_after_real_close(descriptor: int) -> None:
+        if descriptor == target_descriptor and not close_injected:
+            real_close(descriptor)
+            inject_reused_descriptor(descriptor)
+            return
+        real_close(descriptor)
+
+    def fail_target_validation(descriptor: int):
+        nonlocal primary_injected
+        if descriptor == target_descriptor and not primary_injected:
+            primary_injected = True
+            raise ConflictError("injected read validation primary")
+        return real_fstat(descriptor)
+
+    def wrapped_fdopen(descriptor: int, *args, **kwargs):
+        return _ClosingFile(real_fdopen(descriptor, *args, **kwargs))
+
+    monkeypatch.setattr(anchor_module.os, "open", capture_target_open)
+    monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
+    monkeypatch.setattr(anchor_module.os, "fstat", fail_target_validation)
+    monkeypatch.setattr(anchor_module.os, "fdopen", wrapped_fdopen)
+
+    try:
+        with pytest.raises(ConflictError, match="injected read validation primary") as raised:
+            anchor.read_regular_file_with_identity(target.name)
+        assert raised.value.__cause__ is not None
+        assert "read descriptor close after consumption" in repr(raised.value.__cause__)
+        assert primary_injected and close_injected and reused_descriptor == target_descriptor
+
+        drain_close_quarantine()
+        os.fstat(reused_descriptor)
+        os.lseek(reused_descriptor, 0, os.SEEK_SET)
+        assert os.read(reused_descriptor, 128) == b"read-descriptor-sentinel"
+    finally:
+        if reused_descriptor is not None:
+            try:
+                real_close(reused_descriptor)
+            except OSError:
+                pass
+        anchor.close()
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows same-byte rollback race control")
 def test_windows_rollback_rejects_same_byte_generation_swap_without_deleting_foreign(
     tmp_path: Path, monkeypatch
@@ -1067,62 +1408,3 @@ def test_windows_rollback_rejects_same_byte_generation_swap_without_deleting_for
                 residue.unlink()
             except FileNotFoundError:
                 pass
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows transaction HANDLE/stat binding control")
-def test_windows_transaction_rejects_same_byte_foreign_handle_before_delete(tmp_path: Path, monkeypatch) -> None:
-    """A foreign same-byte HANDLE cannot arm Delete=True for pathname A."""
-
-    import research_system.store.anchor as anchor_module
-
-    root = tmp_path / "transaction-handle-root"
-    root.mkdir()
-    target = root / "final.json"
-    foreign = root / "foreign.json"
-    data = canonical_bytes({"value": "same-byte-foreign-handle"})
-    target.write_bytes(data)
-    foreign.write_bytes(data)
-    expected_identity = target.stat(follow_symlinks=False)
-    anchor = open_registered_root_anchor(root, delete_protect=False)
-    foreign_handle = anchor_module._windows_open_handle(
-        foreign,
-        open_reparse_point=True,
-        delete_protect=True,
-        delete_access=True,
-        read_contents=True,
-        share_mode=(
-            anchor_module._FILE_SHARE_READ | anchor_module._FILE_SHARE_WRITE | anchor_module._FILE_SHARE_DELETE
-        ),
-    )
-
-    class _KernelProxy:
-        def __init__(self, kernel) -> None:
-            self._kernel = kernel
-
-        def __getattr__(self, name):
-            return getattr(self._kernel, name)
-
-        def SetFileInformationByHandle(self, *_args, **_kwargs):
-            raise AssertionError("foreign HANDLE armed Delete=True")
-
-    monkeypatch.setattr(anchor_module, "_KERNEL32", _KernelProxy(anchor_module._KERNEL32))
-    transaction_effects: list[object] = []
-    try:
-        with pytest.raises(ConflictError, match="generation changed"):
-            with DirectoryTransaction(anchor) as transaction:
-                transaction_effects = transaction.effects
-                transaction.begin_windows_exact_final_removal(
-                    target.name,
-                    expected_identity,
-                    data,
-                    foreign_handle,
-                )
-        anchor_module._windows_close_handle(foreign_handle)
-        foreign_handle = None
-        assert transaction_effects == []
-        assert target.read_bytes() == data
-        assert foreign.read_bytes() == data
-    finally:
-        if foreign_handle is not None:
-            anchor_module._windows_close_handle(foreign_handle)
-        anchor.close()

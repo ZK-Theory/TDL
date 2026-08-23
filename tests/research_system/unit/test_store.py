@@ -1145,6 +1145,58 @@ def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_pa
     assert removed
 
 
+def test_object_rollback_reestablishes_durability_after_post_unlink_fsync_failure(tmp_path, monkeypatch):
+    """remediation-red: an unflushed unlink is not a durable rollback success."""
+    store = ObjectStore(tmp_path)
+    value = {"x": 1}
+    path = store.write("task", TASK_ID, 1, value)
+    assert path.exists()
+
+    fsync_calls = 0
+    injected = False
+    retry_anchor_fsyncs_observed_absence: list[bool] = []
+    real_fsync = anchor_module._DirectoryAnchor._fsync_directory
+    anchor_fsync_calls = 0
+    real_anchor_fsync = anchor_module._DirectoryAnchor.fsync
+
+    def fail_first_post_unlink_fsync(anchor, directory):
+        nonlocal fsync_calls, injected
+        if not path.exists():
+            fsync_calls += 1
+            if not injected:
+                injected = True
+                raise OSError("injected post-unlink directory fsync failure")
+        return real_fsync(anchor, directory)
+
+    def observe_anchor_fsync(anchor):
+        nonlocal anchor_fsync_calls
+        anchor_fsync_calls += 1
+        result = real_anchor_fsync(anchor)
+        if not path.exists():
+            retry_anchor_fsyncs_observed_absence.append(True)
+        return result
+
+    monkeypatch.setattr(
+        anchor_module._DirectoryAnchor,
+        "_fsync_directory",
+        fail_first_post_unlink_fsync,
+    )
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "fsync", observe_anchor_fsync)
+
+    with pytest.raises(IntegrityError, match="object revision is unreadable"):
+        store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+
+    assert injected
+    assert not path.exists(), "the namespace unlink occurred before durability failed"
+
+    store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+
+    assert fsync_calls >= 1
+    assert anchor_fsync_calls >= 1, "retry must fsync the anchored object directory"
+    assert retry_anchor_fsyncs_observed_absence
+    assert not path.exists()
+
+
 def test_object_write_rejects_matching_bytes_under_wrong_digest_name(tmp_path):
     data = canonical_bytes({"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID

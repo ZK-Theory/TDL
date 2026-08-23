@@ -78,19 +78,21 @@ not make it the default empirical method.
   further commit belongs on PR #263.
 - `STORE-1A-LOCK-V2` restarted cleanly from merged `main` on
   `codex/g6-spec-store-1a-lock-v2`. The coherent implementation and migrated
-  controls exceeded the 5,000-added-line review hard stop, so it is being
-  extracted without compression or coverage deletion as two sequential
-  candidates: `STORE-1A-LOCK-V2A` owns the canonical directory transaction and
-  immutable `ObjectStore` path; `STORE-1A-LOCK-V2B` owns `WriterLock`,
-  `CompositeWriterLock`, `LockedRoot`, and the compatibility facade. Neither
-  candidate alone completes STORE publication. They do not port the retired
-  registry layering. One canonical per-directory transaction owns the mutation
-  guard, staged pin, namespace dispositions, durable recovery handoff, and
-  resource-close dispositions. Object recovery may not asynchronously delete
-  a final after any public success; every early existing-result return must
-  reconcile the transaction under that same canonical guard. Writer and
-  composite release must likewise have one serialized owner and preserve the
-  protected body exception as primary evidence.
+  controls exceeded the 5,000-added-line review hard stop. Its first extraction,
+  `STORE-1A-LOCK-V2A`, still included dormant Writer/`LockedRoot` transaction
+  APIs and therefore failed the ownership split it was meant to create. That
+  candidate is retired at `07431d2210f8ac652ba03e3e6a11a51ec783b3d1`.
+  `STORE-1A-OBJECT-R2` is its bounded replacement: it owns only the canonical
+  directory transaction and immutable `ObjectStore` path. `STORE-1A-LOCK-V2B`
+  owns `WriterLock`, `CompositeWriterLock`, `LockedRoot`, and the compatibility
+  facade. Neither candidate alone completes STORE publication. One canonical
+  per-directory transaction owns the mutation guard, staged pin, namespace
+  dispositions, durable recovery handoff, and resource-close dispositions.
+  Object recovery may not asynchronously delete a final after any public
+  success; every early existing-result return must reconcile the transaction
+  under that same canonical guard. Writer and composite release must likewise
+  have one serialized owner and preserve the protected body exception as
+  primary evidence.
 - The first exact-head review of `STORE-1A-LOCK-V2A` at `175bce138...` was
   `REWORK_REQUIRED`. It exposed one ownership family rather than isolated line
   defects: a retained leaf transaction did not retain the ancestor anchors
@@ -102,17 +104,28 @@ not make it the default empirical method.
   treats CRT/POSIX descriptor close as a one-shot terminal-uncertain operation.
   A fresh exact-head review is required after the batched remediation; the
   superseded review is defect evidence, not acceptance.
-- The batched V2A remediation passes the direct transaction controls on Windows
-  (`17 passed, 3 skipped`) and Linux (`15 passed, 5 skipped`), the complete
-  Windows immutable-store module (`80 passed`), the Windows publication module
-  (`55 passed, 8 skipped`), the session-exchange contract on both platforms
-  (`22 passed`), and the cross-platform immutable-object selection (Windows
-  `30 passed, 2 skipped`; Linux `32 passed`). The required currency selection is
-  `5 passed` on each platform. The complete Linux preservation run still has
-  four `test_store.py` and eight publication-module failures, all in the
-  unchanged retired `store/lock.py` Writer/LockedRoot implementation and all
-  inherited from `121e20ff...`; V2B owns their replacement. These construction
-  results do not replace the fresh frozen-head test and review gates.
+- The batched V2A remediation at `07431d221...` passed its construction
+  selection, but its second material exact-head review was `REWORK_REQUIRED`.
+  The review found one ownership breach and four connected active-path defects:
+  dormant V2B Writer/`LockedRoot` APIs duplicated the still-live `store/lock.py`;
+  Windows member creation was not fenced to the held physical parent; a native
+  HANDLE could lose its typed cleanup owner when validation and close both
+  failed; cleanup could replace the primary member/read error; and an explicit
+  rollback retry could report an absent revision without re-establishing
+  directory durability. Under this plan's two-round convergence rule,
+  `07431d221...` is frozen as failed review evidence and receives no further
+  remediation commit.
+- `STORE-1A-OBJECT-R2` starts from that frozen evidence on
+  `codex/g6-spec-store-1a-object-r2`, removes the dormant V2B surface, and fixes
+  the four active defects as one ownership/lifetime correction. Its local
+  construction evidence is Windows `180 passed, 11 skipped` across the direct
+  transaction, immutable-store, publication, session-exchange, and durability
+  modules; Linux direct transaction/durability is `18 passed, 8 skipped`, and
+  the full Linux `test_store.py` result is `70 passed, 7 skipped, 4 failed`.
+  Those four failures are the already-recorded unchanged `store/lock.py`
+  Writer/`LockedRoot` baseline and remain V2B's replacement target. These
+  construction results do not replace the fresh frozen-head test and review
+  gates.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -321,7 +334,7 @@ activated schema lineage, and origin witness before replay or mutation.
 To obey the review-size hard stop without recreating a monolith, STORE may land
 as serial candidates under the single KAN-105 job. `STORE-1A-PUB` is integrated
 but requires both bounded physical-transaction successors,
-`STORE-1A-LOCK-V2A` and `STORE-1A-LOCK-V2B`, and the independent append-only
+`STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B`, and the independent append-only
 `STORE-1A-RELEASE-V2` successor before STORE publication is complete.
 `STORE-1A-MANIFEST` owns the governed-code manifest and
 documentation-only-successor rule. `STORE-1B` owns the
@@ -331,8 +344,8 @@ consumer migration. All candidates remain one incomplete STORE capability until
 the assembled public path passes. This split creates neither a competing Gate 6
 plan nor another Jira capability job.
 
-Together `STORE-1A-LOCK-V2A` and `STORE-1A-LOCK-V2B` freeze the following
-replacement architecture. V2A introduces `store/anchor.py` and migrates
+Together `STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B` freeze the following
+replacement architecture. Object R2 introduces `store/anchor.py` and migrates
 `store/objects.py`; V2B introduces `store/writer.py`, migrates `LockedRoot`, and
 turns `store/lock.py` into the facade only after the writer half is present. New
 `store/anchor.py` owns physical directory identity, anchored traversal, exact
@@ -370,7 +383,13 @@ native handle with the captured volume and file identity before applying
 `Delete=True`, in addition to same-handle bytes and mutable-path revalidation.
 The V2B successor must apply the same handle-bound identity proof to writer file
 leases and audit its retained-close paths against the native-HANDLE-only rule;
-those lease and writer changes do not belong in V2A.
+those lease and writer changes do not belong in Object R2. V2B must also make
+mutable-file replacement recovery total: if every reserved stage for the exact
+operation contains the same desired bytes, it selects one deterministically,
+publishes it, and reconciles the extras; any mixed or different reserved-stage
+set rejects closed. It must not strand an equal multi-stage set as permanently
+ambiguous, retry a descriptor in `terminal_uncertain`, or retain a close ticket
+without a native Windows HANDLE owner.
 
 Linux exactness is defined against all repository-controlled STORE participants,
 which must use the canonical transaction guard. While it is live, a retained
