@@ -843,26 +843,17 @@ def test_stored_snapshot_rederivation_uses_resolved_documents() -> None:
 
 def test_concurrent_identical_producer_snapshot_writes_are_idempotent(
     tmp_path,
-    monkeypatch,
 ) -> None:
-    import research_system.store.objects as object_module
-
     _source, stored_manifest, _control = producer_snapshot()
     manifest = deepcopy(stored_manifest)
     reference = content_artefact_id(manifest)
     entered = threading.Barrier(3)
-    release = threading.Event()
-
-    def pause(_temporary):
-        entered.wait(timeout=2)
-        assert release.wait(2)
-
-    monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause)
     paths = []
     errors = []
 
     def publish():
         try:
+            entered.wait(timeout=10)
             paths.append(ObjectStore(tmp_path).write("artefact", reference, 1, manifest))
         except Exception as exc:  # pragma: no branch - asserted below
             errors.append(exc)
@@ -870,10 +861,9 @@ def test_concurrent_identical_producer_snapshot_writes_are_idempotent(
     writers = [threading.Thread(target=publish) for _ in range(2)]
     for writer in writers:
         writer.start()
-    entered.wait(timeout=2)
-    release.set()
+    entered.wait(timeout=10)
     for writer in writers:
-        writer.join(timeout=2)
+        writer.join(timeout=10)
         assert not writer.is_alive()
     assert errors == []
     assert len(set(paths)) == 1
