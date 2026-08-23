@@ -156,6 +156,8 @@ def _release_draft_protocol():
             or session.draft is not None
             or session.consumed
         ):
+            if draft.admission == "binding_repair":
+                raise ArsError("binding repair requires the validated repair-service continuation")
             raise ArsError("release publication requires the validated CommandService.submit continuation")
         session.draft = draft
         issued[id(draft)] = (session, ledger, draft)
@@ -181,7 +183,12 @@ def _release_draft_protocol():
         session.draft = None
         session.consumed = True
 
-    return take_guard, register, consume, discard
+    def issue_validated_service_session(ledger: object) -> object:
+        """Mint one private one-shot session for a validated standalone service."""
+
+        return _Session(ledger)
+
+    return take_guard, register, consume, discard, issue_validated_service_session
 
 
 (
@@ -189,6 +196,7 @@ def _release_draft_protocol():
     _register_release_draft,
     _consume_release_draft,
     _discard_release_session,
+    _issue_validated_service_session,
 ) = _release_draft_protocol()
 del _release_draft_protocol
 
@@ -257,6 +265,29 @@ class EventLedger:
             lambda _allocated: dict(payload),
         )
         object.__setattr__(draft, "admission", "scoped_authority")
+        _register_release_draft(session, self, draft)
+        try:
+            return self.append([draft], snapshot=snapshot)
+        finally:
+            _discard_release_session(session)
+
+    def _append_binding_repair_from_validated_service(
+        self,
+        envelope: Mapping[str, Any],
+        *,
+        snapshot: LedgerSnapshot,
+        session: object,
+    ) -> dict[str, Any]:
+        """Append one binding event through the validated repair-service continuation."""
+
+        candidate = dict(envelope)
+        payload = candidate.pop("payload", None)
+        if not isinstance(payload, Mapping):
+            raise ArsError("binding repair continuation requires an event payload")
+        draft = object.__new__(EventDraft)
+        object.__setattr__(draft, "envelope", candidate)
+        object.__setattr__(draft, "finalize_payload", lambda _allocated: dict(payload))
+        object.__setattr__(draft, "admission", "binding_repair")
         _register_release_draft(session, self, draft)
         try:
             return self.append([draft], snapshot=snapshot)
@@ -414,15 +445,22 @@ class EventLedger:
                 ("AuthorityGrantActivated", "ActivateExternalAssuranceRecordGrant"),
                 ("AuthorityGrantRevoked", "RevokeExternalAssuranceRecordGrant"),
             }
+            binding_repair_event = (event_type, requested_producer) in {
+                ("StoreBindingRepaired", "RepairStoreBinding"),
+                ("StoreBindingAdvanced", "AdvanceStoreBinding"),
+            }
             if scoped_authority_event and (draft is None or draft.admission != "scoped_authority"):
                 raise ArsError(
                     "scoped authority administration requires the validated "
                     "CommandService scoped-authority continuation"
                 )
+            if binding_repair_event and (draft is None or draft.admission != "binding_repair"):
+                raise ArsError("binding repair requires the validated repair-service continuation")
             if draft is not None and (
                 (draft.admission == "release" and event_type != "ReleaseGateDecisionPublished")
                 or (draft.admission == "scoped_authority" and not scoped_authority_event)
-                or draft.admission not in {"release", "scoped_authority"}
+                or (draft.admission == "binding_repair" and not binding_repair_event)
+                or draft.admission not in {"release", "scoped_authority", "binding_repair"}
             ):
                 raise ArsError("event draft admission does not match its event family")
             stream_version = stream_versions.get(stream_id, 0) + 1

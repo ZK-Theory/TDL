@@ -790,7 +790,11 @@ class _DirectoryAnchor:
                         final_path,
                         open_reparse_point=False,
                         delete_protect=True,
-                        delete_access=True,
+                        # This handle prevents replacement by withholding
+                        # FILE_SHARE_DELETE. It must not itself request DELETE,
+                        # or it conflicts with an already-held protective
+                        # writer/root anchor in the same operation.
+                        delete_access=False,
                     )
                 except OSError as exc:
                     if not _is_windows_sharing_violation(exc) or attempt == 63:
@@ -1248,7 +1252,10 @@ def _windows_open_handle(
         flags |= _FILE_FLAG_OPEN_REPARSE_POINT
     access = _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
     if delete_access is None:
-        delete_access = delete_protect
+        # Delete protection is a share-mode property: omitting
+        # FILE_SHARE_DELETE blocks a later delete/rename opener. Request
+        # DELETE only at the exact deletion seam, whose callers pass True.
+        delete_access = False
     if delete_access:
         access |= _DELETE
     if read_contents:

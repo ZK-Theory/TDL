@@ -38,6 +38,8 @@ def _validate_hash_chain(events: tuple[dict[str, Any], ...]) -> None:
 def _validate_persisted_event_envelopes(
     events: tuple[dict[str, Any], ...],
     schemas: SchemaRegistry,
+    *,
+    globally_validated_control_positions: frozenset[int] = frozenset(),
 ) -> None:
     """Validate the exact common, schema, project, stream, and transaction envelope."""
 
@@ -78,53 +80,58 @@ def _validate_persisted_event_envelopes(
             and isinstance(shadow_payload.get("authority_payload"), Mapping)
         )
         try:
-            if is_authority_shadow:
-                owner_row_id = shadow_payload.get("owner_row_id")
-                route = DISCOVERY_ROW_ROUTES.get(owner_row_id)
-                if (
-                    route is None
-                    or route.command_type != command_type
-                    or DISCOVERY_AUTHORITY_SHADOWS.get(owner_row_id)
-                    != (shadow_payload.get("authority_kind"), event_type)
-                ):
-                    raise IntegrityError("authority shadow producer mismatch")
+            validate_schema = position not in globally_validated_control_positions
             command_binding = schemas.command_binding(command_type)
-            if command_binding is None or (
-                event.get("command_schema_id"),
-                event.get("command_schema_version"),
-            ) != (command_binding.schema_id, command_binding.schema_version):
+            if command_binding is not None and event.get("command_schema_id") != command_binding.schema_id:
                 raise SchemaError("active command binding mismatch")
-            schemas.resolve_identity(
-                str(event.get("command_schema_id", "")),
-                str(event.get("command_schema_version", "")),
-                expected_sha256=str(event.get("command_schema_sha256", "")),
-            )
-            event_binding = None if is_authority_shadow else schemas.event_binding(event_type, command_type)
-            if event_binding is not None:
-                if (recorded_schema, recorded_version) != (
-                    event_binding.schema_id,
-                    event_binding.schema_version,
-                ):
-                    raise SchemaError("active event binding mismatch")
-                schemas.validate_active(
-                    event_binding.schema_id,
-                    event,
-                    schema_version=event_binding.schema_version,
+            if validate_schema:
+                if is_authority_shadow:
+                    owner_row_id = shadow_payload.get("owner_row_id")
+                    route = DISCOVERY_ROW_ROUTES.get(owner_row_id)
+                    if (
+                        route is None
+                        or route.command_type != command_type
+                        or DISCOVERY_AUTHORITY_SHADOWS.get(owner_row_id)
+                        != (shadow_payload.get("authority_kind"), event_type)
+                    ):
+                        raise IntegrityError("authority shadow producer mismatch")
+                if command_binding is None:
+                    raise SchemaError("active command binding mismatch")
+                # New publication is constrained by the active binding in the
+                # writer. Replay accepts an exact registered predecessor identity
+                # from the same command family so append-only ledgers survive a
+                # schema successor.
+                schemas.resolve_identity(
+                    str(event.get("command_schema_id", "")),
+                    str(event.get("command_schema_version", "")),
+                    expected_sha256=str(event.get("command_schema_sha256", "")),
                 )
-            elif is_authority_shadow:
-                if recorded_schema != "ars://core/event" or recorded_version != "1.0.0":
-                    raise SchemaError("generic event schema mismatch")
-                schemas.validate("ars://core/event", event, schema_version="1.0.0")
-            elif schemas.has_producer_bindings(event_type):
-                raise SchemaError("unbound event producer")
-            elif recorded_schema == "ars://core/event":
-                if recorded_version != "1.0.0":
-                    raise SchemaError("generic event schema mismatch")
-                schemas.validate("ars://core/event", event, schema_version="1.0.0")
-            elif schemas.contains(recorded_schema):
-                schemas.validate(recorded_schema, event, schema_version=recorded_version)
-            else:
-                raise SchemaError("unknown event schema")
+                event_binding = None if is_authority_shadow else schemas.event_binding(event_type, command_type)
+                if event_binding is not None:
+                    if (recorded_schema, recorded_version) != (
+                        event_binding.schema_id,
+                        event_binding.schema_version,
+                    ):
+                        raise SchemaError("active event binding mismatch")
+                    schemas.validate_active(
+                        event_binding.schema_id,
+                        event,
+                        schema_version=event_binding.schema_version,
+                    )
+                elif is_authority_shadow:
+                    if recorded_schema != "ars://core/event" or recorded_version != "1.0.0":
+                        raise SchemaError("generic event schema mismatch")
+                    schemas.validate("ars://core/event", event, schema_version="1.0.0")
+                elif schemas.has_producer_bindings(event_type):
+                    raise SchemaError("unbound event producer")
+                elif recorded_schema == "ars://core/event":
+                    if recorded_version != "1.0.0":
+                        raise SchemaError("generic event schema mismatch")
+                    schemas.validate("ars://core/event", event, schema_version="1.0.0")
+                elif schemas.contains(recorded_schema):
+                    schemas.validate(recorded_schema, event, schema_version=recorded_version)
+                else:
+                    raise SchemaError("unknown event schema")
         except SchemaError as exc:
             raise IntegrityError(f"Discovery persisted schema provenance mismatch at {position}") from exc
 

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "command_id", "status", "payload_hash", "outcome"],
+  "properties": {
+    "schema_id": {"const": "ars://core/receipt"},
+    "schema_version": {"const": "1.0.0"},
+    "command_id": {"type": "string", "pattern": "^binding-repair-[0-9a-f]{64}$"},
+    "status": {"const": "accepted"},
+    "payload_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_batch_id", "observed_stream_version", "reason_code"],
+      "properties": {
+        "event_batch_id": {"type": "string", "pattern": "^txb_"},
+        "observed_stream_version": {"type": "integer", "minimum": 1},
+        "reason_code": {"const": null}
+      }
+    }
+  }
+}

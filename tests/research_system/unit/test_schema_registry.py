@@ -589,7 +589,7 @@ def test_runtime_bindings_activate_first_scope_task_slice_and_t2_verticals():
 def test_runtime_binding_inventory_is_public_and_stably_ordered():
     bindings = runtime_schema_registry(SCHEMAS).active_bindings()
 
-    assert len(bindings) == 257
+    assert len(bindings) == 261
     assert bindings == tuple(
         sorted(
             bindings,
@@ -954,3 +954,110 @@ def test_authority_registry_rejects_missing_revocation_payload_schema(tmp_path):
         match="ars://core/event/AuthorityGrantRevoked/payload",
     ):
         authority_schema_registry(schema_root)
+
+
+def test_schema_identity_history_resolves_exact_superseded_bytes(tmp_path: Path) -> None:
+    schema_id = "ars://test/collided-version"
+    current = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": schema_id,
+        "type": "object",
+        "properties": {"schema_version": {"const": "1.0.0"}},
+        "required": ["schema_version"],
+        "additionalProperties": False,
+    }
+    superseded = deepcopy(current)
+    superseded["properties"]["temporary_field"] = {"type": "string"}
+    current_raw = json.dumps(current, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_raw = json.dumps(superseded, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_sha256 = sha256(superseded_raw).hexdigest()
+    (tmp_path / "current.schema.json").write_bytes(current_raw)
+    (tmp_path / "history").mkdir()
+    archive_ref = f"history/sha256-{superseded_sha256}.json"
+    (tmp_path / archive_ref).write_bytes(superseded_raw)
+    manifest = {
+        "schema_id": "ars://core/schema-identity-history",
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "schema_id": schema_id,
+                "schema_version": "1.0.0",
+                "raw_bytes_sha256": superseded_sha256,
+                "archive_ref": archive_ref,
+            }
+        ],
+    }
+    (tmp_path / "schema-identity-history.json").write_bytes(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+
+    registry = SchemaRegistry(tmp_path)
+
+    assert registry.resolve_identity(schema_id, "1.0.0").raw_bytes == current_raw
+    assert (
+        registry.resolve_identity(
+            schema_id,
+            "1.0.0",
+            expected_sha256=superseded_sha256,
+        ).raw_bytes
+        == superseded_raw
+    )
+    assert (
+        registry.validate(
+            schema_id,
+            {"schema_version": "1.0.0"},
+            expected_sha256=superseded_sha256,
+        ).raw_bytes
+        == superseded_raw
+    )
+    with pytest.raises(SchemaError, match="schema hash mismatch"):
+        registry.resolve_identity(schema_id, "1.0.0", expected_sha256="0" * 64)
+
+    active_registry = SchemaRegistry(
+        tmp_path,
+        active_bindings=(SchemaBinding(schema_id, "1.0.0", command_type="TestCommand"),),
+    )
+    with pytest.raises(SchemaError, match="active schema hash mismatch"):
+        active_registry.validate_active(
+            schema_id,
+            {"schema_version": "1.0.0"},
+            schema_version="1.0.0",
+            expected_sha256=superseded_sha256,
+        )
+
+
+def test_advance_store_binding_history_is_replayable_but_v1_1_is_active() -> None:
+    registry = runtime_schema_registry(SCHEMAS)
+    schema_id = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
+
+    assert registry.resolve_identity(schema_id, "1.0.0").sha256 == (
+        "cbbe5b6b3a9cd6d97c8c648cfe7c49e16b3b813b800e28ffa94c1d7ebe4f8157"
+    )
+    superseded_sha256 = "5f15223aeec3cbe0825a49b5395467a62cda255378496a04fc83941557dbc3cb"
+    assert (
+        registry.resolve_identity(
+            schema_id,
+            "1.0.0",
+            expected_sha256=superseded_sha256,
+        ).sha256
+        == superseded_sha256
+    )
+    assert registry.command_binding("AdvanceStoreBinding") == SchemaBinding(
+        schema_id,
+        "1.1.0",
+        command_type="AdvanceStoreBinding",
+    )
+
+
+def test_schema_registry_reports_a_missing_root_through_its_public_error_contract(tmp_path: Path) -> None:
+    with pytest.raises(SchemaError, match="schema root"):
+        SchemaRegistry(tmp_path / "missing")
+
+
+def test_runtime_schema_registry_cache_is_scoped_to_the_verified_catalogue_generation() -> None:
+    first = runtime_schema_registry(SCHEMAS, generation="head-a:catalogue")
+    same = runtime_schema_registry(SCHEMAS, generation="head-a:catalogue")
+    successor = runtime_schema_registry(SCHEMAS, generation="head-b:catalogue")
+
+    assert same is first
+    assert successor is not first

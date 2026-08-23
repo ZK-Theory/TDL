@@ -1,7 +1,7 @@
 # 06q — Gate 6 Recovery and Closure Plan
 
 **Date:** 2026-08-22
-**Status:** `INCOMPLETE — historical real SPEC run PROVEN; no Gate 6 implementation integrated on main`
+**Status:** `INCOMPLETE — the historical real SPEC run is PROVEN, but no complete Gate 6 implementation is integrated on main`
 **Authority:** sole active Gate 6 recovery and closure plan. Do not create a
 06s or another master plan.
 **Integrated control-reset base:** `d65d74912e2edf385702f67c85c4df340c900651`
@@ -14,8 +14,8 @@ integrated Gate 6 and final closure evidence.
 ## 1. Purpose and capability contract
 
 Gate 6 is not complete. A historical real run has proved the research route
-can produce a durable, reviewable result, but the implementation that produced
-that evidence has not been integrated on `main`.
+can produce a durable, reviewable result, and bounded implementation slices now
+exist on `main`; the complete public Gate 6 path is not yet integrated.
 
 The target outcome is one connected public path: an authorised Discovery start
 and submission, durable SPEC evidence, replay and recovery, task closure, a
@@ -76,56 +76,21 @@ not make it the default empirical method.
   trace could delete a final object after a same-payload retry had reported it
   successfully present. This meets the mandatory retire/rescope rule; no
   further commit belongs on PR #263.
-- `STORE-1A-LOCK-V2` restarted cleanly from merged `main` on
-  `codex/g6-spec-store-1a-lock-v2`. The coherent implementation and migrated
-  controls exceeded the 5,000-added-line review hard stop. Its first extraction,
-  `STORE-1A-LOCK-V2A`, still included dormant Writer/`LockedRoot` transaction
-  APIs and therefore failed the ownership split it was meant to create. That
-  candidate is retired at `07431d2210f8ac652ba03e3e6a11a51ec783b3d1`.
-  `STORE-1A-OBJECT-R2` is its bounded replacement: it owns only the canonical
-  directory transaction and immutable `ObjectStore` path. `STORE-1A-LOCK-V2B`
-  owns `WriterLock`, `CompositeWriterLock`, `LockedRoot`, and the compatibility
-  facade. Neither candidate alone completes STORE publication. One canonical
-  per-directory transaction owns the mutation guard, staged pin, namespace
-  dispositions, durable recovery handoff, and resource-close dispositions.
-  Object recovery may not asynchronously delete a final after any public
-  success; every early existing-result return must reconcile the transaction
-  under that same canonical guard. Writer and composite release must likewise
-  have one serialized owner and preserve the protected body exception as
-  primary evidence.
-- The first exact-head review of `STORE-1A-LOCK-V2A` at `175bce138...` was
-  `REWORK_REQUIRED`. It exposed one ownership family rather than isolated line
-  defects: a retained leaf transaction did not retain the ancestor anchors
-  needed for later verification; Windows exact deletion compared mutable path
-  identity but not the already-open delete handle; and integer descriptor close
-  failures could be retried after the operating system had already reused the
-  descriptor number. The replacement model retains the complete anchor chain,
-  binds every deletion-capable Windows handle to the captured generation, and
-  treats CRT/POSIX descriptor close as a one-shot terminal-uncertain operation.
-  A fresh exact-head review is required after the batched remediation; the
-  superseded review is defect evidence, not acceptance.
-- The batched V2A remediation at `07431d221...` passed its construction
-  selection, but its second material exact-head review was `REWORK_REQUIRED`.
-  The review found one ownership breach and four connected active-path defects:
-  dormant V2B Writer/`LockedRoot` APIs duplicated the still-live `store/lock.py`;
-  Windows member creation was not fenced to the held physical parent; a native
-  HANDLE could lose its typed cleanup owner when validation and close both
-  failed; cleanup could replace the primary member/read error; and an explicit
-  rollback retry could report an absent revision without re-establishing
-  directory durability. Under this plan's two-round convergence rule,
-  `07431d221...` is frozen as failed review evidence and receives no further
-  remediation commit.
-- `STORE-1A-OBJECT-R2` starts from that frozen evidence on
-  `codex/g6-spec-store-1a-object-r2`, removes the dormant V2B surface, and fixes
-  the four active defects as one ownership/lifetime correction. Its local
-  construction evidence is Windows `180 passed, 11 skipped` across the direct
-  transaction, immutable-store, publication, session-exchange, and durability
-  modules; Linux direct transaction/durability is `18 passed, 8 skipped`, and
-  the full Linux `test_store.py` result is `70 passed, 7 skipped, 4 failed`.
-  Those four failures are the already-recorded unchanged `store/lock.py`
-  Writer/`LockedRoot` baseline and remain V2B's replacement target. These
-  construction results do not replace the fresh frozen-head test and review
-  gates.
+- PR #264 (`STORE-1A-OBJECT-R2`) merged by squash at
+  `161976a59ca6d8eb2e0915ec3113a8ff32f40fe6` from exact candidate
+  `9c267da575f5697764e28df67b2e53103058e8ea`; both have tree
+  `137de4f8fe8db129ed58a0a288f57d0c3126ebf3`. The two required currency checks
+  and CodeRabbit status were green. This integrates the bounded physical
+  directory transaction and immutable `ObjectStore` ownership slice; it does
+  not integrate the complete STORE or Gate 6 capability.
+- `G6-STORE-CURRENT-BINDING-1` now proceeds on
+  `codex/g6-store-current-binding-1` from exact merged base `161976a59...`. Its
+  bounded invariant is read-only admission of one exact current store binding,
+  append-only resolution of the historical binding command identity, explicit
+  binding-event replay, and rejection of direct unvalidated binding-event
+  append. It performs no live-store mutation. The public SPEC status/result
+  route remains in the separately preserved successor worktree and must not be
+  pulled into this candidate merely to enlarge its review surface.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -331,17 +296,19 @@ requires the foundation, operator config, store manifest, and current SPEC
 binding to agree on the control root, project, store, approved code roots,
 activated schema lineage, and origin witness before replay or mutation.
 
-To obey the review-size hard stop without recreating a monolith, STORE may land
-as serial candidates under the single KAN-105 job. `STORE-1A-PUB` is integrated
-but requires both bounded physical-transaction successors,
-`STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B`, and the independent append-only
-`STORE-1A-RELEASE-V2` successor before STORE publication is complete.
-`STORE-1A-MANIFEST` owns the governed-code manifest and
-documentation-only-successor rule. `STORE-1B` owns the
-`SpecOperatorConfig@1.0.0` schema and authority-neutral loader, historical
-binding lineage, transaction, shared verified context, public commands, and
-consumer migration. All candidates remain one incomplete STORE capability until
-the assembled public path passes. This split creates neither a competing Gate 6
+To obey the review-size hard stop without recreating a monolith, STORE lands as
+serial candidates under the single KAN-105 job. `STORE-1A-PUB` and
+`STORE-1A-OBJECT-R2` are integrated. `STORE-1A-LOCK-V2B` and the independent
+append-only `STORE-1A-RELEASE-V2` successor remain the named physical-store
+gaps. `STORE-1A-MANIFEST` owns the governed-code manifest and
+documentation-only-successor rule. The former `STORE-1B` surface is split at
+its actual ownership boundary: `G6-STORE-CURRENT-BINDING-1` owns historical
+binding lineage, the exact read-only current-pointer admission, binding-event
+replay, and the private validated append continuation; the following public
+SPEC candidate owns `SpecOperatorConfig@1.0.0`, the authority-neutral public
+loader, commands, and consumer migration. Each candidate must remain within the
+35-file hard stop. All remain one incomplete STORE/Gate 6 capability until the
+assembled public path passes. This split creates neither a competing Gate 6
 plan nor another Jira capability job.
 
 Together `STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B` freeze the following

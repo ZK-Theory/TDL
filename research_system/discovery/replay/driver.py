@@ -9,6 +9,7 @@ exactly one function in :mod:`research_system.discovery.replay.registry`.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any, Iterable, Mapping
 
@@ -35,6 +36,7 @@ def replay_discovery(
     events: Iterable[dict[str, Any]],
     *,
     schemas: SchemaRegistry | None = None,
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Rebuild Discovery state while rejecting malformed transitions.
 
@@ -50,8 +52,32 @@ def replay_discovery(
     ordered = tuple(deepcopy(tuple(events)))
     _validate_hash_chain(ordered)
     active_schemas = schemas or _default_replay_schemas()
-    _validate_persisted_event_envelopes(ordered, active_schemas)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered)
+    control_positions = frozenset(
+        int(event["global_position"])
+        for event in ordered
+        if _shared_event_partition(event, resolve_transaction_ids=resolve_transaction_ids) == "control"
+    )
+    shared_projection_positions = frozenset(
+        int(event["global_position"])
+        for event in ordered
+        if _shared_event_partition(event, resolve_transaction_ids=resolve_transaction_ids) in {"context", "control"}
+    )
+    # Shared context/control events have their own reducer. Validate the whole
+    # ledger once at that boundary and project only those positions there.
+    from research_system.projection.replay import _replay_shared_partitions
+
+    _replay_shared_partitions(
+        ordered,
+        schema_registry=active_schemas,
+        authority_state_validator=authority_state_validator,
+        projection_event_positions=shared_projection_positions,
+    )
+    _validate_persisted_event_envelopes(
+        ordered,
+        active_schemas,
+        globally_validated_control_positions=control_positions,
+    )
     transaction_events: dict[Any, list[dict[str, Any]]] = {}
     for persisted_event in ordered:
         transaction_events.setdefault(persisted_event.get("transaction_id"), []).append(persisted_event)
@@ -372,6 +398,13 @@ def replay_discovery(
             # same ledger transaction as its Discovery relations. Their state
             # is reduced by replay_control_plane, not by this projection.
             operational_events.append(event)
+            continue
+        if partition == "control":
+            # Binding events were envelope-validated above and are owned by the
+            # shared store projection, not by Discovery lifecycle state.
+            continue
+        if partition == "context":
+            # Context lifecycle state is owned by the shared projection.
             continue
 
         def required_string(key: str) -> str:

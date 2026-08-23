@@ -1047,6 +1047,80 @@ def apply_event(
         }
         releases[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "StoreBindingRepaired":
+        payload = event.get("payload")
+        expected = {
+            "recovery_binding_sha256",
+            "recovery_binding_path",
+            "object_path",
+            "git_head",
+            "git_tree",
+            "prior_manifest_sha256",
+        }
+        if (
+            event.get("command_type") != "RepairStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+            or payload.get("object_path")
+            != f"objects/binding-repair/sha256-{payload.get('recovery_binding_sha256')}.json"
+        ):
+            raise IntegrityError("binding repair event relation is invalid")
+        if updated.get("binding_repairs") or updated.get("binding_advances"):
+            raise IntegrityError("binding repair event continuity is invalid")
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        repairs = updated.setdefault("binding_repairs", {})
+        key = str(event.get("command_payload_hash"))
+        if key in repairs and repairs[key] != projection:
+            raise IntegrityError("binding repair projection conflicts")
+        repairs[key] = projection
+    elif event_type == "StoreBindingAdvanced":
+        payload = event.get("payload")
+        expected = {
+            "recovery_binding_sha256",
+            "recovery_binding_path",
+            "object_path",
+            "git_head",
+            "git_tree",
+            "predecessor_binding_sha256",
+        }
+        if (
+            event.get("command_type") != "AdvanceStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+            or payload.get("object_path")
+            != f"objects/binding-repair/sha256-{payload.get('recovery_binding_sha256')}.json"
+        ):
+            raise IntegrityError("binding advance event relation is invalid")
+        prior_bindings = [
+            *updated.get("binding_repairs", {}).values(),
+            *updated.get("binding_advances", {}).values(),
+        ]
+        if prior_bindings:
+            latest_binding = max(prior_bindings, key=lambda item: int(item["global_position"]))
+            if payload.get("predecessor_binding_sha256") != latest_binding.get("recovery_binding_sha256"):
+                raise IntegrityError("binding advance event continuity is invalid")
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        advances = updated.setdefault("binding_advances", {})
+        key = str(event.get("command_payload_hash"))
+        if key in advances and advances[key] != projection:
+            raise IntegrityError("binding advance projection conflicts")
+        advances[key] = projection
     else:
         raise IntegrityError(f"unsupported event type: {event_type}")
     return updated
@@ -1107,6 +1181,26 @@ def replay(
     )
 
 
+def _replay_shared_partitions(
+    events: Iterable[dict[str, Any]],
+    *,
+    schema_registry: SchemaRegistry,
+    projection_event_positions: frozenset[int],
+    authority_state_validator: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Validate a full ledger while reducing only shared-owned positions."""
+
+    return _replay(
+        events,
+        supported_major=1,
+        schema_registry=schema_registry,
+        grandfathered_missing_positions=frozenset(),
+        authority_state_validator=authority_state_validator,
+        validate_discovery_semantics=False,
+        projection_event_positions=projection_event_positions,
+    )
+
+
 def _replay(
     events: Iterable[dict[str, Any]],
     *,
@@ -1114,6 +1208,8 @@ def _replay(
     schema_registry: SchemaRegistry | None,
     grandfathered_missing_positions: frozenset[int],
     authority_state_validator: Callable[[dict[str, Any]], None] | None,
+    validate_discovery_semantics: bool = True,
+    projection_event_positions: frozenset[int] | None = None,
 ) -> dict[str, Any]:
     ordered_events = tuple(events)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
@@ -1191,6 +1287,7 @@ def _replay(
             schema_id == "ars://core/event"
             or schema_id.startswith("ars://core/event/")
             or schema_id.startswith("ars://wp6-2/t2/event/")
+            or schema_id.startswith("ars://wp6-6/gate6/binding-repair/event/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:
@@ -1255,11 +1352,12 @@ def _replay(
         transaction_events.append(projection_event)
         if transaction_seen == transaction_count:
             _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
-        state = apply_event(
-            state,
-            projection_event,
-            discovery_projection_event=discovery_projection_event,
-        )
+        if projection_event_positions is None or position in projection_event_positions:
+            state = apply_event(
+                state,
+                projection_event,
+                discovery_projection_event=discovery_projection_event,
+            )
         state["last_position"] = position
         state["last_hash"] = event["event_hash"]
     if transaction_id is not None and transaction_seen != transaction_count:
@@ -1268,7 +1366,7 @@ def _replay(
         if authority_state_validator is None:
             raise IntegrityError("authority administration decision validator unavailable")
         authority_state_validator(state)
-    if any(
+    if validate_discovery_semantics and any(
         is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids)
         for event in ordered_events
     ):
@@ -1276,7 +1374,11 @@ def _replay(
         # public shared-ledger replay reject Discovery semantic tampering.
         from research_system.discovery.runtime import replay_discovery
 
-        replay_discovery(ordered_events, schemas=schema_registry)
+        replay_discovery(
+            ordered_events,
+            schemas=schema_registry,
+            authority_state_validator=authority_state_validator,
+        )
     return state
 
 
