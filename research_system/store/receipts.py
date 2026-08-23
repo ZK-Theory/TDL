@@ -133,7 +133,27 @@ def validate_scoped_receipt_index(
     project_id: str | None = None,
     target_stream_id: str | None = None,
 ) -> Receipt:
-    """Validate one exact authority-scoped idempotency index record."""
+    """Validate one exact authority-scoped idempotency index record.
+
+    Args:
+        record: Parsed index record to validate.
+        scope: Actor, grant, command, and idempotency-key tuple.
+        payload_hash: Canonical command payload digest required for retry.
+        authority_grant_sha256: Exact authorizing grant digest.
+        expected_stream_version: Stream version bound into the submission.
+        project_id: Optional project binding paired with target stream.
+        target_stream_id: Optional target binding paired with project.
+
+    Returns:
+        The validated stored receipt.
+
+    Raises:
+        ConflictError: If the index, scope, embedded receipt, or receipt payload
+            binding is malformed or inconsistent.
+        IdempotencyConflictError: If an existing scope has different target,
+            payload, authority, or expected-stream bindings.
+        ValueError: If only one target binding is supplied.
+    """
 
     if (project_id is None) != (target_stream_id is None):
         raise ValueError("project and target idempotency bindings are paired")
