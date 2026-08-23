@@ -295,6 +295,42 @@ def test_emitted_event_matches_frozen_schema(tmp_path):
     SchemaRegistry(Path(".research-system/schemas")).validate("ars://core/event", events[0])
 
 
+def test_store_binding_advance_replays_the_exact_current_pointer_relation():
+    payload_hash = "a" * 64
+    payload = {
+        "recovery_binding_sha256": "b" * 64,
+        "recovery_binding_path": "manifests/binding-repair-current.json",
+        "object_path": "objects/binding-repair/sha256-" + "b" * 64 + ".json",
+        "git_head": "c" * 40,
+        "git_tree": "d" * 40,
+        "predecessor_binding_sha256": "e" * 64,
+    }
+    event = {
+        "event_id": "evt_01978abc-4003-7000-8000-000000004003",
+        "event_hash": "f" * 64,
+        "event_type": "StoreBindingAdvanced",
+        "stream_id": PROJECT_ID,
+        "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
+        "command_type": "AdvanceStoreBinding",
+        "command_payload_hash": payload_hash,
+        "transaction_id": "txb_01978abc-4003-7000-8000-000000004003",
+        "global_position": 7,
+        "payload": payload,
+    }
+
+    updated = apply_event({"streams": {}}, event)
+
+    assert updated["binding_advances"] == {
+        payload_hash: {
+            **payload,
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+    }
+
+
 def test_s008_legacy_scope_completion_cannot_materialize_without_open_scope():
     initial = {"streams": {}, "last_position": 0, "last_hash": "0" * 64}
     event = {

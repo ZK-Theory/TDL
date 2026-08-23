@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "project_id", "store_identity", "control_root", "code_roots", "schema_root", "origin_witness_sha256", "git_head", "git_tree", "git_clean", "schema_catalogue_sha256", "route", "sources", "stale_evidence", "command_payload_hash", "owner_actor_id", "owner_action", "idempotency_key", "prior_restore_transaction_id", "prior_restore_intended_manifest_sha256", "binding_config_path", "binding_config_sha256"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_id": {"const": "ars://internal/store-binding-recovery"}, "schema_version": {"const": "1.0.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"}, "store_identity": {"$ref": "#/$defs/sha256"},
+    "control_root": {"type": "string"}, "code_roots": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "string"}},
+    "schema_root": {"type": "string"}, "origin_witness_sha256": {"$ref": "#/$defs/sha256"},
+    "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "git_clean": {"const": true},
+    "schema_catalogue_sha256": {"$ref": "#/$defs/sha256"},
+    "route": {"type": "object", "additionalProperties": false, "required": ["ref", "sha256"], "properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"}, "sha256": {"$ref": "#/$defs/sha256"}}},
+    "sources": {"type": "array", "prefixItems": [
+      {"$ref": "#/$defs/spec01"}, {"$ref": "#/$defs/spec02"}
+    ], "items": false, "minItems": 2, "maxItems": 2},
+    "stale_evidence": {"type": "object", "additionalProperties": false, "required": ["refs", "missing_paths"], "properties": {"refs": {"type": "array", "contains": {"const": "manifests/.restore-binding-transaction.json"}, "minContains": 1}, "missing_paths": {"type": "array", "items": {"type": "string"}}}}, "command_payload_hash": {"$ref": "#/$defs/sha256"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_"}, "owner_action": {"const": "repair-stale-store-binding"}, "idempotency_key": {"type": "string"},
+    "prior_restore_transaction_id": {"type": "string", "minLength": 1}, "prior_restore_intended_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "binding_config_path": {"const": "manifests/binding-repair-control-binding.json"}, "binding_config_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source": {"type": "object", "additionalProperties": false, "required": ["ref", "sha256", "size_bytes"], "properties": {"ref": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer", "minimum": 1}}},
+    "spec01": {"allOf": [{"$ref": "#/$defs/source"}, {"properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"}}}]},
+    "spec02": {"allOf": [{"$ref": "#/$defs/source"}, {"properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"}}}]}
+  }
+}

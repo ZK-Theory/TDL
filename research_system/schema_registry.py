@@ -14,7 +14,12 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError as JsonSchemaError
 from jsonschema.validators import extend
+from referencing import Registry as ReferenceRegistry
+from referencing import Resource
+from referencing.exceptions import Unresolvable
+from referencing.jsonschema import DRAFT202012
 
+from research_system.canonical import canonical_bytes
 from research_system.errors import SchemaError
 
 _AUTHORITY_SCHEMA_IDS = frozenset(
@@ -104,6 +109,89 @@ class RegisteredSchema:
 # Compatibility for existing command producers while callers migrate to the
 # contract name accepted by 06h/G-RM-9.
 SchemaIdentity = RegisteredSchema
+
+
+_SCHEMA_IDENTITY_HISTORY = "schema-identity-history.json"
+_SCHEMA_IDENTITY_HISTORY_ID = "ars://core/schema-identity-history"
+
+
+def _load_schema_identity_history(root: Path) -> dict[tuple[str, str | None, str], RegisteredSchema]:
+    """Load exact superseded bytes without making them active catalogue versions."""
+
+    manifest_path = root / _SCHEMA_IDENTITY_HISTORY
+    if not manifest_path.exists():
+        return {}
+    try:
+        manifest_raw = manifest_path.read_bytes()
+        manifest = json.loads(manifest_raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SchemaError(f"invalid schema identity history: {manifest_path}") from exc
+    if (
+        not isinstance(manifest, dict)
+        or manifest_raw not in {canonical_bytes(manifest), canonical_bytes(manifest) + b"\n"}
+        or set(manifest) != {"schema_id", "schema_version", "aliases"}
+        or manifest.get("schema_id") != _SCHEMA_IDENTITY_HISTORY_ID
+        or manifest.get("schema_version") != "1.0.0"
+        or not isinstance(manifest.get("aliases"), list)
+    ):
+        raise SchemaError(f"invalid schema identity history: {manifest_path}")
+    result: dict[tuple[str, str | None, str], RegisteredSchema] = {}
+    for alias in manifest["aliases"]:
+        if not isinstance(alias, dict) or set(alias) != {
+            "schema_id",
+            "schema_version",
+            "raw_bytes_sha256",
+            "archive_ref",
+        }:
+            raise SchemaError(f"invalid schema identity history: {manifest_path}")
+        schema_id = alias.get("schema_id")
+        schema_version = alias.get("schema_version")
+        raw_sha256 = alias.get("raw_bytes_sha256")
+        archive_ref = alias.get("archive_ref")
+        if (
+            not isinstance(schema_id, str)
+            or not isinstance(schema_version, str)
+            or not isinstance(raw_sha256, str)
+            or len(raw_sha256) != 64
+            or any(character not in "0123456789abcdef" for character in raw_sha256)
+            or archive_ref != f"history/sha256-{raw_sha256}.json"
+        ):
+            raise SchemaError(f"invalid schema identity history: {manifest_path}")
+        archive_path = root / str(archive_ref)
+        try:
+            source_path = archive_path.resolve(strict=True)
+            archive_raw = source_path.read_bytes()
+            schema = json.loads(archive_raw)
+            Draft202012Validator.check_schema(schema)
+        except (
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            JsonSchemaError,
+            TypeError,
+        ) as exc:
+            raise SchemaError(f"invalid schema identity archive: {archive_path}") from exc
+        if (
+            source_path != archive_path
+            or root not in source_path.parents
+            or sha256(archive_raw).hexdigest() != raw_sha256
+            or not isinstance(schema, dict)
+            or schema.get("$id") != schema_id
+            or schema.get("properties", {}).get("schema_version", {}).get("const") != schema_version
+        ):
+            raise SchemaError(f"invalid schema identity archive: {archive_path}")
+        key = (schema_id, schema_version, raw_sha256)
+        if key in result:
+            raise SchemaError(f"duplicate schema identity history: {schema_id} version {schema_version}")
+        result[key] = RegisteredSchema(
+            schema_id=schema_id,
+            schema_version=schema_version,
+            raw_bytes_sha256=raw_sha256,
+            raw_bytes=archive_raw,
+            source_path=source_path,
+            parsed=_freeze_json(schema),
+        )
+    return result
 
 
 @dataclass(frozen=True)
@@ -1198,6 +1286,28 @@ _RUNTIME_BINDINGS = (
         event_type="ContextPacketSuperseded",
         producer_command_type="SupersedeContextPacket",
     ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding",
+        "1.0.0",
+        command_type="RepairStoreBinding",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired",
+        "1.0.0",
+        event_type="StoreBindingRepaired",
+        producer_command_type="RepairStoreBinding",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding",
+        "1.1.0",
+        command_type="AdvanceStoreBinding",
+    ),
+    SchemaBinding(
+        "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
+        "1.0.0",
+        event_type="StoreBindingAdvanced",
+        producer_command_type="AdvanceStoreBinding",
+    ),
 )
 
 
@@ -1222,6 +1332,9 @@ class SchemaRegistry:
         """
         self._schemas: dict[tuple[str, str | None], RegisteredSchema] = {}
         self._schemas_by_id: dict[str, dict[str | None, RegisteredSchema]] = {}
+        self._schema_resources: dict[tuple[str, str | None], Resource] = {}
+        self._historical_schemas: dict[tuple[str, str | None, str], RegisteredSchema] = {}
+        self._historical_schema_resources: dict[tuple[str, str | None, str], Resource] = {}
         for path in sorted(root.rglob("*.schema.json")):
             try:
                 source_path = path.resolve(strict=True)
@@ -1254,6 +1367,30 @@ class SchemaRegistry:
             )
             self._schemas[key] = registered
             self._schemas_by_id.setdefault(schema_id, {})[schema_version] = registered
+            self._schema_resources[key] = Resource.from_contents(
+                schema,
+                default_specification=DRAFT202012,
+            )
+        self._historical_schemas = _load_schema_identity_history(root.resolve(strict=True))
+        for key, historical in self._historical_schemas.items():
+            current = self._schemas.get(key[:2])
+            if current is None or current.raw_bytes_sha256 == historical.raw_bytes_sha256:
+                raise SchemaError(
+                    f"schema identity history has no distinct active successor: {historical.schema_id} "
+                    f"version {historical.schema_version}"
+                )
+            self._historical_schema_resources[key] = Resource.from_contents(
+                json.loads(historical.raw_bytes),
+                default_specification=DRAFT202012,
+            )
+        self._reference_registry = ReferenceRegistry().with_resources(
+            (
+                schema_id,
+                self._schema_resources[(schema_id, next(iter(versions)))],
+            )
+            for schema_id, versions in self._schemas_by_id.items()
+            if len(versions) == 1
+        )
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
         self._policy_action_bindings: dict[str, SchemaBinding] = {}
@@ -1297,6 +1434,20 @@ class SchemaRegistry:
             raise SchemaError(f"schema version required: {schema_id}")
         return next(iter(versions.values()))
 
+    def _resolve_exact_identity(
+        self,
+        schema_id: str,
+        schema_version: str | None,
+        expected_sha256: str | None,
+    ) -> RegisteredSchema:
+        current = self._resolve(schema_id, schema_version)
+        if expected_sha256 is None or current.raw_bytes_sha256 == expected_sha256:
+            return current
+        historical = self._historical_schemas.get((schema_id, schema_version, expected_sha256))
+        if historical is None:
+            raise SchemaError(f"schema hash mismatch: {schema_id} version {current.schema_version}")
+        return historical
+
     def validate(
         self,
         schema_id: str,
@@ -1320,16 +1471,25 @@ class SchemaRegistry:
         Returns:
             Exact raw-source identity of the schema used for validation.
         """
-        entry = self._resolve(schema_id, schema_version)
-        if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
-            raise SchemaError(f"schema hash mismatch: {schema_id} version {entry.schema_version}")
-        errors = sorted(
-            _ImmutableSchemaValidator(
-                entry.parsed,
-                format_checker=Draft202012Validator.FORMAT_CHECKER,
-            ).iter_errors(value),
-            key=lambda error: list(error.absolute_path),
+        entry = self._resolve_exact_identity(schema_id, schema_version, expected_sha256)
+        current = self._schemas[(entry.schema_id, entry.schema_version)]
+        resource = (
+            self._schema_resources[(entry.schema_id, entry.schema_version)]
+            if current.raw_bytes_sha256 == entry.raw_bytes_sha256
+            else self._historical_schema_resources[(entry.schema_id, entry.schema_version, entry.raw_bytes_sha256)]
         )
+        validation_registry = self._reference_registry.with_resource(entry.schema_id, resource)
+        try:
+            errors = sorted(
+                _ImmutableSchemaValidator(
+                    entry.parsed,
+                    format_checker=Draft202012Validator.FORMAT_CHECKER,
+                    registry=validation_registry,
+                ).iter_errors(value),
+                key=lambda error: list(error.absolute_path),
+            )
+        except Unresolvable as exc:
+            raise SchemaError(f"schema reference is ambiguous or unavailable: {exc.ref}") from exc
         if errors:
             message = "; ".join(
                 f"{'.'.join(map(str, error.absolute_path)) or '<root>'}: {error.message}" for error in errors
@@ -1345,10 +1505,7 @@ class SchemaRegistry:
         expected_sha256: str | None = None,
     ) -> SchemaIdentity:
         """Resolve an exact version and optionally verify its recorded digest."""
-        entry = self._resolve(schema_id, schema_version)
-        if expected_sha256 is not None and entry.raw_bytes_sha256 != expected_sha256:
-            raise SchemaError(f"schema hash mismatch: {schema_id} version {schema_version}")
-        return entry
+        return self._resolve_exact_identity(schema_id, schema_version, expected_sha256)
 
     def is_active(self, schema_id: str, schema_version: str) -> bool:
         """Return whether the exact version has an explicit runtime binding."""

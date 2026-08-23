@@ -1047,6 +1047,66 @@ def apply_event(
         }
         releases[stream_id] = projection
         streams[stream_id] = projection
+    elif event_type == "StoreBindingRepaired":
+        payload = event.get("payload")
+        expected = {
+            "recovery_binding_sha256",
+            "recovery_binding_path",
+            "object_path",
+            "git_head",
+            "git_tree",
+            "prior_manifest_sha256",
+        }
+        if (
+            event.get("command_type") != "RepairStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+        ):
+            raise IntegrityError("binding repair event relation is invalid")
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        repairs = updated.setdefault("binding_repairs", {})
+        key = str(event.get("command_payload_hash"))
+        if key in repairs and repairs[key] != projection:
+            raise IntegrityError("binding repair projection conflicts")
+        repairs[key] = projection
+    elif event_type == "StoreBindingAdvanced":
+        payload = event.get("payload")
+        expected = {
+            "recovery_binding_sha256",
+            "recovery_binding_path",
+            "object_path",
+            "git_head",
+            "git_tree",
+            "predecessor_binding_sha256",
+        }
+        if (
+            event.get("command_type") != "AdvanceStoreBinding"
+            or event.get("schema_id") != "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
+            or not isinstance(payload, dict)
+            or set(payload) != expected
+            or payload.get("recovery_binding_path") != "manifests/binding-repair-current.json"
+        ):
+            raise IntegrityError("binding advance event relation is invalid")
+        projection = {
+            **deepcopy(payload),
+            "event_id": event["event_id"],
+            "event_hash": event["event_hash"],
+            "event_batch_id": event["transaction_id"],
+            "global_position": event["global_position"],
+        }
+        advances = updated.setdefault("binding_advances", {})
+        key = str(event.get("command_payload_hash"))
+        if key in advances and advances[key] != projection:
+            raise IntegrityError("binding advance projection conflicts")
+        advances[key] = projection
     else:
         raise IntegrityError(f"unsupported event type: {event_type}")
     return updated
@@ -1191,6 +1251,7 @@ def _replay(
             schema_id == "ars://core/event"
             or schema_id.startswith("ars://core/event/")
             or schema_id.startswith("ars://wp6-2/t2/event/")
+            or schema_id.startswith("ars://wp6-6/gate6/binding-repair/event/")
         ):
             raise IntegrityError(f"unknown event schema at {position}")
         if position != state["last_position"] + 1:
