@@ -1341,12 +1341,12 @@ def test_two_concurrent_identical_object_writers_publish_one_complete_revision(t
 def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, monkeypatch):
     import research_system.store.objects as object_module
 
-    entered = threading.Barrier(2)
+    first_staged = threading.Event()
     release = threading.Event()
 
     def pause(_temporary):
         if os.name == "nt":
-            entered.wait(timeout=2)
+            first_staged.set()
             assert release.wait(2)
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", pause)
@@ -1366,7 +1366,7 @@ def test_two_concurrent_different_object_writers_publish_one_revision(tmp_path, 
     for writer in writers:
         writer.start()
     if os.name == "nt":
-        entered.wait(timeout=2)
+        assert first_staged.wait(2)
         release.set()
     for writer in writers:
         writer.join(timeout=2)
