@@ -350,6 +350,12 @@ def _validate_binding_transition(
             raise IntegrityError("current binding Git ancestry inspection failed")
         return
     if owner_action == "advance-reviewed-route-successor-store-binding":
+        if (
+            predecessor.get("schema_version") != "1.1.0"
+            or predecessor.get("owner_action") != "advance-clean-descendant-store-binding"
+            or "route_successor_authority" in predecessor
+        ):
+            raise IntegrityError("current binding reviewed route successor requires a clean legacy predecessor")
         predecessor_route = predecessor.get("route")
         successor_route = child.get("route")
         expected_authority = {
@@ -362,8 +368,6 @@ def _validate_binding_transition(
         }
         if child.get("route_successor_authority") != expected_authority:
             raise IntegrityError("current binding reviewed route successor authority is invalid")
-        if predecessor.get("schema_version") != "1.0.0":
-            raise IntegrityError("current binding reviewed route successor requires the legacy repair root")
         return
     raise IntegrityError("current binding owner action is invalid")
 
@@ -437,6 +441,90 @@ def _validate_binding_event_lineage(binding_events: list[dict[str, Any]]) -> Non
         previous_binding_sha256 = recovery_binding_sha256
 
 
+def _validate_binding_event_against_object(
+    *,
+    control_root: Path,
+    project_id: str,
+    schemas: SchemaRegistry,
+    event: dict[str, Any],
+) -> tuple[dict[str, Any], bytes]:
+    """Validate one persisted binding event against its immutable object."""
+
+    event_type = event.get("event_type")
+    if event_type == "StoreBindingAdvanced":
+        advanced = True
+        command_type = "AdvanceStoreBinding"
+        object_schema_id = "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
+        event_schema_id = "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced"
+    elif event_type == "StoreBindingRepaired":
+        advanced = False
+        command_type = "RepairStoreBinding"
+        object_schema_id = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
+        event_schema_id = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
+    else:
+        raise IntegrityError("current binding event type is invalid")
+
+    payload = event.get("payload")
+    binding_sha256 = payload.get("recovery_binding_sha256") if isinstance(payload, dict) else None
+    if not _is_sha256(binding_sha256):
+        raise IntegrityError("current binding event/object relation is invalid")
+    object_path = control_root / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
+    binding, binding_raw = _read_canonical_json(object_path, label="binding event immutable object")
+    if sha256_hex(binding_raw) != binding_sha256:
+        raise IntegrityError("current binding event immutable object hash is invalid")
+    _validate_binding_shape(binding)
+    expected_version = "1.1.0" if advanced else "1.0.0"
+    if binding.get("schema_version") != expected_version:
+        raise IntegrityError("current binding event/object version is invalid")
+
+    try:
+        command_binding = schemas.command_binding(command_type)
+        if command_binding is None or event.get("command_schema_id") != command_binding.schema_id:
+            raise SchemaError("binding event command schema family mismatch")
+        schemas.resolve_identity(
+            str(event.get("command_schema_id")),
+            str(event.get("command_schema_version")),
+            expected_sha256=str(event.get("command_schema_sha256")),
+        )
+        schemas.validate(event_schema_id, event, schema_version=str(event.get("schema_version", "")))
+        schemas.validate(object_schema_id, binding)
+    except SchemaError as exc:
+        raise IntegrityError("current binding event schema provenance is invalid") from exc
+
+    payload_hash = binding.get("command_payload_hash")
+    idempotency_key = binding.get("idempotency_key")
+    expected_event_provenance = {
+        "command_id": f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}",
+        "command_type": command_type,
+        "command_payload_hash": payload_hash,
+        "project_id": project_id,
+        "stream_id": project_id,
+        "actor_id": binding.get("owner_actor_id"),
+        "idempotency_key": idempotency_key,
+        "authority_grant_id": "store-binding-recovery",
+        "correlation_id": idempotency_key,
+        "causation_id": None,
+        "transaction_index": 1,
+        "transaction_count": 1,
+    }
+    if any(event.get(field) != expected for field, expected in expected_event_provenance.items()):
+        raise IntegrityError("current binding event provenance is invalid")
+
+    expected_payload = {
+        "recovery_binding_sha256": binding_sha256,
+        "recovery_binding_path": CURRENT_BINDING_RELATIVE_PATH.as_posix(),
+        "object_path": object_path.relative_to(control_root).as_posix(),
+        "git_head": binding.get("git_head"),
+        "git_tree": binding.get("git_tree"),
+        ("predecessor_binding_sha256" if advanced else "prior_manifest_sha256"): binding.get(
+            "predecessor_binding_sha256" if advanced else "prior_restore_intended_manifest_sha256"
+        ),
+    }
+    if payload != expected_payload:
+        raise IntegrityError("current binding event/object relation is invalid")
+    return binding, binding_raw
+
+
 def _validate_receipt_and_event(
     *,
     control_root: Path,
@@ -447,7 +535,6 @@ def _validate_receipt_and_event(
     binding_raw: bytes,
 ) -> None:
     advanced = binding["schema_version"] == "1.1.0"
-    binding_sha256 = sha256_hex(binding_raw)
     payload_hash = str(binding["command_payload_hash"])
     command_id = f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}"
     receipt, receipt_raw = _read_canonical_json(
@@ -472,70 +559,26 @@ def _validate_receipt_and_event(
     events = tuple(ledger.iter_events())
     _validate_hash_chain(events)
     outcome = receipt.get("outcome")
-    event_batch_id = outcome.get("event_batch_id") if isinstance(outcome, dict) else None
-    event_type = "StoreBindingAdvanced" if advanced else "StoreBindingRepaired"
     command_type = "AdvanceStoreBinding" if advanced else "RepairStoreBinding"
-    matches = [
-        event
-        for event in events
-        if event.get("transaction_id") == event_batch_id
-        and event.get("event_type") == event_type
-        and event.get("command_type") == command_type
-        and event.get("command_payload_hash") == payload_hash
-    ]
     binding_events = [
         event for event in events if event.get("event_type") in {"StoreBindingRepaired", "StoreBindingAdvanced"}
     ]
     _validate_binding_event_lineage(binding_events)
-    if len(matches) != 1 or not binding_events or matches[0] is not binding_events[-1]:
+    validated_history = [
+        (
+            event,
+            *_validate_binding_event_against_object(
+                control_root=control_root,
+                project_id=project_id,
+                schemas=schemas,
+                event=event,
+            ),
+        )
+        for event in binding_events
+    ]
+    if not validated_history or validated_history[-1][2] != binding_raw:
         raise IntegrityError("current binding event is missing, ambiguous, or stale")
-    event = matches[0]
-    expected_event_provenance = {
-        "command_id": command_id,
-        "project_id": project_id,
-        "stream_id": project_id,
-        "actor_id": binding.get("owner_actor_id"),
-        "idempotency_key": binding.get("idempotency_key"),
-        "authority_grant_id": "store-binding-recovery",
-        "correlation_id": binding.get("idempotency_key"),
-        "causation_id": None,
-        "transaction_index": 1,
-        "transaction_count": 1,
-    }
-    if any(event.get(field) != expected for field, expected in expected_event_provenance.items()):
-        raise IntegrityError("current binding event provenance is invalid")
-    try:
-        command_binding = schemas.command_binding(command_type)
-        if command_binding is None or event.get("command_schema_id") != command_binding.schema_id:
-            raise SchemaError("binding event command schema family mismatch")
-        schemas.resolve_identity(
-            str(event.get("command_schema_id")),
-            str(event.get("command_schema_version")),
-            expected_sha256=str(event.get("command_schema_sha256")),
-        )
-        schemas.validate(str(event.get("schema_id")), event, schema_version=str(event.get("schema_version")))
-    except SchemaError as exc:
-        raise IntegrityError("current binding event schema provenance is invalid") from exc
-    payload = event.get("payload")
-    if advanced:
-        expected_relation = isinstance(payload, dict) and (
-            payload.get("predecessor_binding_sha256") == binding.get("predecessor_binding_sha256")
-        )
-    else:
-        expected_relation = isinstance(payload, dict) and (
-            payload.get("prior_manifest_sha256") == binding.get("prior_restore_intended_manifest_sha256")
-        )
-    object_path = control_root / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
-    if (
-        not isinstance(payload, dict)
-        or payload.get("recovery_binding_sha256") != binding_sha256
-        or payload.get("recovery_binding_path") != CURRENT_BINDING_RELATIVE_PATH.as_posix()
-        or payload.get("object_path") != object_path.relative_to(control_root).as_posix()
-        or payload.get("git_head") != binding.get("git_head")
-        or payload.get("git_tree") != binding.get("git_tree")
-        or not expected_relation
-    ):
-        raise IntegrityError("current binding event/object relation is invalid")
+    event = validated_history[-1][0]
     if (
         receipt_raw != canonical_bytes(receipt)
         or receipt.get("command_id") != command_id

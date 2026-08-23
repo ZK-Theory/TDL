@@ -61,6 +61,34 @@ def _rewrite_last_event(fixture: _Fixture, **updates: object) -> tuple[dict[str,
     return tuple(fixture.ledger.iter_events())
 
 
+def _rewrite_event_at_position(
+    fixture: _Fixture,
+    position: int,
+    **updates: object,
+) -> tuple[dict[str, object], ...]:
+    batches: list[tuple[Path, list[dict[str, object]]]] = []
+    found = False
+    for path in sorted(fixture.ledger.events_root.rglob("*.jsonl")):
+        events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+        for event in events:
+            if event["global_position"] == position:
+                event.update(updates)
+                found = True
+        batches.append((path, events))
+    assert found
+
+    previous_event_hash = "0" * 64
+    for _, events in batches:
+        for event in events:
+            event["previous_event_hash"] = previous_event_hash
+            event.pop("event_hash", None)
+            event["event_hash"] = sha256_hex(canonical_bytes(event))
+            previous_event_hash = str(event["event_hash"])
+    for path, events in batches:
+        path.write_bytes(b"".join(canonical_bytes(event) + b"\n" for event in events))
+    return tuple(fixture.ledger.iter_events())
+
+
 @dataclass(frozen=True)
 class _Fixture:
     repository_root: Path
@@ -422,33 +450,43 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
     with pytest.raises(IntegrityError, match="not a clean Git descendant"):
         _validate_binding_transition(fixture.repository_root, unrelated, predecessor, predecessor_sha256)
 
+    fixture_binding_sha256 = sha256_hex(fixture.binding_raw)
     reviewed = {
         **unrelated,
         "owner_action": "advance-reviewed-route-successor-store-binding",
+        "predecessor_binding_sha256": fixture_binding_sha256,
         "route": {**unrelated["route"], "sha256": "2" * 64},
         "route_successor_authority": {
-            "predecessor_binding_sha256": predecessor_sha256,
+            "predecessor_binding_sha256": fixture_binding_sha256,
             "candidate_git_head": unrelated_head,
-            "predecessor_route_sha256": predecessor["route"]["sha256"],
+            "predecessor_route_sha256": fixture.binding["route"]["sha256"],
             "successor_route_sha256": "2" * 64,
         },
     }
-    _validate_binding_transition(fixture.repository_root, reviewed, predecessor, predecessor_sha256)
+    _validate_binding_transition(
+        fixture.repository_root,
+        reviewed,
+        fixture.binding,
+        fixture_binding_sha256,
+    )
 
     repeated = {
         **reviewed,
+        "command_payload_hash": sha256_hex(canonical_bytes({"fixture": "repeated-reviewed-successor"})),
+        "idempotency_key": "gate6-repeated-reviewed-successor",
+        "predecessor_binding_sha256": sha256_hex(canonical_bytes(reviewed)),
         "route_successor_authority": {
             **reviewed["route_successor_authority"],
-            "predecessor_binding_sha256": sha256_hex(fixture.binding_raw),
-            "predecessor_route_sha256": fixture.binding["route"]["sha256"],
+            "predecessor_binding_sha256": sha256_hex(canonical_bytes(reviewed)),
+            "predecessor_route_sha256": reviewed["route"]["sha256"],
         },
     }
-    with pytest.raises(IntegrityError, match="legacy repair root"):
+    with pytest.raises(IntegrityError, match="clean legacy predecessor"):
         _validate_binding_transition(
             fixture.repository_root,
             repeated,
-            fixture.binding,
-            sha256_hex(fixture.binding_raw),
+            reviewed,
+            sha256_hex(canonical_bytes(reviewed)),
         )
 
     for field, wrong in (
@@ -462,7 +500,40 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
             "route_successor_authority": {**reviewed["route_successor_authority"], field: wrong},
         }
         with pytest.raises(IntegrityError, match="reviewed route successor authority"):
-            _validate_binding_transition(fixture.repository_root, attacked, predecessor, predecessor_sha256)
+            _validate_binding_transition(
+                fixture.repository_root,
+                attacked,
+                fixture.binding,
+                fixture_binding_sha256,
+            )
+
+
+def test_current_binding_rejects_a_corrupted_historical_binding_event(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    first_binding_event = tuple(fixture.ledger.iter_events())[-1]
+    successor = {
+        **fixture.binding,
+        "command_payload_hash": sha256_hex(canonical_bytes({"fixture": "second-current-binding"})),
+        "idempotency_key": "gate6-second-current-binding-fixture",
+        "predecessor_binding_sha256": sha256_hex(fixture.binding_raw),
+    }
+    _publish_binding_advance(fixture, successor)
+    events = _rewrite_event_at_position(
+        fixture,
+        int(first_binding_event["global_position"]),
+        command_schema_sha256="f" * 64,
+    )
+
+    with pytest.raises(IntegrityError, match="command schema identity mismatch"):
+        replay_discovery(events, schemas=fixture.schemas)
+    with pytest.raises(IntegrityError, match="event schema provenance"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
 
 
 @pytest.mark.parametrize(
