@@ -259,8 +259,22 @@ def test_successful_retry_survives_public_close_safe_point_without_final_delete(
     assert target.exists()
 
 
-def test_close_only_ticket_rejects_arbitrary_callbacks_and_descriptors(tmp_path: Path) -> None:
-    """The close-only seam cannot register callback-shaped or CRT resources."""
+def test_close_only_registry_rejects_untyped_tickets_and_preserves_marker(tmp_path: Path) -> None:
+    """The close-only registry accepts only typed internal tickets."""
+
+    import research_system.store.anchor as anchor_module
+
+    marker = tmp_path / "close-only-marker"
+    marker.write_bytes(b"preserve")
+
+    with pytest.raises(TypeError):
+        anchor_module._retain_close_ticket(object())
+    assert marker.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows close-ticket resource validation")
+def test_windows_close_only_ticket_rejects_callbacks_and_descriptors(tmp_path: Path) -> None:
+    """The Windows close-only seam rejects callback-shaped and CRT resources."""
 
     import research_system.store.anchor as anchor_module
 
@@ -275,8 +289,6 @@ def test_close_only_ticket_rejects_arbitrary_callbacks_and_descriptors(tmp_path:
             anchor_module._close_only_ticket("wrapped-os-close", "native-windows-handle", descriptor)
     finally:
         os.close(descriptor)
-    with pytest.raises(TypeError):
-        anchor_module._retain_close_ticket(object())
     assert marker.exists()
 
 
@@ -301,16 +313,19 @@ def test_windows_close_only_tickets_retry_only_native_handles_and_anchors(tmp_pa
         ),
     )
     native_attempts = 0
+    native_closed = False
     anchor_attempts = 0
     real_close_handle = anchor_module._windows_close_handle
     real_anchor_close = anchor_module._DirectoryAnchor._close_without_quarantine
 
     def fail_native_once(resource):
-        nonlocal native_attempts
+        nonlocal native_attempts, native_closed
         native_attempts += 1
         if native_attempts == 1:
             raise OSError("injected native HANDLE close failure")
-        return real_close_handle(resource)
+        result = real_close_handle(resource)
+        native_closed = True
+        return result
 
     def fail_anchor_once(current_anchor):
         nonlocal anchor_attempts
@@ -336,10 +351,11 @@ def test_windows_close_only_tickets_retry_only_native_handles_and_anchors(tmp_pa
         assert anchor._closed
         assert target.read_bytes() == b"native-handle"
     finally:
-        try:
-            real_close_handle(handle)
-        except BaseException:
-            pass
+        if not native_closed:
+            try:
+                real_close_handle(handle)
+            except BaseException:
+                pass
         if not anchor._closed:
             try:
                 real_anchor_close(anchor)
@@ -735,7 +751,8 @@ def test_body_exception_remains_primary_when_terminal_release_fails(tmp_path: Pa
     body_error = raised.value
     assert body_error.__cause__ is not None
     assert "terminal anchor release failure" in repr(body_error.__cause__)
-    assert any("admission release failed" in note for note in (body_error.__cause__.__notes__ or []))
+    notes = getattr(body_error.__cause__, "__notes__", ())
+    assert any("admission release failed" in note for note in notes)
     assert admission_failed and anchor.transaction_holds == 0
     assert transaction._reservation is None and transaction._admission is None
 
@@ -855,12 +872,19 @@ def test_concurrent_same_object_writers_serialize_one_revision(tmp_path: Path, m
 
     first_stage = threading.Event()
     second_started = threading.Event()
+    second_attempted = threading.Event()
     release_first = threading.Event()
     guard_entries_before_release: list[bool] = []
     original_stage = DirectoryTransaction._stage_owned_private
     import research_system.store.anchor as anchor_module
 
+    original_admission = anchor_module._acquire_directory_admission
     original_guard = anchor_module._DirectoryAnchor.acquire_mutation_guard
+
+    def observe_admission(identity):
+        if first_stage.is_set():
+            second_attempted.set()
+        return original_admission(identity)
 
     class _ObservedGuardContext:
         def __init__(self, inner) -> None:
@@ -877,6 +901,7 @@ def test_concurrent_same_object_writers_serialize_one_revision(tmp_path: Path, m
     def observe_guard(anchor, name):
         return _ObservedGuardContext(original_guard(anchor, name))
 
+    monkeypatch.setattr(anchor_module, "_acquire_directory_admission", observe_admission)
     monkeypatch.setattr(anchor_module._DirectoryAnchor, "acquire_mutation_guard", observe_guard)
     results: list[Path] = []
     errors: list[BaseException] = []
@@ -903,6 +928,7 @@ def test_concurrent_same_object_writers_serialize_one_revision(tmp_path: Path, m
     assert first_stage.wait(5)
     second_writer.start()
     assert second_started.wait(5)
+    assert second_attempted.wait(5), "second writer never attempted the guard"
     release_first.set()
     first_writer.join(timeout=5)
     second_writer.join(timeout=5)
@@ -942,7 +968,7 @@ def test_windows_delete_true_stage_close_failure_retains_full_owner(tmp_path: Pa
         value = getattr(handle, "value", handle)
         if int(value) in target_values:
             close_attempts += 1
-            if close_attempts <= 2:
+            if close_attempts <= 3:
                 raise OSError("injected Delete=True stage CloseHandle failure")
         return original_close(handle)
 
@@ -957,7 +983,8 @@ def test_windows_delete_true_stage_close_failure_retains_full_owner(tmp_path: Pa
         # The first failure is caught locally so the transaction's own
         # context-manager exit still runs.  Its immediate retry is the second
         # injected close failure; that exit then transfers the whole owner to
-        # the retained-owner registry for the successor entry to drain.
+        # the retained-owner registry. During the successor drain, the first
+        # close attempt also fails and the retry in __exit__ completes it.
         with pytest.raises(ConflictError, match="stage cleanup|close|pending"):
             with DirectoryTransaction(anchor) as transaction:
                 stage = transaction.stage("owned-stage", b"owned-stage")
@@ -967,10 +994,79 @@ def test_windows_delete_true_stage_close_failure_retains_full_owner(tmp_path: Pa
 
         with DirectoryTransaction(anchor):
             pass
-        assert close_attempts >= 3
+        assert close_attempts >= 4
         assert not (root / stage_name).exists()
     finally:
         anchor.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows retained-owner terminal conflict control")
+def test_windows_path_fence_loss_after_delete_close_does_not_poison_later_writes(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """A handleless path conflict is terminal, not a permanently pending owner."""
+
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "terminal-path-conflict"}
+    target = _object_target(tmp_path, value)
+    stage_name: str | None = None
+    target_handles: set[int] = set()
+    close_attempts = 0
+    target_closed = False
+    fence_failed = False
+    real_stage_hook = anchor_module._after_stage_opened
+    real_open_handle = anchor_module._windows_open_handle
+    real_close_handle = anchor_module._windows_close_handle
+    real_verify = anchor_module._DirectoryAnchor.verify_unchanged
+
+    def capture_stage(name, descriptor, *args, **kwargs):
+        nonlocal stage_name
+        stage_name = name
+        return real_stage_hook(name, descriptor, *args, **kwargs)
+
+    def capture_stage_handle(path, *args, **kwargs):
+        handle = real_open_handle(path, *args, **kwargs)
+        if stage_name is not None and Path(path).name == stage_name:
+            target_handles.add(int(getattr(handle, "value", handle)))
+        return handle
+
+    def fail_then_close_stage(handle):
+        nonlocal close_attempts, target_closed
+        value_handle = int(getattr(handle, "value", handle))
+        if value_handle in target_handles:
+            close_attempts += 1
+            if close_attempts <= 2:
+                raise OSError("injected retained-stage CloseHandle failure")
+            result = real_close_handle(handle)
+            target_closed = True
+            return result
+        return real_close_handle(handle)
+
+    def fail_once_after_stage_close(anchor):
+        nonlocal fence_failed
+        if target_closed and not fence_failed:
+            fence_failed = True
+            raise ConflictError("injected retained-owner path-fence loss")
+        return real_verify(anchor)
+
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", capture_stage)
+    monkeypatch.setattr(anchor_module, "_windows_open_handle", capture_stage_handle)
+    monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_then_close_stage)
+
+    store = ObjectStore(tmp_path)
+    with pytest.raises(ConflictError, match="stage cleanup|close|pending|deletion"):
+        store.write("task", TASK_ID, 1, value)
+    assert close_attempts == 2 and stage_name is not None
+
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "verify_unchanged", fail_once_after_stage_close)
+    with pytest.raises(ConflictError, match="retained store owner drain remains pending"):
+        store.write("task", TASK_ID, 1, value)
+
+    assert target_closed and fence_failed
+    assert target.read_bytes() == canonical_bytes(value)
+    assert store.write("task", TASK_ID, 1, value) == target
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows ordinary ObjectStore owner-retry control")

@@ -439,6 +439,9 @@ every sibling `ConflictError` propagate immediately; the public conflict/error
 and nonzero-exit mapping remains unchanged. Producer tests prove that only
 canonical lock contention emits the subclass, and consumer tests prove retry
 for that subclass plus immediate propagation for every non-retryable sibling.
+Windows member creation must also remain beneath the captured physical parent:
+the public creation path proves the positive case, and a recreated-parent
+negative must fail before creating a member in either physical generation.
 The pinned Windows runtime has a direct
 `os.link(..., follow_symlinks=False)` positive control. Negatives cover an
 actual substituted/reparse source outcome, final-name substitution, concurrent
@@ -740,7 +743,8 @@ layer, or a new candidate. A blocking finding receives the smallest root fix
 that removes the demonstrated failure and one direct regression through the
 affected public seam. Comments on that fix are triaged again by this same
 threshold and do not automatically reopen scope. Once the bounded positive
-path and decisive corruption negatives pass, stop construction and publish;
+path, decisive corruption negatives, affected shared-seam regressions, and any
+explicitly mandated exact-head final gate pass, stop construction and publish;
 do not add edge-case tests or infrastructure merely to anticipate possible
 review comments.
 

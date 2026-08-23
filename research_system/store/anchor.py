@@ -2089,8 +2089,19 @@ class DirectoryTransaction:
                 except BaseException:
                     return False
                 pending.handle = None
-            self._anchor.verify_unchanged()
-            _identity, final_path = self._anchor.refresh()
+            try:
+                self._anchor.verify_unchanged()
+                _identity, final_path = self._anchor.refresh()
+            except BaseException:
+                # Closing the Delete=True handle consumed this transaction's
+                # last physical authority over the exact generation.  If the
+                # anchored path can no longer be proved, retaining a handleless
+                # pending entry can never make progress and would block every
+                # later STORE operation.  Preserve the conflict, but make the
+                # owner terminal before releasing it.
+                self._pending_windows_removals.pop(0)
+                self._full_owner_terminal = True
+                raise
             current_path = final_path / pending.path.name
             try:
                 observed = _regular_file_identity(current_path, label=pending.label)
@@ -2136,9 +2147,8 @@ class DirectoryTransaction:
         self._entered = True
         self._exit_status = TransactionExitStatus("active")
         primary_error: BaseException | None = None
-        terminal = False
         try:
-            terminal = self._retry_pending_windows_removals()
+            self._retry_pending_windows_removals()
         except BaseException as error:
             primary_error = error
         try:
@@ -2156,7 +2166,7 @@ class DirectoryTransaction:
                 )
         if primary_error is not None:
             raise primary_error
-        return terminal and not self._pending_windows_removals and self._retained_guard is None
+        return not self._pending_windows_removals and self._retained_guard is None
 
     @staticmethod
     def _same_generation(left: os.stat_result, right: os.stat_result) -> bool:

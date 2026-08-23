@@ -723,7 +723,6 @@ def test_object_publication_keeps_every_effect_in_the_opened_object_directory_ge
     assert swapped
     assert not list(directory.iterdir())
     assert not list(held_directory.glob("00000001-*.json"))
-    assert not list(held_directory.glob("00000001-*.json"))
 
 
 def test_object_final_link_is_a_commit_and_an_identical_retry_adopts(tmp_path: Path, monkeypatch) -> None:
@@ -831,7 +830,7 @@ def test_object_publication_preserves_substituted_final_generation(tmp_path: Pat
 
     monkeypatch.setattr(anchor_module._DirectoryAnchor, "_link_member", link_then_replace)
 
-    with pytest.raises(ConflictError, match="final.*changed|object revision already exists"):
+    with pytest.raises(ConflictError, match="final changed during publication"):
         write_object(tmp_path, "task", TASK_ID, 1, expected)
 
     directory = _object_directory(tmp_path)
