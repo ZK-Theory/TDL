@@ -11,7 +11,7 @@ import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery.replay.driver import replay_discovery
-from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.git_execution import scrubbed_git_environment
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.current_binding import _schema_catalogue, load_current_binding
@@ -349,6 +349,25 @@ def test_current_binding_loads_exact_subject_and_fails_closed_on_drift(tmp_path:
         verified.revalidate()
 
 
+def test_current_binding_translates_a_missing_foundation_control_root(tmp_path: Path) -> None:
+    fixture = _bound_fixture(tmp_path)
+    foundation = yaml.safe_load(fixture.foundation_path.read_text(encoding="utf-8"))
+    foundation["control_root"] = str(tmp_path / "missing-control-root")
+    foundation["foundation_sha256"] = sha256_hex(
+        canonical_bytes({key: value for key, value in foundation.items() if key != "foundation_sha256"})
+    )
+    fixture.foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="identity differs from the repository foundation"):
+        load_current_binding(
+            foundation_path=fixture.foundation_path,
+            repository_root=fixture.repository_root,
+            expected_control_root=fixture.control_root,
+            expected_project_id=PROJECT_ID,
+            expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
 def test_verified_current_binding_does_not_expose_mutable_admission_evidence(tmp_path: Path) -> None:
     fixture = _bound_fixture(tmp_path)
     verified = load_current_binding(
@@ -512,6 +531,18 @@ def test_current_binding_rejects_an_advance_forked_from_the_preceding_binding_ev
             expected_control_root=fixture.control_root,
             expected_project_id=PROJECT_ID,
             expected_store_identity=str(fixture.binding["store_identity"]),
+        )
+
+
+def test_current_binding_lineage_rejects_a_later_repair_root() -> None:
+    from research_system.store.current_binding import _validate_binding_event_lineage
+
+    with pytest.raises(IntegrityError, match="binding event lineage"):
+        _validate_binding_event_lineage(
+            [
+                {"event_type": "StoreBindingAdvanced", "payload": {"recovery_binding_sha256": "a" * 64}},
+                {"event_type": "StoreBindingRepaired", "payload": {"recovery_binding_sha256": "b" * 64}},
+            ]
         )
 
 

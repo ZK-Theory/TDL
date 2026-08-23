@@ -426,6 +426,8 @@ def _validate_binding_event_lineage(binding_events: list[dict[str, Any]]) -> Non
         if not isinstance(payload, dict) or not _is_sha256(payload.get("recovery_binding_sha256")):
             raise IntegrityError("current binding event lineage is invalid")
         recovery_binding_sha256 = payload["recovery_binding_sha256"]
+        if event.get("event_type") == "StoreBindingRepaired" and previous_binding_sha256 is not None:
+            raise IntegrityError("current binding event lineage is invalid")
         if (
             event.get("event_type") == "StoreBindingAdvanced"
             and previous_binding_sha256 is not None
@@ -628,10 +630,14 @@ def load_current_binding(
     project_id = validate_id(expected_project_id, "project")
     if not _is_sha256(expected_store_identity):
         raise ConfigurationError("SPEC operator store identity is invalid")
+    try:
+        foundation_control = Path(str(foundation.get("control_root"))).resolve(strict=True)
+    except OSError as exc:
+        raise ConfigurationError("SPEC operator identity differs from the repository foundation") from exc
     if (
         foundation.get("project_id") != project_id
         or foundation.get("store_identity") != expected_store_identity
-        or Path(str(foundation.get("control_root"))).resolve(strict=True) != control
+        or foundation_control != control
     ):
         raise ConfigurationError("SPEC operator identity differs from the repository foundation")
     require_existing_control_root([repository], control)

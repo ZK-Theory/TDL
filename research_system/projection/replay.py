@@ -1067,6 +1067,8 @@ def apply_event(
             != f"objects/binding-repair/sha256-{payload.get('recovery_binding_sha256')}.json"
         ):
             raise IntegrityError("binding repair event relation is invalid")
+        if updated.get("binding_repairs") or updated.get("binding_advances"):
+            raise IntegrityError("binding repair event continuity is invalid")
         projection = {
             **deepcopy(payload),
             "event_id": event["event_id"],

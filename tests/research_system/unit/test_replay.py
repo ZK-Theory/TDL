@@ -381,6 +381,40 @@ def test_store_binding_events_bind_the_object_path_to_the_recovery_digest(
         apply_event({"streams": {}}, event)
 
 
+def test_store_binding_repair_cannot_reset_projected_lineage() -> None:
+    existing = {
+        "streams": {},
+        "binding_advances": {
+            "a" * 64: {
+                "recovery_binding_sha256": "b" * 64,
+                "global_position": 7,
+            }
+        },
+    }
+    repair = {
+        "event_id": "evt_01978abc-4003-7000-8000-000000004003",
+        "event_hash": "f" * 64,
+        "event_type": "StoreBindingRepaired",
+        "stream_id": PROJECT_ID,
+        "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired",
+        "command_type": "RepairStoreBinding",
+        "command_payload_hash": "c" * 64,
+        "transaction_id": "txb_01978abc-4003-7000-8000-000000004003",
+        "global_position": 8,
+        "payload": {
+            "recovery_binding_sha256": "d" * 64,
+            "recovery_binding_path": "manifests/binding-repair-current.json",
+            "object_path": "objects/binding-repair/sha256-" + "d" * 64 + ".json",
+            "git_head": "e" * 40,
+            "git_tree": "f" * 40,
+            "prior_manifest_sha256": "1" * 64,
+        },
+    }
+
+    with pytest.raises(IntegrityError, match="binding repair event continuity"):
+        apply_event(existing, repair)
+
+
 def test_s008_legacy_scope_completion_cannot_materialize_without_open_scope():
     initial = {"streams": {}, "last_position": 0, "last_hash": "0" * 64}
     event = {
