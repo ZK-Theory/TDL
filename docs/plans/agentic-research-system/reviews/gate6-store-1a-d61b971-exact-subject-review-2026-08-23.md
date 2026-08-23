@@ -1,21 +1,30 @@
 # Gate 6 STORE-1A exact-subject review — 2026-08-23
 
-## Current executive verdict
+## Review identity and current publication state
 
-**Verdict: `ACCEPT FOR PUBLICATION`.**
+**Current PR verdict: `FINAL-HEAD REVIEW PENDING`.**
 
-Current reviewed code subject:
+Historical semantic-review subject:
 `ac6daed4a6cb9679e4e882ae41cb9363b00f0969` on
-`codex/g6-spec-store-1`. The exact-subject semantic review accepts all eight
-minimal STORE-1A controls. The candidate is ready for publication through the
-owner-controlled PR route; this is not merge permission or Gate 6 acceptance.
+`codex/g6-spec-store-1`. The review recorded below accepted all eight minimal
+STORE-1A controls at that subject. Later PR review found reachable defects in
+the same publication boundary, so that historical acceptance is not authority
+for the current candidate.
 
-Exact campaign scope from
+An in-tree review record cannot attest the commit that contains it without
+creating a self-reference loop. After remediation is frozen, publication
+therefore requires an independent external review bound to the exact final PR
+head. That final-head evidence, not this document's containing commit, controls
+the publication verdict. It remains distinct from merge permission and Gate 6
+acceptance.
+
+Historical campaign scope at the recorded review epoch, from
 `02e4b2baf8e2e85052fdbdda8f4d35e27fa0cc30` is **22 files, 4,989 additions,
 207 deletions**, within the 35-file/5,000-added-line hard stops.
 
-Gate 6 remains **INCOMPLETE**. STORE-1A is a bounded foundation. **STORE-1B
-follows** with the verified binding/predecessor, transaction, shared admission,
+Gate 6 remains **INCOMPLETE**. The current `STORE-1A-PUB` candidate is a bounded
+foundation. `STORE-1A-MANIFEST` follows with governed-code admission, then
+`STORE-1B` adds the verified binding/predecessor, transaction, shared admission,
 public consumer migration, and historical binding lineage.
 
 ## Review method and independence
@@ -37,7 +46,7 @@ Inputs were kept independent to avoid self-certification:
 - expected frozen behavior comes from fixtures/contracts; observed behavior
   comes from real command, ledger, object, and publication seams.
 
-## Current decision and invariant matrix
+## Historical decision and invariant matrix at `ac6daed4`
 
 | Minimal control | Exact-subject observation | Decision |
 |---|---|---|
@@ -50,8 +59,11 @@ Inputs were kept independent to avoid self-certification:
 | 7. Diagnostic precedence and historical regression behavior remain exact | Inactive/full-only schema precedes unbound producer; active wrong producer remains distinct; S-014, Scenario-A, release retry, and real contention semantics are preserved | **ACCEPT** |
 | 8. Public observable and ownership boundary remain bounded | No parallel binding lineage or premature public SPEC route was added; STORE-1B owns verified binding/admission and consumers | **ACCEPT** |
 
-**Semantic acceptance: 8/8 minimal controls.** No concrete reachable Major or
-Minor defect remains at `ac6daed4a6cb9679e4e882ae41cb9363b00f0969`.
+**Recorded semantic acceptance: 8/8 minimal controls.** This was the review's
+historical conclusion at `ac6daed4a6cb9679e4e882ae41cb9363b00f0969`.
+Subsequent PR review falsified the stronger claim that no reachable defect
+remained; the matrix is retained as review history, not as current publication
+evidence.
 
 ## Historical finding and disposition
 
@@ -138,8 +150,10 @@ test-process observation.
   capability and does not authorize merge, live-store mutation, or owner
   acceptance.
 
-This review record preserves the initial `d61b971` REWORK evidence and records
-the independent semantic acceptance of its exact repaired successor
-`ac6daed4a6cb9679e4e882ae41cb9363b00f0969`. It changes no implementation,
-test, planning authority, Git history, Jira, live store, PR, or external review
-state.
+This review record preserves both the initial `d61b971` REWORK evidence and the
+later, now-superseded semantic acceptance of
+`ac6daed4a6cb9679e4e882ae41cb9363b00f0969`. It deliberately makes no claim to
+review its own containing commit. Current publication authority must be an
+independent external verdict bound to the exact final PR head after remediation.
+The record changes no implementation, test, planning authority, Jira, live
+store, or owner-controlled merge state.

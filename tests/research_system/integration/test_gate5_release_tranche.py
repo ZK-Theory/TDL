@@ -14,6 +14,7 @@ from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry, runtime_schema_registry
 from research_system.store.ledger import EventLedger
+from research_system.store.objects import ObjectStore
 from tests.research_system.factories import (
     ACTORS,
     AUTHORITY_GRANT_ID,
@@ -90,17 +91,11 @@ def test_release_tranche_activation_uses_active_command_binding(tmp_path, monkey
         if binding.schema_id == "ars://core/owner-authority-administration-decision"
     )
     assert seen[0]["payload"]["new_grant"]["schema_version"] == grant_binding.schema_version
-    decision_paths = tuple(
-        (
-            tmp_path
-            / ".release-tranche-authority"
-            / "objects"
-            / "assurance_record"
-            / f"arec_{TASK_RESTORE.split('_', 1)[1]}"
-        ).glob("00000001-*.json")
+    decision = ObjectStore(tmp_path / ".release-tranche-authority").read(
+        "assurance_record",
+        f"arec_{TASK_RESTORE.split('_', 1)[1]}",
+        1,
     )
-    assert len(decision_paths) == 1
-    decision = json.loads(decision_paths[0].read_text(encoding="utf-8"))
     assert decision["schema_version"] == administration_binding.schema_version
 
 

@@ -406,8 +406,8 @@ class EventLedger:
                 stream_id = candidate.pop("stream_id")
             except KeyError as exc:
                 raise ArsError(f"missing event field: {exc.args[0]}") from exc
-            producer = str(candidate.get("command_type", ""))
-            scoped_authority_event = (event_type, producer) in {
+            requested_producer = str(candidate.get("command_type", ""))
+            scoped_authority_event = (event_type, requested_producer) in {
                 ("AuthorityGrantActivated", "ActivateAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeAuthorityGrant"),
                 ("AuthorityGrantRevoked", "RevokeIssuedAuthorityGrant"),
@@ -460,6 +460,7 @@ class EventLedger:
                 candidate.setdefault("actor_id", new_id("actor"))
                 candidate.setdefault("authority_grant_id", new_id("authority_grant"))
                 candidate.setdefault("occurred_at", None)
+            producer = str(candidate.get("command_type", ""))
             event = {
                 "event_id": event_id,
                 "event_type": event_type,
@@ -488,12 +489,12 @@ class EventLedger:
             event_schema_version = str(event.get("schema_version", ""))
             event_binding = self.schemas.event_binding(
                 event_type,
-                str(candidate.get("command_type", "")),
+                producer,
             )
             event_schema = str(event.get("schema_id", ""))
             legacy_authority_event = (
                 event_type,
-                str(candidate.get("command_type", "")),
+                producer,
                 event_schema,
                 event_schema_version,
             ) in {

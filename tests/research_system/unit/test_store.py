@@ -947,6 +947,99 @@ def test_object_write_is_content_addressed_and_non_overwriting(tmp_path):
         write_object(tmp_path, "task", TASK_ID, 1, {"x": 2})
 
 
+def test_object_write_preserves_primary_error_when_anchor_close_also_fails(tmp_path, monkeypatch):
+    """remediation-red: directory cleanup cannot replace the write outcome."""
+
+    import research_system.store.objects as object_module
+
+    def fail_write(*_args, **_kwargs):
+        raise ConflictError("injected primary object write failure")
+
+    class Anchor:
+        def __init__(self, final_path, child=None, *, fail_close=False):
+            self.final_path = final_path
+            self.child = child
+            self.fail_close = fail_close
+            self.closed = False
+
+        def open_member_directory(self, _name, **_kwargs):
+            assert self.child is not None
+            return self.child
+
+        def close(self):
+            self.closed = True
+            if self.fail_close:
+                raise OSError("injected object anchor close failure")
+
+    object_anchor = Anchor(tmp_path / "objects" / "task" / TASK_ID, fail_close=True)
+    kind_anchor = Anchor(tmp_path / "objects" / "task", object_anchor)
+    objects_anchor = Anchor(tmp_path / "objects", kind_anchor)
+    root_anchor = Anchor(tmp_path, objects_anchor)
+
+    monkeypatch.setattr(object_module, "_write_object_in_directory", fail_write)
+    monkeypatch.setattr(object_module, "open_registered_root_anchor", lambda *_args, **_kwargs: root_anchor)
+
+    with pytest.raises(ConflictError, match="primary object write failure") as raised:
+        write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert all(anchor.closed for anchor in (object_anchor, kind_anchor, objects_anchor, root_anchor))
+    assert isinstance(raised.value.__cause__, OSError)
+    assert "anchor close failure" in str(raised.value.__cause__)
+
+
+def test_object_write_creates_staging_file_with_least_privilege_mode(tmp_path, monkeypatch):
+    """remediation-red: private staged content is never created with process defaults."""
+
+    import research_system.store.objects as object_module
+
+    original_open = object_module.os.open
+    staging_modes: list[int | None] = []
+    target_name = f"00000001-{sha256_hex(canonical_bytes({'x': 1}))}.json"
+
+    def record_staging_mode(path, flags, *args, **kwargs):
+        candidate = Path(path)
+        if (
+            candidate.name.startswith(f".{target_name}.")
+            and candidate.name.endswith(".tmp")
+            and flags & os.O_CREAT
+            and flags & os.O_EXCL
+        ):
+            staging_modes.append(args[0] if args else kwargs.get("mode"))
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(object_module.os, "open", record_staging_mode)
+
+    write_object(tmp_path, "task", TASK_ID, 1, {"x": 1})
+
+    assert staging_modes == [0o600]
+
+
+def test_object_rollback_reports_concurrently_removed_revision_as_changed(tmp_path, monkeypatch):
+    """remediation-red: a listed revision removed before proof is not unreadable."""
+
+    import research_system.store.objects as object_module
+
+    store = ObjectStore(tmp_path)
+    value = {"x": 1}
+    store.write("task", TASK_ID, 1, value)
+    original_generation = object_module._physical_generation
+    removed = False
+
+    def remove_before_rollback_generation(path, label):
+        nonlocal removed
+        if label == "rollback final" and not removed:
+            removed = True
+            path.unlink()
+        return original_generation(path, label)
+
+    monkeypatch.setattr(object_module, "_physical_generation", remove_before_rollback_generation)
+
+    with pytest.raises(IntegrityError, match="cannot roll back a changed object revision"):
+        store.rollback_new_revision("task", TASK_ID, 1, value, existed_before=False)
+
+    assert removed
+
+
 def test_object_write_rejects_matching_bytes_under_wrong_digest_name(tmp_path):
     data = canonical_bytes({"x": 1})
     directory = tmp_path / "objects" / "task" / TASK_ID
@@ -1363,7 +1456,7 @@ def test_runtime_ledger_rejects_unbound_full_only_event_schema(tmp_path):
         schemas=schemas,
     )
 
-    with pytest.raises(ArsError, match="inactive event schema"):
+    with pytest.raises(ArsError, match="unbound event producer: DispatchClaimed from LedgerInternalAppend"):
         ledger.append(
             [
                 {

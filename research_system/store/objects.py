@@ -13,7 +13,12 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ConflictError, IntegrityError
 from research_system.ids import validate_id
 from research_system.store.durability import fsync_directory
-from research_system.store.lock import _ExactGenerationBusyError, DirectoryAnchor, open_registered_root_anchor
+from research_system.store.lock import (
+    _ExactGenerationBusyError,
+    _raise_primary_with_cleanup,
+    DirectoryAnchor,
+    open_registered_root_anchor,
+)
 
 
 class _OwnedGenerationCleanupError(ConflictError):
@@ -78,12 +83,7 @@ def _read_exact_generation(
     """Prove the held generation still carries the exact publication bytes."""
 
     try:
-        if missing_ok:
-            observed_data = _read_physical_generation(path, expected, label, missing_ok=True)
-        else:
-            # Preserve the long-standing private test seam's three-argument
-            # call shape for ordinary exact reads.
-            observed_data = _read_physical_generation(path, expected, label)
+        observed_data = _read_physical_generation(path, expected, label, missing_ok=missing_ok)
     except FileNotFoundError:
         if missing_ok:
             return False
@@ -180,12 +180,16 @@ def _anchored_object_directory(
     objects_anchor: DirectoryAnchor | None = None
     kind_anchor: DirectoryAnchor | None = None
     object_anchor: DirectoryAnchor | None = None
+    primary_error: BaseException | None = None
     try:
         root_anchor = open_registered_root_anchor(control_root, delete_protect=False)
         objects_anchor = root_anchor.open_member_directory("objects", create=create, delete_protect=False)
         kind_anchor = objects_anchor.open_member_directory(kind, create=create, delete_protect=False)
         object_anchor = kind_anchor.open_member_directory(object_id, create=create, delete_protect=False)
         yield object_anchor, object_anchor.final_path
+    except BaseException as exc:
+        primary_error = exc
+        raise
     finally:
         first_error: BaseException | None = None
         for anchor in (object_anchor, kind_anchor, objects_anchor, root_anchor):
@@ -196,6 +200,8 @@ def _anchored_object_directory(
             except BaseException as exc:
                 if first_error is None:
                     first_error = exc
+        if primary_error is not None and first_error is not None:
+            _raise_primary_with_cleanup(primary_error, first_error)
         if first_error is not None:
             raise first_error
 
@@ -359,7 +365,7 @@ def _write_object_in_directory(
     claim_is_durable_recovery_state = False
     primary_error: BaseException | None = None
     try:
-        fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        fd = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         with os.fdopen(fd, "wb") as handle:
             handle.write(data)
             handle.flush()
@@ -644,10 +650,10 @@ class ObjectStore:
                 )
         except ConflictError as exc:
             raise IntegrityError("cannot roll back a changed object revision") from exc
-        except OSError as exc:
-            raise IntegrityError("object revision is unreadable") from exc
         except FileNotFoundError as exc:
             raise IntegrityError("cannot roll back a changed object revision") from exc
+        except OSError as exc:
+            raise IntegrityError("object revision is unreadable") from exc
 
     def latest_revision(self, kind: str, object_id: str) -> int | None:
         """Return the highest persisted revision for an object identity.

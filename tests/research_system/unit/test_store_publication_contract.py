@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import inspect
 import os
 from pathlib import Path
 import stat
@@ -73,6 +72,33 @@ def test_writer_lock_does_not_retype_identity_or_link_failures_as_contention(tmp
         with WriterLock(tmp_path / "denied.lock", {"writer_id": "denied"}):
             raise AssertionError("denied writer entered")
     assert not list(tmp_path.glob(".denied.lock.*.tmp"))
+
+
+def test_windows_exact_generation_cleanup_retries_sharing_violation_without_winerror(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """remediation-red: a native sharing violation reaches the retryable cleanup seam."""
+
+    import research_system.store.lock as lock_module
+
+    path = tmp_path / "writer.lock"
+    path.write_bytes(b"owned")
+
+    def sharing_violation(*_args, **_kwargs):
+        error = OSError(32, "sharing violation")
+        error.winerror = None
+        raise error
+
+    monkeypatch.setattr(lock_module.os, "name", "nt")
+    monkeypatch.setattr(lock_module, "_windows_open_handle", sharing_violation)
+
+    with pytest.raises(lock_module._ExactGenerationBusyError, match="temporarily busy"):
+        lock_module._delete_exact_regular_file(
+            path,
+            path.stat(),
+            expected_bytes=b"owned",
+            label="writer lock test",
+        )
 
 
 def _defer_private_staging_cleanup(monkeypatch, writer: WriterLock, before_failure=None):
@@ -187,6 +213,40 @@ def test_writer_lock_cleanup_failure_preserves_foreign_or_rolls_back_owned_canon
         assert not path.exists()
         with WriterLock(path, {"writer_id": "next-owner"}):
             assert path.is_file()
+
+
+def test_writer_lock_cleanup_failure_preserves_canonical_when_anchored_observation_is_unsafe(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """remediation-red: an anchored reparse/non-regular rejection cannot trigger canonical rollback."""
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "failed-owner"})
+    lock_module, cleanup_failures = _defer_private_staging_cleanup(monkeypatch, writer)
+    deferred_delete = lock_module._delete_exact_regular_file
+    canonical_deletions: list[Path] = []
+
+    def record_delete(candidate: Path, *args, **kwargs) -> None:
+        if candidate == path:
+            canonical_deletions.append(candidate)
+        return deferred_delete(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(lock_module, "_delete_exact_regular_file", record_delete)
+    monkeypatch.setattr(
+        lock_module,
+        "_open_directory_anchor",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ConflictError("injected canonical reparse rejection")),
+    )
+
+    with pytest.raises(ConflictError, match="canonical ownership cannot be verified"):
+        writer.__enter__()
+
+    assert cleanup_failures
+    assert canonical_deletions == []
+    assert path.read_bytes() == writer._data
+    with pytest.raises(WriterLockContentionError, match="writer lock exists"):
+        WriterLock(path, {"writer_id": "next-owner"}).__enter__()
 
 
 def test_writer_lock_post_publication_fsync_failure_rolls_back_and_raises(
@@ -463,9 +523,15 @@ def test_object_rollback_preserves_replaced_final_generation(tmp_path: Path, mon
     real_read_generation = object_module._read_physical_generation
     replaced = False
 
-    def read_then_replace(candidate: Path, expected_generation, label: str) -> bytes:
+    def read_then_replace(
+        candidate: Path,
+        expected_generation,
+        label: str,
+        *,
+        missing_ok: bool = False,
+    ) -> bytes | None:
         nonlocal replaced
-        data = real_read_generation(candidate, expected_generation, label)
+        data = real_read_generation(candidate, expected_generation, label, missing_ok=missing_ok)
         if label == "rollback final" and not replaced:
             replaced = True
             candidate.unlink()
@@ -680,6 +746,44 @@ def test_locked_root_compare_and_swap_preserves_substituted_final(tmp_path: Path
     predecessor_claim = target.with_name(f".{target.name}.replacement-predecessor-claim")
     assert predecessor_claim.read_bytes() == b"old"
     assert not list(target.parent.glob(f".{target.name}.*.tmp"))
+    assert not target.with_name(f".{target.name}.replacement-publication-claim").exists()
+
+
+def test_locked_root_replacement_finishes_committed_recovery_after_predecessor_cleanup_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    """remediation-red: a committed final is retried by draining its exact predecessor claim."""
+
+    import research_system.store.lock as lock_module
+
+    control_root = tmp_path / "control"
+    relative_path = "runtime/manifests/spec-current-binding.json"
+    target = control_root / relative_path.replace("/", os.sep)
+    predecessor_claim = target.with_name(f".{target.name}.replacement-predecessor-claim")
+    real_unlink = lock_module._DirectoryAnchor._unlink_claimed_generation
+    failed = False
+
+    def fail_once_for_predecessor(anchor, claim, *args, **kwargs):
+        nonlocal failed
+        if claim == predecessor_claim.name and not failed:
+            failed = True
+            raise OSError("injected predecessor cleanup failure")
+        return real_unlink(anchor, claim, *args, **kwargs)
+
+    with _locked_root(control_root) as locked_root:
+        locked_root.write_exact_file(relative_path, b"old")
+        monkeypatch.setattr(lock_module._DirectoryAnchor, "_unlink_claimed_generation", fail_once_for_predecessor)
+        with pytest.raises(ConflictError, match="cannot be replaced"):
+            locked_root.replace_exact_file(relative_path, b"old", b"new")
+
+        assert failed
+        assert locked_root.read_exact_file(relative_path) == b"new"
+        assert predecessor_claim.read_bytes() == b"old"
+        locked_root.replace_exact_file(relative_path, b"old", b"new")
+        assert locked_root.read_exact_file(relative_path) == b"new"
+
+    assert not predecessor_claim.exists()
     assert not target.with_name(f".{target.name}.replacement-publication-claim").exists()
 
 
@@ -942,23 +1046,6 @@ def test_locked_root_rejects_a_real_reparse_substituted_after_claim_check(
         assert len(quarantines) == 1
         assert (quarantines[0] / target.name).is_symlink()
         assert stat.S_IMODE(quarantines[0].lstat().st_mode) == 0o700
-
-
-def test_posix_exact_generation_deletion_has_a_private_dirfd_quarantine_contract() -> None:
-    """The POSIX path must move a name before unlinking it, never stat/unlink it."""
-
-    import research_system.store.lock as lock_module
-
-    source = inspect.getsource(lock_module._posix_delete_exact_regular_file) + inspect.getsource(
-        lock_module._posix_private_quarantine
-    )
-
-    assert "os.rename(" in source
-    assert "src_dir_fd=" in source
-    assert "dst_dir_fd=" in source
-    assert "os.unlink(" in source
-    assert "dir_fd=" in source
-    assert "0o700" in source
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory-fd quarantine contract")

@@ -32,6 +32,12 @@ class _ExactGenerationBusyError(ConflictError):
     """A sealed generation is temporarily held by another Windows handle."""
 
 
+def _is_windows_sharing_violation(error: OSError) -> bool:
+    """Recognize the native sharing-violation code across CPython OSError forms."""
+
+    return getattr(error, "winerror", None) == 32 or error.errno == 32
+
+
 def _link_without_following(source: Path, destination: Path) -> None:
     """Create one no-replace hard link without following a source reparse path."""
 
@@ -928,9 +934,11 @@ class _DirectoryAnchor:
         except FileNotFoundError:
             source_data = None
             source_identity = None
+        committed_final_identity: os.stat_result | None = None
         if source_identity is not None:
             if source_data != expected:
                 if old_claim_identity is not None and source_data == data:
+                    committed_final_identity = source_identity
                     source_identity = None
                 else:
                     raise ConflictError("anchored file replacement expected bytes differ")
@@ -940,21 +948,27 @@ class _DirectoryAnchor:
             raise ConflictError("anchored file replacement expected predecessor is missing")
 
         new_claim_identity = self._read_claim_or_none(publication_claim, data, final_path)
+        committed_recovery_without_publication_claim = (
+            committed_final_identity is not None and new_claim_identity is None
+        )
         new_claim_created = False
         if new_claim_identity is None:
-            temporary, temporary_identity = self._stage_private_file(name, data, final_path)
-            try:
-                new_claim_identity = self._claim_generation(
-                    temporary, temporary_identity, data, publication_claim, final_path
-                )
-                new_claim_created = True
-                self._fsync_directory(final_path)
-            except BaseException:
+            if committed_recovery_without_publication_claim:
+                new_claim_identity = committed_final_identity
+            else:
+                temporary, temporary_identity = self._stage_private_file(name, data, final_path)
                 try:
-                    self._remove_owned_generation(temporary, temporary_identity, data, final_path)
-                except (FileNotFoundError, ConflictError):
-                    pass
-                raise
+                    new_claim_identity = self._claim_generation(
+                        temporary, temporary_identity, data, publication_claim, final_path
+                    )
+                    new_claim_created = True
+                    self._fsync_directory(final_path)
+                except BaseException:
+                    try:
+                        self._remove_owned_generation(temporary, temporary_identity, data, final_path)
+                    except (FileNotFoundError, ConflictError):
+                        pass
+                    raise
 
         assert new_claim_identity is not None
         primary_error: BaseException | None = None
@@ -978,20 +992,24 @@ class _DirectoryAnchor:
                 if not os.path.samestat(old_claim_identity, self._member_identity(predecessor_claim, final_path)):
                     raise ConflictError("anchored predecessor claim changed after source removal")
 
-            try:
-                self._link_member(publication_claim, name, final_path)
-                final_identity = self._member_identity(name, final_path)
-                if not os.path.samestat(new_claim_identity, final_identity):
-                    raise ConflictError("anchored final changed during replacement publication")
-                self._fsync_directory(final_path)
-            except FileExistsError:
-                final_data, final_identity = self._read_regular_file_with_identity(name, final_path)
-                if final_data != data:
-                    raise ConflictError("anchored replacement final already binds different bytes")
+            if committed_recovery_without_publication_claim:
+                final_identity = committed_final_identity
+            else:
+                try:
+                    self._link_member(publication_claim, name, final_path)
+                    final_identity = self._member_identity(name, final_path)
+                    if not os.path.samestat(new_claim_identity, final_identity):
+                        raise ConflictError("anchored final changed during replacement publication")
+                    self._fsync_directory(final_path)
+                except FileExistsError:
+                    final_data, final_identity = self._read_regular_file_with_identity(name, final_path)
+                    if final_data != data:
+                        raise ConflictError("anchored replacement final already binds different bytes")
             final_data, final_identity = self._read_regular_file_with_identity(name, final_path)
             if final_data != data or not os.path.samestat(new_claim_identity, final_identity):
                 raise ConflictError("anchored replacement publication did not remain exact")
-            self._unlink_claimed_generation(publication_claim, new_claim_identity, data, final_path)
+            if not committed_recovery_without_publication_claim:
+                self._unlink_claimed_generation(publication_claim, new_claim_identity, data, final_path)
             self._unlink_claimed_generation(predecessor_claim, old_claim_identity, expected, final_path)
             self._fsync_directory(final_path)
             final_data, verified_final_identity = self._read_regular_file_with_identity(name, final_path)
@@ -1006,18 +1024,14 @@ class _DirectoryAnchor:
 
         if primary_error is not None:
             cleanup_error: BaseException | None = None
-            if not keep_claims_for_recovery:
-                for claim, claim_identity, created in ((publication_claim, new_claim_identity, new_claim_created),):
-                    if not created or claim_identity is None:
-                        continue
-                    try:
-                        self._unlink_claimed_generation(claim, claim_identity, data, final_path)
-                        self._fsync_directory(final_path)
-                    except FileNotFoundError:
-                        pass
-                    except BaseException as exc:
-                        if cleanup_error is None:
-                            cleanup_error = exc
+            if not keep_claims_for_recovery and new_claim_created:
+                try:
+                    self._unlink_claimed_generation(publication_claim, new_claim_identity, data, final_path)
+                    self._fsync_directory(final_path)
+                except FileNotFoundError:
+                    pass
+                except BaseException as exc:
+                    cleanup_error = exc
             # A predecessor claim is the recoverable proof of the exact old
             # generation after its public name has gone.  It is deliberately
             # not ordinary temporary cleanup, even when the new final was
@@ -1538,7 +1552,7 @@ def _delete_exact_regular_file(
     except ConflictError as exc:
         primary_error = exc
     except OSError as exc:
-        if getattr(exc, "winerror", exc.errno) == 32:
+        if _is_windows_sharing_violation(exc):
             wrapped = _ExactGenerationBusyError(f"{label} exact generation deletion is temporarily busy")
         else:
             wrapped = ConflictError(f"{label} exact generation deletion cannot be sealed")
@@ -1983,6 +1997,7 @@ class WriterLock:
                 parent_anchor: _DirectoryAnchor | None = None
                 ownership_error: BaseException | None = None
                 canonical_proven_exact = False
+                canonical_rollback_unsafe = False
                 anchor_close_error: BaseException | None = None
                 try:
                     parent_anchor = _open_directory_anchor(self.path.parent, reject_reparse=True)
@@ -1991,8 +2006,12 @@ class WriterLock:
                         parent_anchor.final_path,
                     )
                     if not os.path.samestat(temporary_identity, observed_identity) or observed_bytes != self._data:
+                        canonical_rollback_unsafe = True
                         raise ConflictError("writer lock ownership changed after durable publication")
                     canonical_proven_exact = True
+                except ConflictError as exc:
+                    canonical_rollback_unsafe = True
+                    ownership_error = exc
                 except BaseException as exc:
                     ownership_error = exc
                 finally:
@@ -2004,17 +2023,18 @@ class WriterLock:
                 if not canonical_proven_exact:
                     canonical_rollback_error: BaseException | None = None
                     retry_error: BaseException | None = None
-                    try:
-                        _delete_exact_regular_file(
-                            self.path,
-                            temporary_identity,
-                            expected_bytes=self._data,
-                            label="writer lock rejected canonical",
-                        )
-                    except FileNotFoundError:
-                        pass
-                    except BaseException as exc:
-                        canonical_rollback_error = exc
+                    if not canonical_rollback_unsafe:
+                        try:
+                            _delete_exact_regular_file(
+                                self.path,
+                                temporary_identity,
+                                expected_bytes=self._data,
+                                label="writer lock rejected canonical",
+                            )
+                        except FileNotFoundError:
+                            pass
+                        except BaseException as exc:
+                            canonical_rollback_error = exc
                     try:
                         _delete_exact_regular_file(
                             temporary,
@@ -2159,7 +2179,7 @@ class CompositeWriterLock:
             if (
                 os.name == "nt"
                 and isinstance(cause, OSError)
-                and (getattr(cause, "winerror", None) == 32 or cause.errno == 32)
+                and _is_windows_sharing_violation(cause)
                 and lock_state == "live"
             ):
                 raise WriterLockContentionError(f"writer lock exists: {lock_path}") from exc

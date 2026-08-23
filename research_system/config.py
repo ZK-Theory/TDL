@@ -42,7 +42,7 @@ _FOUNDATION_REQUIRED_FIELDS = frozenset(
         "foundation_sha256",
     }
 )
-_FOUNDATION_PLACEHOLDERS = frozenset({"", "null", "none", "placeholder", "todo", "tbd", "unknown"})
+_MATERIALIZED_PLACEHOLDERS = frozenset({"", "null", "none", "placeholder", "todo", "tbd", "unknown"})
 _SPEC_OPERATOR_CONFIG_SCHEMA_ID = "ars://operations/spec-operator-config"
 _SPEC_OPERATOR_CONFIG_SCHEMA_VERSION = "1.0.0"
 _SPEC_OPERATOR_ROUTE_ID = "SPEC-GATE6-RUN-V1"
@@ -62,7 +62,7 @@ _SPEC_OPERATOR_CONFIG_FIELDS = frozenset(
 
 
 def _foundation_string(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not value.strip() or value.strip().lower() in _FOUNDATION_PLACEHOLDERS:
+    if not isinstance(value, str) or not value.strip() or value.strip().lower() in _MATERIALIZED_PLACEHOLDERS:
         raise ConfigurationError(f"approved {field} must be a materialized value")
     return value
 
@@ -71,15 +71,25 @@ def _foundation_sha256(value: dict[str, Any]) -> str:
     return sha256_hex(canonical_bytes({key: item for key, item in value.items() if key != "foundation_sha256"}))
 
 
-def _foundation_digest(value: Any, field: str) -> str:
-    digest = _foundation_string(value, field)
+def _sha256_digest(value: Any, field: str, *, context: str) -> str:
+    digest = value
+    if not isinstance(digest, str) or not digest.strip() or digest.strip().lower() in _MATERIALIZED_PLACEHOLDERS:
+        raise ConfigurationError(f"{context} {field} must be a lowercase SHA-256 digest")
     if len(digest) != 64 or digest.lower() != digest:
-        raise ConfigurationError(f"approved {field} must be a lowercase SHA-256 digest")
+        raise ConfigurationError(f"{context} {field} must be a lowercase SHA-256 digest")
     try:
         int(digest, 16)
     except ValueError as exc:
-        raise ConfigurationError(f"approved {field} must be a lowercase SHA-256 digest") from exc
+        raise ConfigurationError(f"{context} {field} must be a lowercase SHA-256 digest") from exc
     return digest
+
+
+def _foundation_digest(value: Any, field: str) -> str:
+    return _sha256_digest(_foundation_string(value, field), field, context="approved")
+
+
+def _spec_operator_digest(value: Any, field: str) -> str:
+    return _sha256_digest(value, field, context="SPEC operator config")
 
 
 def _canonical_local_cli_uri(control_root: Path) -> str:
@@ -442,6 +452,13 @@ class SpecOperatorConfig:
 
     @classmethod
     def load(cls, path: Path) -> "SpecOperatorConfig":
+        """Load and validate one authority-neutral SPEC operator locator.
+
+        The file is parsed as JSON and validated by :meth:`from_raw`.  This
+        loader does not inspect the control store or authorize an operation;
+        those checks belong to the shared verified-binding and authority
+        seams.
+        """
         try:
             raw = path.read_bytes()
         except OSError as exc:
@@ -450,6 +467,14 @@ class SpecOperatorConfig:
 
     @classmethod
     def from_raw(cls, raw: bytes) -> "SpecOperatorConfig":
+        """Parse exact JSON bytes into an authority-neutral SPEC locator.
+
+        This validates the document identity, route, locator paths, actor and
+        grant identifiers, and digest syntax.  It deliberately does not
+        require the store to exist or authorize a semantic effect.  Callers
+        that need those guarantees must use the shared verified-binding and
+        authority seams.
+        """
         try:
             value: Any = json.loads(raw)
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -477,7 +502,7 @@ class SpecOperatorConfig:
             authority_grant_id = validate_id(str(value["authority_grant_id"]), "authority_grant")
         except ValueError as exc:
             raise ConfigurationError("SPEC operator config identity is invalid") from exc
-        store_identity = _foundation_digest(value["store_identity"], "store_identity")
+        store_identity = _spec_operator_digest(value["store_identity"], "store_identity")
         actor_session_id = value.get("actor_session_id")
         if not isinstance(actor_session_id, str) or not actor_session_id.strip():
             raise ConfigurationError("SPEC operator config actor_session_id must be a non-empty string")

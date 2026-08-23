@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
-from research_system.config import SpecOperatorConfig
+from research_system.config import SpecOperatorConfig, _foundation_digest
 from research_system.errors import ConfigurationError, SchemaError
 from research_system.schema_registry import SchemaRegistry
 
@@ -63,21 +63,10 @@ def test_spec_operator_config_loads_exact_authority_neutral_locator(tmp_path: Pa
     assert config.operator_actor_id == ACTOR_ID
     assert config.actor_session_id == "ses_gate6_operator_01"
     assert config.authority_grant_id == GRANT_ID
-    assert {field.name for field in fields(SpecOperatorConfig)} == {
-        "schema_id",
-        "schema_version",
-        "control_root",
-        "project_id",
-        "store_identity",
-        "route_id",
-        "operator_actor_id",
-        "actor_session_id",
-        "authority_grant_id",
-    }
     assert not any(hasattr(config, name) for name in ("authorize", "admin", "semantic_authority"))
 
 
-@pytest.mark.parametrize("missing", sorted(_document(Path("C:/unused")).keys()))
+@pytest.mark.parametrize("missing", sorted(field.name for field in fields(SpecOperatorConfig)))
 def test_spec_operator_config_requires_every_field(tmp_path: Path, missing: str) -> None:
     document = _document(tmp_path)
     document.pop(missing)
@@ -119,6 +108,22 @@ def test_spec_operator_config_rejects_malformed_locator_fields(
 
     with pytest.raises(ConfigurationError):
         SpecOperatorConfig.from_raw(_raw(document))
+
+
+def test_spec_operator_config_reports_operator_context_for_invalid_digest(tmp_path: Path) -> None:
+    document = _document(tmp_path)
+    document["store_identity"] = "A" * 64
+
+    with pytest.raises(
+        ConfigurationError,
+        match=r"SPEC operator config store_identity must be a lowercase SHA-256 digest",
+    ):
+        SpecOperatorConfig.from_raw(_raw(document))
+
+
+def test_foundation_digest_preserves_materialization_error() -> None:
+    with pytest.raises(ConfigurationError, match=r"approved store_identity must be a materialized value"):
+        _foundation_digest(None, "store_identity")
 
 
 def test_spec_operator_config_does_not_require_store_existence_or_authorize_root(tmp_path: Path) -> None:
