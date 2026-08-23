@@ -23,18 +23,22 @@ from research_system.store.durability import fsync_directory
 LockOwnerState = Literal["missing", "live", "stale", "unknown", "malformed"]
 
 
+class _NativeWindowsHandle(int):
+    """A HANDLE created by the native seam, distinct from a CRT descriptor."""
+
+
 @dataclass(frozen=True)
 class _PendingWindowsClose:
-    """A retained resource close; never a deferred namespace callback.
+    """One closed-set native Windows close disposition.
 
-    ``phase`` is diagnostic only.  It is not a pathname and a ticket can never
-    retry a link, unlink, rename, or deletion decision.
+    ``phase`` is diagnostic only. ``disposition`` selects an internal close
+    implementation; callers cannot supply callbacks. A ticket can never retry
+    a link, unlink, rename, descriptor close, or deletion decision.
     """
 
     phase: str
+    disposition: Literal["native-windows-handle", "directory-anchor"]
     resource: object
-    closer: Callable[[object], None]
-    disposition_applied: bool = False
 
 
 _WINDOWS_CLOSE_QUARANTINE: list[_PendingWindowsClose] = []
@@ -194,8 +198,8 @@ def _release_directory_admission(lease: _DirectoryAdmissionLease | None) -> None
 
     if lease is None or not lease.held:
         return
-    lease.held = False
     lease.slot.lock.release()
+    lease.held = False
     with _DIRECTORY_ADMISSION_LOCK:
         lease.slot.users -= 1
         if lease.slot.users == 0 and _DIRECTORY_ADMISSIONS.get(lease.identity) is lease.slot:
@@ -304,9 +308,9 @@ class WindowsFinalRemoval:
 
 @dataclass(frozen=True)
 class TransactionExitStatus:
-    """Whether a transaction guard release is proven or remains unknown."""
+    """Whether guard ownership is active, released, retained, or terminal-uncertain."""
 
-    guard_state: Literal["active", "released", "unknown"]
+    guard_state: Literal["active", "released", "unknown", "terminal_uncertain"]
     close_only_transferred: bool = False
 
 
@@ -323,7 +327,7 @@ class DirectoryMutationGuard:
     def __init__(self, anchor: object, name: str) -> None:
         self._anchor = anchor
         self._active = False
-        self._release_state: Literal["active", "released", "unknown"] = "active"
+        self._release_state: Literal["active", "released", "unknown", "terminal_uncertain"] = "active"
         self._close_only_transferred = False
         self._retained_release: (
             tuple[
@@ -344,10 +348,12 @@ class DirectoryMutationGuard:
         """Release a serialization resource without downgrading unknown state.
 
         A successful close releases a Windows byte lock and a POSIX flock even
-        when the explicit unlock reported an error.  Only an unlock failure
-        *and* a close failure retains the descriptor as a still-unknown guard
-        owner.  A close failure after a proven unlock is safe to transfer to
-        the close-only registry.
+        when the explicit unlock reported an error. A failed descriptor close
+        is terminal-but-uncertain: POSIX permits the descriptor number to have
+        been released, and another thread may already have reused it. Retrying
+        either unlock or close through that integer could therefore act on an
+        unrelated resource. Native Windows HANDLE owners use their separate,
+        typed retention paths below and never pass through this descriptor API.
         """
 
         try:
@@ -356,12 +362,12 @@ class DirectoryMutationGuard:
             try:
                 closer(resource)
             except BaseException as close_error:
-                self._release_state = "unknown"
-                self._retained_release = (resource, unlocker, closer)
+                self._release_state = "terminal_uncertain"
+                self._retained_release = None
                 return _add_cleanup_error(
                     unlock_error,
                     close_error,
-                    "mutation-guard close also failed while unlock is unknown",
+                    "mutation-guard descriptor close also failed; descriptor will not be retried",
                 )
             self._release_state = "released"
             self._retained_release = None
@@ -370,14 +376,15 @@ class DirectoryMutationGuard:
         try:
             closer(resource)
         except BaseException as close_error:
-            _retain_close_ticket(_close_only_ticket("mutation-guard", resource, closer))
-            self._close_only_transferred = True
+            # Even after a proven unlock, an integer descriptor cannot enter
+            # the close-only registry: close may already have consumed it.
+            self._retained_release = None
             return close_error
         self._retained_release = None
         return None
 
     def retry_release(self) -> None:
-        """Retry only a still-unknown guard owner held after a failed exit."""
+        """Retry only a still-unknown safe owner, never a terminal descriptor."""
 
         retained = self._retained_release
         if retained is None:
@@ -705,10 +712,14 @@ class _DirectoryAnchor:
         # an anchor might itself be one of the retained resources.
         return
 
-    def _close_or_defer_windows_resource(self, resource: object, closer: Callable[[object], None]) -> None:
-        pending = _PendingWindowsClose("anchor", resource, closer)
+    def _close_or_defer_windows_handle(self, handle: object) -> None:
+        pending = _close_only_ticket(
+            "anchor-fence",
+            "native-windows-handle",
+            handle,
+        )
         try:
-            closer(resource)
+            _close_close_only_ticket(pending)
         except BaseException:
             _retain_close_ticket(pending)
             raise
@@ -939,7 +950,7 @@ class _DirectoryAnchor:
         finally:
             if fence is not None:
                 try:
-                    self._close_or_defer_windows_resource(fence, _windows_close_handle)
+                    self._close_or_defer_windows_handle(fence)
                 except BaseException as exc:
                     cleanup_error = exc
         if primary_error is not None:
@@ -1118,11 +1129,16 @@ class _DirectoryAnchor:
 
                     cleanup_error = guard._release_resource(descriptor, unlocker, os.close)
                 elif descriptor is not None:
+                    closing_descriptor = descriptor
+                    descriptor = None
                     try:
-                        self._close_or_defer_windows_resource(descriptor, os.close)
+                        os.close(closing_descriptor)
                     except BaseException as exc:
-                        guard._close_only_transferred = True
-                        cleanup_error = _add_cleanup_error(cleanup_error, exc, "mutation-guard close also failed")
+                        cleanup_error = _add_cleanup_error(
+                            cleanup_error,
+                            exc,
+                            "mutation-guard descriptor close also failed; descriptor will not be retried",
+                        )
             if primary_error is not None:
                 _raise_primary_with_cleanup(primary_error, cleanup_error)
             if cleanup_error is not None:
@@ -1149,8 +1165,18 @@ class _DirectoryAnchor:
                 import fcntl
             except ImportError as exc:  # pragma: no cover - non-POSIX fallback
                 raise ConflictError("platform cannot lock an anchored exclusive guard") from exc
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
-            locked = True
+            for attempt in range(64):
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    if attempt == 63:
+                        raise ConflictError("anchored exclusive guard is unavailable") from exc
+                    time.sleep(0.005)
+                    continue
+                locked = True
+                break
+            if not locked:  # pragma: no cover - the final retry raises
+                raise ConflictError("anchored exclusive guard is unavailable")
             guard._active = True
             self._active_mutation_guard = guard
             self.verify_unchanged()
@@ -1169,12 +1195,16 @@ class _DirectoryAnchor:
 
                 cleanup_error = guard._release_resource(descriptor, unlocker, os.close)
             elif descriptor is not None:
+                closing_descriptor = descriptor
+                descriptor = None
                 try:
-                    os.close(descriptor)
+                    os.close(closing_descriptor)
                 except BaseException as error:
-                    _retain_close_ticket(_close_only_ticket("mutation-guard", descriptor, os.close))
-                    guard._close_only_transferred = True
-                    cleanup_error = _add_cleanup_error(cleanup_error, error, "mutation-guard close also failed")
+                    cleanup_error = _add_cleanup_error(
+                        cleanup_error,
+                        error,
+                        "mutation-guard descriptor close also failed; descriptor will not be retried",
+                    )
         if primary_error is not None:
             _raise_primary_with_cleanup(primary_error, cleanup_error)
         if cleanup_error is not None:
@@ -1183,23 +1213,67 @@ class _DirectoryAnchor:
     def _close_without_quarantine(self) -> None:
         if self._closed:
             return
-        self._close_impl(self._handle)
-        self._closed = True
+        if os.name != "nt":
+            # A POSIX close error does not grant retry authority over the same
+            # descriptor number; it may already name an unrelated resource.
+            self._closed = True
+            self._close_impl(self._handle)
+        else:
+            self._close_impl(self._handle)
+            self._closed = True
         self._quarantined = False
 
     def _retain_transaction_hold(self) -> None:
-        if self._closed:
-            raise ConflictError("anchored directory is already closed")
-        self._transaction_holds += 1
+        """Retain this anchor and every ancestor needed to verify its identity."""
+
+        chain = self._transaction_anchor_chain()
+        # Validate the complete chain before incrementing any member. A failed
+        # retain therefore cannot leave a partial hold which no transaction
+        # owns or knows how to release.
+        for anchor in reversed(chain):
+            if anchor._closed:
+                raise ConflictError("anchored directory is already closed")
+        for anchor in reversed(chain):
+            anchor._transaction_holds += 1
 
     def _release_transaction_hold(self) -> None:
-        if self._transaction_holds < 1:
-            raise RuntimeError("anchored transaction hold is not live")
-        self._transaction_holds -= 1
-        if self._transaction_holds or not self._close_requested:
-            return
-        self._close_requested = False
-        self.close()
+        """Release one complete leaf-to-root hold, attempting every deferred close."""
+
+        chain = self._transaction_anchor_chain()
+        # As on retain, validate before changing any count. The transaction
+        # owns the chain as one unit; a partial release would make a later retry
+        # either double-release an ancestor or strand another one.
+        for anchor in chain:
+            if anchor._transaction_holds < 1:
+                raise RuntimeError("anchored transaction hold is not live")
+
+        first_error: BaseException | None = None
+        for anchor in chain:
+            anchor._transaction_holds -= 1
+            if anchor._transaction_holds or not anchor._close_requested:
+                continue
+            anchor._close_requested = False
+            try:
+                anchor.close()
+            except BaseException as error:
+                first_error = _add_cleanup_error(first_error, error, "ancestor anchor close also failed")
+        if first_error is not None:
+            raise first_error
+
+    def _transaction_anchor_chain(self) -> tuple[_DirectoryAnchor, ...]:
+        """Return the physical leaf-to-root identity chain without callbacks."""
+
+        chain: list[_DirectoryAnchor] = []
+        seen: set[int] = set()
+        current: _DirectoryAnchor | None = self
+        while current is not None:
+            marker = id(current)
+            if marker in seen:
+                raise ConflictError("anchored directory ancestry is cyclic")
+            seen.add(marker)
+            chain.append(current)
+            current = current._parent
+        return tuple(chain)
 
     def close(self) -> None:
         if self._transaction_holds:
@@ -1214,8 +1288,9 @@ class _DirectoryAnchor:
         try:
             self._close_without_quarantine()
         except BaseException:
-            self._quarantined = True
-            _retain_close_ticket(_close_only_ticket("anchor", self, lambda value: value._close_without_quarantine()))
+            if os.name == "nt":
+                self._quarantined = True
+                _retain_close_ticket(_close_only_ticket("anchor", "directory-anchor", self))
             raise
 
 
@@ -1354,7 +1429,7 @@ def _windows_open_handle(
     value = getattr(handle, "value", handle)
     if value in (None, _INVALID_HANDLE_VALUE):
         raise _windows_api_error(f"CreateFileW({path})")
-    return handle
+    return _NativeWindowsHandle(int(value))
 
 
 def _windows_read_handle(handle: object) -> bytes:
@@ -1389,18 +1464,14 @@ def _windows_close_handle(handle: object) -> None:
 
 
 def _drain_windows_close_quarantine() -> None:
-    """Synchronously drain the one close-only resource registry.
+    """Synchronously drain native Windows close-only resources."""
 
-    The historical name remains a compatibility seam. The registry is now
-    platform-neutral because a failed POSIX descriptor close is resource state
-    too; its entries contain no namespace callback.
-    """
     with _WINDOWS_CLOSE_QUARANTINE_LOCK:
         retained: list[_PendingWindowsClose] = []
         error: BaseException | None = None
         for pending in _WINDOWS_CLOSE_QUARANTINE:
             try:
-                pending.closer(pending.resource)
+                _close_close_only_ticket(pending)
             except BaseException as exc:
                 retained.append(pending)
                 error = _add_cleanup_error(error, exc, f"Windows {pending.phase} close retry failed")
@@ -1410,35 +1481,62 @@ def _drain_windows_close_quarantine() -> None:
 
 
 def drain_close_quarantine() -> None:
-    """Synchronously retry the one platform-neutral close-only registry."""
+    """Synchronously retry the closed-set native Windows close registry."""
 
     _drain_windows_close_quarantine()
 
 
 def _close_only_ticket(
     label: str,
+    disposition: Literal["native-windows-handle", "directory-anchor"],
     resource: object,
-    closer: Callable[[object], None],
 ) -> _PendingWindowsClose:
-    """Construct an internal resource-only close ticket.
+    """Construct one closed-set resource-only close ticket.
 
-    Namespace-capable owners cannot be represented here: the ticket retains
-    only a concrete resource and its close operation, and Delete=True tickets
-    are rejected before they reach this registry.
+    The disposition, not a caller callback, selects the only permitted close.
+    Integer descriptors and namespace-capable Delete=True owners cannot be
+    represented here.
     """
 
     if not isinstance(label, str) or not label:
         raise ValueError("close quarantine label must be a non-empty string")
-    if not callable(closer):
-        raise TypeError("close quarantine ticket requires a closer")
-    return _PendingWindowsClose(label, resource, closer)
+    if os.name != "nt":
+        raise TypeError("close quarantine accepts only native Windows resources")
+    if disposition == "native-windows-handle":
+        if not isinstance(resource, _NativeWindowsHandle):
+            raise TypeError("close quarantine rejects untyped integer descriptor ownership")
+        if int(resource) in (0, _INVALID_HANDLE_VALUE):
+            raise TypeError("close quarantine requires a live native Windows HANDLE")
+    elif disposition == "directory-anchor":
+        if not isinstance(resource, _DirectoryAnchor):
+            raise TypeError("close quarantine requires a concrete directory anchor")
+    else:
+        raise TypeError("close quarantine disposition is invalid")
+    return _PendingWindowsClose(label, disposition, resource)
+
+
+def _close_close_only_ticket(ticket: _PendingWindowsClose) -> None:
+    """Dispatch one validated ticket without accepting caller code."""
+
+    if ticket.disposition == "native-windows-handle":
+        if not isinstance(ticket.resource, _NativeWindowsHandle):
+            raise TypeError("close quarantine native HANDLE wrapper is invalid")
+        _windows_close_handle(ticket.resource)
+        return
+    if ticket.disposition == "directory-anchor" and isinstance(ticket.resource, _DirectoryAnchor):
+        ticket.resource._close_without_quarantine()
+        return
+    raise TypeError("close quarantine ticket is not a permitted typed resource")
 
 
 def _retain_close_ticket(ticket: _PendingWindowsClose) -> None:
     """Transfer one typed resource-only ticket to the close registry."""
 
-    if not isinstance(ticket, _PendingWindowsClose) or ticket.disposition_applied:
+    if not isinstance(ticket, _PendingWindowsClose):
         raise TypeError("close quarantine accepts only a resource-only ticket")
+    # Re-run closed-set validation so direct construction cannot bypass the
+    # private constructor's resource/disposition checks.
+    _close_only_ticket(ticket.phase, ticket.disposition, ticket.resource)
     with _WINDOWS_CLOSE_QUARANTINE_LOCK:
         _WINDOWS_CLOSE_QUARANTINE.append(ticket)
 
@@ -1454,17 +1552,16 @@ def retain_close_failure(ticket: _PendingWindowsClose) -> None:
     _retain_close_ticket(ticket)
 
 
-def _close_or_retain_windows_resource(
-    pending: _PendingWindowsClose,
-    release: Any | None = None,
-) -> None:
+def _close_or_retain_windows_handle(label: str, handle: object) -> None:
+    pending = _close_only_ticket(
+        label,
+        "native-windows-handle",
+        handle,
+    )
     try:
-        pending.closer(pending.resource)
+        _close_close_only_ticket(pending)
     except BaseException:
-        if release is not None:
-            release.closes += (pending,)
-        else:
-            _retain_close_ticket(pending)
+        _retain_close_ticket(pending)
         raise
 
 
@@ -1491,12 +1588,29 @@ def _windows_file_id(handle: object) -> DirectoryIdentity:
         raise _windows_api_error("GetFileInformationByHandleEx(FileIdInfo)")
     file_id = bytes(info.FileId.Identifier)
     if not file_id or file_id == b"\0" * 16:
-        raise ConflictError("Windows directory returned an unusable file identity")
+        raise ConflictError("Windows filesystem object returned an unusable file identity")
     return DirectoryIdentity(
         "windows-file-id-v1",
         int(info.VolumeSerialNumber),
         file_id,
     )
+
+
+def _windows_handle_matches_stat(handle: object, expected: os.stat_result) -> bool:
+    """Compare one live native HANDLE with the generation captured by stat.
+
+    CPython's Windows ``st_dev`` and ``st_ino`` are the volume serial and the
+    little-endian 128-bit file identifier returned by ``FileIdInfo``. Reading
+    both values from the already-open delete HANDLE closes the path/open race:
+    no later pathname observation can substitute for this comparison.
+    """
+
+    identity = _windows_file_id(handle)
+    return identity.volume_or_device == int(expected.st_dev) and int.from_bytes(
+        identity.file_id,
+        "little",
+        signed=False,
+    ) == int(expected.st_ino)
 
 
 def _windows_final_path(handle: object) -> Path:
@@ -1571,6 +1685,8 @@ def _delete_exact_regular_file(
             raise ConflictError(f"{label} must be a physical regular file")
         if attributes & _FILE_ATTRIBUTE_DIRECTORY:
             raise ConflictError(f"{label} must be a regular file")
+        if not _windows_handle_matches_stat(handle, expected_identity):
+            raise ConflictError(f"{label} opened generation changed before exact deletion")
         observed = _regular_file_identity(path, label=label)
         if not os.path.samestat(observed, expected_identity):
             raise ConflictError(f"{label} generation changed before exact deletion")
@@ -1617,7 +1733,13 @@ def _delete_exact_regular_file(
                     pending_error.__cause__ = close_error
                     primary_error = pending_error
                 elif primary_error is None:
-                    _retain_close_ticket(_close_only_ticket(close_phase, handle, _windows_close_handle))
+                    _retain_close_ticket(
+                        _close_only_ticket(
+                            close_phase,
+                            "native-windows-handle",
+                            handle,
+                        )
+                    )
                     wrapped = ConflictError(f"{label} exact generation deletion handle cannot close")
                     wrapped.__cause__ = close_error
                     primary_error = wrapped
@@ -1672,7 +1794,7 @@ def _open_windows_anchor(
             if probe_identity != identity:
                 raise ConflictError(f"{path} physical identity changed between no-follow probe and followed open")
             try:
-                _close_or_retain_windows_resource(_PendingWindowsClose("anchor", probe, _windows_close_handle))
+                _close_or_retain_windows_handle("anchor-probe", probe)
             except BaseException as close_error:
                 first_close_error = close_error
                 probe = None
@@ -1704,7 +1826,7 @@ def _open_windows_anchor(
             if candidate is None:
                 continue
             try:
-                _close_or_retain_windows_resource(_PendingWindowsClose("anchor", candidate, _windows_close_handle))
+                _close_or_retain_windows_handle("anchor-candidate", candidate)
             except BaseException as close_error:
                 if first_close_error is None:
                     first_close_error = close_error
@@ -1998,8 +2120,9 @@ class DirectoryTransaction:
         """The most recent guard-release outcome.
 
         A caller must not treat an exception from ``__exit__`` as merely a
-        close failure: ``guard_state == 'unknown'`` means the caller retains
-        its full protocol owner until it can establish a safe terminal state.
+        close failure: ``unknown`` retains a safe full protocol owner, while
+        ``terminal_uncertain`` means a descriptor close could not be proven but
+        its integer is no longer retry authority.
         """
 
         return self._exit_status
@@ -2035,13 +2158,65 @@ class DirectoryTransaction:
             self._entered = True
             self._exit_status = TransactionExitStatus("active")
             return self
-        except BaseException:
-            self._release_anchor_hold()
-            _release_directory_admission(self._admission)
-            self._admission = None
-            _release_full_owner(reservation)
-            self._reservation = None
-            raise
+        except BaseException as primary_error:
+            cleanup_error: BaseException | None = None
+            try:
+                self._release_anchor_hold()
+            except BaseException as error:
+                cleanup_error = _add_cleanup_error(
+                    cleanup_error,
+                    error,
+                    "transaction-entry anchor-chain release failed",
+                )
+
+            admission = self._admission
+            try:
+                _release_directory_admission(admission)
+            except BaseException as error:
+                cleanup_error = _add_cleanup_error(
+                    cleanup_error,
+                    error,
+                    "transaction-entry admission release failed",
+                )
+            if admission is None or not admission.held:
+                self._admission = None
+
+            # A failed entry never transferred this reservation to a retained
+            # full owner. Free its capacity once every acquired resource has
+            # reached terminal state. If cleanup itself remains non-terminal,
+            # transfer this transaction so the next registry drain can finish
+            # the exact admission/anchor release rather than stranding an
+            # ownerless capacity slot.
+            if not self._anchor_hold and self._admission is None:
+                try:
+                    _release_full_owner(reservation)
+                except BaseException as error:
+                    cleanup_error = _add_cleanup_error(
+                        cleanup_error,
+                        error,
+                        "transaction-entry reservation release failed",
+                    )
+                    if not reservation.released:
+                        try:
+                            _transfer_full_owner(reservation, self)
+                        except BaseException as transfer_error:
+                            cleanup_error = _add_cleanup_error(
+                                cleanup_error,
+                                transfer_error,
+                                "transaction-entry owner transfer also failed",
+                            )
+                else:
+                    self._reservation = None
+            else:
+                try:
+                    _transfer_full_owner(reservation, self)
+                except BaseException as error:
+                    cleanup_error = _add_cleanup_error(
+                        cleanup_error,
+                        error,
+                        "transaction-entry owner transfer also failed",
+                    )
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
 
     def _retain_anchor_hold(self) -> None:
         retain = getattr(self._anchor, "_retain_transaction_hold", None)
@@ -2064,14 +2239,33 @@ class DirectoryTransaction:
         _transfer_full_owner(reservation, self)
 
     def _release_terminal_full_owner(self) -> None:
-        if self._retained_guard is not None or self._pending_windows_removals:
+        if self._entered or self._retained_guard is not None or self._pending_windows_removals:
             return
-        self._full_owner_terminal = True
-        _release_full_owner(self._reservation)
-        self._reservation = None
-        self._release_anchor_hold()
-        _release_directory_admission(self._admission)
-        self._admission = None
+
+        # Namespace authority is terminal before resource release begins.
+        # Attempt both the complete anchor-chain release and admission release
+        # even when one close fails. Anchor close failures are retained by the
+        # close-only registry; an admission failure remains a full-owner state.
+        first_error: BaseException | None = None
+        try:
+            self._release_anchor_hold()
+        except BaseException as error:
+            first_error = _add_cleanup_error(first_error, error, "transaction anchor-chain release failed")
+
+        admission = self._admission
+        try:
+            _release_directory_admission(admission)
+        except BaseException as error:
+            first_error = _add_cleanup_error(first_error, error, "transaction admission release failed")
+        if admission is None or not admission.held:
+            self._admission = None
+
+        if not self._anchor_hold and self._admission is None:
+            self._full_owner_terminal = True
+            _release_full_owner(self._reservation)
+            self._reservation = None
+        if first_error is not None:
+            raise first_error
 
     def _require_active(self, *, allow_pending: bool = False) -> DirectoryMutationGuard:
         if not self._entered or self._guard is None:
@@ -2081,7 +2275,7 @@ class DirectoryTransaction:
         return self._guard
 
     def retry_guard_release(self) -> None:
-        """Retry a guard whose unlock and close both failed during ``__exit__``."""
+        """Retry only a safely retained guard, never a terminal-uncertain descriptor."""
 
         guard = self._retained_guard
         if guard is None:
@@ -2266,8 +2460,9 @@ class DirectoryTransaction:
                         raise OSError("directory transaction private stage write made no progress")
                     remaining = remaining[written:]
                 os.fsync(descriptor)
-                os.close(descriptor)
+                closing_descriptor = descriptor
                 descriptor = None
+                os.close(closing_descriptor)
                 observed_data, observed_identity = anchor._read_regular_file_with_identity(temporary, protected_path)
                 if observed_data != data or not self._same_generation(opened_identity, observed_identity):
                     raise ConflictError("directory transaction private stage changed before pin")
@@ -2276,13 +2471,15 @@ class DirectoryTransaction:
             primary_error = error
             cleanup_error: BaseException | None = None
             if descriptor is not None:
+                closing_descriptor = descriptor
+                descriptor = None
                 try:
-                    os.close(descriptor)
-                except BaseException:
-                    try:
-                        _close_or_retain_windows_resource(_PendingWindowsClose("temporary", descriptor, os.close))
-                    except BaseException as retained_error:
-                        cleanup_error = retained_error
+                    os.close(closing_descriptor)
+                except BaseException as close_error:
+                    # An integer descriptor is never safe retry state after a
+                    # failed close: it may already have been recycled. The
+                    # reserved stage name is the durable recovery owner.
+                    cleanup_error = close_error
             # A failed pre-metadata stage is deliberate recovery state. The
             # random 32-hex token reserves this exact name for a later guarded
             # transaction; it must not be guessed from payload bytes or
@@ -2438,6 +2635,8 @@ class DirectoryTransaction:
         attributes, _tag = _windows_file_attribute_tag(handle)
         if attributes & _FILE_ATTRIBUTE_REPARSE_POINT or attributes & _FILE_ATTRIBUTE_DIRECTORY:
             raise ConflictError("directory transaction final lease is not a physical regular file")
+        if not _windows_handle_matches_stat(handle, expected_identity):
+            raise ConflictError("directory transaction final lease generation changed")
         observed_data = _windows_read_handle(handle)
         confirmed_identity = _regular_file_identity(final_path / name, label="directory transaction final")
         if (
@@ -2665,7 +2864,15 @@ class DirectoryTransaction:
         self._entered = False
         if context is None:
             self._exit_status = TransactionExitStatus("released")
-            self._release_terminal_full_owner()
+            terminal_error: BaseException | None = None
+            try:
+                self._release_terminal_full_owner()
+            except BaseException as error:
+                terminal_error = error
+            if exc is not None and terminal_error is not None:
+                _raise_primary_with_cleanup(exc, terminal_error)
+            if terminal_error is not None:
+                raise terminal_error
             return False
         context_error: BaseException | None = None
         try:
@@ -2677,28 +2884,32 @@ class DirectoryTransaction:
         if guard_state == "unknown" and isinstance(guard, DirectoryMutationGuard):
             self._retained_guard = guard
         self._exit_status = TransactionExitStatus(guard_state, close_only)
-        if self._retained_guard is not None or self._pending_windows_removals:
-            self._transfer_retained_full_owner()
-        else:
-            self._release_terminal_full_owner()
-        if context_error is not None:
-            if exc is not None:
-                if pending_error is not None:
-                    context_error = _add_cleanup_error(
-                        context_error,
-                        pending_error,
-                        "pending exact deletion retry also failed",
-                    )
-                _raise_primary_with_cleanup(exc, context_error)
-            if pending_error is not None:
-                context_error = _add_cleanup_error(
-                    context_error,
-                    pending_error,
-                    "pending exact deletion retry also failed",
-                )
-            raise context_error
-        if pending_error is not None and exc is None:
-            raise pending_error
+        owner_error: BaseException | None = None
+        try:
+            if self._retained_guard is not None or self._pending_windows_removals:
+                self._transfer_retained_full_owner()
+            else:
+                self._release_terminal_full_owner()
+        except BaseException as error:
+            owner_error = error
+
+        cleanup_error = context_error
+        if pending_error is not None:
+            cleanup_error = _add_cleanup_error(
+                cleanup_error,
+                pending_error,
+                "pending exact deletion retry also failed",
+            )
+        if owner_error is not None:
+            cleanup_error = _add_cleanup_error(
+                cleanup_error,
+                owner_error,
+                "transaction owner handoff or terminal release also failed",
+            )
+        if exc is not None and cleanup_error is not None:
+            _raise_primary_with_cleanup(exc, cleanup_error)
+        if cleanup_error is not None:
+            raise cleanup_error
         if self._pending_windows_removals and exc is None:
             raise ConflictError("directory transaction exact deletion remains pending")
         # Do not delete staged names on an error. They are the sole persistent

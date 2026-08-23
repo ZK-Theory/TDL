@@ -91,6 +91,28 @@ not make it the default empirical method.
   reconcile the transaction under that same canonical guard. Writer and
   composite release must likewise have one serialized owner and preserve the
   protected body exception as primary evidence.
+- The first exact-head review of `STORE-1A-LOCK-V2A` at `175bce138...` was
+  `REWORK_REQUIRED`. It exposed one ownership family rather than isolated line
+  defects: a retained leaf transaction did not retain the ancestor anchors
+  needed for later verification; Windows exact deletion compared mutable path
+  identity but not the already-open delete handle; and integer descriptor close
+  failures could be retried after the operating system had already reused the
+  descriptor number. The replacement model retains the complete anchor chain,
+  binds every deletion-capable Windows handle to the captured generation, and
+  treats CRT/POSIX descriptor close as a one-shot terminal-uncertain operation.
+  A fresh exact-head review is required after the batched remediation; the
+  superseded review is defect evidence, not acceptance.
+- The batched V2A remediation passes the direct transaction controls on Windows
+  (`17 passed, 3 skipped`) and Linux (`15 passed, 5 skipped`), the complete
+  Windows immutable-store module (`80 passed`), the Windows publication module
+  (`55 passed, 8 skipped`), the session-exchange contract on both platforms
+  (`22 passed`), and the cross-platform immutable-object selection (Windows
+  `30 passed, 2 skipped`; Linux `32 passed`). The required currency selection is
+  `5 passed` on each platform. The complete Linux preservation run still has
+  four `test_store.py` and eight publication-module failures, all in the
+  unchanged retired `store/lock.py` Writer/LockedRoot implementation and all
+  inherited from `121e20ff...`; V2B owns their replacement. These construction
+  results do not replace the fresh frozen-head test and review gates.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -333,14 +355,27 @@ publication attempt; it does not abolish the existing explicit
 `ObjectStore.rollback_new_revision` authority held by the higher-level command
 transaction after a successful returned write. That caller-owned rollback keeps
 its exact-generation and pre-existence checks and uses the same canonical guard.
-A separate close-only quarantine may retain descriptors or handles after
-namespace terminality, but it contains no link, unlink, rename, or publication
-callback. Writer release and Composite rollback retain one serialized release
-owner; a transferred member cannot self-register a second owner.
+A separate close-only quarantine may retain only typed native Windows HANDLE
+owners after namespace terminality; it contains no integer CRT/POSIX descriptor
+and no link, unlink, rename, or publication callback. An integer descriptor
+close is attempted once because an error does not prove that its number remains
+owned; later retry by number could act on an unrelated descriptor. Guard
+acquisition is bounded so an uncertain surviving lock fails closed instead of
+hanging another operation. Writer release and Composite rollback retain one
+serialized release owner; a transferred member cannot self-register a second
+owner.
+
+Every Windows deletion-capable seam compares `FileIdInfo` from the already-open
+native handle with the captured volume and file identity before applying
+`Delete=True`, in addition to same-handle bytes and mutable-path revalidation.
+The V2B successor must apply the same handle-bound identity proof to writer file
+leases and audit its retained-close paths against the native-HANDLE-only rule;
+those lease and writer changes do not belong in V2A.
 
 Linux exactness is defined against all repository-controlled STORE participants,
-which must use the canonical transaction guard. A retained descriptor plus that
-guard detects and preserves an observed foreign generation. Python cannot make
+which must use the canonical transaction guard. While it is live, a retained
+descriptor plus that guard detects and preserves an observed foreign generation.
+Python cannot make
 pathname unlink atomic against an uncooperative same-UID process that bypasses
 the guard; such direct filesystem mutation is out-of-contract tampering, not a
 capability silently claimed by this implementation. Requiring protection from

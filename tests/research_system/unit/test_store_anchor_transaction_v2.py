@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ConflictError
+from research_system.errors import ConflictError, IntegrityError
 from research_system.store.anchor import (
     DirectoryIdentity,
     DirectoryMutationGuard,
@@ -118,37 +118,38 @@ def test_partial_owned_stage_is_retained_and_exact_retry_drains_only_it(tmp_path
     assert foreign.read_bytes() == b"foreign-stage"
 
 
-def test_object_front_door_retries_unknown_guard_owner(tmp_path: Path, monkeypatch) -> None:
-    """An unknown unlock/close owner remains reachable at the next public write."""
+def test_object_front_door_does_not_retry_terminal_uncertain_descriptor(tmp_path: Path, monkeypatch) -> None:
+    """An ambiguous POSIX descriptor release is terminal, never a retry ticket."""
 
-    value = {"value": "unknown-guard-front-door"}
+    value = {"value": "terminal-uncertain-guard-front-door"}
     target = _object_target(tmp_path, value)
     original_release = DirectoryMutationGuard._release_resource
     original_retry = DirectoryMutationGuard.retry_release
     injected_guard: DirectoryMutationGuard | None = None
     injected = False
-    retry_ready = False
     retry_called = False
-
-    def fail_unlock(_resource: object) -> None:
-        if not retry_ready:
-            raise OSError("injected unlock failure")
-
-    def fail_close(_resource: object) -> None:
-        if not retry_ready:
-            raise OSError("injected close failure")
 
     def fail_once(guard, resource, unlocker, closer):
         nonlocal injected, injected_guard
         if not injected:
             injected = True
             injected_guard = guard
-            # Close the real descriptor before substituting inert retry state.
-            try:
-                unlocker(resource)
-            finally:
-                closer(resource)
-            return original_release(guard, object(), fail_unlock, fail_close)
+
+            def fail_unlock(released_resource: object) -> None:
+                try:
+                    unlocker(released_resource)
+                finally:
+                    raise OSError("injected unlock failure")
+
+            def fail_close(released_resource: object) -> None:
+                try:
+                    closer(released_resource)
+                finally:
+                    raise OSError("injected close failure")
+
+            # Both operations touch the real guard descriptor. The close has
+            # already consumed it when the terminal uncertainty is reported.
+            return original_release(guard, resource, fail_unlock, fail_close)
         return original_release(guard, resource, unlocker, closer)
 
     def observe_retry(guard):
@@ -160,14 +161,16 @@ def test_object_front_door_retries_unknown_guard_owner(tmp_path: Path, monkeypat
     monkeypatch.setattr(DirectoryMutationGuard, "_release_resource", fail_once)
     monkeypatch.setattr(DirectoryMutationGuard, "retry_release", observe_retry)
 
-    with pytest.raises(BaseException, match="unlock|close|unknown"):
+    with pytest.raises((ConflictError, OSError), match="unlock|close|descriptor"):
         ObjectStore(tmp_path).write("task", TASK_ID, 1, value)
     assert injected_guard is not None
+    assert injected_guard._release_state == "terminal_uncertain"
+    assert injected_guard._retained_release is None
+    assert not injected_guard._close_only_transferred
     assert target.exists()
 
-    retry_ready = True
     assert ObjectStore(tmp_path).write("task", TASK_ID, 1, value) == target
-    assert retry_called
+    assert not retry_called
 
 
 def test_object_namespace_uses_one_fixed_persistent_guard(tmp_path: Path, monkeypatch) -> None:
@@ -253,32 +256,406 @@ def test_successful_retry_survives_public_close_safe_point_without_final_delete(
     assert target.exists()
 
 
-def test_close_only_ticket_is_typed_and_never_mutates_namespace(tmp_path: Path) -> None:
-    """Resource-only close retries cannot carry a namespace callback."""
+def test_close_only_ticket_rejects_arbitrary_callbacks_and_descriptors(tmp_path: Path) -> None:
+    """The close-only seam cannot register callback-shaped or CRT resources."""
 
     import research_system.store.anchor as anchor_module
 
     marker = tmp_path / "close-only-marker"
     marker.write_bytes(b"preserve")
-    attempts = 0
 
-    def close_only(_resource):
-        nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            raise OSError("injected close-only failure")
-
-    ticket = anchor_module._close_only_ticket("anchor-v2-test", object(), close_only)
-    anchor_module._retain_close_ticket(ticket)
-    with pytest.raises(ConflictError, match="close remains pending"):
-        drain_close_quarantine()
-    assert attempts == 1
-    assert marker.exists()
-    drain_close_quarantine()
-    assert attempts == 2
-    assert marker.exists()
+    with pytest.raises(TypeError):
+        anchor_module._close_only_ticket("arbitrary-callback", "arbitrary-callback", lambda: None)
+    descriptor = os.open(marker, os.O_RDONLY)
+    try:
+        with pytest.raises(TypeError):
+            anchor_module._close_only_ticket("wrapped-os-close", "native-windows-handle", descriptor)
+    finally:
+        os.close(descriptor)
     with pytest.raises(TypeError):
         anchor_module._retain_close_ticket(object())
+    assert marker.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows typed close-ticket retry control")
+def test_windows_close_only_tickets_retry_only_native_handles_and_anchors(tmp_path: Path, monkeypatch) -> None:
+    """Native HANDLE and anchor tickets retry; no caller closer is involved."""
+
+    import research_system.store.anchor as anchor_module
+
+    root = tmp_path / "typed-close-root"
+    root.mkdir()
+    anchor = open_registered_root_anchor(root, delete_protect=False)
+    target = root / "typed-close-target"
+    target.write_bytes(b"native-handle")
+    handle = anchor_module._windows_open_handle(
+        target,
+        open_reparse_point=True,
+        delete_protect=False,
+        read_contents=True,
+        share_mode=(
+            anchor_module._FILE_SHARE_READ | anchor_module._FILE_SHARE_WRITE | anchor_module._FILE_SHARE_DELETE
+        ),
+    )
+    native_attempts = 0
+    anchor_attempts = 0
+    real_close_handle = anchor_module._windows_close_handle
+    real_anchor_close = anchor_module._DirectoryAnchor._close_without_quarantine
+
+    def fail_native_once(resource):
+        nonlocal native_attempts
+        native_attempts += 1
+        if native_attempts == 1:
+            raise OSError("injected native HANDLE close failure")
+        return real_close_handle(resource)
+
+    def fail_anchor_once(current_anchor):
+        nonlocal anchor_attempts
+        if current_anchor is anchor:
+            anchor_attempts += 1
+        if current_anchor is anchor and anchor_attempts == 1:
+            raise OSError("injected anchor close failure")
+        return real_anchor_close(current_anchor)
+
+    monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_native_once)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_close_without_quarantine", fail_anchor_once)
+    try:
+        native_ticket = anchor_module._close_only_ticket("native-handle", "native-windows-handle", handle)
+        anchor_ticket = anchor_module._close_only_ticket("directory-anchor", "directory-anchor", anchor)
+        anchor_module._retain_close_ticket(native_ticket)
+        anchor_module._retain_close_ticket(anchor_ticket)
+        with pytest.raises(ConflictError, match="close remains pending"):
+            drain_close_quarantine()
+        assert native_attempts == 1 and anchor_attempts == 1
+
+        drain_close_quarantine()
+        assert native_attempts == 2 and anchor_attempts == 2
+        assert anchor._closed
+        assert target.read_bytes() == b"native-handle"
+    finally:
+        try:
+            real_close_handle(handle)
+        except BaseException:
+            pass
+        if not anchor._closed:
+            try:
+                real_anchor_close(anchor)
+            except BaseException:
+                pass
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX close-ticket descriptor-reuse control")
+def test_posix_close_ticket_cannot_close_a_reused_descriptor(tmp_path: Path, monkeypatch) -> None:
+    """A close error after real close must not later close a reused fd."""
+
+    import research_system.store.anchor as anchor_module
+
+    reuse_path = tmp_path / "reused-descriptor"
+    real_close = os.close
+    real_open = os.open
+    ready_for_guard_close = False
+    injected = False
+    target_fd: int | None = None
+    reused_fd: int | None = None
+
+    def close_after_real_close(fd: int) -> None:
+        nonlocal injected, target_fd, reused_fd
+        if ready_for_guard_close and not injected:
+            injected = True
+            target_fd = fd
+            # The underlying descriptor is already closed when the injected
+            # exception is raised. Force the next live file onto its number.
+            real_close(fd)
+            candidate = real_open(reuse_path, os.O_CREAT | os.O_RDWR, 0o600)
+            os.write(candidate, b"fd-reuse-sentinel")
+            if candidate != fd:
+                os.dup2(candidate, fd)
+                real_close(candidate)
+            reused_fd = fd
+            raise OSError("injected close error after descriptor close")
+        real_close(fd)
+
+    original_link = DirectoryTransaction._link_with_immediate_receipt
+
+    def mark_guard_close_ready(transaction, stage, final_name, guard):
+        nonlocal ready_for_guard_close
+        result = original_link(transaction, stage, final_name, guard)
+        ready_for_guard_close = True
+        return result
+
+    monkeypatch.setattr(DirectoryTransaction, "_link_with_immediate_receipt", mark_guard_close_ready)
+    monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
+
+    try:
+        with pytest.raises(OSError, match="after descriptor close"):
+            ObjectStore(tmp_path).write("task", TASK_ID, 1, {"value": "fd-reuse"})
+        assert injected and target_fd is not None and reused_fd == target_fd
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 64) == b"fd-reuse-sentinel"
+
+        drain_close_quarantine()
+        # A stale integer close ticket would close the reused descriptor here.
+        os.fstat(reused_fd)
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 64) == b"fd-reuse-sentinel"
+    finally:
+        if reused_fd is not None:
+            try:
+                real_close(reused_fd)
+            except OSError:
+                pass
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX stage descriptor-reuse control")
+def test_posix_stage_close_error_marks_descriptor_terminal_before_cleanup(tmp_path: Path, monkeypatch) -> None:
+    """A failed stage close cannot let exception cleanup close a recycled fd."""
+
+    import research_system.store.anchor as anchor_module
+
+    sentinel_path = tmp_path / "stage-reused-descriptor"
+    real_close = os.close
+    real_open = os.open
+    stage_fd: int | None = None
+    reused_fd: int | None = None
+    injected = False
+
+    def observe_stage(_name, descriptor, *args, **kwargs):
+        nonlocal stage_fd
+        stage_fd = descriptor
+
+    def close_after_real_close(fd: int) -> None:
+        nonlocal injected, reused_fd
+        if stage_fd == fd and not injected:
+            injected = True
+            real_close(fd)
+            candidate = real_open(sentinel_path, os.O_CREAT | os.O_RDWR, 0o600)
+            os.write(candidate, b"stage-fd-reuse-sentinel")
+            if candidate != fd:
+                os.dup2(candidate, fd)
+                real_close(candidate)
+            reused_fd = fd
+            raise OSError("injected stage close error after descriptor close")
+        real_close(fd)
+
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", observe_stage)
+    monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
+
+    try:
+        with pytest.raises(OSError, match="stage close error"):
+            ObjectStore(tmp_path).write("task", TASK_ID, 1, {"value": "stage-fd-reuse"})
+        assert injected and stage_fd is not None and reused_fd == stage_fd
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 128) == b"stage-fd-reuse-sentinel"
+
+        drain_close_quarantine()
+        os.fstat(reused_fd)
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 128) == b"stage-fd-reuse-sentinel"
+    finally:
+        if reused_fd is not None:
+            try:
+                real_close(reused_fd)
+            except OSError:
+                pass
+
+
+def test_prelock_guard_close_error_never_retries_reused_descriptor(tmp_path: Path, monkeypatch) -> None:
+    """A pre-lock descriptor is terminal on both platforms after close ambiguity."""
+
+    import research_system.store.anchor as anchor_module
+
+    root = tmp_path / "prelock-guard-root"
+    root.mkdir()
+    anchor = open_registered_root_anchor(root, delete_protect=False)
+    sentinel_path = tmp_path / "prelock-reused-descriptor"
+    real_open = os.open
+    real_close = os.close
+    guard_fd: int | None = None
+    reused_fd: int | None = None
+    injected = False
+    fsync_failed = False
+    real_fsync_directory = anchor_module._DirectoryAnchor._fsync_directory
+    real_fsync = os.fsync
+
+    def observe_open(path, *args, **kwargs):
+        nonlocal guard_fd
+        descriptor = real_open(path, *args, **kwargs)
+        try:
+            is_guard = Path(path).name == TRANSACTION_GUARD_NAME
+        except TypeError:
+            is_guard = False
+        if is_guard:
+            guard_fd = descriptor
+        return descriptor
+
+    def fail_before_lock(current_anchor, path):
+        nonlocal fsync_failed
+        if guard_fd is not None and not fsync_failed:
+            fsync_failed = True
+            raise ConflictError("injected pre-lock guard failure")
+        return real_fsync_directory(current_anchor, path)
+
+    def fail_fsync(fd: int) -> None:
+        nonlocal fsync_failed
+        if guard_fd is not None and not fsync_failed:
+            fsync_failed = True
+            raise ConflictError("injected pre-lock guard failure")
+        return real_fsync(fd)
+
+    def close_after_real_close(fd: int) -> None:
+        nonlocal injected, reused_fd
+        if guard_fd == fd and not injected:
+            injected = True
+            real_close(fd)
+            candidate = real_open(sentinel_path, os.O_CREAT | os.O_RDWR, 0o600)
+            os.write(candidate, b"prelock-fd-reuse-sentinel")
+            if candidate != fd:
+                os.dup2(candidate, fd)
+                real_close(candidate)
+            reused_fd = fd
+            raise OSError("injected pre-lock close error after descriptor close")
+        real_close(fd)
+
+    # ``acquire_mutation_guard`` deliberately checks the exact ``os.open``
+    # callable before using its dir_fd path. Replacing that callable for
+    # instrumentation must preserve the platform capability declaration.
+    supported_dir_fd = anchor_module.os.supports_dir_fd
+    if isinstance(supported_dir_fd, tuple):
+        patched_supports_dir_fd = tuple(
+            observe_open if candidate is real_open else candidate for candidate in supported_dir_fd
+        )
+        if observe_open not in patched_supports_dir_fd:
+            patched_supports_dir_fd += (observe_open,)
+    else:
+        patched_supports_dir_fd = set(supported_dir_fd)
+        patched_supports_dir_fd.discard(real_open)
+        patched_supports_dir_fd.add(observe_open)
+    monkeypatch.setattr(anchor_module.os, "supports_dir_fd", patched_supports_dir_fd)
+    monkeypatch.setattr(anchor_module.os, "open", observe_open)
+    monkeypatch.setattr(anchor_module.os, "close", close_after_real_close)
+    monkeypatch.setattr(anchor_module.os, "fsync", fail_fsync)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "_fsync_directory", fail_before_lock)
+
+    try:
+        with pytest.raises(ConflictError, match="pre-lock guard failure"):
+            with anchor.acquire_mutation_guard(TRANSACTION_GUARD_NAME):
+                pass
+        assert fsync_failed and injected and guard_fd is not None and reused_fd == guard_fd
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 128) == b"prelock-fd-reuse-sentinel"
+
+        drain_close_quarantine()
+        os.fstat(reused_fd)
+        os.lseek(reused_fd, 0, os.SEEK_SET)
+        assert os.read(reused_fd, 128) == b"prelock-fd-reuse-sentinel"
+    finally:
+        if reused_fd is not None:
+            try:
+                real_close(reused_fd)
+            except OSError:
+                pass
+        anchor.close()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX bounded flock control")
+def test_occupied_guard_flock_fails_bounded_and_nonblocking(tmp_path: Path, monkeypatch) -> None:
+    """An occupied guard retries nonblocking and returns a bounded conflict."""
+
+    import fcntl
+
+    root = tmp_path / "occupied-guard-root"
+    root.mkdir()
+    anchor = open_registered_root_anchor(root, delete_protect=False)
+    real_flock = fcntl.flock
+    operations: list[int] = []
+
+    def report_occupied(descriptor: int, operation: int) -> None:
+        operations.append(operation)
+        if operation & fcntl.LOCK_EX:
+            raise BlockingIOError("injected occupied guard")
+        return real_flock(descriptor, operation)
+
+    monkeypatch.setattr(fcntl, "flock", report_occupied)
+    try:
+        with pytest.raises(ConflictError, match="guard is unavailable"):
+            with anchor.acquire_mutation_guard(TRANSACTION_GUARD_NAME):
+                pass
+        assert len(operations) == 64
+        assert all(operation & fcntl.LOCK_NB for operation in operations)
+    finally:
+        anchor.close()
+
+
+def test_body_exception_remains_primary_when_terminal_release_fails(tmp_path: Path, monkeypatch) -> None:
+    """Anchor and admission cleanup errors stay visible without replacing body failure."""
+
+    import research_system.store.anchor as anchor_module
+
+    admission_failed = False
+    real_release_admission = anchor_module._release_directory_admission
+
+    def fail_admission_release(admission):
+        nonlocal admission_failed
+        result = real_release_admission(admission)
+        if not admission_failed:
+            admission_failed = True
+            raise OSError("injected terminal admission release failure")
+        return result
+
+    monkeypatch.setattr(anchor_module, "_release_directory_admission", fail_admission_release)
+
+    class _Guard:
+        _release_state = "active"
+        _close_only_transferred = False
+
+    class _Context:
+        def __init__(self) -> None:
+            self.guard = _Guard()
+
+        def __enter__(self):
+            return self.guard
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            self.guard._release_state = "released"
+            return False
+
+    class _Anchor:
+        identity = DirectoryIdentity("posix-dev-inode-v1", 9101, b"terminal-release")
+        final_path = tmp_path
+
+        def __init__(self) -> None:
+            self.transaction_holds = 0
+            self.fail_anchor_release = True
+
+        def _retain_transaction_hold(self) -> None:
+            self.transaction_holds += 1
+
+        def _release_transaction_hold(self) -> None:
+            self.transaction_holds -= 1
+            if self.fail_anchor_release:
+                self.fail_anchor_release = False
+                raise OSError("injected terminal anchor release failure")
+
+        def acquire_mutation_guard(self, _name: str):
+            return _Context()
+
+    anchor = _Anchor()
+    body_error: ValueError
+    with pytest.raises(ValueError, match="body remains primary") as raised:
+        with DirectoryTransaction(anchor) as transaction:
+            raise ValueError("body remains primary")
+    body_error = raised.value
+    assert body_error.__cause__ is not None
+    assert "terminal anchor release failure" in repr(body_error.__cause__)
+    assert any("admission release failed" in note for note in (body_error.__cause__.__notes__ or []))
+    assert admission_failed and anchor.transaction_holds == 0
+    assert transaction._reservation is None and transaction._admission is None
+
+    successor = DirectoryTransaction(anchor)
+    successor.__enter__()
+    successor.__exit__(None, None, None)
+    assert anchor.transaction_holds == 0
+    assert successor._reservation is None and successor._admission is None
 
 
 def test_full_owner_reservation_capacity_rejects_before_any_effect(tmp_path: Path) -> None:
@@ -331,12 +708,10 @@ def test_full_owner_reservation_capacity_rejects_before_any_effect(tmp_path: Pat
                 pass
 
 
-def test_unknown_guard_owner_is_retained_and_drained_before_next_transaction(tmp_path: Path, monkeypatch) -> None:
-    """A failed guard release is a reachable full owner, not lost state."""
+def test_terminal_uncertain_guard_release_does_not_block_next_transaction(tmp_path: Path, monkeypatch) -> None:
+    """A failed POSIX guard release is terminal and leaves capacity usable."""
 
-    first_guard: DirectoryMutationGuard | None = None
     retry_called = False
-    original_retry = DirectoryMutationGuard.retry_release
 
     class _GuardContext:
         def __init__(self, guard: DirectoryMutationGuard, *, fail_on_exit: bool) -> None:
@@ -348,14 +723,14 @@ def test_unknown_guard_owner_is_retained_and_drained_before_next_transaction(tmp
 
         def __exit__(self, _exc_type, _exc, _traceback):
             if self.fail_on_exit:
-                self.guard._release_state = "unknown"
-                raise OSError("injected unknown guard release")
+                self.guard._release_state = "terminal_uncertain"
+                raise OSError("injected terminal-uncertain descriptor release")
             self.guard._release_state = "released"
             return False
 
     class _Anchor:
         final_path = tmp_path
-        identity = DirectoryIdentity("posix-dev-inode-v1", 7001, b"unknown-guard")
+        identity = DirectoryIdentity("posix-dev-inode-v1", 7001, b"terminal-guard")
 
         def __init__(self) -> None:
             self.calls: list[str] = []
@@ -363,31 +738,27 @@ def test_unknown_guard_owner_is_retained_and_drained_before_next_transaction(tmp
         def acquire_mutation_guard(self, name: str):
             self.calls.append(name)
             guard = DirectoryMutationGuard(self, name)
-            if len(self.calls) == 1:
-                guard._retained_release = (object(), lambda _resource: None, lambda _resource: None)
             return _GuardContext(guard, fail_on_exit=len(self.calls) == 1)
 
-    def observe_retry(guard: DirectoryMutationGuard) -> None:
+    def observe_retry(_guard: DirectoryMutationGuard) -> None:
         nonlocal retry_called
-        if guard is first_guard:
-            retry_called = True
-        return original_retry(guard)
+        retry_called = True
 
     monkeypatch.setattr(DirectoryMutationGuard, "retry_release", observe_retry)
     anchor = _Anchor()
     transaction = DirectoryTransaction(anchor)
     transaction.__enter__()
-    with pytest.raises(OSError, match="unknown guard release"):
+    with pytest.raises(OSError, match="terminal-uncertain descriptor release"):
         transaction.__exit__(None, None, None)
-    assert transaction.exit_status.guard_state == "unknown"
-    first_guard = transaction._retained_guard
-    assert first_guard is not None
+    assert transaction.exit_status.guard_state == "terminal_uncertain"
+    assert transaction._retained_guard is None
+    transaction.retry_guard_release()
+    assert not retry_called
 
     next_transaction = DirectoryTransaction(anchor)
     next_transaction.__enter__()
     next_transaction.__exit__(None, None, None)
-    assert retry_called
-    assert transaction.exit_status.guard_state == "released"
+    assert not retry_called
     assert anchor.calls == [TRANSACTION_GUARD_NAME, TRANSACTION_GUARD_NAME]
 
 
@@ -511,4 +882,247 @@ def test_windows_delete_true_stage_close_failure_retains_full_owner(tmp_path: Pa
         assert close_attempts >= 3
         assert not (root / stage_name).exists()
     finally:
+        anchor.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows ordinary ObjectStore owner-retry control")
+def test_windows_object_store_retry_drains_stage_owner_and_anchor_chain(tmp_path: Path, monkeypatch) -> None:
+    """An ordinary ObjectStore retry keeps the complete anchor chain reachable."""
+
+    import research_system.store.anchor as anchor_module
+    import research_system.store.objects as object_module
+
+    value = {"value": "ordinary-store-owner-retry"}
+    target = _object_target(tmp_path, value)
+    root_anchor: list[object] = []
+    first_chain: list[object] = []
+    real_open_root = object_module.open_registered_root_anchor
+    real_open_member = anchor_module._DirectoryAnchor.open_member_directory
+
+    def capture_root(path, **kwargs):
+        anchor = real_open_root(path, **kwargs)
+        if not root_anchor:
+            root_anchor.append(anchor)
+            first_chain.append(anchor)
+        return anchor
+
+    def capture_member(anchor, name, **kwargs):
+        child = real_open_member(anchor, name, **kwargs)
+        if root_anchor and len(first_chain) < 4:
+            first_chain.append(child)
+        return child
+
+    monkeypatch.setattr(object_module, "open_registered_root_anchor", capture_root)
+    monkeypatch.setattr(anchor_module._DirectoryAnchor, "open_member_directory", capture_member)
+
+    real_open_handle = anchor_module._windows_open_handle
+    real_close_handle = anchor_module._windows_close_handle
+    real_stage_hook = anchor_module._after_stage_opened
+    target_handles: set[int] = set()
+    close_attempts = 0
+    stage_name: str | None = None
+
+    def capture_stage_name(name, descriptor, *args, **kwargs):
+        nonlocal stage_name
+        stage_name = name
+        return real_stage_hook(name, descriptor, *args, **kwargs)
+
+    def capture_stage_handle(path, *args, **kwargs):
+        handle = real_open_handle(path, *args, **kwargs)
+        if stage_name is not None and Path(path).name == stage_name:
+            target_handles.add(int(getattr(handle, "value", handle)))
+        return handle
+
+    def fail_stage_close(handle):
+        nonlocal close_attempts
+        value_handle = int(getattr(handle, "value", handle))
+        if value_handle in target_handles:
+            close_attempts += 1
+            if close_attempts <= 2:
+                raise OSError("injected ordinary ObjectStore Delete=True stage close failure")
+        return real_close_handle(handle)
+
+    def reject_close_only(*_args, **_kwargs):
+        raise AssertionError("Delete=True stage owner was downgraded to close-only state")
+
+    monkeypatch.setattr(anchor_module, "_windows_open_handle", capture_stage_handle)
+    monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_stage_close)
+    monkeypatch.setattr(anchor_module, "_after_stage_opened", capture_stage_name)
+    monkeypatch.setattr(anchor_module, "_retain_close_ticket", reject_close_only)
+
+    store = ObjectStore(tmp_path)
+    with pytest.raises(ConflictError, match="stage cleanup|close|pending|deletion"):
+        # This is deliberately the public production seam. No transaction
+        # lifecycle is driven by the control itself.
+        store.write("task", TASK_ID, 1, value)
+
+    assert len(first_chain) == 4
+    assert close_attempts == 2
+    assert stage_name is not None
+    reserved_stage = target.parent / stage_name
+    assert reserved_stage.exists()
+    assert all(not getattr(anchor, "_closed") for anchor in first_chain)
+
+    result: list[Path] = []
+    errors: list[BaseException] = []
+    completed = threading.Event()
+
+    def retry_public_store_write() -> None:
+        try:
+            result.append(store.write("task", TASK_ID, 1, value))
+        except BaseException as error:  # pragma: no cover - asserted below
+            errors.append(error)
+        finally:
+            completed.set()
+
+    retry = threading.Thread(target=retry_public_store_write, daemon=True)
+    retry.start()
+    assert completed.wait(5), "next public ObjectStore write did not drain the retained owner"
+    retry.join(timeout=1)
+    assert errors == []
+    assert result == [target]
+    assert close_attempts >= 3
+    assert not reserved_stage.exists()
+    assert all(getattr(anchor, "_closed") for anchor in first_chain)
+
+    # A further public write demonstrates that the retained owner released its
+    # admission capacity rather than merely allowing the exact retry through.
+    assert store.write("task", TASK_ID, 2, {"value": "after-owner-drain"}).is_file()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows same-byte rollback race control")
+def test_windows_rollback_rejects_same_byte_generation_swap_without_deleting_foreign(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Rollback binds the Delete=True handle before any pathname deletion."""
+
+    import research_system.store.anchor as anchor_module
+
+    value = {"value": "rollback-same-byte-race"}
+    data = canonical_bytes(value)
+    store = ObjectStore(tmp_path)
+    target = store.write("task", TASK_ID, 1, value)
+    original_identity = target.stat(follow_symlinks=False)
+    saved_a = target.with_name(f".{target.name}.saved-a")
+    foreign_b = target.with_name(f".{target.name}.foreign-b")
+    real_before_unlink = anchor_module._before_exact_generation_unlink
+    real_open_handle = anchor_module._windows_open_handle
+    real_regular_identity = anchor_module._regular_file_identity
+    swapped = False
+    restored = False
+    path_lstat_calls = 0
+
+    def swap_after_path_proof(path: Path) -> None:
+        nonlocal swapped
+        real_before_unlink(path)
+        if Path(path).name == target.name and not swapped:
+            swapped = True
+            # Keep original A's inode aside, publish same-byte B, and retain
+            # a second B link so the Delete=True handle cannot erase the
+            # foreign generation from the test's evidence namespace.
+            os.replace(target, saved_a)
+            target.write_bytes(data)
+            os.link(target, foreign_b)
+
+    def restore_a_before_path_lstat(path: Path, *, label: str):
+        nonlocal path_lstat_calls
+        path_lstat_calls += 1
+        return real_regular_identity(path, label=label)
+
+    def open_target_then_restore(path: Path, *args, **kwargs):
+        nonlocal restored
+        handle = real_open_handle(path, *args, **kwargs)
+        if Path(path).name == target.name and swapped and not restored:
+            restored = True
+            # The Delete=True handle has opened B with delete sharing. Remove
+            # only B's target name and restore A before the handle-ID binding
+            # and subsequent pathname lstat.
+            os.unlink(target)
+            os.replace(saved_a, target)
+        return handle
+
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", swap_after_path_proof)
+    monkeypatch.setattr(anchor_module, "_windows_open_handle", open_target_then_restore)
+    monkeypatch.setattr(anchor_module, "_regular_file_identity", restore_a_before_path_lstat)
+
+    try:
+        with pytest.raises(IntegrityError, match="changed object revision"):
+            store.rollback_new_revision(
+                "task",
+                TASK_ID,
+                1,
+                value,
+                existed_before=False,
+            )
+
+        assert swapped and restored and path_lstat_calls == 0
+        assert target.read_bytes() == data
+        assert os.path.samestat(target.stat(follow_symlinks=False), original_identity)
+        assert foreign_b.exists()
+        assert foreign_b.read_bytes() == data
+        assert not os.path.samestat(foreign_b.stat(follow_symlinks=False), original_identity)
+    finally:
+        for residue in (saved_a, foreign_b):
+            try:
+                residue.unlink()
+            except FileNotFoundError:
+                pass
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows transaction HANDLE/stat binding control")
+def test_windows_transaction_rejects_same_byte_foreign_handle_before_delete(tmp_path: Path, monkeypatch) -> None:
+    """A foreign same-byte HANDLE cannot arm Delete=True for pathname A."""
+
+    import research_system.store.anchor as anchor_module
+
+    root = tmp_path / "transaction-handle-root"
+    root.mkdir()
+    target = root / "final.json"
+    foreign = root / "foreign.json"
+    data = canonical_bytes({"value": "same-byte-foreign-handle"})
+    target.write_bytes(data)
+    foreign.write_bytes(data)
+    expected_identity = target.stat(follow_symlinks=False)
+    anchor = open_registered_root_anchor(root, delete_protect=False)
+    foreign_handle = anchor_module._windows_open_handle(
+        foreign,
+        open_reparse_point=True,
+        delete_protect=True,
+        delete_access=True,
+        read_contents=True,
+        share_mode=(
+            anchor_module._FILE_SHARE_READ | anchor_module._FILE_SHARE_WRITE | anchor_module._FILE_SHARE_DELETE
+        ),
+    )
+
+    class _KernelProxy:
+        def __init__(self, kernel) -> None:
+            self._kernel = kernel
+
+        def __getattr__(self, name):
+            return getattr(self._kernel, name)
+
+        def SetFileInformationByHandle(self, *_args, **_kwargs):
+            raise AssertionError("foreign HANDLE armed Delete=True")
+
+    monkeypatch.setattr(anchor_module, "_KERNEL32", _KernelProxy(anchor_module._KERNEL32))
+    transaction_effects: list[object] = []
+    try:
+        with pytest.raises(ConflictError, match="generation changed"):
+            with DirectoryTransaction(anchor) as transaction:
+                transaction_effects = transaction.effects
+                transaction.begin_windows_exact_final_removal(
+                    target.name,
+                    expected_identity,
+                    data,
+                    foreign_handle,
+                )
+        anchor_module._windows_close_handle(foreign_handle)
+        foreign_handle = None
+        assert transaction_effects == []
+        assert target.read_bytes() == data
+        assert foreign.read_bytes() == data
+    finally:
+        if foreign_handle is not None:
+            anchor_module._windows_close_handle(foreign_handle)
         anchor.close()

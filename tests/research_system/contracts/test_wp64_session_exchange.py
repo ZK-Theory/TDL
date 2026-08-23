@@ -490,10 +490,33 @@ def test_interruption_before_r1_publication_allows_only_identical_retry(
         record_session_evidence(tmp_path, **kwargs)
     evidence_directory = _artifact_revision_directory(tmp_path, EVIDENCE_ARTIFACT_ID)
     assert evidence_directory.exists()
-    # This guard persists because unlinking it would split waiting and recreated lock inodes.
-    guard = evidence_directory / ".object-publication.guard"
-    entries = tuple(evidence_directory.iterdir())
-    assert len(entries) == 1 and entries[0] == guard and guard.is_file() and not guard.is_symlink()
+    # The fixed guard preserves one serialization inode. The uniquely reserved
+    # stage preserves the interrupted attempt's exact recovery bytes. Both are
+    # protocol state rather than domain publication, and no other residue is
+    # permitted.
+    transaction_guard = evidence_directory / ".store-transaction-v2.guard"
+    entries = frozenset(evidence_directory.iterdir())
+    reserved_stages = frozenset()
+    for path in entries:
+        name = path.name
+        prefix = ".00000001-"
+        suffix = ".tmp"
+        if not name.startswith(prefix) or not name.endswith(suffix):
+            continue
+        body = name[len(prefix) : -len(suffix)]
+        digest, separator, nonce = body.partition(".json.")
+        if (
+            len(digest) == 64
+            and separator == ".json."
+            and len(nonce) == 32
+            and all(character in "0123456789abcdef" for character in digest + nonce)
+        ):
+            reserved_stages = reserved_stages | {path}
+    assert len(reserved_stages) == 1
+    assert entries == frozenset({transaction_guard, *reserved_stages})
+    assert transaction_guard.is_file() and not transaction_guard.is_symlink()
+    stage = next(iter(reserved_stages))
+    assert stage.is_file() and not stage.is_symlink()
 
     monkeypatch.setattr(object_module, "_after_object_temp_fsync", lambda _temporary: None)
     published = record_session_evidence(tmp_path, **kwargs)
