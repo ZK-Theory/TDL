@@ -790,11 +790,12 @@ class _DirectoryAnchor:
                         final_path,
                         open_reparse_point=False,
                         delete_protect=True,
-                        # This handle prevents replacement by withholding
-                        # FILE_SHARE_DELETE. It must not itself request DELETE,
-                        # or it conflicts with an already-held protective
-                        # writer/root anchor in the same operation.
-                        delete_access=False,
+                        # Windows enforces this replacement fence only when
+                        # the held handle both requests DELETE and withholds
+                        # FILE_SHARE_DELETE. Anchors reaching this branch were
+                        # opened share-delete, so the transient handle can
+                        # request DELETE without conflicting with its owner.
+                        delete_access=True,
                     )
                 except OSError as exc:
                     if not _is_windows_sharing_violation(exc) or attempt == 63:
@@ -2472,6 +2473,78 @@ class DirectoryTransaction:
             staged_data, staged_identity = self._anchor.read_regular_file_with_identity(name)
             self._stages[name] = StagePin(name, staged_identity, staged_data)
             self.discard_stage(self._stages[name])
+
+    def _reserved_stages_for_replacement(self, target_name: str) -> tuple[StagePin, ...]:
+        """Inventory and pin only this target's protocol-owned private stages."""
+
+        stages: list[StagePin] = []
+        for name in sorted(self._anchor.list_names()):
+            if not self._is_reserved_stage_name(name, target_name):
+                continue
+            data, identity = self._anchor.read_regular_file_with_identity(name)
+            stage = StagePin(name, identity, data)
+            self._stages[name] = stage
+            stages.append(stage)
+        return tuple(stages)
+
+    def _revalidate_durable_final(self, target_name: str, data: bytes) -> None:
+        """Re-establish the exact durable final before private-stage cleanup."""
+
+        observed_data, identity = self._anchor.read_regular_file_with_identity(target_name)
+        if observed_data != data:
+            raise ConflictError("directory transaction final recovery bytes differ")
+        self._anchor.fsync()
+        verified_data, verified_identity = self._anchor.read_regular_file_with_identity(target_name)
+        if verified_data != data or not self._same_generation(identity, verified_identity):
+            raise ConflictError("directory transaction final changed during recovery")
+
+    def replace_or_recover(self, target_name: str, expected: bytes, desired: bytes) -> None:
+        """Replace one mutable final, or finish an exact desired-stage retry.
+
+        Reserved stages are the sole durable recovery state for this mutable
+        operation.  Their full inventory is validated before any namespace
+        mutation: equal desired stages can be completed deterministically;
+        mixed stages and foreign finals fail closed without cleanup.
+        """
+
+        self._require_active()
+        stages = self._reserved_stages_for_replacement(target_name)
+        if any(stage.data != desired for stage in stages):
+            raise ConflictError("directory transaction replacement stages bind different bytes")
+
+        try:
+            final_data, final_identity = self._anchor.read_regular_file_with_identity(target_name)
+        except FileNotFoundError:
+            final_data = None
+            final_identity = None
+        else:
+            if final_data != expected and final_data != desired:
+                raise ConflictError("anchored file replacement expected bytes differ")
+
+        if final_data is None:
+            if not stages:
+                raise ConflictError("anchored file replacement expected predecessor is missing")
+            selected = stages[0]
+            self.adopt_or_publish(selected, target_name)
+            for stage in stages:
+                self.discard_stage(stage)
+            return
+
+        if final_data == desired:
+            self._revalidate_durable_final(target_name, desired)
+            for stage in stages:
+                self.discard_stage(stage)
+            return
+
+        assert final_identity is not None
+        selected = stages[0] if stages else self.stage(target_name, desired)
+        # The desired stage is durable before this irreversible predecessor
+        # unlink.  A failure after either effect is therefore an exact retry.
+        self.remove_exact_final(target_name, final_identity, expected)
+        self.adopt_or_publish(selected, target_name)
+        cleanup_stages = stages if stages else (selected,)
+        for stage in cleanup_stages:
+            self.discard_stage(stage)
 
     def __exit__(
         self,

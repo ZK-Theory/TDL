@@ -14,7 +14,7 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 from research_system.store.layout import require_external_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store import anchor as anchor_module
-from research_system.store import lock as lock_module
+from research_system.store import writer as lock_module
 from research_system.store import durability as durability_module
 from research_system.store.lock import (
     CompositeWriterLock,
@@ -275,7 +275,7 @@ def test_composite_writer_lock_fails_closed_when_windows_identity_is_unavailable
 ):
     if os.name != "nt":
         pytest.skip("Windows identity backend control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     root = tmp_path / "control-identity"
     (root / "runtime").mkdir(parents=True)
@@ -298,7 +298,7 @@ def test_windows_runtime_anchor_rejects_inside_open_identity_swap_without_public
 ):
     if os.name != "nt":
         pytest.skip("Windows directory-anchor race control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     runtime = tmp_path / "runtime"
     runtime.mkdir()
@@ -316,7 +316,10 @@ def test_windows_runtime_anchor_rejects_inside_open_identity_swap_without_public
     phase = 0
     handles = []
 
-    class FakeHandle:
+    class FakeHandle(lock_module._NativeWindowsHandle):
+        def __new__(cls, name, identity, final_path):
+            return int.__new__(cls, len(handles) + 1)
+
         def __init__(self, name, identity, final_path):
             self.name = name
             self.identity = identity
@@ -372,7 +375,7 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
 ):
     if os.name != "nt":
         pytest.skip("Windows directory-anchor cleanup control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     runtime = tmp_path / "runtime"
     runtime.mkdir()
@@ -390,7 +393,10 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
     close_attempts = []
     followed_failed = False
 
-    class FakeHandle:
+    class FakeHandle(lock_module._NativeWindowsHandle):
+        def __new__(cls, name):
+            return int.__new__(cls, len(handles) + 1)
+
         def __init__(self, name):
             self.name = name
             self.closed = False
@@ -447,7 +453,7 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
 ):
     if os.name != "nt":
         pytest.skip("Windows directory-anchor cleanup control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     runtime = tmp_path / "runtime"
     runtime.mkdir()
@@ -460,7 +466,10 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
     close_attempts = []
     followed_failed = False
 
-    class FakeHandle:
+    class FakeHandle(lock_module._NativeWindowsHandle):
+        def __new__(cls, name):
+            return int.__new__(cls, len(handles) + 1)
+
         def __init__(self, name):
             self.name = name
             self.closed = False
@@ -511,7 +520,7 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
 def test_directory_anchor_close_failure_retains_live_handle_for_retry(tmp_path):
     if os.name != "nt":
         pytest.skip("Windows directory-handle cleanup control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     identity = lock_module.DirectoryIdentity(
         "windows-file-id-v1",
@@ -547,13 +556,13 @@ def test_windows_anchor_deferred_effect_and_guard_closes_preserve_the_primary(tm
     """remediation-red: a failed fence or guard close neither masks nor loses the operation."""
     if os.name != "nt":
         pytest.skip("Windows deferred anchor-close control")
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     identity = lock_module.DirectoryIdentity("windows-file-id-v1", 1, b"cleanup".ljust(16, b"\0"))
     anchor = lock_module._DirectoryAnchor(
         identity, tmp_path, object(), lambda _handle: (identity, tmp_path), lambda _handle: None
     )
-    fence = object()
+    fence = lock_module._NativeWindowsHandle(1)
     fence_closes = 0
 
     def close_fence(_handle):
@@ -570,6 +579,8 @@ def test_windows_anchor_deferred_effect_and_guard_closes_preserve_the_primary(tm
             raise ValueError("effect primary")
     assert isinstance(raised.value.__cause__, RuntimeError)
     assert anchor.refresh() == (identity, tmp_path)
+    assert fence_closes == 1
+    lock_module.drain_close_quarantine()
     assert fence_closes == 2
 
     real_close = os.close
@@ -588,11 +599,13 @@ def test_windows_anchor_deferred_effect_and_guard_closes_preserve_the_primary(tm
             raise ValueError("guard primary")
     assert isinstance(raised.value.__cause__, RuntimeError)
     assert anchor.refresh() == (identity, tmp_path)
-    assert guard_closes == 2
+    # A failed descriptor close is terminal-uncertain; the guard must not retry
+    # that descriptor merely because the body raised.
+    assert guard_closes == 1
 
 
 def test_posix_directory_anchor_propagates_delete_protection(tmp_path, monkeypatch):
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     path = tmp_path / "control"
     sentinel = object()
@@ -611,7 +624,7 @@ def test_posix_directory_anchor_propagates_delete_protection(tmp_path, monkeypat
 
 @pytest.mark.parametrize("deleted_signal", ["link-count", "final-path"])
 def test_posix_delete_protected_refresh_rejects_unlinked_anchor(monkeypatch, deleted_signal):
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     observed = type(
         "Observed",
@@ -639,7 +652,7 @@ def test_posix_delete_protected_refresh_rejects_unlinked_anchor(monkeypatch, del
 
 
 def test_posix_unprotected_refresh_preserves_deleted_path_compatibility(monkeypatch):
-    import research_system.store.lock as lock_module
+    import research_system.store.anchor as lock_module
 
     observed = type(
         "Observed",
@@ -820,7 +833,7 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
         if Path(candidate) == path:
             pause_once()
 
-    monkeypatch.setattr(lock_module, "_before_exact_generation_unlink", before_exact_delete)
+    monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", before_exact_delete)
     results = []
     errors = []
 
@@ -937,7 +950,7 @@ def test_recovery_lock_reclaims_a_recycled_pid_and_a_revalidated_dead_owner(tmp_
 
 
 def test_composite_writer_lock_cleans_all_acquired_siblings_after_release_failure(tmp_path, monkeypatch):
-    import research_system.store.lock as lock_module
+    import research_system.store.writer as lock_module
 
     roots = tuple(tmp_path / name for name in ("a", "b", "c"))
     for root in roots:
