@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+from hashlib import sha256
 import os
 import stat
 import time
@@ -431,7 +432,22 @@ class DirectoryAnchor(Protocol):
 
     def read_regular_file_with_identity(self, name: str) -> tuple[bytes, os.stat_result]: ...
 
-    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]: ...
+    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]:
+        """Stage exact private bytes for a separately guarded writer.
+
+        Args:
+            name: Canonical final member name used to derive the private name.
+            data: Exact bytes to stage.
+
+        Returns:
+            The private member name and its exact physical identity.
+
+        Raises:
+            ConflictError: If the anchored directory or staged generation cannot
+                be proved physical and unchanged.
+            OSError: If staging or required durability cannot complete.
+        """
+        ...
 
     def link_exact_regular_file(
         self,
@@ -844,6 +860,18 @@ class _DirectoryAnchor:
         transaction guard.  The physical directory owner therefore provides
         this one stage operation; all public publication and deletion remain
         anchored operations.
+
+        Args:
+            name: Canonical final member name used to derive the stage name.
+            data: Exact bytes to write and durability-prove.
+
+        Returns:
+            The private stage member name and its exact physical identity.
+
+        Raises:
+            ConflictError: If the anchor or staged generation cannot remain
+                exact.
+            OSError: If the filesystem cannot stage or durably flush the bytes.
         """
 
         self._require_member_name(name)
@@ -2261,7 +2289,13 @@ class DirectoryTransaction:
             raise ConflictError(f"directory transaction {label} generation changed")
         return identity
 
-    def _stage_owned_private(self, target_name: str, data: bytes) -> StagePin:
+    def _stage_owned_private(
+        self,
+        target_name: str,
+        data: bytes,
+        *,
+        temporary_name: str | None = None,
+    ) -> StagePin:
         """Create one private generation with ownership from ``O_EXCL``.
 
         The successful exclusive open is recorded immediately in this owner,
@@ -2284,7 +2318,7 @@ class DirectoryTransaction:
             raise ConflictError("directory transaction anchor lacks owned staging support")
         require_name(target_name)
         _identity, final_path = refresh()
-        temporary = f".{target_name}.{secrets.token_hex(16)}.tmp"
+        temporary = temporary_name or f".{target_name}.{secrets.token_hex(16)}.tmp"
         descriptor: int | None = None
         opened_identity: os.stat_result | None = None
         primary_error: BaseException | None = None
@@ -2361,6 +2395,46 @@ class DirectoryTransaction:
             return False
         token = name[len(prefix) : -len(suffix)]
         return len(token) == 32 and all(character in "0123456789abcdef" for character in token)
+
+    @staticmethod
+    def _replacement_stage_name(target_name: str, expected: bytes) -> str:
+        """Return one durable desired-stage name bound to its predecessor."""
+
+        expected_digest = sha256(expected).hexdigest()
+        return f".{target_name}.replace-{expected_digest}-{secrets.token_hex(16)}.tmp"
+
+    @staticmethod
+    def _is_reserved_replacement_stage_name(name: str, target_name: str, expected: bytes) -> bool:
+        """Whether ``name`` is this exact predecessor's recovery stage."""
+
+        return (
+            DirectoryTransaction._replacement_stage_predecessor_digest(name, target_name)
+            == sha256(expected).hexdigest()
+        )
+
+    @staticmethod
+    def _replacement_stage_predecessor_digest(name: str, target_name: str) -> str | None:
+        """Return the predecessor digest bound into a replacement stage name."""
+
+        prefix = f".{target_name}.replace-"
+        suffix = ".tmp"
+        if not name.startswith(prefix) or not name.endswith(suffix):
+            return None
+        digest, separator, token = name[len(prefix) : -len(suffix)].partition("-")
+        if separator != "-" or len(digest) != 64 or len(token) != 32:
+            return None
+        if not all(character in "0123456789abcdef" for character in digest + token):
+            return None
+        return digest
+
+    def _stage_replacement(self, target_name: str, expected: bytes, desired: bytes) -> StagePin:
+        """Stage desired bytes under the immutable predecessor they replace."""
+
+        return self._stage_owned_private(
+            target_name,
+            desired,
+            temporary_name=self._replacement_stage_name(target_name, expected),
+        )
 
     def _link_with_immediate_receipt(
         self, stage: StagePin, final_name: str, guard: DirectoryMutationGuard
@@ -2448,6 +2522,29 @@ class DirectoryTransaction:
         """Publish or adopt an equal immutable final and establish durability."""
 
         return self._publish(stage, final_name, adopt_existing=True)
+
+    def publish_exact(self, target_name: str, data: bytes) -> None:
+        """Publish immutable bytes without retaining a stage after a collision.
+
+        A stage is retained only after this transaction recorded its own public
+        link.  Before that point a conflicting final proves this transaction
+        made no public effect, so the exact private generation is removed
+        rather than becoming residue for an unrelated replacement operation.
+        """
+
+        stage = self.stage(target_name, data)
+        try:
+            self.adopt_or_publish(stage, target_name)
+        except BaseException as primary_error:
+            linked = any(effect.disposition == "linked" and effect.name == target_name for effect in self.effects)
+            if linked:
+                raise
+            try:
+                self.discard_stage(stage, missing_ok=True)
+            except BaseException as cleanup_error:
+                _raise_primary_with_cleanup(primary_error, cleanup_error)
+            raise
+        self.recover_private_stages(target_name, data)
 
     def remove_exact_final(self, name: str, expected_identity: os.stat_result, data: bytes) -> None:
         """Unlink one exact final under this guard, then establish durability.
@@ -2549,17 +2646,22 @@ class DirectoryTransaction:
             self._stages[name] = StagePin(name, staged_identity, staged_data)
             self.discard_stage(self._stages[name])
 
-    def _reserved_stages_for_replacement(self, target_name: str) -> tuple[StagePin, ...]:
-        """Inventory and pin only this target's protocol-owned private stages."""
+    def _reserved_stages_for_replacement(self, target_name: str, expected: bytes) -> tuple[StagePin, ...]:
+        """Inventory all target replacement stages, rejecting other predecessors."""
 
         stages: list[StagePin] = []
+        predecessor_digests: set[str] = set()
         for name in sorted(self._anchor.list_names()):
-            if not self._is_reserved_stage_name(name, target_name):
+            predecessor_digest = self._replacement_stage_predecessor_digest(name, target_name)
+            if predecessor_digest is None:
                 continue
             data, identity = self._anchor.read_regular_file_with_identity(name)
-            stage = StagePin(name, identity, data)
-            self._stages[name] = stage
-            stages.append(stage)
+            predecessor_digests.add(predecessor_digest)
+            stages.append(StagePin(name, identity, data))
+        if predecessor_digests and predecessor_digests != {sha256(expected).hexdigest()}:
+            raise ConflictError("directory transaction replacement stages bind different predecessors")
+        for stage in stages:
+            self._stages[stage.name] = stage
         return tuple(stages)
 
     def _revalidate_durable_final(self, target_name: str, data: bytes) -> None:
@@ -2576,14 +2678,14 @@ class DirectoryTransaction:
     def replace_or_recover(self, target_name: str, expected: bytes, desired: bytes) -> None:
         """Replace one mutable final, or finish an exact desired-stage retry.
 
-        Reserved stages are the sole durable recovery state for this mutable
-        operation.  Their full inventory is validated before any namespace
-        mutation: equal desired stages can be completed deterministically;
-        mixed stages and foreign finals fail closed without cleanup.
+        Replacement stages are the sole durable recovery state for this
+        mutable operation. They carry the SHA-256 of ``expected`` in their
+        private, physically anchored name, so a desired stage cannot authorize
+        a different predecessor after an absent-final crash.
         """
 
         self._require_active()
-        stages = self._reserved_stages_for_replacement(target_name)
+        stages = self._reserved_stages_for_replacement(target_name, expected)
         if any(stage.data != desired for stage in stages):
             raise ConflictError("directory transaction replacement stages bind different bytes")
 
@@ -2612,7 +2714,7 @@ class DirectoryTransaction:
             return
 
         assert final_identity is not None
-        selected = stages[0] if stages else self.stage(target_name, desired)
+        selected = stages[0] if stages else self._stage_replacement(target_name, expected, desired)
         # The desired stage is durable before this irreversible predecessor
         # unlink.  A failure after either effect is therefore an exact retry.
         self.remove_exact_final(target_name, final_identity, expected)

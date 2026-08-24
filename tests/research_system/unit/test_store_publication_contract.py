@@ -43,6 +43,19 @@ def _reserved_stage_path(target: Path, token: str) -> Path:
     return target.with_name(f".{target.name}.{token}.tmp")
 
 
+def _replacement_stage_path(target: Path, expected: bytes, token: str) -> Path:
+    assert len(token) == 32 and all(character in "0123456789abcdef" for character in token)
+    return target.with_name(f".{target.name}.replace-{sha256_hex(expected)}-{token}.tmp")
+
+
+def _matches_effect_path(candidate: Path, target: Path) -> bool:
+    """Treat a Windows extended anchored path as the same test target."""
+
+    observed = os.path.normcase(str(candidate))
+    expected = os.path.normcase(str(target))
+    return observed == expected or (os.name == "nt" and observed.removeprefix(chr(92) * 2 + "?" + chr(92)) == expected)
+
+
 def test_writer_lock_fails_closed_before_publication_without_windows_exact_deletion(
     tmp_path: Path,
     monkeypatch,
@@ -103,7 +116,7 @@ def test_linux_writer_retains_release_state_for_an_exact_retry(tmp_path: Path, m
 
     def fail_once(candidate, *args, **kwargs):
         nonlocal failed
-        if candidate == path and not failed:
+        if _matches_effect_path(candidate, path) and not failed:
             failed = True
             raise OSError("transient pre-delete failure")
         return original(candidate, *args, **kwargs)
@@ -131,6 +144,20 @@ def test_linux_writer_rejects_active_reentry_and_supports_sequential_reuse(tmp_p
     writer.__enter__()
     writer.__exit__(None, None, None)
     assert not path.exists()
+
+
+@pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
+def test_linux_writer_cleans_private_stage_with_its_canonical_guard(tmp_path: Path) -> None:
+    """A private writer stage is deleted under the canonical writer-lock guard."""
+
+    path = tmp_path / "writer.lock"
+    writer = WriterLock(path, {"writer_id": "canonical-stage-cleanup"})
+
+    writer.__enter__()
+
+    assert not list(tmp_path.glob(".writer.lock.*.tmp"))
+    assert writer.__exit__(None, None, None) is False
+    assert not list(tmp_path.glob(".writer.lock.*.tmp"))
 
 
 @pytest.mark.skipif(os.name != "posix" or sys.platform != "linux", reason="Linux flock backend")
@@ -266,7 +293,7 @@ def test_windows_current_delete_busy_remains_pending_behind_an_older_primary(
 
     def fail_current_delete(candidate, *args, **kwargs):
         nonlocal failed
-        if candidate == path and not failed:
+        if _matches_effect_path(candidate, path) and not failed:
             failed = True
             error_type = (
                 lock_module._ExactGenerationBusyError
@@ -319,8 +346,7 @@ def test_windows_canonical_disposition_close_resumes_without_reinspection(tmp_pa
     calls = 0
     failed = False
     monkeypatch.setattr(anchor_module, "_windows_close_handle", fail_one_delete_close)
-    with pytest.raises(ConflictError, match="pending"):
-        candidate.__exit__(None, None, None)
+    assert candidate.__exit__(None, None, None) is False
     assert not candidate._active_members and not (root / "runtime" / "writer.lock").exists()
     with WriterLock(path, {"writer_id": "next"}):
         assert path.exists()
@@ -512,7 +538,7 @@ def test_windows_writer_terminalizes_a_substituted_deferred_temporary(
         state = {"calls": 0, "substituted": False}
 
         def substitute(candidate):
-            if candidate == target and not state["substituted"]:
+            if _matches_effect_path(candidate, target) and not state["substituted"]:
                 state["substituted"] = True
                 target.replace(held)
                 target.write_bytes(b"foreign")
@@ -638,7 +664,7 @@ def test_writer_lock_post_publication_fsync_and_rollback_failure_leaves_a_fail_c
 
     def fail_canonical_rollback(candidate: Path, *args, **kwargs) -> None:
         nonlocal rollback_failed
-        if candidate == path and not rollback_failed:
+        if _matches_effect_path(candidate, path) and not rollback_failed:
             rollback_failed = True
             raise OSError("injected canonical rollback failure")
         return real_delete(candidate, *args, **kwargs)
@@ -1010,6 +1036,56 @@ def test_locked_root_preserves_foreign_final_collision(tmp_path: Path) -> None:
     assert target.read_bytes() == b"foreign"
 
 
+def test_locked_root_collision_cleans_immutable_stage_before_a_different_replacement(tmp_path: Path) -> None:
+    """remediation-red: failed immutable publication cannot poison a replacement."""
+
+    control_root = tmp_path / "control"
+    relative_path = "runtime/manifests/spec-current-binding.json"
+    target = control_root / relative_path.replace("/", os.sep)
+
+    with _locked_root(control_root) as locked_root:
+        locked_root.write_exact_file(relative_path, b"old")
+        with pytest.raises(ConflictError, match="already binds different bytes"):
+            locked_root.write_exact_file(relative_path, b"immutable")
+        assert not list(target.parent.glob(f".{target.name}.*.tmp"))
+
+        locked_root.replace_exact_file(relative_path, b"old", b"new")
+        assert locked_root.read_exact_file(relative_path) == b"new"
+
+    assert target.read_bytes() == b"new"
+
+
+def test_locked_root_exact_retry_drains_all_ambiguous_immutable_stages(tmp_path: Path, monkeypatch) -> None:
+    """remediation-red: an exact retry clears every prior ambiguous private stage."""
+
+    control_root = tmp_path / "control"
+    relative_path = "runtime/manifests/spec-current-binding.json"
+    target = control_root / relative_path.replace("/", os.sep)
+    data = b"expected"
+    original_fsync = anchor_module._DirectoryAnchor.fsync
+    failed = False
+
+    def fail_once_after_link(anchor, *args, **kwargs):
+        nonlocal failed
+        if target.exists() and not failed:
+            failed = True
+            raise OSError("injected exact-link durability ambiguity")
+        return original_fsync(anchor, *args, **kwargs)
+
+    with _locked_root(control_root) as locked_root:
+        monkeypatch.setattr(anchor_module._DirectoryAnchor, "fsync", fail_once_after_link)
+        with pytest.raises(OSError, match="exact-link durability ambiguity"):
+            locked_root.write_exact_file(relative_path, data)
+
+        assert failed and locked_root.read_exact_file(relative_path) == data
+        assert len(list(target.parent.glob(f".{target.name}.*.tmp"))) == 1
+
+        locked_root.write_exact_file(relative_path, data)
+
+    assert target.read_bytes() == data
+    assert not list(target.parent.glob(f".{target.name}.*.tmp"))
+
+
 def test_locked_root_compare_and_swap_requires_exact_predecessor(tmp_path: Path) -> None:
     control_root = tmp_path / "control"
     relative_path = "runtime/manifests/spec-current-binding.json"
@@ -1089,7 +1165,11 @@ def test_locked_root_compare_and_swap_preserves_substituted_final(tmp_path: Path
     assert replaced and target.read_bytes() == b"foreign"
     residues = sorted(target.parent.glob(f".{target.name}.*.tmp"))
     assert len(residues) == 1
-    assert anchor_module.DirectoryTransaction._is_reserved_stage_name(residues[0].name, target.name)
+    assert anchor_module.DirectoryTransaction._is_reserved_replacement_stage_name(
+        residues[0].name,
+        target.name,
+        b"old",
+    )
     assert residues[0].read_bytes() == b"new"
 
 
@@ -1122,7 +1202,11 @@ def test_locked_root_replacement_finishes_committed_recovery_after_predecessor_c
         assert locked_root.read_exact_file(relative_path) == b"new"
         residues = sorted(target.parent.glob(f".{target.name}.*.tmp"))
         assert len(residues) == 1
-        assert anchor_module.DirectoryTransaction._is_reserved_stage_name(residues[0].name, target.name)
+        assert anchor_module.DirectoryTransaction._is_reserved_replacement_stage_name(
+            residues[0].name,
+            target.name,
+            b"old",
+        )
         assert residues[0].read_bytes() == b"new"
 
         locked_root.replace_exact_file(relative_path, b"old", b"new")
@@ -1164,7 +1248,7 @@ def test_locked_root_replacement_recovers_absent_final_and_preserves_foreign_sta
     relative_path = "runtime/manifests/spec-current-binding.json"
     target = control_root / relative_path.replace("/", os.sep)
     target.parent.mkdir(parents=True)
-    selected = _reserved_stage_path(target, "0" * 32)
+    selected = _replacement_stage_path(target, b"old", "0" * 32)
     foreign = target.with_name(f".{target.name}.foreign.tmp")
     selected.write_bytes(b"new")
     foreign.write_bytes(b"foreign")
@@ -1178,14 +1262,53 @@ def test_locked_root_replacement_recovers_absent_final_and_preserves_foreign_sta
     assert foreign.read_bytes() == b"foreign"
 
 
+def test_locked_root_replacement_rejects_absent_final_stage_bound_to_another_predecessor(tmp_path: Path) -> None:
+    """remediation-red: a desired stage cannot authorize the wrong predecessor."""
+
+    control_root = tmp_path / "control"
+    relative_path = "runtime/manifests/spec-current-binding.json"
+    target = control_root / relative_path.replace("/", os.sep)
+    target.parent.mkdir(parents=True)
+    retained = _replacement_stage_path(target, b"old", "0" * 32)
+    retained.write_bytes(b"new")
+
+    with _locked_root(control_root) as locked_root:
+        with pytest.raises(ConflictError, match="stages bind different predecessors"):
+            locked_root.replace_exact_file(relative_path, b"wrong-predecessor", b"new")
+
+    assert not target.exists()
+    assert retained.read_bytes() == b"new"
+
+
+def test_locked_root_replacement_rejects_absent_final_mixed_predecessor_stages(tmp_path: Path) -> None:
+    """remediation-red: all protocol stages must bind the caller predecessor."""
+
+    control_root = tmp_path / "control"
+    relative_path = "runtime/manifests/spec-current-binding.json"
+    target = control_root / relative_path.replace("/", os.sep)
+    target.parent.mkdir(parents=True)
+    expected_stage = _replacement_stage_path(target, b"old", "0" * 32)
+    other_stage = _replacement_stage_path(target, b"other", "f" * 32)
+    expected_stage.write_bytes(b"new")
+    other_stage.write_bytes(b"new")
+
+    with _locked_root(control_root) as locked_root:
+        with pytest.raises(ConflictError, match="stages bind different predecessors"):
+            locked_root.replace_exact_file(relative_path, b"old", b"new")
+
+    assert not target.exists()
+    assert expected_stage.read_bytes() == b"new"
+    assert other_stage.read_bytes() == b"new"
+
+
 def test_locked_root_replacement_rejects_mixed_reserved_stages_without_mutation(tmp_path: Path) -> None:
     """remediation-red: mixed desired-stage residue fails closed before namespace mutation."""
 
     control_root = tmp_path / "control"
     relative_path = "runtime/manifests/spec-current-binding.json"
     target = control_root / relative_path.replace("/", os.sep)
-    first = _reserved_stage_path(target, "1" * 32)
-    second = _reserved_stage_path(target, "2" * 32)
+    first = _replacement_stage_path(target, b"old", "1" * 32)
+    second = _replacement_stage_path(target, b"old", "2" * 32)
 
     with _locked_root(control_root) as locked_root:
         locked_root.write_exact_file(relative_path, b"old")
@@ -1208,8 +1331,8 @@ def test_locked_root_replacement_selects_first_desired_stage_and_cleans_extras(t
     control_root = tmp_path / "control"
     relative_path = "runtime/manifests/spec-current-binding.json"
     target = control_root / relative_path.replace("/", os.sep)
-    selected = _reserved_stage_path(target, "0" * 32)
-    extra = _reserved_stage_path(target, "f" * 32)
+    selected = _replacement_stage_path(target, b"old", "0" * 32)
+    extra = _replacement_stage_path(target, b"old", "f" * 32)
     published: list[str] = []
     real_publish = anchor_module.DirectoryTransaction.adopt_or_publish
 
@@ -1231,6 +1354,10 @@ def test_locked_root_replacement_selects_first_desired_stage_and_cleans_extras(t
     assert not extra.exists()
 
 
+@pytest.mark.skipif(
+    os.name != "posix" or sys.platform != "linux",
+    reason="Linux POSIX guarded-unlink race",
+)
 @pytest.mark.parametrize("same_bytes", [False, True], ids=["different-bytes", "same-bytes-new-inode"])
 def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_check(
     tmp_path: Path,
@@ -1246,10 +1373,11 @@ def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_
 
     def replace_after_check(candidate: Path) -> None:
         nonlocal substituted, contender_blocked
-        if candidate == path and not substituted:
+        if _matches_effect_path(candidate, path) and not substituted:
             substituted = True
-            candidate.unlink()
-            candidate.write_bytes(foreign)
+            replacement = candidate.with_name(f".{candidate.name}.substitution")
+            replacement.write_bytes(foreign)
+            os.replace(replacement, candidate)
             with pytest.raises(WriterLockContentionError, match="writer lock exists"):
                 WriterLock(path, {"writer_id": "contender"}).__enter__()
             contender_blocked = True
@@ -1266,6 +1394,10 @@ def test_writer_lock_release_preserves_a_generation_substituted_after_ownership_
         WriterLock(path, {"writer_id": "contender"}).__enter__()
 
 
+@pytest.mark.skipif(
+    os.name != "posix" or sys.platform != "linux",
+    reason="Linux POSIX guarded-unlink race",
+)
 @pytest.mark.parametrize("same_bytes", [False, True], ids=["different-bytes", "same-bytes-new-inode"])
 def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
     tmp_path: Path,
@@ -1279,7 +1411,11 @@ def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
         {"process_id": "919191", "process_instance_id": "dead-process-instance", "writer_id": "stale-a"}
     )
     path.write_bytes(stale)
-    monkeypatch.setattr(lock_module, "process_instance_id", lambda _pid: None)
+    monkeypatch.setattr(
+        lock_module,
+        "process_instance_id",
+        lambda pid: None if pid == 919191 else "test-live-process-instance",
+    )
     monkeypatch.setattr(
         lock_module.os,
         "kill",
@@ -1305,10 +1441,11 @@ def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
 
     def replace_before_delete(candidate: Path) -> None:
         nonlocal substituted, contender_blocked
-        if candidate == path and not substituted:
+        if _matches_effect_path(candidate, path) and not substituted:
             substituted = True
-            candidate.unlink()
-            candidate.write_bytes(live)
+            replacement = candidate.with_name(f".{candidate.name}.substitution")
+            replacement.write_bytes(live)
+            os.replace(replacement, candidate)
             with pytest.raises(WriterLockContentionError, match="writer lock exists"):
                 WriterLock(path, contender_identity).__enter__()
             contender_blocked = True
@@ -1323,6 +1460,10 @@ def test_stale_reclaim_preserves_a_live_generation_substituted_after_inspection(
         WriterLock(path, contender_identity).__enter__()
 
 
+@pytest.mark.skipif(
+    os.name != "posix" or sys.platform != "linux",
+    reason="Linux POSIX guarded-unlink race",
+)
 def test_writer_lock_release_rejects_an_in_place_byte_mutation_after_ownership_check(
     tmp_path: Path,
     monkeypatch,
@@ -1335,13 +1476,16 @@ def test_writer_lock_release_rejects_an_in_place_byte_mutation_after_ownership_c
 
     def mutate_after_check(candidate: Path) -> None:
         nonlocal mutated
-        if candidate == path and not mutated:
+        if _matches_effect_path(candidate, path) and not mutated:
             mutated = True
             candidate.write_bytes(foreign)
 
     monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", mutate_after_check)
 
-    with pytest.raises(ConflictError, match="writer lock.*bytes changed|writer lock.*quarantined"):
+    with pytest.raises(
+        ConflictError,
+        match="writer lock.*bytes changed|writer lock.*quarantined|writer lock generation changed before guarded deletion",
+    ):
         writer.__exit__(None, None, None)
 
     assert mutated

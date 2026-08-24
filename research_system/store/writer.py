@@ -16,6 +16,7 @@ from typing import Any, Iterator, Literal, Self
 
 from research_system.canonical import canonical_bytes
 from research_system.errors import ConflictError
+from research_system.store import anchor as anchor_module
 from research_system.store.anchor import (
     DirectoryAnchor,
     DirectoryIdentity,
@@ -24,7 +25,6 @@ from research_system.store.anchor import (
     _ExactGenerationBusyError,
     _WindowsDeleteClosePendingError,
     _WindowsQuarantineBusyError,
-    _before_exact_generation_unlink,
     _close_only_ticket,
     _delete_exact_regular_file as _anchor_delete_exact_regular_file,
     _full_owner_key,
@@ -250,6 +250,20 @@ def _delete_exact_regular_file(
     the existing release loop proves it terminal; no filesystem operation is
     reimplemented here.
     """
+
+    if release is None and os.name == "nt":
+        parent = _open_directory_anchor(path.parent, reject_reparse=True)
+        try:
+            with DirectoryTransaction(parent) as transaction:
+                transaction.remove_exact_final(path.name, expected_identity, expected_bytes)
+        except BaseException as primary_error:
+            try:
+                parent.close()
+            except BaseException as close_error:
+                _raise_primary_with_cleanup(primary_error, close_error)
+            raise
+        parent.close()
+        return
 
     try:
         _anchor_delete_exact_regular_file(
@@ -588,9 +602,7 @@ class LockedRoot:
         """Publish one file through anchor's sole physical transaction seam."""
 
         with DirectoryTransaction(parent) as transaction:
-            stage = transaction.stage(name, data)
-            transaction.adopt_or_publish(stage, name)
-            transaction.discard_stage(stage, missing_ok=True)
+            transaction.publish_exact(name, data)
 
     def write_exact_file(self, relative_path: str, data: bytes) -> None:
         parent, name, opened = self._open_relative_file_parent(relative_path, create=True)
@@ -816,9 +828,11 @@ def _posix_guarded_delete_lock(
     expected: LockObservation,
     parent_anchor: _DirectoryAnchor,
     guard_descriptor: int,
+    *,
+    guard_path: Path | None = None,
 ) -> None:
-    _verify_posix_lock_guard(path, guard_descriptor, parent_anchor)
-    _before_exact_generation_unlink(path)
+    _verify_posix_lock_guard(guard_path or path, guard_descriptor, parent_anchor)
+    anchor_module._before_exact_generation_unlink(path)
     data, identity = parent_anchor.read_regular_file_with_identity(path.name)
     if data != expected.data or not os.path.samestat(identity, expected.identity):
         raise ConflictError("writer lock generation changed before guarded deletion")
@@ -916,6 +930,7 @@ class WriterLock:
                     LockObservation(self._data, temporary_identity),
                     parent_anchor,
                     guard,
+                    guard_path=self.path,
                 )
                 temporary = None
                 raise WriterLockContentionError(f"writer lock exists: {self.path}") from exc
@@ -925,6 +940,7 @@ class WriterLock:
                     LockObservation(self._data, temporary_identity),
                     parent_anchor,
                     guard,
+                    guard_path=self.path,
                 )
                 temporary = None
             except (ConflictError, OSError):
@@ -963,6 +979,7 @@ class WriterLock:
                         LockObservation(self._data, temporary_identity),
                         parent_anchor,
                         guard,
+                        guard_path=self.path,
                     )
                 except FileNotFoundError:
                     pass
@@ -990,13 +1007,14 @@ class WriterLock:
         _release_full_owner(reservation)
 
     def _has_retained_release(self) -> bool:
-        """Only Windows close-pending state may enter the typed retry registry.
+        """Whether this lock still has safe release authority to retry.
 
-        POSIX descriptor cleanup remains terminal-uncertain after a failed
-        attempt: descriptor numbers are never retried through a retained owner.
+        A POSIX lock remains retryable until its guarded namespace effect and
+        owned resources have completed. Descriptor numbers are never retried
+        after resource cleanup has consumed them.
         """
 
-        return self.release_pending
+        return self.release_pending or (self._posix_backend_entered and not self._posix_release_complete)
 
     def __enter__(self) -> Self:
         drain_retained_transaction_owners()
@@ -1221,6 +1239,7 @@ class WriterLock:
                         LockObservation(self._data, temporary_identity),
                         parent_anchor,
                         guard,
+                        guard_path=self.path,
                     )
                 except FileNotFoundError:
                     pass
@@ -1583,10 +1602,11 @@ class CompositeWriterLock:
                 except BaseException as exc:
                     fence_error = exc
                 close_error: BaseException | None = None
-                try:
-                    observer.close()
-                except BaseException as exc:
-                    close_error = exc
+                if observer is not None:
+                    try:
+                        observer.close()
+                    except BaseException as exc:
+                        close_error = exc
                 if fence_error is not None:
                     _raise_primary_with_cleanup(fence_error, close_error)
                 if close_error is not None:
@@ -1618,9 +1638,18 @@ class CompositeWriterLock:
     ) -> BaseException | None:
         members = tuple(acquired_members)
         first_error: BaseException | None = None
+
+        def retain_terminal_error(error: BaseException) -> None:
+            nonlocal first_error
+            if first_error is None:
+                first_error = error
+            else:
+                _append_cleanup_cause(first_error, error)
+
         for acquired in reversed(members):
             if not acquired.lock_entered or acquired.lock is None:
                 continue
+            member_error: BaseException | None = None
             for attempt in range(3):
                 try:
                     release = getattr(acquired.lock, "_release_from_composite", None)
@@ -1629,18 +1658,25 @@ class CompositeWriterLock:
                     else:
                         acquired.lock.__exit__(exc_type, exc, traceback)
                 except BaseException as error:
-                    if first_error is None:
-                        first_error = error
+                    if member_error is None:
+                        member_error = error
                     else:
-                        _append_cleanup_cause(first_error, error)
+                        _append_cleanup_cause(member_error, error)
                     if not self._member_release_pending(acquired):
                         acquired.lock_entered = False
+                        retain_terminal_error(member_error)
                         break
                     if attempt < 2:
                         time.sleep(0.01 * (attempt + 1))
                 else:
                     acquired.lock_entered = False
+                    # A bounded retry completed the release. Its earlier
+                    # transient errors are diagnostics, not terminal cleanup
+                    # failures for this composite operation.
+                    member_error = None
                     break
+            if acquired.lock_entered and member_error is not None:
+                retain_terminal_error(member_error)
 
         for acquired in reversed(members):
             if acquired.lock_entered:
@@ -1650,8 +1686,7 @@ class CompositeWriterLock:
                 try:
                     _close_anchor(anchor)
                 except BaseException as close_error:
-                    if first_error is None:
-                        first_error = close_error
+                    retain_terminal_error(close_error)
                 else:
                     setattr(acquired, attribute, None)
             if acquired.runtime_anchor is None and acquired.root_anchor is None:
@@ -1734,7 +1769,8 @@ class CompositeWriterLock:
                 locked_root for locked_root in self._locked_roots if locked_root.identity == observer.identity
             )
         finally:
-            observer.close()
+            if observer is not None:
+                observer.close()
         if len(matches) != 1:
             raise ConflictError("path does not resolve to exactly one locked root")
         return self._validate_locked_root(matches[0])
