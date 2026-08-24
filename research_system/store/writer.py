@@ -41,12 +41,16 @@ from research_system.store.anchor import (
     _windows_file_attribute_tag,
     _windows_open_handle,
     _windows_read_handle,
-    _FILE_ATTRIBUTE_DIRECTORY,
-    _FILE_ATTRIBUTE_REPARSE_POINT,
-    _FILE_SHARE_READ,
     drain_retained_transaction_owners,
 )
 from research_system.store.durability import fsync_directory
+
+if os.name == "nt":
+    from research_system.store.anchor import (
+        _FILE_ATTRIBUTE_DIRECTORY,
+        _FILE_ATTRIBUTE_REPARSE_POINT,
+        _FILE_SHARE_READ,
+    )
 
 
 LockOwnerState = Literal["missing", "live", "stale", "unknown", "malformed"]
