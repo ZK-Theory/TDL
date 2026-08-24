@@ -154,7 +154,7 @@ def test_offline_cli_publish_requires_materialized_canonical_foundation(
         )
         == 1
     )
-    assert "missing approved project binding fields" in capsys.readouterr().err
+    assert "approved control_root has no matching materialized store" in capsys.readouterr().err
     assert output.read_bytes() == b"pre-existing"
     assert len(tuple(EventLedger(control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)).iter_events())) == 2
 
@@ -230,6 +230,6 @@ def test_real_offline_cli_publish_requires_materialized_canonical_foundation(
         )
         == 1
     )
-    assert "missing approved project binding fields" in capsys.readouterr().err
+    assert "approved control_root has no matching materialized store" in capsys.readouterr().err
     assert not receipt.exists()
     assert len(tuple(EventLedger(control_root, PROJECT_ID, SchemaRegistry(SCHEMAS)).iter_events())) == 2

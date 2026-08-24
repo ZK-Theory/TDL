@@ -92,16 +92,14 @@ not make it the default empirical method.
   The merged public load, historical-corruption, registered-event-family, and
   historical-replay selection passed `4/4`. It performed no live-store write
   and does not integrate the complete STORE or Gate 6 capability.
-- `STORE-1A-MANIFEST` now proceeds on `codex/g6-spec-store-manifest-1` from that
-  exact merged base. It owns only the versioned governed-code inventory and the
-  reviewed code/documentation successor rules. The stale hold branch supplies
-  three selectively ported artefacts; its obsolete lock, object, ledger,
-  configuration, review-record, and plan changes are not candidates. The
-  focused manifest module passed `25/25`, Ruff passed, and an independent
-  bounded check found no reachable blocker. The
+- PR #266 (`STORE-1A-MANIFEST`) merged through the protected queue at
+  `c28a6b674623b8fd4c485f5c0149a0afaf8577f0` from the #265 base. It integrates
+  only the versioned governed-code inventory and reviewed code/documentation
+  successor rules; the focused manifest module passed `25/25`, Ruff passed,
+  and an independent bounded check found no reachable blocker. The
   authority-neutral public loader, binding commands, lock-held predecessor
-  revalidation, transaction, and consumer migration remain the immediately
-  following candidate.
+  revalidation, transaction, and consumer migration remain the following
+  candidate.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -310,14 +308,17 @@ activated schema lineage, and origin witness before replay or mutation.
 To obey the review-size hard stop without recreating a monolith, STORE lands as
 serial candidates under the single KAN-105 job. `STORE-1A-PUB` and
 `STORE-1A-OBJECT-R2` are integrated. `STORE-1A-LOCK-V2B` and the independent
-append-only `STORE-1A-RELEASE-V2` successor remain the named physical-store
-gaps. `STORE-1A-MANIFEST` owns the governed-code manifest and
-documentation-only-successor rule. The former `STORE-1B` surface is split at
-its actual ownership boundary: `G6-STORE-CURRENT-BINDING-1` owns historical
-binding lineage, the exact read-only current-pointer admission, binding-event
-replay, and the private validated append continuation; the following public
-SPEC candidate owns `SpecOperatorConfig@1.0.0`, the authority-neutral public
-loader, commands, and consumer migration. Each candidate must remain within the
+append-only `STORE-1A-RELEASE-V2` candidate now has the writer-owned facade and
+retained release-owner path, but remains a named physical-store gap until its
+exact-head review and owner adoption. `STORE-1A-MANIFEST` is integrated and
+owns the governed-code manifest and documentation-only-successor rule. The
+former `STORE-1B` surface is split at its actual ownership boundary:
+`G6-STORE-CURRENT-BINDING-1` is integrated and owns
+historical binding lineage, the exact read-only current-pointer admission,
+binding-event replay, and the private validated append continuation; the
+following public SPEC candidate owns `SpecOperatorConfig@1.0.0`, the
+authority-neutral public loader, commands, and consumer migration. Each
+candidate must remain within the
 35-file hard stop. All remain one incomplete STORE/Gate 6 capability until the
 assembled public path passes. This split creates neither a competing Gate 6
 plan nor another Jira capability job.
@@ -329,12 +330,17 @@ turns `store/lock.py` into the facade only after the writer half is present. New
 `store/anchor.py` owns physical directory identity, anchored traversal, exact
 member effects, the fixed per-directory transaction guard, retained generation
 pins, and close-only resource quarantine. New `store/writer.py` owns inspection,
-stale reclaim, `WriterLock`, and `CompositeWriterLock`. `store/lock.py` becomes
+stale reclaim, `LockedRoot` root-claim orchestration, `WriterLock`,
+`CompositeWriterLock`, and retained release ownership. `store/lock.py` becomes
 the compatibility facade for current production imports; private monkeypatch
 tests migrate to the actual owner module rather than forcing implementation
 globals back into the facade. `store/objects.py` remains the immutable-object
 protocol owner and calls the anchor transaction rather than implementing a
-second filesystem state machine.
+second filesystem state machine. The live next production sequence is therefore
+V2B/RELEASE-V2 after its review and owner adoption, then the following public
+SPEC binding/loader candidate. `G6-STORE-CURRENT-BINDING-1` and
+`STORE-1A-MANIFEST` are integrated historical predecessors; this candidate
+makes no ledger, receipt, scoped-index, or current-pointer binding change.
 
 Immutable object publication is commit-on-link. A successful final hard link is
 immediately recorded and is never a rollback target; a later exact retry adopts
