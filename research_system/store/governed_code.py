@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import Any, Mapping
+from urllib.parse import urlsplit, urlunsplit
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError
@@ -26,8 +27,9 @@ GOVERNED_CODE_MANIFEST_SCHEMA_VERSION = "1.0.0"
 GIT_INSPECTION_TIMEOUT_SECONDS = 10
 
 _COMMIT_OID = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
-_LOCAL_MAIN_REF = re.compile(r"^refs/heads/[A-Za-z0-9][A-Za-z0-9._/-]*$")
+_SCP_REMOTE = re.compile(r"^[^/@:\s]+@(?P<host>[^/:\s]+):(?P<path>.+)$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_INTEGRATED_MAIN_REF = "refs/heads/main"
 _CATEGORIES = frozenset(
     {
         "executable_python",
@@ -195,15 +197,37 @@ def _assert_clean_subject(root: Path) -> str:
     return _git_commit(root, _git_text(root, "rev-parse", "HEAD"), label="Git head")
 
 
+def _credential_free_repository_identity(value: str) -> str:
+    if "://" in value:
+        try:
+            parsed = urlsplit(value)
+            hostname = parsed.hostname
+            port = parsed.port
+        except ValueError as exc:
+            raise IntegrityError("governed repository identity is invalid") from exc
+        if parsed.netloc:
+            if not parsed.scheme or not hostname:
+                raise IntegrityError("governed repository identity is invalid")
+            host = f"[{hostname}]" if ":" in hostname else hostname
+            authority = f"{host}:{port}" if port is not None else host
+            return urlunsplit((parsed.scheme, authority, parsed.path, "", ""))
+        return value
+    scp_remote = _SCP_REMOTE.fullmatch(value)
+    if scp_remote is not None:
+        return f"{scp_remote.group('host')}:{scp_remote.group('path')}"
+    return value
+
+
 def _canonical_repository_identity(root: Path) -> str:
     """Return Git's canonical configured identity for this repository.
 
     A worktree's absolute path is not durable provenance: the same repository
     can be inspected from a second clean linked worktree.  The configured
     origin is shared by those worktrees and is available without a network
-    request.  We intentionally preserve Git's returned spelling; resolving
-    SSH/HTTPS aliases would require an external authority that this local
-    admission boundary does not possess.
+    request.  Authentication userinfo is not repository identity and must
+    never enter the persisted manifest.  Resolving SSH/HTTPS aliases would
+    require an external authority that this local admission boundary does not
+    possess.
     """
 
     try:
@@ -212,7 +236,7 @@ def _canonical_repository_identity(root: Path) -> str:
         raise IntegrityError("governed repository identity is unavailable") from exc
     if not identity or any(ord(character) < 32 for character in identity):
         raise IntegrityError("governed repository identity is invalid")
-    return identity
+    return _credential_free_repository_identity(identity)
 
 
 def _tree_entries(root: Path, commit: str) -> tuple[tuple[str, str, str, str], ...]:
@@ -234,12 +258,12 @@ def _tree_entries(root: Path, commit: str) -> tuple[tuple[str, str, str, str], .
     return tuple(entries)
 
 
-def _blob_hashes(root: Path, blob_oids: tuple[str, ...]) -> Mapping[str, str]:
+def _blob_contents(root: Path, blob_oids: tuple[str, ...]) -> Mapping[str, bytes]:
     unique = tuple(dict.fromkeys(blob_oids))
     if not unique:
         return {}
     output = _run_git(root, "cat-file", "--batch", input_bytes=("\n".join(unique) + "\n").encode("ascii"))
-    hashes: dict[str, str] = {}
+    contents: dict[str, bytes] = {}
     offset = 0
     for expected_oid in unique:
         try:
@@ -256,22 +280,27 @@ def _blob_hashes(root: Path, blob_oids: tuple[str, ...]) -> Mapping[str, str]:
             raise IntegrityError("governed Git blob inspection failed") from exc
         if oid != expected_oid or kind != "blob" or _COMMIT_OID.fullmatch(oid) is None:
             raise IntegrityError("governed Git blob inspection returned an unexpected object")
-        hashes[oid] = hashlib.sha256(content).hexdigest()
+        contents[oid] = content
         offset = content_end + 1
     if offset != len(output):
         raise IntegrityError("governed Git blob inspection returned trailing data")
-    return hashes
+    return contents
 
 
-def _working_blob_oids(root: Path, paths: tuple[str, ...]) -> Mapping[str, str]:
-    """Return filtered working-file OIDs and reject hidden index state.
+def _canonical_lf(raw: bytes) -> bytes:
+    return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
+def _assert_working_bytes_match_committed(root: Path, expected: Mapping[str, bytes]) -> None:
+    """Compare bytes without trusting configurable Git content filters.
 
     A clean ``git status`` is not an immutable-byte proof: assume-unchanged and
-    skip-worktree flags can hide a divergent runtime file.  ``hash-object
-    --filters`` applies the path's declared Git clean filters, so the OID is
-    comparable to the committed tree even when checkout EOL differs.
+    skip-worktree flags or a custom clean filter can hide a divergent runtime
+    file.  Only line-ending normalization is permitted between committed text
+    blobs and the bytes the runtime will actually read.
     """
 
+    paths = tuple(expected)
     tagged = _run_git(root, "ls-files", "-v", "-z")
     flags: dict[str, str] = {}
     for record in tagged.split(b"\0"):
@@ -289,20 +318,13 @@ def _working_blob_oids(root: Path, paths: tuple[str, ...]) -> Mapping[str, str]:
         raise IntegrityError("governed file is absent from the Git index")
     if any(flags[path] != "H" for path in paths):
         raise IntegrityError("governed file has assume-unchanged or skip-worktree index state")
-    output = _run_git(
-        root,
-        "hash-object",
-        "--filters",
-        "--stdin-paths",
-        input_bytes=("\n".join(paths) + "\n").encode("utf-8"),
-    )
-    try:
-        oids = tuple(line for line in output.decode("ascii", errors="strict").splitlines() if line)
-    except UnicodeDecodeError as exc:
-        raise IntegrityError("governed working-file Git hashing is invalid") from exc
-    if len(oids) != len(paths) or any(_COMMIT_OID.fullmatch(oid) is None for oid in oids):
-        raise IntegrityError("governed working-file Git hashing returned an invalid result")
-    return dict(zip(paths, oids, strict=True))
+    for path in paths:
+        try:
+            working = root.joinpath(*PurePosixPath(path).parts).read_bytes()
+        except OSError as exc:
+            raise IntegrityError("governed working file is unavailable") from exc
+        if _canonical_lf(working) != _canonical_lf(expected[path]):
+            raise IntegrityError("governed working file differs from its exact Git blob")
 
 
 @dataclass(frozen=True, slots=True)
@@ -395,6 +417,8 @@ class GovernedCodeManifest:
             or any(ord(character) < 32 for character in repository_identity)
         ):
             raise IntegrityError("governed code manifest repository identity is invalid")
+        if _credential_free_repository_identity(repository_identity) != repository_identity:
+            raise IntegrityError("governed code manifest repository identity is invalid")
         git_commit = _require_commit_oid(value.get("git_commit"), label="governed manifest Git commit")
         raw_files = value.get("governed_files")
         if not isinstance(raw_files, list):
@@ -451,19 +475,20 @@ def _inventory_for_commit(
         raise IntegrityError("governed code manifest category inventory is incomplete")
     if len({path for _category, path, _oid in selected}) != len(selected):
         raise IntegrityError("governed code manifest path inventory is duplicated")
+    blob_contents = _blob_contents(root, tuple(oid for _category, _path, oid in selected))
     if verify_working_files:
         for _category, path, _oid in selected:
             _assert_physical_file(root, path)
-        working_oids = _working_blob_oids(root, tuple(path for _category, path, _oid in selected))
-        if any(working_oids[path] != oid for _category, path, oid in selected):
-            raise IntegrityError("governed working file differs from its exact filtered Git blob")
-    blob_hashes = _blob_hashes(root, tuple(oid for _category, _path, oid in selected))
+        _assert_working_bytes_match_committed(
+            root,
+            {path: blob_contents[oid] for _category, path, oid in selected},
+        )
     return tuple(
         GovernedCodeFile(
             category=category,
             path=path,
             git_blob_oid=oid,
-            canonical_sha256=blob_hashes[oid],
+            canonical_sha256=hashlib.sha256(blob_contents[oid]).hexdigest(),
         )
         for category, path, oid in sorted(selected)
     )
@@ -657,7 +682,7 @@ def _is_ancestor(root: Path, older: str, newer: str) -> bool:
 
 
 def _changed_paths(root: Path, base: str, successor: str) -> tuple[str, ...]:
-    raw = _run_git(root, "diff", "--name-only", "-z", base, successor)
+    raw = _run_git(root, "diff", "--no-renames", "--name-only", "-z", base, successor)
     try:
         paths = tuple(
             _canonical_path(item.decode("utf-8", errors="strict"), label="Git diff")
@@ -689,9 +714,14 @@ def _assert_documentation_entries_are_regular(
             _assert_physical_file(root, path)
             current_documentation_paths.append(path)
     if current_documentation_paths:
-        working_oids = _working_blob_oids(root, tuple(current_documentation_paths))
-        if any(working_oids[path] != successor_entries[path][2] for path in current_documentation_paths):
-            raise IntegrityError("reviewed successor changed documentation working file differs from exact Git bytes")
+        documentation_blobs = _blob_contents(
+            root,
+            tuple(successor_entries[path][2] for path in current_documentation_paths),
+        )
+        _assert_working_bytes_match_committed(
+            root,
+            {path: documentation_blobs[successor_entries[path][2]] for path in current_documentation_paths},
+        )
 
 
 def validate_reviewed_documentation_successor(
@@ -700,13 +730,14 @@ def validate_reviewed_documentation_successor(
     *,
     successor_commit: str,
     reviewed_commit: str,
-    main_ref: str = "refs/heads/main",
 ) -> ReviewedDocumentationSuccessor:
     """Admit only an exactly reviewed, integrated documentation-only descendant.
 
     This return value is deliberately not an executable-equivalence attestation:
     it proves that the configured governed inventory and schema catalogue did
     not change, while permitting a separately reviewed documentation revision.
+    The integration ref is fixed locally; the binding service separately owns
+    the fresh live-remote equality check before an authoritative store write.
     """
 
     parsed = _validated_manifest(manifest)
@@ -721,10 +752,8 @@ def validate_reviewed_documentation_successor(
         raise IntegrityError("reviewed successor is not the exact current Git head")
     if reviewed != successor:
         raise IntegrityError("reviewed commit is not the exact successor commit")
-    if not isinstance(main_ref, str) or _LOCAL_MAIN_REF.fullmatch(main_ref) is None:
-        raise IntegrityError("reviewed successor main ref is invalid")
     try:
-        integrated_main = _git_text(root, "rev-parse", "--verify", f"{main_ref}^{{commit}}")
+        integrated_main = _git_text(root, "rev-parse", "--verify", f"{_INTEGRATED_MAIN_REF}^{{commit}}")
     except IntegrityError as exc:
         raise IntegrityError("reviewed successor main integration is unavailable") from exc
     integrated_main = _git_commit(root, integrated_main, label="integrated main commit")

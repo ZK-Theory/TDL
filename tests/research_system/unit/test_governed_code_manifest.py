@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -221,6 +223,46 @@ def test_manifest_rejects_hidden_runtime_authority_data_bytes(
         build_governed_code_manifest(governed_repository)
 
 
+def test_manifest_rejects_runtime_bytes_hidden_by_a_configured_clean_filter(
+    governed_repository: Path,
+) -> None:
+    governed_path = "research_system/runtime.py"
+    filter_script = governed_repository.parent / "mask-runtime.py"
+    filter_script.write_text(
+        "import sys\nsys.stdin.buffer.read()\nsys.stdout.buffer.write(b\"VALUE = 'base'\\n\")\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    _git(
+        governed_repository,
+        "config",
+        "filter.mask-runtime.clean",
+        f'"{Path(sys.executable).as_posix()}" "{filter_script.as_posix()}"',
+    )
+    _write(governed_repository, ".git/info/attributes", f"{governed_path} filter=mask-runtime\n")
+    _write(governed_repository, governed_path, "VALUE = 'evil'\n")
+    assert _git(governed_repository, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    with pytest.raises(IntegrityError, match="working file differs"):
+        build_governed_code_manifest(governed_repository)
+
+
+def test_manifest_accepts_only_line_ending_variation_in_working_bytes(
+    governed_repository: Path,
+) -> None:
+    governed_path = "research_system/runtime.py"
+    _git(governed_repository, "config", "core.autocrlf", "true")
+    (governed_repository / governed_path).write_bytes(b"VALUE = 'base'\r\n")
+    _git(governed_repository, "add", "--", governed_path)
+    working = (governed_repository / governed_path).read_bytes()
+    assert working == b"VALUE = 'base'\r\n"
+    assert _git(governed_repository, "status", "--porcelain=v1", "--untracked-files=all") == ""
+
+    assert build_governed_code_manifest(governed_repository).git_commit == _git(
+        governed_repository, "rev-parse", "HEAD"
+    )
+
+
 def test_git_inspection_failure_reports_exit_status_without_command_output(
     governed_repository: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -300,6 +342,28 @@ def test_manifest_rejects_a_different_repository_identity(
 
     with pytest.raises(IntegrityError, match="repository identity differs"):
         validate_governed_code_manifest(manifest, different_repository)
+
+
+def test_manifest_repository_identity_excludes_credentials_and_survives_rotation(
+    governed_repository: Path,
+) -> None:
+    first_origin = "https://operator:first-fake-token@example.test/org/repository.git"
+    second_origin = "https://operator:second-fake-token@example.test/org/repository.git"
+    canonical_origin = "https://example.test/org/repository.git"
+    _git(governed_repository, "remote", "set-url", "origin", first_origin)
+
+    manifest = build_governed_code_manifest(governed_repository)
+
+    assert manifest.repository_identity == canonical_origin
+    assert "first-fake-token" not in json.dumps(manifest.to_mapping())
+    _git(governed_repository, "remote", "set-url", "origin", second_origin)
+    assert validate_governed_code_manifest(manifest, governed_repository) == manifest
+
+    forged = manifest.to_mapping()
+    forged["repository_identity"] = first_origin
+    _recompute_manifest_hashes(forged)
+    with pytest.raises(IntegrityError, match="repository identity is invalid"):
+        GovernedCodeManifest.from_mapping(forged)
 
 
 def test_classify_governed_subject_relationship_reports_a_divergent_retired_subject(
@@ -479,6 +543,45 @@ def test_reviewed_documentation_successor_requires_exact_review_main_and_governe
             governed_repository,
             successor_commit=code_commit,
             reviewed_commit=code_commit,
+        )
+
+
+def test_reviewed_documentation_successor_does_not_accept_a_caller_selected_integration_ref(
+    governed_repository: Path,
+) -> None:
+    assert "main_ref" not in inspect.signature(validate_reviewed_documentation_successor).parameters
+    manifest = build_governed_code_manifest(governed_repository)
+    _git(governed_repository, "checkout", "-q", "-b", "documentation-candidate")
+    _write(governed_repository, "docs/feature.md", "# Unintegrated documentation\n")
+    documentation_commit = _commit(governed_repository, "unintegrated documentation")
+
+    with pytest.raises(IntegrityError, match="exact integrated main"):
+        validate_reviewed_documentation_successor(
+            manifest,
+            governed_repository,
+            successor_commit=documentation_commit,
+            reviewed_commit=documentation_commit,
+        )
+
+
+def test_reviewed_documentation_successor_rejects_a_non_document_source_renamed_into_docs(
+    governed_repository: Path,
+) -> None:
+    manifest = build_governed_code_manifest(governed_repository)
+    _git(
+        governed_repository,
+        "mv",
+        "research_system/projection/data/README.md",
+        "docs/renamed-package-notes.md",
+    )
+    documentation_commit = _commit(governed_repository, "rename package notes into documentation")
+
+    with pytest.raises(IntegrityError, match="non-document changes"):
+        validate_reviewed_documentation_successor(
+            manifest,
+            governed_repository,
+            successor_commit=documentation_commit,
+            reviewed_commit=documentation_commit,
         )
 
 
