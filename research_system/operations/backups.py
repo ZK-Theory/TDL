@@ -34,7 +34,7 @@ from research_system.store.identity import (
 )
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger, LedgerSnapshot
-from research_system.schema_registry import bundled_runtime_schema_registry
+from research_system.schema_registry import SchemaRegistry, bundled_runtime_schema_registry
 
 
 _WINDOWS_RESERVED_FILENAMES = frozenset(
@@ -662,6 +662,7 @@ class BackupMaterializer:
     verification_authority_grant_id: str
     approved_witness: StoreOriginWitness
     approved_witness_path: Path
+    schema_registry: SchemaRegistry | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.command_id, str) or not self.command_id:
@@ -728,6 +729,7 @@ class BackupMaterializer:
         fields = getattr(self.registry, "__dataclass_fields__", None)
         if not isinstance(fields, dict):
             raise ArsError("backup evidence registry must expose immutable state")
+
         registry_hash = getattr(self.registry, "registry_hash", None)
         if not _is_sha256(registry_hash):
             raise ArsError("backup evidence registry hash must be a lowercase SHA-256")
@@ -750,6 +752,11 @@ class BackupMaterializer:
         verifier_bindings = getattr(self.registry, "verifier_authority_bindings", ())
         if (self.verified_by_actor_id, self.verification_authority_grant_id) not in verifier_bindings:
             raise ArsError("backup verifier authority is not registered")
+
+    def _schemas(self) -> SchemaRegistry:
+        """Keep legacy bundled defaults while accepting one admitted registry."""
+
+        return self.schema_registry or bundled_runtime_schema_registry()
 
     def derive_event_payload(
         self,
@@ -997,7 +1004,7 @@ class BackupMaterializer:
             raise IntegrityError("backup Source manifest is bound to a different root")
         if project_id != self.approved_witness.project_id or store_identity != self.approved_witness.store_identity:
             raise IntegrityError("backup Source differs from the approved origin witness")
-        schemas = bundled_runtime_schema_registry()
+        schemas = self._schemas()
         current = EventLedger(self.source_root, project_id, schemas).snapshot()
         if (
             current.events != ledger_snapshot.events
@@ -1416,7 +1423,7 @@ class BackupMaterializer:
         unsigned.pop("event_hash", None)
         if recorded_hash != sha256_hex(canonical_bytes(unsigned)):
             raise IntegrityError("BackupCreated event hash is invalid")
-        schemas = bundled_runtime_schema_registry()
+        schemas = self._schemas()
         snapshot = EventLedger(self.source_root, record["project_id"], schemas).snapshot()
         matches = [item for item in snapshot.events if item.get("event_id") == event.get("event_id")]
         if len(matches) != 1 or matches[0] != event:
@@ -1464,7 +1471,7 @@ class BackupMaterializer:
             raise IntegrityError("backup candidate Source code-root binding is invalid")
         require_existing_control_root([Path(item) for item in code_roots], root)
 
-        schemas = bundled_runtime_schema_registry()
+        schemas = self._schemas()
         candidate_ledger = EventLedger(root, project_id, schemas).snapshot()
         if candidate_ledger.global_position != tail_position or candidate_ledger.event_hash != tail_hash:
             raise IntegrityError("backup candidate ledger differs from the committed pre-event tail")
@@ -1598,7 +1605,7 @@ class BackupMaterializer:
             evidence_registry_hash=str(record["evidence_registry_hash"]),
         )
         sealed = seal_backup_receipt(receipt)
-        bundled_runtime_schema_registry().validate(
+        self._schemas().validate(
             "ars://operations/backup-receipt",
             _jsonable(asdict(sealed)),
         )
@@ -1634,6 +1641,7 @@ def verify_restore_before_writer_lease(
     authority_grant_id: str,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
+    schema_registry: SchemaRegistry | None = None,
     _capture_bundle: bool = False,
 ) -> RestorePreflightResult | RestoreAdmissionBundle:
     """Independently inspect a moved store and derive a pre-writer result."""
@@ -1762,7 +1770,7 @@ def verify_restore_before_writer_lease(
             failed.append("restore_output_binding_invalid")
 
     try:
-        schemas = bundled_runtime_schema_registry()
+        schemas = schema_registry or bundled_runtime_schema_registry()
         if not code_roots:
             raise ArsError("store code roots are unavailable")
         require_existing_control_root([Path(root) for root in code_roots], target)
@@ -1997,6 +2005,7 @@ def prepare_restore_admission_before_writer_lease(
     authority_grant_id: str,
     approved_witness: StoreOriginWitness | None = None,
     approved_witness_path: Path | None = None,
+    schema_registry: SchemaRegistry | None = None,
 ) -> RestoreAdmissionBundle:
     """Run the full preflight once and retain its exact bounded input closure."""
     bundle = verify_restore_before_writer_lease(
@@ -2010,6 +2019,7 @@ def prepare_restore_admission_before_writer_lease(
         authority_grant_id=authority_grant_id,
         approved_witness=approved_witness,
         approved_witness_path=approved_witness_path,
+        schema_registry=schema_registry,
         _capture_bundle=True,
     )
     if not isinstance(bundle, RestoreAdmissionBundle):

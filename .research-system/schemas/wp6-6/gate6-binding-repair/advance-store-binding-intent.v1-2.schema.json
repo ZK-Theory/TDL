@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_id", "schema_version", "command_type", "control_root", "candidate_repository_root", "expected_project_id", "expected_store_identity", "expected_origin_authority_root", "expected_origin_witness_sha256", "intended_schema_root", "valid_from", "expires_at", "owner_actor_id", "owner_action", "idempotency_key", "reason", "expected_predecessor_binding_sha256", "reviewed_git_head", "integrated_main_git_head", "integration_ref"],
+  "properties": {
+    "schema_id": {"const": "ars://wp6-6/gate6/binding-repair/intent/AdvanceStoreBinding"},
+    "schema_version": {"const": "1.2.0"},
+    "command_type": {"const": "AdvanceStoreBinding"},
+    "control_root": {"type": "string", "minLength": 1}, "candidate_repository_root": {"type": "string", "minLength": 1},
+    "expected_project_id": {"type": "string", "pattern": "^prj_"}, "expected_store_identity": {"$ref": "#/$defs/sha256"},
+    "expected_origin_authority_root": {"type": "string", "minLength": 1}, "expected_origin_witness_sha256": {"$ref": "#/$defs/sha256"},
+    "intended_schema_root": {"type": "string", "minLength": 1}, "valid_from": {"$ref": "#/$defs/utc"}, "expires_at": {"$ref": "#/$defs/utc"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_"}, "owner_action": {"enum": ["advance-reviewed-divergence-store-binding", "advance-clean-descendant-store-binding"]},
+    "idempotency_key": {"type": "string", "minLength": 8}, "reason": {"type": "string", "minLength": 12},
+    "expected_predecessor_binding_sha256": {"$ref": "#/$defs/sha256"}, "reviewed_git_head": {"$ref": "#/$defs/git"}, "integrated_main_git_head": {"$ref": "#/$defs/git"}, "integration_ref": {"const": "refs/heads/main"},
+    "reviewed_divergence_authority": {"$ref": "#/$defs/reviewed_divergence_authority"}
+  },
+  "allOf": [{"oneOf": [
+    {"properties": {"owner_action": {"const": "advance-reviewed-divergence-store-binding"}}, "required": ["reviewed_divergence_authority"]},
+    {"properties": {"owner_action": {"const": "advance-clean-descendant-store-binding"}}, "not": {"required": ["reviewed_divergence_authority"]}}
+  ]}],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "git": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "utc": {"type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"},
+    "reviewed_divergence_authority": {"type": "object", "additionalProperties": false, "required": ["predecessor_binding_sha256", "predecessor_git_head", "candidate_git_head", "integration_ref", "protected_route_sha256", "protected_sources_sha256", "governed_code_manifest_sha256"], "properties": {"predecessor_binding_sha256": {"$ref": "#/$defs/sha256"}, "predecessor_git_head": {"$ref": "#/$defs/git"}, "candidate_git_head": {"$ref": "#/$defs/git"}, "integration_ref": {"const": "refs/heads/main"}, "protected_route_sha256": {"$ref": "#/$defs/sha256"}, "protected_sources_sha256": {"$ref": "#/$defs/sha256"}, "governed_code_manifest_sha256": {"$ref": "#/$defs/sha256"}}}
+  }
+}

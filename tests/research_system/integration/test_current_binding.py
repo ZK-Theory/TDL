@@ -16,7 +16,7 @@ from research_system.git_execution import scrubbed_git_environment
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.current_binding import _schema_catalogue, load_current_binding
 from research_system.store.identity import load_restore_binding_transaction
-from research_system.store.ledger import EventLedger, _issue_validated_service_session
+from research_system.store.ledger import EventLedger
 from tests.research_system.factories import PROJECT_ID, REPO_ROOT
 from tests.research_system.integration.test_restore_recovery_origin_witness import (
     ACTOR_ID,
@@ -98,6 +98,71 @@ class _Fixture:
     binding_raw: bytes
     schemas: object
     ledger: EventLedger
+
+
+def _write_historical_binding_advance_event(
+    ledger: EventLedger,
+    schemas: object,
+    binding: dict[str, object],
+    *,
+    occurred_at: str,
+) -> dict[str, object]:
+    """Persist one pre-service v1.1 event exactly as historical ledger bytes.
+
+    Historical replay is a read concern.  Its fixture must not mint the
+    production-only continuation that creates a new binding effect.
+    """
+
+    command = schemas.command_binding("AdvanceStoreBinding")
+    assert command is not None
+    command_identity = schemas.resolve_identity(command.schema_id, "1.0.0")
+    snapshot = ledger.snapshot()
+    global_position = snapshot.global_position + 1
+    stream_version = snapshot.stream_versions.get(PROJECT_ID, 0) + 1
+    payload_hash = str(binding["command_payload_hash"])
+    idempotency_key = str(binding["idempotency_key"])
+    transaction_id = f"txb_historical_binding_{global_position:020d}"
+    event: dict[str, object] = {
+        "event_id": f"evt_historical_binding_{global_position:020d}",
+        "event_type": "StoreBindingAdvanced",
+        "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
+        "schema_version": "1.0.0",
+        "project_id": PROJECT_ID,
+        "stream_id": PROJECT_ID,
+        "stream_version": stream_version,
+        "global_position": global_position,
+        "transaction_id": transaction_id,
+        "transaction_index": 1,
+        "transaction_count": 1,
+        "command_id": f"binding-advance-{payload_hash}",
+        "command_type": "AdvanceStoreBinding",
+        "idempotency_key": idempotency_key,
+        "command_payload_hash": payload_hash,
+        "correlation_id": idempotency_key,
+        "causation_id": None,
+        "actor_id": ACTOR_ID,
+        "authority_grant_id": "store-binding-recovery",
+        "occurred_at": occurred_at,
+        "recorded_at": occurred_at,
+        "command_schema_id": command_identity.schema_id,
+        "command_schema_version": command_identity.schema_version,
+        "command_schema_sha256": command_identity.sha256,
+        "payload": {
+            "recovery_binding_sha256": sha256_hex(canonical_bytes(binding)),
+            "recovery_binding_path": "manifests/binding-repair-current.json",
+            "object_path": (f"objects/binding-repair/sha256-{sha256_hex(canonical_bytes(binding))}.json"),
+            "git_head": binding["git_head"],
+            "git_tree": binding["git_tree"],
+            "predecessor_binding_sha256": binding["predecessor_binding_sha256"],
+        },
+        "previous_event_hash": snapshot.event_hash,
+    }
+    event["event_hash"] = sha256_hex(canonical_bytes(event))
+    batch_path = ledger.events_root / "2026" / "08" / f"{global_position:020d}-{transaction_id}.jsonl"
+    batch_path.parent.mkdir(parents=True, exist_ok=True)
+    assert not batch_path.exists()
+    batch_path.write_bytes(canonical_bytes(event) + b"\n")
+    return event
 
 
 def _bound_fixture(tmp_path: Path) -> _Fixture:
@@ -203,40 +268,13 @@ def _bound_fixture(tmp_path: Path) -> _Fixture:
 
     schemas = runtime_schema_registry(schema_root)
     ledger = EventLedger(control_root, PROJECT_ID, schemas, store_identity=str(initialized))
-    command = schemas.command_binding("AdvanceStoreBinding")
-    assert command is not None
-    command_identity = schemas.resolve_identity(command.schema_id, command.schema_version)
-    result = ledger._append_binding_repair_from_validated_service(
-        {
-            "event_type": "StoreBindingAdvanced",
-            "stream_id": PROJECT_ID,
-            "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
-            "schema_version": "1.0.0",
-            "command_id": f"binding-advance-{payload_hash}",
-            "command_type": "AdvanceStoreBinding",
-            "idempotency_key": common["idempotency_key"],
-            "command_payload_hash": payload_hash,
-            "correlation_id": common["idempotency_key"],
-            "causation_id": None,
-            "actor_id": ACTOR_ID,
-            "authority_grant_id": "store-binding-recovery",
-            "occurred_at": "2026-08-23T12:00:00Z",
-            "command_schema_id": command_identity.schema_id,
-            "command_schema_version": command_identity.schema_version,
-            "command_schema_sha256": command_identity.sha256,
-            "payload": {
-                "recovery_binding_sha256": binding_sha256,
-                "recovery_binding_path": "manifests/binding-repair-current.json",
-                "object_path": f"objects/binding-repair/sha256-{binding_sha256}.json",
-                "git_head": head,
-                "git_tree": tree,
-                "predecessor_binding_sha256": predecessor_sha256,
-            },
-        },
-        snapshot=ledger.snapshot(),
-        session=_issue_validated_service_session(ledger),
+    event = _write_historical_binding_advance_event(
+        ledger,
+        schemas,
+        binding,
+        occurred_at="2026-08-23T12:00:00Z",
     )
-    observed_version = result["resulting_stream_versions"][PROJECT_ID]
+    observed_version = int(event["stream_version"])
     receipt = {
         "schema_id": "ars://core/receipt",
         "schema_version": "1.0.0",
@@ -244,7 +282,7 @@ def _bound_fixture(tmp_path: Path) -> _Fixture:
         "status": "accepted",
         "payload_hash": payload_hash,
         "outcome": {
-            "event_batch_id": result["event_batch_id"],
+            "event_batch_id": event["transaction_id"],
             "observed_stream_version": observed_version,
             "reason_code": None,
         },
@@ -284,42 +322,15 @@ def _publish_binding_advance(fixture: _Fixture, binding: dict[str, object]) -> s
     binding_sha256 = sha256_hex(binding_raw)
     object_path = fixture.control_root / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
     object_path.write_bytes(binding_raw)
-    command = fixture.schemas.command_binding("AdvanceStoreBinding")
-    assert command is not None
-    command_identity = fixture.schemas.resolve_identity(command.schema_id, command.schema_version)
     payload_hash = str(binding["command_payload_hash"])
     idempotency_key = str(binding["idempotency_key"])
-    result = fixture.ledger._append_binding_repair_from_validated_service(
-        {
-            "event_type": "StoreBindingAdvanced",
-            "stream_id": PROJECT_ID,
-            "schema_id": "ars://wp6-6/gate6/binding-repair/event/StoreBindingAdvanced",
-            "schema_version": "1.0.0",
-            "command_id": f"binding-advance-{payload_hash}",
-            "command_type": "AdvanceStoreBinding",
-            "idempotency_key": idempotency_key,
-            "command_payload_hash": payload_hash,
-            "correlation_id": idempotency_key,
-            "causation_id": None,
-            "actor_id": ACTOR_ID,
-            "authority_grant_id": "store-binding-recovery",
-            "occurred_at": "2026-08-23T13:00:00Z",
-            "command_schema_id": command_identity.schema_id,
-            "command_schema_version": command_identity.schema_version,
-            "command_schema_sha256": command_identity.sha256,
-            "payload": {
-                "recovery_binding_sha256": binding_sha256,
-                "recovery_binding_path": "manifests/binding-repair-current.json",
-                "object_path": f"objects/binding-repair/sha256-{binding_sha256}.json",
-                "git_head": binding["git_head"],
-                "git_tree": binding["git_tree"],
-                "predecessor_binding_sha256": binding["predecessor_binding_sha256"],
-            },
-        },
-        snapshot=fixture.ledger.snapshot(),
-        session=_issue_validated_service_session(fixture.ledger),
+    event = _write_historical_binding_advance_event(
+        fixture.ledger,
+        fixture.schemas,
+        binding,
+        occurred_at="2026-08-23T13:00:00Z",
     )
-    observed_version = result["resulting_stream_versions"][PROJECT_ID]
+    observed_version = int(event["stream_version"])
     receipt = {
         "schema_id": "ars://core/receipt",
         "schema_version": "1.0.0",
@@ -327,7 +338,7 @@ def _publish_binding_advance(fixture: _Fixture, binding: dict[str, object]) -> s
         "status": "accepted",
         "payload_hash": payload_hash,
         "outcome": {
-            "event_batch_id": result["event_batch_id"],
+            "event_batch_id": event["transaction_id"],
             "observed_stream_version": observed_version,
             "reason_code": None,
         },
@@ -433,11 +444,23 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
         "git_tree": _git(fixture.repository_root, "rev-parse", "HEAD^{tree}"),
     }
 
-    _validate_binding_transition(fixture.repository_root, descendant, predecessor, predecessor_sha256)
+    _validate_binding_transition(
+        fixture.repository_root,
+        fixture.control_root,
+        descendant,
+        predecessor,
+        predecessor_sha256,
+    )
 
     changed_route = {**descendant, "route": {**descendant["route"], "sha256": "1" * 64}}
     with pytest.raises(IntegrityError, match="governed evidence"):
-        _validate_binding_transition(fixture.repository_root, changed_route, predecessor, predecessor_sha256)
+        _validate_binding_transition(
+            fixture.repository_root,
+            fixture.control_root,
+            changed_route,
+            predecessor,
+            predecessor_sha256,
+        )
 
     unrelated_head = _git(
         fixture.repository_root,
@@ -448,7 +471,13 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
     )
     unrelated = {**descendant, "git_head": unrelated_head}
     with pytest.raises(IntegrityError, match="not a clean Git descendant"):
-        _validate_binding_transition(fixture.repository_root, unrelated, predecessor, predecessor_sha256)
+        _validate_binding_transition(
+            fixture.repository_root,
+            fixture.control_root,
+            unrelated,
+            predecessor,
+            predecessor_sha256,
+        )
 
     fixture_binding_sha256 = sha256_hex(fixture.binding_raw)
     reviewed = {
@@ -465,6 +494,7 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
     }
     _validate_binding_transition(
         fixture.repository_root,
+        fixture.control_root,
         reviewed,
         fixture.binding,
         fixture_binding_sha256,
@@ -484,6 +514,7 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
     with pytest.raises(IntegrityError, match="clean legacy predecessor"):
         _validate_binding_transition(
             fixture.repository_root,
+            fixture.control_root,
             repeated,
             reviewed,
             sha256_hex(canonical_bytes(reviewed)),
@@ -502,6 +533,7 @@ def test_clean_descendant_and_reviewed_successor_validate_their_exact_transition
         with pytest.raises(IntegrityError, match="reviewed route successor authority"):
             _validate_binding_transition(
                 fixture.repository_root,
+                fixture.control_root,
                 attacked,
                 fixture.binding,
                 fixture_binding_sha256,

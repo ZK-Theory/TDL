@@ -35,6 +35,12 @@ from research_system.store.identity import (
 from research_system.store.layout import require_existing_control_root
 from research_system.store.ledger import EventLedger
 from research_system.store.receipts import validate_scoped_receipt_index
+from research_system.store.governed_code import (
+    GovernedCodeManifest,
+    validate_governed_code_manifest,
+    validate_persisted_governed_code_manifest,
+    validate_reviewed_documentation_successor,
+)
 
 
 CURRENT_BINDING_RELATIVE_PATH = Path("manifests/binding-repair-current.json")
@@ -277,6 +283,21 @@ def _validate_binding_shape(value: dict[str, Any]) -> None:
             expected_fields.add("route_successor_authority")
         elif value.get("owner_action") != "advance-clean-descendant-store-binding":
             raise IntegrityError("current binding owner action is invalid")
+    elif version == "1.2.0":
+        expected_fields.update(
+            {
+                "predecessor_binding_sha256",
+                "governed_code_manifest_sha256",
+                "governed_code_manifest_path",
+                "reviewed_git_head",
+                "integrated_main_git_head",
+                "integration_ref",
+            }
+        )
+        if value.get("owner_action") == "advance-reviewed-divergence-store-binding":
+            expected_fields.add("reviewed_divergence_authority")
+        elif value.get("owner_action") != "advance-clean-descendant-store-binding":
+            raise IntegrityError("current binding owner action is invalid")
     elif version == "1.0.0":
         if value.get("owner_action") != "repair-stale-store-binding":
             raise IntegrityError("current binding owner action is invalid")
@@ -309,6 +330,7 @@ def _binding_git_tree(repository_root: Path, binding: dict[str, Any]) -> str:
 
 def _validate_binding_transition(
     repository_root: Path,
+    control_root: Path,
     child: dict[str, Any],
     predecessor: dict[str, Any],
     predecessor_sha256: str,
@@ -328,11 +350,101 @@ def _validate_binding_transition(
         "binding_config_path",
         "binding_config_sha256",
     )
-    if any(predecessor.get(field) != child.get(field) for field in stable_fields):
-        raise IntegrityError("current binding predecessor identity mismatch")
     predecessor_head = _binding_git_tree(repository_root, predecessor)
     child_head = _binding_git_tree(repository_root, child)
     owner_action = child.get("owner_action")
+    if child.get("schema_version") == "1.2.0":
+        identity_fields = (
+            "project_id",
+            "store_identity",
+            "control_root",
+            "origin_witness_sha256",
+            "prior_restore_transaction_id",
+            "prior_restore_intended_manifest_sha256",
+            "stale_evidence",
+        )
+        if any(predecessor.get(field) != child.get(field) for field in identity_fields):
+            raise IntegrityError("current binding predecessor identity mismatch")
+        manifest_sha256 = child.get("governed_code_manifest_sha256")
+        manifest_path = child.get("governed_code_manifest_path")
+        if (
+            not _is_sha256(manifest_sha256)
+            or manifest_path != f"objects/governed-code/sha256-{manifest_sha256}.json"
+            or child.get("reviewed_git_head") != child_head
+            or child.get("integrated_main_git_head") != child_head
+            or child.get("integration_ref") != "refs/heads/main"
+        ):
+            raise IntegrityError("current binding governed v1.2 evidence is invalid")
+        manifest, _manifest_raw = _read_canonical_json(
+            control_root / str(manifest_path), label="current binding governed code manifest"
+        )
+        parsed_manifest = GovernedCodeManifest.from_mapping(manifest)
+        if parsed_manifest.manifest_sha256 != manifest_sha256:
+            raise IntegrityError("current binding governed code manifest hash is invalid")
+        validate_persisted_governed_code_manifest(
+            parsed_manifest,
+            repository_root,
+            expected_commit=child_head,
+        )
+        if owner_action == "advance-reviewed-divergence-store-binding":
+            if (
+                predecessor.get("schema_version") != "1.1.0"
+                or predecessor.get("owner_action") != "advance-clean-descendant-store-binding"
+                or "route_successor_authority" in predecessor
+                or predecessor.get("route") != child.get("route")
+                or predecessor.get("sources") != child.get("sources")
+            ):
+                raise IntegrityError("current binding reviewed divergence requires a clean legacy predecessor")
+            expected_authority = {
+                "predecessor_binding_sha256": predecessor_sha256,
+                "predecessor_git_head": predecessor_head,
+                "candidate_git_head": child_head,
+                "integration_ref": "refs/heads/main",
+                "protected_route_sha256": child.get("route", {}).get("sha256")
+                if isinstance(child.get("route"), dict)
+                else None,
+                "protected_sources_sha256": sha256_hex(canonical_bytes(child.get("sources"))),
+                "governed_code_manifest_sha256": manifest_sha256,
+            }
+            if child.get("reviewed_divergence_authority") != expected_authority:
+                raise IntegrityError("current binding reviewed divergence authority is invalid")
+            return
+        if owner_action == "advance-clean-descendant-store-binding":
+            if predecessor.get("schema_version") != "1.2.0":
+                raise IntegrityError("current binding clean v1.2 advance requires a v1.2 predecessor")
+            if predecessor.get("route") != child.get("route") or predecessor.get("sources") != child.get("sources"):
+                raise IntegrityError("current binding clean v1.2 advance changed protected SPEC evidence")
+            if any(predecessor.get(field) != child.get(field) for field in identity_fields):
+                raise IntegrityError("current binding clean v1.2 predecessor identity mismatch")
+            predecessor_manifest_path = predecessor.get("governed_code_manifest_path")
+            if not isinstance(predecessor_manifest_path, str):
+                raise IntegrityError("current binding predecessor governed manifest path is invalid")
+            predecessor_manifest, _ = _read_canonical_json(
+                control_root / predecessor_manifest_path, label="current binding predecessor governed code manifest"
+            )
+            persisted_predecessor = validate_persisted_governed_code_manifest(
+                GovernedCodeManifest.from_mapping(predecessor_manifest),
+                repository_root,
+                expected_commit=predecessor_head,
+            )
+            relation = run_git(
+                repository_root,
+                "merge-base",
+                "--is-ancestor",
+                predecessor_head,
+                child_head,
+                unavailable_message="current binding Git ancestry inspection is unavailable",
+            )
+            if relation.returncode != 0 or predecessor_head == child_head:
+                if relation.returncode == 1 or predecessor_head == child_head:
+                    raise IntegrityError("current binding clean v1.2 subject is not a strict descendant")
+                raise IntegrityError("current binding Git ancestry inspection failed")
+            if persisted_predecessor.governed_files == parsed_manifest.governed_files:
+                raise IntegrityError("current binding clean v1.2 successor does not change governed code")
+            return
+        raise IntegrityError("current binding owner action is invalid")
+    if any(predecessor.get(field) != child.get(field) for field in stable_fields):
+        raise IntegrityError("current binding predecessor identity mismatch")
     if owner_action == "advance-clean-descendant-store-binding":
         if any(predecessor.get(field) != child.get(field) for field in ("schema_catalogue_sha256", "route", "sources")):
             raise IntegrityError("clean descendant current binding changed governed evidence")
@@ -381,7 +493,7 @@ def _validate_binding_chain(
 ) -> None:
     seen = {current_sha256}
     child = current
-    while child.get("schema_version") == "1.1.0":
+    while child.get("schema_version") in {"1.1.0", "1.2.0"}:
         predecessor_sha256 = child.get("predecessor_binding_sha256")
         if not _is_sha256(predecessor_sha256) or predecessor_sha256 in seen:
             raise IntegrityError("current binding predecessor chain is invalid")
@@ -395,14 +507,14 @@ def _validate_binding_chain(
         _validate_binding_shape(predecessor)
         predecessor_schema_id = (
             "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
-            if predecessor["schema_version"] == "1.1.0"
+            if predecessor["schema_version"] in {"1.1.0", "1.2.0"}
             else "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
         )
         try:
-            schemas.validate(predecessor_schema_id, predecessor)
+            schemas.validate(predecessor_schema_id, predecessor, schema_version=str(predecessor["schema_version"]))
         except SchemaError as exc:
             raise IntegrityError("current binding predecessor object schema is invalid") from exc
-        _validate_binding_transition(repository_root, child, predecessor, predecessor_sha256)
+        _validate_binding_transition(repository_root, control_root, child, predecessor, predecessor_sha256)
         seen.add(predecessor_sha256)
         child = predecessor
     if child.get("schema_version") != "1.0.0":
@@ -473,8 +585,8 @@ def _validate_binding_event_against_object(
     if sha256_hex(binding_raw) != binding_sha256:
         raise IntegrityError("current binding event immutable object hash is invalid")
     _validate_binding_shape(binding)
-    expected_version = "1.1.0" if advanced else "1.0.0"
-    if binding.get("schema_version") != expected_version:
+    expected_versions = {"1.1.0", "1.2.0"} if advanced else {"1.0.0"}
+    if binding.get("schema_version") not in expected_versions:
         raise IntegrityError("current binding event/object version is invalid")
 
     try:
@@ -487,7 +599,7 @@ def _validate_binding_event_against_object(
             expected_sha256=str(event.get("command_schema_sha256")),
         )
         schemas.validate(event_schema_id, event, schema_version=str(event.get("schema_version", "")))
-        schemas.validate(object_schema_id, binding)
+        schemas.validate(object_schema_id, binding, schema_version=str(binding["schema_version"]))
     except SchemaError as exc:
         raise IntegrityError("current binding event schema provenance is invalid") from exc
 
@@ -534,7 +646,7 @@ def _validate_receipt_and_event(
     binding: dict[str, Any],
     binding_raw: bytes,
 ) -> None:
-    advanced = binding["schema_version"] == "1.1.0"
+    advanced = binding["schema_version"] in {"1.1.0", "1.2.0"}
     payload_hash = str(binding["command_payload_hash"])
     command_id = f"{'binding-advance' if advanced else 'binding-repair'}-{payload_hash}"
     receipt, receipt_raw = _read_canonical_json(
@@ -555,7 +667,13 @@ def _validate_receipt_and_event(
         kind="directory",
         label="current binding project event directory",
     )
-    ledger = EventLedger(control_root, project_id, schemas, store_identity=store_identity)
+    ledger = EventLedger(
+        control_root,
+        project_id,
+        schemas,
+        store_identity=store_identity,
+        create_directories=False,
+    )
     events = tuple(ledger.iter_events())
     _validate_hash_chain(events)
     outcome = receipt.get("outcome")
@@ -704,7 +822,8 @@ def load_current_binding(
         raise IntegrityError("current store binding identity is invalid")
     head = str(_git(repository, "rev-parse", "HEAD")).strip()
     tree = str(_git(repository, "rev-parse", "HEAD^{tree}")).strip()
-    if head != binding.get("git_head") or tree != binding.get("git_tree"):
+    selected_subject_is_exact = head == binding.get("git_head") and tree == binding.get("git_tree")
+    if not selected_subject_is_exact and binding.get("schema_version") != "1.2.0":
         raise IntegrityError("current store binding Git subject changed")
     if str(_git(repository, "status", "--porcelain=v1", "--untracked-files=all")).strip():
         raise IntegrityError("current store binding repository is dirty")
@@ -742,11 +861,11 @@ def load_current_binding(
     schemas = runtime_schema_registry(schema_root, generation=f"{head}:{catalogue_sha256}")
     object_schema_id = (
         "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
-        if binding["schema_version"] == "1.1.0"
+        if binding["schema_version"] in {"1.1.0", "1.2.0"}
         else "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
     )
     try:
-        schemas.validate(object_schema_id, binding)
+        schemas.validate(object_schema_id, binding, schema_version=str(binding["schema_version"]))
     except SchemaError as exc:
         raise IntegrityError("current store binding object schema is invalid") from exc
     object_path = control / "objects" / "binding-repair" / f"sha256-{binding_sha256}.json"
@@ -754,6 +873,32 @@ def load_current_binding(
     if object_raw != binding_raw:
         raise IntegrityError("current binding immutable object differs from the selected pointer")
     _validate_binding_chain(repository, control, schemas, binding, binding_sha256)
+    if binding.get("schema_version") == "1.2.0":
+        manifest_path = binding.get("governed_code_manifest_path")
+        manifest_sha256 = binding.get("governed_code_manifest_sha256")
+        if not isinstance(manifest_path, str) or not _is_sha256(manifest_sha256):
+            raise IntegrityError("current binding governed v1.2 evidence is invalid")
+        governed_value, _governed_raw = _read_canonical_json(
+            control / manifest_path,
+            label="current binding governed code manifest",
+        )
+        governed_manifest = GovernedCodeManifest.from_mapping(governed_value)
+        if governed_manifest.manifest_sha256 != manifest_sha256:
+            raise IntegrityError("current binding governed code manifest hash is invalid")
+        validate_persisted_governed_code_manifest(
+            governed_manifest,
+            repository,
+            expected_commit=str(binding["git_head"]),
+        )
+        if selected_subject_is_exact:
+            validate_governed_code_manifest(governed_manifest, repository)
+        else:
+            validate_reviewed_documentation_successor(
+                governed_manifest,
+                repository,
+                successor_commit=head,
+                reviewed_commit=head,
+            )
 
     expected_binding_config = canonical_bytes(
         {
