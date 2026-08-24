@@ -431,6 +431,8 @@ class DirectoryAnchor(Protocol):
 
     def read_regular_file_with_identity(self, name: str) -> tuple[bytes, os.stat_result]: ...
 
+    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]: ...
+
     def link_exact_regular_file(
         self,
         source: str,
@@ -833,6 +835,79 @@ class _DirectoryAnchor:
             src_dir_fd=int(self._handle),
             dst_dir_fd=int(self._handle),
         )
+
+    def stage_private_file(self, name: str, data: bytes) -> tuple[str, os.stat_result]:
+        """Create one exact private generation for a separately guarded writer.
+
+        Writer-lock publication holds its own POSIX flock for the lifetime of
+        the lock, so it cannot use ``DirectoryTransaction``'s short-lived
+        transaction guard.  The physical directory owner therefore provides
+        this one stage operation; all public publication and deletion remain
+        anchored operations.
+        """
+
+        self._require_member_name(name)
+        if not isinstance(data, bytes):
+            raise TypeError("anchored file content must be bytes")
+        self.verify_unchanged()
+        _identity, final_path = self.refresh()
+        temporary = f".{name}.{secrets.token_hex(16)}.tmp"
+        descriptor: int | None = None
+        temporary_identity: os.stat_result | None = None
+        try:
+            with self._effect_final_path(final_path) as effect_path:
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0)
+                if os.name == "nt":
+                    descriptor = os.open(effect_path / temporary, flags, 0o600)
+                else:
+                    nofollow = getattr(os, "O_NOFOLLOW", 0)
+                    if not nofollow or os.open not in os.supports_dir_fd:
+                        raise ConflictError("platform cannot write an anchored regular file")
+                    descriptor = os.open(temporary, flags | nofollow, 0o600, dir_fd=int(self._handle))
+                temporary_identity = os.fstat(descriptor)
+                if not stat.S_ISREG(temporary_identity.st_mode):
+                    raise ConflictError("anchored private file is not regular")
+                remaining = memoryview(data)
+                while remaining:
+                    written = os.write(descriptor, remaining)
+                    if written < 1:
+                        raise OSError("anchored private file write made no progress")
+                    remaining = remaining[written:]
+                os.fsync(descriptor)
+                closing_descriptor = descriptor
+                descriptor = None
+                os.close(closing_descriptor)
+                observed_data, observed_identity = self._read_regular_file_with_identity(temporary, effect_path)
+                if observed_data != data or not os.path.samestat(temporary_identity, observed_identity):
+                    raise ConflictError("anchored private publication changed after fsync")
+            return temporary, temporary_identity
+        except BaseException as primary_error:
+            cleanup_error: BaseException | None = None
+            if descriptor is not None:
+                closing_descriptor = descriptor
+                descriptor = None
+                try:
+                    os.close(closing_descriptor)
+                except BaseException as error:
+                    cleanup_error = error
+            if temporary_identity is not None:
+                try:
+                    with self.acquire_mutation_guard(TRANSACTION_GUARD_NAME) as guard:
+                        self.remove_exact_generation(
+                            temporary,
+                            temporary_identity,
+                            data,
+                            guard=guard,
+                        )
+                except FileNotFoundError:
+                    pass
+                except BaseException as error:
+                    cleanup_error = _add_cleanup_error(
+                        cleanup_error,
+                        error,
+                        "anchored private-stage cleanup also failed",
+                    )
+            _raise_primary_with_cleanup(primary_error, cleanup_error)
 
     def link_exact_regular_file(
         self,

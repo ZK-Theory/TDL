@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 from pathlib import Path
 
 import pytest
@@ -107,6 +108,28 @@ def test_lock_facade_exports_exact_writer_public_types() -> None:
         assert getattr(writer, name) is getattr(anchor, name)
     assert inspect.signature(lock_facade.WriterLock) == inspect.signature(writer.WriterLock)
     assert not hasattr(lock_facade, "_DirectoryAnchor")
+
+
+def test_writer_posix_staging_capability_remains_on_the_physical_anchor(tmp_path: Path) -> None:
+    """The Linux writer's private stage is owned by the extracted anchor module."""
+
+    import research_system.store.anchor as anchor
+
+    physical = anchor.open_registered_root_anchor(tmp_path, delete_protect=True)
+    try:
+        data = b"writer-stage"
+        name, identity = physical.stage_private_file("writer.lock", data)
+        observed, observed_identity = physical.read_regular_file_with_identity(name)
+
+        assert observed == data
+        assert name.startswith(".writer.lock.") and name.endswith(".tmp")
+        assert os.path.samestat(identity, observed_identity)
+
+        with physical.acquire_mutation_guard(anchor.TRANSACTION_GUARD_NAME) as guard:
+            physical.remove_exact_generation(name, identity, data, guard=guard)
+        assert name not in physical.list_names()
+    finally:
+        physical.close()
 
 
 def test_partial_composite_acquisition_retains_one_owner_until_safe_point(tmp_path: Path) -> None:
