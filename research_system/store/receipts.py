@@ -360,6 +360,10 @@ class ReceiptStore:
                 )
                 if existing != receipt:
                     raise ConflictError("idempotency index outcome mismatch")
+            # A crash after index publication leaves a valid idempotency result
+            # but no generic receipt.  Recovery must finish that second durable
+            # effect before an exact retry is reported as successful.
+            self.write(receipt)
             return receipt
         temporary = self.runtime_root / f"{key}.idempotency.tmp"
         if temporary.exists():

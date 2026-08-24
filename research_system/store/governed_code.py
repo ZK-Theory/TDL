@@ -540,6 +540,30 @@ def validate_governed_code_manifest(
     return parsed
 
 
+def validate_persisted_governed_code_manifest(
+    manifest: GovernedCodeManifest | Mapping[str, Any],
+    repository_root: str | Path,
+    *,
+    expected_commit: str,
+) -> GovernedCodeManifest:
+    """Validate a durable manifest against its recorded Git object inventory.
+
+    Historical binding links must remain verifiable after a later clean commit
+    becomes the checked-out worktree subject.  This intentionally reads Git
+    objects at the recorded commit and never compares them with physical HEAD.
+    """
+
+    parsed = _validated_manifest(manifest)
+    root = _physical_directory(Path(repository_root), label="governed candidate root")
+    _assert_manifest_repository_identity(parsed, root)
+    recorded = _git_commit(root, parsed.git_commit, label="governed manifest Git commit")
+    expected = _git_commit(root, expected_commit, label="persisted governed binding Git commit")
+    if recorded != expected:
+        raise IntegrityError("governed code manifest subject differs from the persisted binding")
+    _assert_manifest_base_subject(parsed, root, recorded)
+    return parsed
+
+
 def _assert_manifest_base_subject(
     manifest: GovernedCodeManifest,
     root: Path,

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id", "schema_version", "project_id", "store_identity", "control_root",
+    "code_roots", "schema_root", "origin_witness_sha256", "git_head", "git_tree",
+    "git_clean", "schema_catalogue_sha256", "route", "sources", "stale_evidence",
+    "command_payload_hash", "owner_actor_id", "owner_action", "idempotency_key",
+    "prior_restore_transaction_id", "prior_restore_intended_manifest_sha256",
+    "binding_config_path", "binding_config_sha256", "predecessor_binding_sha256",
+    "governed_code_manifest_sha256", "governed_code_manifest_path", "reviewed_git_head",
+    "integrated_main_git_head", "integration_ref"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://internal/store-binding-recovery"},
+    "schema_version": {"const": "1.2.0"},
+    "project_id": {"type": "string", "pattern": "^prj_"},
+    "store_identity": {"$ref": "#/$defs/sha256"},
+    "control_root": {"type": "string", "minLength": 1},
+    "code_roots": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"type": "string", "minLength": 1}},
+    "schema_root": {"type": "string", "minLength": 1},
+    "origin_witness_sha256": {"$ref": "#/$defs/sha256"},
+    "git_head": {"$ref": "#/$defs/git"},
+    "git_tree": {"$ref": "#/$defs/git"},
+    "git_clean": {"const": true},
+    "schema_catalogue_sha256": {"$ref": "#/$defs/sha256"},
+    "route": {
+      "type": "object", "additionalProperties": false, "required": ["ref", "sha256"],
+      "properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"}, "sha256": {"$ref": "#/$defs/sha256"}}
+    },
+    "sources": {
+      "type": "array", "minItems": 2, "maxItems": 2, "items": false,
+      "prefixItems": [{"$ref": "#/$defs/spec01"}, {"$ref": "#/$defs/spec02"}]
+    },
+    "stale_evidence": {
+      "type": "object", "additionalProperties": false, "required": ["refs", "missing_paths"],
+      "properties": {"refs": {"type": "array", "items": {"type": "string"}}, "missing_paths": {"type": "array", "items": {"type": "string"}}}
+    },
+    "command_payload_hash": {"$ref": "#/$defs/sha256"},
+    "owner_actor_id": {"type": "string", "pattern": "^act_"},
+    "owner_action": {"enum": ["advance-reviewed-divergence-store-binding", "advance-clean-descendant-store-binding"]},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "prior_restore_transaction_id": {"type": "string", "minLength": 1},
+    "prior_restore_intended_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "binding_config_path": {"const": "manifests/binding-repair-control-binding.json"},
+    "binding_config_sha256": {"$ref": "#/$defs/sha256"},
+    "predecessor_binding_sha256": {"$ref": "#/$defs/sha256"},
+    "governed_code_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "governed_code_manifest_path": {"type": "string", "pattern": "^objects/governed-code/sha256-[0-9a-f]{64}\\.json$"},
+    "reviewed_git_head": {"$ref": "#/$defs/git"},
+    "integrated_main_git_head": {"$ref": "#/$defs/git"},
+    "integration_ref": {"const": "refs/heads/main"},
+    "reviewed_divergence_authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["predecessor_binding_sha256", "predecessor_git_head", "candidate_git_head", "integration_ref", "protected_route_sha256", "protected_sources_sha256", "governed_code_manifest_sha256"],
+      "properties": {
+        "predecessor_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "predecessor_git_head": {"$ref": "#/$defs/git"},
+        "candidate_git_head": {"$ref": "#/$defs/git"},
+        "integration_ref": {"const": "refs/heads/main"},
+        "protected_route_sha256": {"$ref": "#/$defs/sha256"},
+        "protected_sources_sha256": {"$ref": "#/$defs/sha256"},
+        "governed_code_manifest_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  },
+  "allOf": [{
+    "oneOf": [
+      {"properties": {"owner_action": {"const": "advance-reviewed-divergence-store-binding"}}, "required": ["reviewed_divergence_authority"]},
+      {"properties": {"owner_action": {"const": "advance-clean-descendant-store-binding"}}, "not": {"required": ["reviewed_divergence_authority"]}}
+    ]
+  }],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "git": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "source": {"type": "object", "additionalProperties": false, "required": ["ref", "sha256", "size_bytes"], "properties": {"ref": {"type": "string"}, "sha256": {"$ref": "#/$defs/sha256"}, "size_bytes": {"type": "integer", "minimum": 1}}},
+    "spec01": {"allOf": [{"$ref": "#/$defs/source"}, {"properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-brief-v1.1.0.md"}}}]},
+    "spec02": {"allOf": [{"$ref": "#/$defs/source"}, {"properties": {"ref": {"const": ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-02-micro-spike-contract-v1.1.0.md"}}}]}
+  }
+}

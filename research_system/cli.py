@@ -37,6 +37,7 @@ from research_system.command.service import CommandService
 from research_system.config import (
     ApprovedProjectBinding,
     ControlBinding,
+    SpecOperatorConfig,
     canonical_foundation_path,
     load_foundation_origin_pins,
 )
@@ -100,6 +101,12 @@ from research_system.store.identity import (
     rebind_restored_store,
 )
 from research_system.store.ledger import EventLedger
+from research_system.store.binding_service import (
+    StoreBindingService,
+    load_verified_binding_context,
+    read_advance_intent,
+    read_repair_intent,
+)
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from research_system.store.schema_binding import publish_store_schema_binding_activation
@@ -107,6 +114,33 @@ from research_system.store.schema_binding import publish_store_schema_binding_ac
 
 def _print_json(value: Any) -> None:
     print(canonical_bytes(jsonable(value)).decode("utf-8"))
+
+
+def _load_gate6_binding_context(operator_config_path: Path):
+    """Admit one SPEC Gate 6 operator selection through the current binding."""
+
+    operator_config = SpecOperatorConfig.load(operator_config_path)
+    foundation_path = canonical_foundation_path()
+    try:
+        repository_root = foundation_path.parents[2].resolve(strict=True)
+    except (IndexError, OSError) as exc:
+        raise ConfigurationError("canonical repository root is unavailable") from exc
+    return load_verified_binding_context(
+        foundation_path=foundation_path,
+        repository_root=repository_root,
+        expected_control_root=operator_config.control_root,
+        expected_project_id=operator_config.project_id,
+        expected_store_identity=operator_config.store_identity,
+    )
+
+
+def _store_operation_binding(config_path: Path | None, operator_config_path: Path | None):
+    """Select either explicit local administration or the admitted Gate 6 route."""
+
+    if operator_config_path is not None:
+        return _load_gate6_binding_context(operator_config_path).current_binding
+    assert config_path is not None
+    return ControlBinding.load(config_path)
 
 
 def _authority_clock() -> datetime:
@@ -278,7 +312,8 @@ _BACKUP_ARTEFACT_FIELDS = frozenset(
 
 def _store_backup(args: argparse.Namespace) -> int:
     """Create one governed event-first backup through the public CLI."""
-    binding = ControlBinding.load(args.config)
+    operator_config = getattr(args, "operator_config", None)
+    binding = _store_operation_binding(args.config, operator_config)
     request = _read_json(args.request)
     if set(request) != _BACKUP_REQUEST_FIELDS:
         missing = sorted(_BACKUP_REQUEST_FIELDS - set(request))
@@ -353,6 +388,7 @@ def _store_backup(args: argparse.Namespace) -> int:
         verification_authority_grant_id=request["verification_authority_grant_id"],
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
+        schema_registry=schemas if operator_config is not None else None,
     )
     ledger = EventLedger(source_root, binding.project_id, schemas)
     snapshot = ledger.snapshot()
@@ -547,7 +583,8 @@ def _store_restore_bind(args: argparse.Namespace) -> int:
 
 def _store_verify_restore(args: argparse.Namespace) -> int:
     """Verify a moved restore and append evidence without binding or cutover."""
-    binding = ControlBinding.load(args.config)
+    operator_config = getattr(args, "operator_config", None)
+    binding = _store_operation_binding(args.config, operator_config)
     command = _read_json(args.command)
     receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     schemas = runtime_schema_registry(binding.schema_root)
@@ -566,6 +603,7 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
             authority_grant_id=command["authority_grant_id"],
             approved_witness=binding.origin_witness,
             approved_witness_path=binding.origin_witness_path,
+            schema_registry=schemas if operator_config is not None else None,
         )
 
     def verification_provider(_command: Any, _source_snapshot: Any) -> tuple[dict[str, Any], Callable[[], None]]:
@@ -664,6 +702,32 @@ def _store_activate_schema_binding(args: argparse.Namespace) -> int:
             "activation_object": str(object_path),
         }
     )
+    return 0
+
+
+def _store_advance_binding(args: argparse.Namespace) -> int:
+    """Advance one store binding solely through its typed public service seam."""
+
+    intent = read_advance_intent(args.intent)
+    service = StoreBindingService(
+        intent.control_root,
+        intent.expected_project_id,
+        intent.expected_store_identity,
+    )
+    _print_json(service.advance(intent))
+    return 0
+
+
+def _store_repair_binding(args: argparse.Namespace) -> int:
+    """Repair one store binding solely through its typed public service seam."""
+
+    intent = read_repair_intent(args.intent)
+    service = StoreBindingService(
+        intent.control_root,
+        intent.expected_project_id,
+        intent.expected_store_identity,
+    )
+    _print_json(service.repair(intent))
     return 0
 
 
@@ -1108,7 +1172,21 @@ def _verified_ledger(
 
 
 def _replay_verify(args: argparse.Namespace) -> int:
-    ledger, schemas, resolver = _verified_ledger(args.control_root)
+    operator_config = getattr(args, "operator_config", None)
+    if operator_config is None:
+        ledger, schemas, resolver = _verified_ledger(args.control_root)
+    else:
+        binding = _load_gate6_binding_context(operator_config).current_binding
+        schemas = require_authority_schemas(runtime_schema_registry(binding.schema_root))
+        ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+        resolver = LedgerAuthorityGrantResolver(
+            binding.control_root,
+            binding.project_id,
+            binding.store_identity,
+            schemas,
+            approved_witness=binding.origin_witness,
+            approved_witness_path=binding.origin_witness_path,
+        )
     _print_json(
         replay(
             ledger.iter_events(),
@@ -1120,28 +1198,37 @@ def _replay_verify(args: argparse.Namespace) -> int:
 
 
 def _projection_rebuild(args: argparse.Namespace) -> int:
-    control_root = args.control_root.resolve(strict=True)
+    operator_config = getattr(args, "operator_config", None)
+    binding = _load_gate6_binding_context(operator_config).current_binding if operator_config is not None else None
+    control_root = binding.control_root if binding is not None else args.control_root.resolve(strict=True)
     output = args.output.resolve(strict=False)
     if output == control_root or control_root in output.parents:
         raise ArsError("projection output must be external to canonical control root")
-    approved = ApprovedProjectBinding.load(canonical_foundation_path())
-    manifest = load_store_manifest(
-        control_root,
-        approved_witness=approved.origin_witness,
-        approved_witness_path=approved.origin_witness_path,
-    )
-    projection_roots = [Path(root) / ".research-system" / "projections" for root in manifest["code_roots"]]
+    if binding is None:
+        approved = ApprovedProjectBinding.load(canonical_foundation_path())
+        manifest = load_store_manifest(
+            control_root,
+            approved_witness=approved.origin_witness,
+            approved_witness_path=approved.origin_witness_path,
+        )
+        projection_roots = [Path(root) / ".research-system" / "projections" for root in manifest["code_roots"]]
+    else:
+        projection_roots = [binding.repository_root / ".research-system" / "projections"]
     if not any(output == root or root in output.parents for root in projection_roots):
         raise ArsError("projection output must use an ARS namespaced projection root")
-    schemas = _schemas_for_store_manifest(manifest)
-    ledger = EventLedger(control_root, manifest["project_id"], schemas)
+    schemas = (
+        _schemas_for_store_manifest(manifest)
+        if binding is None
+        else require_authority_schemas(runtime_schema_registry(binding.schema_root))
+    )
+    ledger = EventLedger(control_root, binding.project_id if binding is not None else manifest["project_id"], schemas)
     resolver = LedgerAuthorityGrantResolver(
         control_root,
-        manifest["project_id"],
-        manifest["store_identity"],
+        binding.project_id if binding is not None else manifest["project_id"],
+        binding.store_identity if binding is not None else manifest["store_identity"],
         schemas,
-        approved_witness=approved.origin_witness,
-        approved_witness_path=approved.origin_witness_path,
+        approved_witness=binding.origin_witness if binding is not None else approved.origin_witness,
+        approved_witness_path=binding.origin_witness_path if binding is not None else approved.origin_witness_path,
     )
     state = rebuild_projection(
         ledger.iter_events(),
@@ -1770,8 +1857,18 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--authority-bootstrap", type=Path, required=True)
     init.set_defaults(handler=_store_init)
 
+    repair_binding = store_commands.add_parser("repair-binding")
+    repair_binding.add_argument("--intent", type=Path, required=True)
+    repair_binding.set_defaults(handler=_store_repair_binding)
+
+    advance_binding = store_commands.add_parser("advance-binding")
+    advance_binding.add_argument("--intent", type=Path, required=True)
+    advance_binding.set_defaults(handler=_store_advance_binding)
+
     backup = store_commands.add_parser("backup")
-    backup.add_argument("--config", type=Path, required=True)
+    backup_binding = backup.add_mutually_exclusive_group(required=True)
+    backup_binding.add_argument("--config", type=Path, help="local-store administration binding")
+    backup_binding.add_argument("--operator-config", type=Path, help="SPEC Gate 6 operator evidence")
     backup.add_argument("--request", type=Path, required=True)
     backup.add_argument("--registry", type=Path, required=True)
     backup.add_argument("--destination-root", type=Path, required=True)
@@ -1793,7 +1890,9 @@ def _parser() -> argparse.ArgumentParser:
     restore_bind.set_defaults(handler=_store_restore_bind)
 
     verify_restore = store_commands.add_parser("verify-restore")
-    verify_restore.add_argument("--config", type=Path, required=True)
+    restore_binding = verify_restore.add_mutually_exclusive_group(required=True)
+    restore_binding.add_argument("--config", type=Path, help="local-store administration binding")
+    restore_binding.add_argument("--operator-config", type=Path, help="SPEC Gate 6 operator evidence")
     verify_restore.add_argument("--command", type=Path, required=True)
     verify_restore.add_argument("--target-root", type=Path, required=True)
     verify_restore.add_argument("--receipt", type=Path, required=True)
@@ -1925,13 +2024,17 @@ def _parser() -> argparse.ArgumentParser:
     replay_parser = groups.add_parser("replay")
     replay_actions = replay_parser.add_subparsers(dest="replay_action", required=True)
     verify = replay_actions.add_parser("verify")
-    verify.add_argument("--control-root", type=Path, required=True)
+    replay_binding = verify.add_mutually_exclusive_group(required=True)
+    replay_binding.add_argument("--control-root", type=Path, help="local-store administration root")
+    replay_binding.add_argument("--operator-config", type=Path, help="SPEC Gate 6 operator evidence")
     verify.set_defaults(handler=_replay_verify)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
     rebuild = projection_actions.add_parser("rebuild")
-    rebuild.add_argument("--control-root", type=Path, required=True)
+    projection_binding = rebuild.add_mutually_exclusive_group(required=True)
+    projection_binding.add_argument("--control-root", type=Path, help="local-store administration root")
+    projection_binding.add_argument("--operator-config", type=Path, help="SPEC Gate 6 operator evidence")
     rebuild.add_argument("--output", type=Path, required=True)
     rebuild.set_defaults(handler=_projection_rebuild)
 

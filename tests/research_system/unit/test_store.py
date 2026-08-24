@@ -1900,3 +1900,45 @@ def test_receipt_write_repairs_partial_temporary_file(tmp_path):
     assert store.write(receipt) == receipt
     assert not temporary.exists()
     assert store.load(receipt.command_id) == receipt
+
+
+def test_scoped_receipt_retry_restores_a_missing_generic_receipt(tmp_path):
+    store = ReceiptStore(tmp_path)
+    receipt = Receipt(
+        status="accepted",
+        command_id="cmd_01978abc-2011-7000-8000-000000002011",
+        payload_hash="b" * 64,
+        event_batch_id="txb_01978abc-2012-7000-8000-000000002012",
+        observed_stream_version=2,
+    )
+    scope = (
+        "act_01978abc-2013-7000-8000-000000002013",
+        "grt_01978abc-2014-7000-8000-000000002014",
+        "AdvanceStoreBinding",
+        "binding-retry-2015",
+    )
+    authority_hash = "c" * 64
+
+    store.write_scoped(
+        scope,
+        authority_hash,
+        1,
+        receipt,
+        project_id=PROJECT_ID,
+        target_stream_id=PROJECT_ID,
+    )
+    (store.receipts_root / f"{receipt.command_id}.json").unlink()
+    assert store.load(receipt.command_id) is None
+
+    assert (
+        store.write_scoped(
+            scope,
+            authority_hash,
+            1,
+            receipt,
+            project_id=PROJECT_ID,
+            target_stream_id=PROJECT_ID,
+        )
+        == receipt
+    )
+    assert store.load(receipt.command_id) == receipt

@@ -78,6 +78,7 @@ class EventDraft:
 def _release_draft_protocol():
     issued: dict[int, tuple[object, object, EventDraft]] = {}
     guard_claimed = False
+    binding_guard_claimed = False
 
     class _Session:
         __slots__ = ("ledger", "draft", "consumed")
@@ -149,6 +150,41 @@ def _release_draft_protocol():
         guard_claimed = True
         return guard
 
+    def binding_guard(submit_impl):
+        """Inject the only binding-event append continuation into one service seam."""
+
+        def guarded_submit(self, intent):
+            ledger = self.ledger
+            binding_used = False
+
+            def append_binding(event_envelope, *, snapshot):
+                nonlocal binding_used
+                if binding_used:
+                    raise ArsError("binding append continuation is one-shot and ledger-specific")
+                binding_used = True
+                session = _Session(ledger)
+                return ledger._append_binding_repair_from_validated_service(
+                    event_envelope,
+                    snapshot=snapshot,
+                    session=session,
+                )
+
+            return submit_impl(self, intent, append_binding)
+
+        guarded_submit.__name__ = submit_impl.__name__
+        guarded_submit.__qualname__ = submit_impl.__qualname__
+        guarded_submit.__doc__ = submit_impl.__doc__
+        guarded_submit.__module__ = submit_impl.__module__
+        guarded_submit.__annotations__ = dict(submit_impl.__annotations__)
+        return guarded_submit
+
+    def take_binding_guard():
+        nonlocal binding_guard_claimed
+        if binding_guard_claimed:
+            raise ArsError("binding submit guard is already bound")
+        binding_guard_claimed = True
+        return binding_guard
+
     def register(session: object, ledger: object, draft: EventDraft) -> None:
         if (
             type(session) is not _Session
@@ -183,20 +219,15 @@ def _release_draft_protocol():
         session.draft = None
         session.consumed = True
 
-    def issue_validated_service_session(ledger: object) -> object:
-        """Mint one private one-shot session for a validated standalone service."""
-
-        return _Session(ledger)
-
-    return take_guard, register, consume, discard, issue_validated_service_session
+    return take_guard, take_binding_guard, register, consume, discard
 
 
 (
     _take_release_submit_guard,
+    _take_binding_submit_guard,
     _register_release_draft,
     _consume_release_draft,
     _discard_release_session,
-    _issue_validated_service_session,
 ) = _release_draft_protocol()
 del _release_draft_protocol
 
@@ -209,6 +240,7 @@ class EventLedger:
         schemas: SchemaRegistry | None = None,
         *,
         store_identity: str | None = None,
+        create_directories: bool = True,
     ) -> None:
         self.control_root = control_root
         self.project_id = validate_id(project_id, "project")
@@ -222,8 +254,9 @@ class EventLedger:
         self.store_identity = store_identity
         self.events_root = control_root / "events" / project_id
         self.runtime_root = control_root / "runtime"
-        self.events_root.mkdir(parents=True, exist_ok=True)
-        self.runtime_root.mkdir(parents=True, exist_ok=True)
+        if create_directories:
+            self.events_root.mkdir(parents=True, exist_ok=True)
+            self.runtime_root.mkdir(parents=True, exist_ok=True)
         self._snapshot: LedgerSnapshot | None = None
 
     def _append_release_from_validated_submit(

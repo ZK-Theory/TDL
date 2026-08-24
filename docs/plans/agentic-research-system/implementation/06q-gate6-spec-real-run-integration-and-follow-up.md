@@ -100,6 +100,19 @@ not make it the default empirical method.
   authority-neutral public loader, binding commands, lock-held predecessor
   revalidation, transaction, and consumer migration remain the following
   candidate.
+- PR #267 (`STORE-1A-LOCK-V2B` / `STORE-1A-RELEASE-V2`) merged through the
+  protected queue at `e13b77b3e3521e41d9d6438fc25c9b785b2146fd` from exact
+  candidate `e33df9fda0dc269889b4ea2adea0abb3449d81cf`; both have tree
+  `9edec7af25bbe711bdbf4d515bbaadd7b0f4f9a1`. It integrates the writer-owned
+  facade, retained release ownership, and mutable-replacement recovery. The
+  merged Windows selection passed `68/68` with 14 platform skips and the exact
+  Linux guarded-unlink/race packet passed `6/6`.
+- PR #268 is the active public binding/loader candidate at
+  `ff5de006e81e93758f00b744de9a8b2e8bc1bd6b`, based directly on merged PR
+  #267. It supplies the strict authority-neutral operator configuration,
+  public repair/advance commands, lock-held transactional continuation,
+  append-only v1.2 binding schemas, and shared verified admission for the
+  migrated public consumers. It performs no live control-store write.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
@@ -307,18 +320,17 @@ activated schema lineage, and origin witness before replay or mutation.
 
 To obey the review-size hard stop without recreating a monolith, STORE lands as
 serial candidates under the single KAN-105 job. `STORE-1A-PUB` and
-`STORE-1A-OBJECT-R2` are integrated. `STORE-1A-LOCK-V2B` and the independent
-append-only `STORE-1A-RELEASE-V2` candidate now has the writer-owned facade and
-retained release-owner path, but remains a named physical-store gap until its
-exact-head review and owner adoption. `STORE-1A-MANIFEST` is integrated and
-owns the governed-code manifest and documentation-only-successor rule. The
-former `STORE-1B` surface is split at its actual ownership boundary:
+`STORE-1A-OBJECT-R2`, `STORE-1A-LOCK-V2B`, the append-only
+`STORE-1A-RELEASE-V2`, and `STORE-1A-MANIFEST` are integrated. They own the
+physical-store boundary, writer/release recovery, governed-code manifest, and
+documentation-only-successor rule. The former `STORE-1B` surface is split at
+its actual ownership boundary:
 `G6-STORE-CURRENT-BINDING-1` is integrated and owns
 historical binding lineage, the exact read-only current-pointer admission,
 binding-event replay, and the private validated append continuation; the
-following public SPEC candidate owns `SpecOperatorConfig@1.0.0`, the
-authority-neutral public loader, commands, and consumer migration. Each
-candidate must remain within the
+active PR #268 candidate owns `SpecOperatorConfig@1.0.0`, the authority-neutral
+public loader, commands, and consumer migration. Each candidate must remain
+within the
 35-file hard stop. All remain one incomplete STORE/Gate 6 capability until the
 assembled public path passes. This split creates neither a competing Gate 6
 plan nor another Jira capability job.
@@ -336,11 +348,11 @@ the compatibility facade for current production imports; private monkeypatch
 tests migrate to the actual owner module rather than forcing implementation
 globals back into the facade. `store/objects.py` remains the immutable-object
 protocol owner and calls the anchor transaction rather than implementing a
-second filesystem state machine. The live next production sequence is therefore
-V2B/RELEASE-V2 after its review and owner adoption, then the following public
-SPEC binding/loader candidate. `G6-STORE-CURRENT-BINDING-1` and
-`STORE-1A-MANIFEST` are integrated historical predecessors; this candidate
-makes no ledger, receipt, scoped-index, or current-pointer binding change.
+second filesystem state machine. The live next production sequence is PR #268
+review and owner adoption, merged-public-path verification, and then the SOURCE
+slice. `G6-STORE-CURRENT-BINDING-1`, `STORE-1A-MANIFEST`, and
+`STORE-1A-LOCK-V2B`/`STORE-1A-RELEASE-V2` are integrated historical
+predecessors. No live binding transition occurs during candidate construction.
 
 Immutable object publication is commit-on-link. A successful final hard link is
 immediately recorded and is never a rollback target; a later exact retry adopts

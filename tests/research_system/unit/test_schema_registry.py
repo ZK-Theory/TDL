@@ -1026,7 +1026,7 @@ def test_schema_identity_history_resolves_exact_superseded_bytes(tmp_path: Path)
         )
 
 
-def test_advance_store_binding_history_is_replayable_but_v1_1_is_active() -> None:
+def test_advance_store_binding_history_is_replayable_but_v1_2_is_active() -> None:
     registry = runtime_schema_registry(SCHEMAS)
     schema_id = "ars://wp6-6/gate6/binding-repair/command/AdvanceStoreBinding"
 
@@ -1042,9 +1042,14 @@ def test_advance_store_binding_history_is_replayable_but_v1_1_is_active() -> Non
         ).sha256
         == superseded_sha256
     )
+    v1_1 = registry.resolve_identity(schema_id, "1.1.0")
+    assert (
+        v1_1.raw_bytes
+        == (SCHEMAS / "wp6-6" / "gate6-binding-repair" / "advance-store-binding-command.v1-1.schema.json").read_bytes()
+    )
     assert registry.command_binding("AdvanceStoreBinding") == SchemaBinding(
         schema_id,
-        "1.1.0",
+        "1.2.0",
         command_type="AdvanceStoreBinding",
     )
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
+import re
 from typing import Any
 
 import yaml
@@ -42,6 +44,24 @@ _FOUNDATION_REQUIRED_FIELDS = frozenset(
     }
 )
 _FOUNDATION_PLACEHOLDERS = frozenset({"", "null", "none", "placeholder", "todo", "tbd", "unknown"})
+_SPEC_OPERATOR_CONFIG_FIELDS = frozenset(
+    {
+        "schema_id",
+        "schema_version",
+        "control_root",
+        "project_id",
+        "store_identity",
+        "route_id",
+        "operator_actor_id",
+        "actor_session_id",
+        "authority_grant_id",
+    }
+)
+_SPEC_OPERATOR_CONFIG_SCHEMA_ID = "ars://operations/spec-operator-config"
+_SPEC_OPERATOR_CONFIG_SCHEMA_VERSION = "1.0.0"
+_SPEC_OPERATOR_CONFIG_ROUTE_ID = "SPEC-GATE6-RUN-V1"
+_SESSION_ID = re.compile(r"^ses_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
+_LOWER_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _foundation_string(value: Any, field: str) -> str:
@@ -69,6 +89,81 @@ def _canonical_local_cli_uri(control_root: Path) -> str:
     """Render the local endpoint from the approved physical root without an alias."""
 
     return f"local-cli:{control_root.as_uri().removeprefix('file:')}"
+
+
+@dataclass(frozen=True)
+class SpecOperatorConfig:
+    """Strict Gate 6 route evidence, without any authority adjudication.
+
+    This object chooses the identity for a later binding admission.  It does not
+    establish a store layout, resolve a grant, or otherwise authorise work.
+    """
+
+    schema_id: str
+    schema_version: str
+    control_root: Path
+    project_id: str
+    store_identity: str
+    route_id: str
+    operator_actor_id: str
+    actor_session_id: str
+    authority_grant_id: str
+
+    @classmethod
+    def load(cls, path: Path) -> "SpecOperatorConfig":
+        try:
+            raw = path.read_bytes()
+        except OSError as exc:
+            raise ConfigurationError(f"invalid spec operator config: {path}") from exc
+        return cls.from_raw(raw)
+
+    @classmethod
+    def from_raw(cls, raw: bytes) -> "SpecOperatorConfig":
+        try:
+            value: Any = json.loads(raw.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError) as exc:
+            raise ConfigurationError("spec operator config must be UTF-8 JSON") from exc
+        if not isinstance(value, dict) or set(value) != _SPEC_OPERATOR_CONFIG_FIELDS:
+            raise ConfigurationError("spec operator config fields are not exact")
+        if (
+            value.get("schema_id") != _SPEC_OPERATOR_CONFIG_SCHEMA_ID
+            or value.get("schema_version") != _SPEC_OPERATOR_CONFIG_SCHEMA_VERSION
+            or value.get("route_id") != _SPEC_OPERATOR_CONFIG_ROUTE_ID
+        ):
+            raise ConfigurationError("spec operator config route is unsupported")
+        if any(not isinstance(value[field], str) for field in _SPEC_OPERATOR_CONFIG_FIELDS):
+            raise ConfigurationError("spec operator config values must be strings")
+
+        control_root = Path(value["control_root"])
+        if not control_root.is_absolute():
+            raise ConfigurationError("spec operator config control_root must be absolute")
+        try:
+            control_root = control_root.resolve(strict=True)
+        except OSError as exc:
+            raise ConfigurationError("spec operator config control_root is unavailable") from exc
+        if not control_root.is_dir():
+            raise ConfigurationError("spec operator config control_root must be a directory")
+        if not _LOWER_SHA256.fullmatch(value["store_identity"]):
+            raise ConfigurationError("spec operator config store_identity must be a lowercase SHA-256 digest")
+        try:
+            project_id = validate_id(value["project_id"], "project")
+            operator_actor_id = validate_id(value["operator_actor_id"], "actor")
+            authority_grant_id = validate_id(value["authority_grant_id"], "authority_grant")
+        except ValueError as exc:
+            raise ConfigurationError("spec operator config identity is invalid") from exc
+        if not _SESSION_ID.fullmatch(value["actor_session_id"]):
+            raise ConfigurationError("spec operator config actor_session_id is invalid")
+        return cls(
+            schema_id=value["schema_id"],
+            schema_version=value["schema_version"],
+            control_root=control_root,
+            project_id=project_id,
+            store_identity=value["store_identity"],
+            route_id=value["route_id"],
+            operator_actor_id=operator_actor_id,
+            actor_session_id=value["actor_session_id"],
+            authority_grant_id=authority_grant_id,
+        )
 
 
 @dataclass(frozen=True)
