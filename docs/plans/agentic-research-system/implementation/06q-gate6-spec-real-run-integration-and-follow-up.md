@@ -83,14 +83,25 @@ not make it the default empirical method.
   and CodeRabbit status were green. This integrates the bounded physical
   directory transaction and immutable `ObjectStore` ownership slice; it does
   not integrate the complete STORE or Gate 6 capability.
-- `G6-STORE-CURRENT-BINDING-1` now proceeds on
-  `codex/g6-store-current-binding-1` from exact merged base `161976a59...`. Its
-  bounded invariant is read-only admission of one exact current store binding,
-  append-only resolution of the historical binding command identity, explicit
-  binding-event replay, and rejection of direct unvalidated binding-event
-  append. It performs no live-store mutation. The public SPEC status/result
-  route remains in the separately preserved successor worktree and must not be
-  pulled into this candidate merely to enlarge its review surface.
+- PR #265 (`G6-STORE-CURRENT-BINDING-1`) merged through the protected queue at
+  `571236ed69be719aa6fe7b7f48dfd9935d195538` from exact candidate
+  `34d208482b1a9c2580b835dca0309aa9bbfbd8a9`; both have tree
+  `2710333c9a532fbf8cf630f51708894841db9745`. It integrates read-only admission
+  of one exact current store binding, append-only historical binding-command
+  identity, binding-event replay, and rejection of direct unvalidated append.
+  The merged public load, historical-corruption, registered-event-family, and
+  historical-replay selection passed `4/4`. It performed no live-store write
+  and does not integrate the complete STORE or Gate 6 capability.
+- `STORE-1A-MANIFEST` now proceeds on `codex/g6-spec-store-manifest-1` from that
+  exact merged base. It owns only the versioned governed-code inventory and the
+  reviewed code/documentation successor rules. The stale hold branch supplies
+  three selectively ported artefacts; its obsolete lock, object, ledger,
+  configuration, review-record, and plan changes are not candidates. The
+  focused manifest module passed `25/25`, Ruff passed, and an independent
+  bounded check found no reachable blocker. The
+  authority-neutral public loader, binding commands, lock-held predecessor
+  revalidation, transaction, and consumer migration remain the immediately
+  following candidate.
 - [06r](06r-gate6-pr258-review-convergence-plan.md) is historical PR #258
   convergence evidence only. It is retired/superseded for active execution by
   this plan.
