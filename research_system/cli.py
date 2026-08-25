@@ -1596,10 +1596,22 @@ def _publication_context_for_reference(
 ) -> Callable[[str], ArtefactConsumerContext]:
     """Build exact replay-derived contexts for release publication evidence."""
 
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    authority = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    state = replay(
+        ledger.snapshot().events,
+        schema_registry=schemas,
+        authority_state_validator=authority.validate_replayed_administration_state,
+    )
+
     def resolve(reference: str) -> ArtefactConsumerContext:
-        state = replay(
-            EventLedger(binding.control_root, binding.project_id, schemas).iter_events(), schema_registry=schemas
-        )
         stream = state.get("streams", {}).get(reference)
         if not isinstance(stream, dict):
             raise ArsError("release publication evidence is not registered")
@@ -1609,12 +1621,19 @@ def _publication_context_for_reference(
         authority = manifest.get("authority")
         if not isinstance(authority, dict):
             raise ArsError("release publication evidence authority is unavailable")
+        fields = {
+            "content_sha256": stream.get("content_sha256"),
+            "task_id": manifest.get("task_id"),
+            "accepted_scope": authority.get("accepted_scope"),
+        }
+        if any(not isinstance(value, str) or not value for value in fields.values()):
+            raise ArsError("release publication evidence field is invalid")
         return ArtefactConsumerContext(
             artefact_id=reference,
-            exact_content_sha256=str(stream["content_sha256"]),
+            exact_content_sha256=fields["content_sha256"],
             project_id=binding.project_id,
-            task_id=str(manifest["task_id"]),
-            scope_id=str(authority["accepted_scope"]),
+            task_id=fields["task_id"],
+            scope_id=fields["accepted_scope"],
             evaluation_time=evaluation_time,
         )
 

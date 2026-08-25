@@ -2,6 +2,8 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 import threading
 
 import pytest
@@ -784,6 +786,37 @@ def test_stale_dead_owner_is_reclaimed_after_process_revalidation(tmp_path, monk
     assert state == "stale"
     assert observed is not None
     assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="exercises the native Windows process probe")
+def test_windows_exited_writer_is_reclaimed_before_next_writer_enters(tmp_path):
+    path = tmp_path / "writer.lock"
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os, pathlib; "
+                "from research_system.store.lock import WriterLock; "
+                f"lock = WriterLock(pathlib.Path({str(path)!r}), "
+                "{'operation': 'crash-control'}); "
+                "lock.__enter__(); os._exit(23)"
+            ),
+        ],
+        cwd=Path.cwd(),
+        check=False,
+        timeout=20,
+    )
+
+    assert child.returncode == 23
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+
+    with WriterLock(path, {"operation": "recovery-control"}):
+        assert path.exists()
     assert not path.exists()
 
 
