@@ -4541,8 +4541,9 @@ class CommandService:
                     terminal_recorded_at = datetime.fromisoformat(
                         str(terminal_events[-1]["recorded_at"]).replace("Z", "+00:00")
                     )
+                    submitted_at = datetime.fromisoformat(str(command.envelope["submitted_at"]).replace("Z", "+00:00"))
                 except (IndexError, KeyError, ValueError):
-                    late_observed_at = terminal_recorded_at = None
+                    late_observed_at = terminal_recorded_at = submitted_at = None
                 review_request = review.get("request") if isinstance(review, dict) else None
                 review_assignment = review.get("assignment") if isinstance(review, dict) else None
                 expected_review_subject = sha256_hex(
@@ -4572,7 +4573,10 @@ class CommandService:
                     or any(event.get("event_type") == "LateArtefactAdopted" for event in artefact_events)
                     or late_observed_at is None
                     or terminal_recorded_at is None
+                    or submitted_at is None
+                    or submitted_at > self.clock()
                     or late_observed_at <= terminal_recorded_at
+                    or late_observed_at > submitted_at
                 ):
                     return rejected(
                         "late_artefact_adoption_invalid",
@@ -4698,6 +4702,11 @@ class CommandService:
         if not isinstance(minimum, int) or minimum < 1 or minimum_grade not in _ARTEFACT_REVIEW_INDEPENDENCE_ORDER:
             raise IntegrityError("accepted governing-review rule is invalid")
         submitted_at = datetime.fromisoformat(str(command.envelope["submitted_at"]).replace("Z", "+00:00"))
+        if submitted_at > self.clock():
+            return (
+                "artefact_authority_evaluation_time_untrusted",
+                "Accepted artefact authority cannot evaluate evidence beyond the trusted service clock.",
+            )
         use_refs = command.envelope["payload"].get("evidence_refs")
         if not isinstance(use_refs, list):
             return (

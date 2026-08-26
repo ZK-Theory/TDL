@@ -19,7 +19,7 @@ from research_system.errors import ArsError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 from research_system.store.identity import load_store_manifest_unbound
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, LedgerSnapshot
 from research_system.store.objects import ObjectStore
 
 
@@ -199,16 +199,26 @@ class ArtefactUseResolver:
         self.authority_state_validator = authority_state_validator
         self.legacy_command_provenance_through_position = legacy_command_provenance_through_position
 
-    def resolve(self, request: ArtefactUseRequest) -> ResolvedArtefactEvidence:
+    def resolve(
+        self,
+        request: ArtefactUseRequest,
+        *,
+        expected_snapshot: LedgerSnapshot | None = None,
+    ) -> ResolvedArtefactEvidence:
         """Resolve current authority or fail with no mutation and no fallback."""
         try:
-            return self._resolve(request)
+            return self._resolve(request, expected_snapshot=expected_snapshot)
         except ArtefactUseDenied:
             raise
         except Exception as exc:  # noqa: BLE001 - every dependency failure is a denial
             raise ArtefactUseDenied("authority_resolution_failed", "artefact authority could not be resolved") from exc
 
-    def _resolve(self, request: ArtefactUseRequest) -> ResolvedArtefactEvidence:
+    def _resolve(
+        self,
+        request: ArtefactUseRequest,
+        *,
+        expected_snapshot: LedgerSnapshot | None,
+    ) -> ResolvedArtefactEvidence:
         if request.project_id != self.ledger.project_id:
             _deny("project_mismatch", "artefact request is foreign to the selected project")
         contract = self.contract_loader.load()
@@ -216,6 +226,16 @@ class ArtefactUseResolver:
         self._validate_predicate_request(request, predicate, accepted_predicate_hash)
 
         before = self.ledger.snapshot()
+        if expected_snapshot is not None:
+            if not isinstance(expected_snapshot, LedgerSnapshot) or (
+                before.global_position,
+                before.event_hash,
+            ) != (
+                expected_snapshot.global_position,
+                expected_snapshot.event_hash,
+            ):
+                _deny("authority_changed", "artefact authority changed before operation resolution")
+            before = expected_snapshot
         state = replay(
             before.events,
             schema_registry=self.schemas,

@@ -53,6 +53,7 @@ from research_system.schema_registry import SchemaRegistry, runtime_schema_regis
 from research_system.store.ledger import (
     EventDraft,
     EventLedger,
+    LedgerSnapshot,
     _take_release_submit_guard,
 )
 from research_system.store.objects import ObjectStore
@@ -288,6 +289,43 @@ def stored_authority_evidence(
         expected_store_identity="4" * 64,
         rederive=rederive,
     )
+
+
+def test_stored_evidence_passes_one_operation_snapshot_to_both_consumers() -> None:
+    _source, manifest, control = producer_snapshot()
+    manifest_ref = content_artefact_id(manifest)
+    control_ref = content_artefact_id(control)
+    documents = {
+        manifest_ref: canonical_bytes(manifest),
+        control_ref: canonical_bytes(control),
+    }
+    snapshot = LedgerSnapshot((), 7, "a" * 64, {}, ())
+    observed_snapshots = []
+
+    class Consumers:
+        def resolve_for_result(self, context, *, consumer_id, expected_snapshot=None):
+            assert consumer_id == "release_publication"
+            observed_snapshots.append(expected_snapshot)
+            return SimpleNamespace(content_bytes=documents[context.artefact_id])
+
+    resolver = StoredReleasePublicationEvidence(
+        consumers=Consumers(),
+        context_for_reference=lambda reference: ArtefactConsumerContext(
+            artefact_id=reference,
+            exact_content_sha256=sha256_hex(documents[reference]),
+            project_id=PROJECT_ID,
+            task_id="tsk_01978abc-2020-7000-8000-000000002020",
+            scope_id="release:wp6.4",
+            evaluation_time=datetime(2026, 7, 13, 12, tzinfo=UTC),
+        ),
+        expected_store_identity="4" * 64,
+        rederive=rederive_release_from_snapshot,
+        authority_snapshot=snapshot,
+    )
+
+    assert resolver.resolve_evaluation_runs(manifest_ref) == manifest
+    assert resolver.resolve_control_binding(control_ref) == control
+    assert observed_snapshots == [snapshot, snapshot]
 
 
 def canonical_publication_plane(tmp_path):

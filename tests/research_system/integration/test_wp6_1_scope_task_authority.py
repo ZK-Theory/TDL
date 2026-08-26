@@ -175,14 +175,58 @@ def _task_definition(task_id: str, title: str, risk: object, revision: int = 1) 
     return definition
 
 
-def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[str, ...]]:
+def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[tuple[str, bytes, int, int, int, int], ...]]:
     events = tuple(harness.ledger.iter_events())
-    files = tuple(
-        path.relative_to(harness.service.control_root).as_posix()
-        for path in harness.service.control_root.rglob("*")
-        if path.is_file() and "receipts" not in path.parts
-    )
-    return events, files
+    files = []
+    for path in harness.service.control_root.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(harness.service.control_root)
+        if relative.parts[0] in {"receipts", "runtime"}:
+            continue
+        observed = path.stat()
+        files.append(
+            (
+                relative.as_posix(),
+                path.read_bytes(),
+                observed.st_dev,
+                observed.st_ino,
+                observed.st_ctime_ns,
+                observed.st_mtime_ns,
+            )
+        )
+    return events, tuple(sorted(files))
+
+
+def _protocol_snapshot(harness) -> tuple[tuple[str, bytes, int, int, int, int], ...]:
+    runtime_root = harness.service.control_root / "runtime"
+    snapshot = []
+    for path in runtime_root.rglob("*"):
+        if not path.is_file():
+            continue
+        observed = path.stat()
+        snapshot.append(
+            (
+                path.relative_to(harness.service.control_root).as_posix(),
+                path.read_bytes(),
+                observed.st_dev,
+                observed.st_ino,
+                observed.st_ctime_ns,
+                observed.st_mtime_ns,
+            )
+        )
+    return tuple(snapshot)
+
+
+def test_domain_snapshot_excludes_runtime_protocol_namespace(tmp_path):
+    """Remediation-red: protocol files are not durable domain facts."""
+
+    harness = control_plane(tmp_path)
+
+    _, files = _domain_snapshot(harness)
+
+    assert all(not path.startswith("runtime/") for path in files)
+    assert _protocol_snapshot(harness) == ()
 
 
 def _direct_create_task_resolution(
@@ -222,14 +266,10 @@ def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path, monkeypat
         TASK_ID,
         {"title": "Authority-bound task"},
     )
-    before_events = tuple(harness.ledger.iter_events())
-    before_domain_files = tuple(
-        path.relative_to(harness.service.control_root).as_posix()
-        for path in harness.service.control_root.rglob("*")
-        if path.is_file() and "receipts" not in path.parts
-    )
+    before = _domain_snapshot(harness)
 
     receipt = _submit(harness, command)
+    protocol = _protocol_snapshot(harness)
     retry = _submit(harness, command)
 
     assert receipt.status == "rejected"
@@ -249,13 +289,9 @@ def test_lifecycle_authority_denial_precedes_domain_mutation(tmp_path, monkeypat
     assert call["project_id"] == PROJECT_ID
     assert call["subject_kind"] == "task"
     assert call["subject_id"] == TASK_ID
-    assert tuple(harness.ledger.iter_events()) == before_events
-    after_domain_files = tuple(
-        path.relative_to(harness.service.control_root).as_posix()
-        for path in harness.service.control_root.rglob("*")
-        if path.is_file() and "receipts" not in path.parts
-    )
-    assert after_domain_files == before_domain_files
+    assert _domain_snapshot(harness) == before
+    assert tuple(item[0] for item in protocol) == ("runtime/.store-transaction-v2.guard",)
+    assert _protocol_snapshot(harness) == protocol
 
 
 def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path, monkeypatch):
@@ -482,6 +518,12 @@ def test_authority_denial_precedes_domain_mutation_for_all_six_commands(tmp_path
         assert receipt.status == "rejected", index
         assert calls[0]["command"].command_type == command["command_type"]
         assert _domain_snapshot(harness) == before
+        protocol = _protocol_snapshot(harness)
+        assert tuple(item[0] for item in protocol) == ("runtime/.store-transaction-v2.guard",)
+        retry = _submit(harness, command)
+        assert retry == receipt
+        assert _domain_snapshot(harness) == before
+        assert _protocol_snapshot(harness) == protocol
 
 
 def test_all_six_lifecycle_commands_bind_exact_authority_inputs(tmp_path, monkeypatch):

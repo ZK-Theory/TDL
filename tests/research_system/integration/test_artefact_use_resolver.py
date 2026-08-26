@@ -197,3 +197,41 @@ def test_public_resolver_denies_a_review_added_after_the_bound_no_omission_snaps
         resolver.resolve(request(loader))
 
     assert denied.value.reason_code == "governing_review_changed"
+
+
+def test_public_resolver_rejects_a_tail_newer_than_the_operation_snapshot(tmp_path):
+    harness = control_plane(tmp_path)
+    for value in accepted_artefact_commands(harness):
+        assert harness.service.submit(value).status == "accepted"
+    operation_snapshot = harness.ledger.snapshot()
+    late_review = command(
+        command_id="cmd_019fe47a-1092-7000-8000-000000001092",
+        command_type="RecordScientificReview",
+        actor_id=ACTORS["actor-a"],
+        authority_grant_id=REVIEW_GRANT_ID,
+        expected_stream_version=3,
+        payload={
+            "artefact_id": ARTEFACT_ID,
+            "review_id": "rev_019fe47a-1092-7000-8000-000000001092",
+            "subject_sha256": CONTENT_SHA256,
+            "scientific_review": "approved",
+            "evidence_refs": ["arec_019fe47a-1093-7000-8000-000000001093"],
+        },
+    )
+    assert harness.service.submit(late_review).status == "accepted"
+    loader = ArtefactAuthorityContractLoader(SUBJECT)
+    content_reader = ContentReader()
+    resolver = ArtefactUseResolver(
+        ledger=harness.ledger,
+        objects=harness.objects,
+        schemas=harness.schemas,
+        contract_loader=loader,
+        governing_evidence=EvidenceResolver(),
+        content_reader=content_reader,
+    )
+
+    with pytest.raises(ArtefactUseDenied) as denied:
+        resolver.resolve(request(loader), expected_snapshot=operation_snapshot)
+
+    assert denied.value.reason_code == "authority_changed"
+    assert content_reader.reads == []
