@@ -175,7 +175,7 @@ def _task_definition(task_id: str, title: str, risk: object, revision: int = 1) 
     return definition
 
 
-def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[str, ...]]:
+def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[tuple[str, bytes, int, int, int, int], ...]]:
     events = tuple(harness.ledger.iter_events())
     files = []
     for path in harness.service.control_root.rglob("*"):
@@ -184,8 +184,18 @@ def _domain_snapshot(harness) -> tuple[tuple[dict, ...], tuple[str, ...]]:
         relative = path.relative_to(harness.service.control_root)
         if relative.parts[0] in {"receipts", "runtime"}:
             continue
-        files.append(relative.as_posix())
-    return events, tuple(files)
+        observed = path.stat()
+        files.append(
+            (
+                relative.as_posix(),
+                path.read_bytes(),
+                observed.st_dev,
+                observed.st_ino,
+                observed.st_ctime_ns,
+                observed.st_mtime_ns,
+            )
+        )
+    return events, tuple(sorted(files))
 
 
 def _protocol_snapshot(harness) -> tuple[tuple[str, bytes, int, int, int, int], ...]:

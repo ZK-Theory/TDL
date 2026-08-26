@@ -330,7 +330,12 @@ def _owner_state(record: object) -> LockOwnerState:
     pid = int(process_id)
     actual_instance = process_instance_id(pid)
     if actual_instance is not None:
-        return "live" if actual_instance == recorded_instance else "stale"
+        if actual_instance != recorded_instance:
+            return "stale"
+        if os.name == "nt":
+            exited = _windows_process_has_exited(pid)
+            return "stale" if exited is True else "live" if exited is False else "unknown"
+        return "live"
     if os.name == "nt":
         exited = _windows_process_has_exited(pid)
         if exited is True:

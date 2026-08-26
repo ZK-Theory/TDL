@@ -2,14 +2,28 @@
 
 Date: 2026-08-25
 For: the next agent picking up TDL/ARS work — implementation, review, or campaign supervision
-Source of truth: `C:\Users\steph\.claude\skill-observations\log.md` (canonical, shared across environments). This handoff is a navigation and prioritization layer over that log, not a replacement for it — every item below names its observation ID so you can pull the full issue/suggested-improvement/principle text.
+Source of truth: `~/.claude/skill-observations/log.md` (the canonical per-user location, shared by supported agent environments). This handoff is a navigation and prioritization layer over that log, not a replacement for it — every item below names its observation ID so you can pull the full issue/suggested-improvement/principle text.
 Companion document: a matching handoff, `MathUni: gate-hardening backlog handoff (2026-08-25)`, covers the MathUni repo's items from the same window — not duplicated here.
 
 ## Read this first — two things block or bound almost everything below
 
 ### 1. The quarantined checkout — status changed mid-write of this handoff. Re-verify before trusting either version.
 
-`C:\Users\steph\TDL` on branch `codex/gate6-eligibility-envelope` had been sitting dirty since **2026-08-14** with the exact state a handoff explicitly told everyone not to touch (the nine files below). That is the state this whole document was drafted against.
+`C:\Users\steph\TDL` on branch `codex/gate6-eligibility-envelope` had been sitting dirty since **2026-08-14** with the exact state a handoff explicitly told everyone not to touch. The authoritative nine-file quarantine manifest was:
+
+- `docs/plans/agentic-research-system/handoffs/01KZZ1YVPV5SMAHWZGDWZWBK9J-gate6-real-run-reset.md`
+- `docs/plans/agentic-research-system/implementation/06p-gate6-control-model-proposal.md`
+- `docs/plans/agentic-research-system/implementation/06sgate6deliveryreplanandgate7integration.md`
+- `research_system/cli.py`
+- `research_system/config.py`
+- `research_system/store/identity.py`
+- `research_system/store/schema_binding.py`
+- `tests/research_system/integration/test_command_cli.py`
+- `tests/research_system/integration/test_restore_recovery_origin_witness.py`
+
+The two additional paths later shown by commit `6a29694`, `.claude/CLAUDE.md` and
+`.repowise-workspace.yaml`, were Repowise integration rewrites, not members of the
+nine-file quarantined task surface. That is the state this whole document was drafted against.
 
 **While this handoff was being written (2026-08-25, same session), the repo changed under it:** the quarantined branch was committed as `6a29694` ("Expose governed discovery submission CLI", authored by `stephendor <stephen@zktheory.org>`, 2026-08-25 18:31:31+01:00 — i.e. under Stephen's own git identity, not an agent's), and the checkout was then switched to `main`. PR #257 (which tracked that branch) is now CLOSED, not merged. Local `main` is itself behind `origin/main` (`d64c58f` vs `6b72a26`), confirming other work landed on `main` very recently too. **This means someone — plausibly Stephen or a concurrent Codex session acting on his behalf — made the explicit decision the 2026-08-14 handoff required, right around the time this handoff was being drafted.** I have not re-verified what state Gate 6 is actually in after that commit, whether `6a29694`'s content matches what the quarantined diff described, or what `origin/main` at `6b72a26` now contains.
 
@@ -136,15 +150,15 @@ Every TDL-tagged OPEN/ESCALATED item from the 2026-08-11→2026-08-25 window is 
 - **Cluster A (store/cleanup-ownership):** 7
 - **Cluster B (replay-validator propagation):** 5
 - **Cluster C (schema/identity binding):** 5
-- **Cluster D (older WP6/authority, ungrouped singles):** 25
-- **PROCESS:** 8 (2 blocked on auth)
+- **Cluster D (older WP6/authority, ungrouped singles):** 24
+- **PROCESS:** 10 (2 blocked on auth)
 - **codex_workflow:** 2
 
 If a fresh full-text scan of `log.md` for `**Environment:** Codex` or a TDL file target turns up an ID not listed here, treat that as this handoff being incomplete for a newer entry added after 2026-08-25 — check `last-review-date.txt` and the tail of `log.md` past this handoff's date.
 
 ## What NOT to do
 
-- Do not commit, discard, or build on the nine quarantined files without an explicit fresh instruction from Stephen.
+- Do not commit, discard, or build on the nine quarantined files listed in section 1 without an explicit fresh instruction from Stephen.
 - Do not start a new from-scratch Gate 6 implementation slice without confirming 06s's status.
 - Do not self-apply any GATE/INVARIANT/PROCESS fix listed above as a merge-admission, contract, or workflow change — propose it, stage it, and get review-then-merge; these are report-only per research-observer's routing rules.
 - Do not re-fix an item without first checking whether it was already fixed in a later commit — several 2026-08-21/22/23 entries describe "Done" or "Fixed" inline; verify via `git log -p` / `git blame` on the named file before writing new code.

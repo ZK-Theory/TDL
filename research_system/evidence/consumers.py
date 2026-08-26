@@ -10,6 +10,7 @@ from research_system.artefacts.use_resolver import (
     ArtefactUseResolver,
     ResolvedArtefactEvidence,
 )
+from research_system.store.ledger import LedgerSnapshot
 
 
 @dataclass(frozen=True)
@@ -35,9 +36,19 @@ class ArtefactEvidenceConsumers:
         context: ArtefactConsumerContext,
         *,
         consumer_id: str,
+        expected_snapshot: LedgerSnapshot | None = None,
     ) -> ResolvedArtefactEvidence:
         """Resolve result evidence for a policy-enumerated concrete caller."""
-        return self._resolve(context, consumer_id=consumer_id, consumer_kind="result_evidence")
+        return self._resolve(
+            context,
+            consumer_id=consumer_id,
+            consumer_kind="result_evidence",
+            expected_snapshot=expected_snapshot,
+        )
+
+    def capture_authority_snapshot(self) -> LedgerSnapshot:
+        """Freeze the replay tail shared by one multi-reference operation."""
+        return self._resolver.ledger.snapshot()
 
     def resolve_for_review(
         self,
@@ -81,6 +92,7 @@ class ArtefactEvidenceConsumers:
         *,
         consumer_id: str,
         consumer_kind: str,
+        expected_snapshot: LedgerSnapshot | None = None,
     ) -> ResolvedArtefactEvidence:
         contract = self._resolver.contract_loader.load()
         predicate, predicate_sha256 = contract.predicate_for(consumer_kind)
@@ -101,7 +113,8 @@ class ArtefactEvidenceConsumers:
                 predicate_sha256=predicate_sha256,
                 evaluation_time=context.evaluation_time,
                 required_decision_kind=decision_kind,
-            )
+            ),
+            expected_snapshot=expected_snapshot,
         )
 
 

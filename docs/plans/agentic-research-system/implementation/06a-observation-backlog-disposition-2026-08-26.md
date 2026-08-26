@@ -2,14 +2,17 @@
 
 Date: 2026-08-26
 Governing plan: `06-wp6-gate6-readiness-and-integration-plan.md`
-Subject main SHA: `6b72a26726e737adbafd12260558cf1d3164b4ec`
+Initial review subject SHA: `119af29f9640a09c8aa07a6313f4b04f47e9dd77`
+Base main SHA: `6b72a26726e737adbafd12260558cf1d3164b4ec`
 
 ## Purpose and authority
 
-This ledger records the owner-approved disposition of the observations enumerated by
+This ledger records the owner-directed disposition of the observations enumerated by
 `34-observation-backlog-handoff-2026-08-25.md`. The governing plan named above
 supersedes earlier, conflicting WP6 planning mechanics. This is a backlog decision
 record, not evidence that Gate 6 has passed or that the WP6 capability is integrated.
+The direction was given in the current task on 2026-08-26 Europe/London, after the
+2026-08-25 handoff snapshot that still described several items as awaiting approval.
 
 Disposition meanings:
 

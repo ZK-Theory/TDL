@@ -407,7 +407,6 @@ def test_supersession_rejects_a_non_mapping_registered_manifest(tmp_path):
 
 
 def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash(tmp_path):
-    submitted_at = datetime(2099, 1, 1, tzinfo=UTC)
     harness = _c1_control_plane(tmp_path)
     _seed_running_attempt(harness)
     complete = _c1_command(
@@ -467,7 +466,9 @@ def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash
             "Z", "+00:00"
         )
     )
-    late_observed_at = terminal_recorded_at + timedelta(seconds=1)
+    submitted_at = terminal_recorded_at + timedelta(seconds=1)
+    harness.service.clock = lambda: submitted_at
+    late_observed_at = submitted_at
     adopt = command(
         command_id="cmd_019fe47a-1047-7000-8000-000000001047",
         command_type="AdoptLateArtefact",
@@ -497,6 +498,24 @@ def test_late_adoption_requires_terminal_attempt_satisfied_review_and_exact_hash
     future["command_id"] = "cmd_019fe47a-1048-7000-8000-000000001048"
     future["idempotency_key"] = "06i:AdoptLateArtefact:future-observation"
     future["payload"]["late_observed_at"] = (submitted_at + timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+
+    future_submission = deepcopy(adopt)
+    future_submission["command_id"] = "cmd_019fe47a-1049-7000-8000-000000001049"
+    future_submission["idempotency_key"] = "06i:AdoptLateArtefact:future-submission"
+    future_submission["submitted_at"] = (submitted_at + timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+
+    denied_submission = harness.service.submit(future_submission)
+
+    assert denied_submission.status == "rejected"
+    assert denied_submission.reason_code == "late_artefact_adoption_invalid"
+    assert (
+        tuple(harness.ledger.iter_events()),
+        tuple(
+            (path.relative_to(harness.service.control_root).as_posix(), path.read_bytes())
+            for path in harness.service.control_root.rglob("*")
+            if path.is_file() and not {"runtime", "receipts"}.intersection(path.parts)
+        ),
+    ) == before
 
     denied = harness.service.submit(future)
 

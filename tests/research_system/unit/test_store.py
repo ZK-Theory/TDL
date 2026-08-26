@@ -820,6 +820,32 @@ def test_windows_exited_writer_is_reclaimed_before_next_writer_enters(tmp_path):
     assert not path.exists()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="exercises a retained native Windows process handle")
+def test_windows_exited_writer_is_stale_while_parent_retains_process_handle(tmp_path):
+    path = tmp_path / "writer.lock"
+    child = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import os, pathlib; "
+                "from research_system.store.lock import WriterLock; "
+                f"lock = WriterLock(pathlib.Path({str(path)!r}), "
+                "{'operation': 'retained-handle-control'}); "
+                "lock.__enter__(); os._exit(24)"
+            ),
+        ],
+        cwd=Path.cwd(),
+    )
+    assert child.wait(timeout=20) == 24
+
+    state, observed, _ = inspect_lock(path)
+    assert state == "stale"
+    assert observed is not None
+    assert remove_stale_lock(path, observed)
+    assert not path.exists()
+
+
 def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
     path = tmp_path / "writer.lock"
     stale_pid = 919191

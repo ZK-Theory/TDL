@@ -13,6 +13,7 @@ from research_system.evidence.consumers import ArtefactConsumerContext, Artefact
 from research_system.errors import ArsError
 from research_system.ids import validate_id
 from research_system.schema_registry import SchemaRegistry
+from research_system.store.ledger import LedgerSnapshot
 
 
 _REQUEST_FIELDS = frozenset(
@@ -159,6 +160,7 @@ class StoredReleasePublicationEvidence:
         [dict[str, Any], dict[str, Any]],
         tuple[dict[str, Any], object],
     ]
+    authority_snapshot: LedgerSnapshot | None = None
 
     def _resolve(self, reference: str) -> dict[str, Any]:
         try:
@@ -168,10 +170,17 @@ class StoredReleasePublicationEvidence:
         if not isinstance(context, ArtefactConsumerContext) or context.artefact_id != reference:
             raise PublicationEvidenceError("publication evidence context identity mismatch")
         try:
-            resolved = self.consumers.resolve_for_result(
-                context,
-                consumer_id="release_publication",
-            )
+            if self.authority_snapshot is None:
+                resolved = self.consumers.resolve_for_result(
+                    context,
+                    consumer_id="release_publication",
+                )
+            else:
+                resolved = self.consumers.resolve_for_result(
+                    context,
+                    consumer_id="release_publication",
+                    expected_snapshot=self.authority_snapshot,
+                )
             value = json.loads(resolved.content_bytes)
         except PublicationEvidenceError:
             raise

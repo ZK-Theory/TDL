@@ -100,7 +100,7 @@ from research_system.store.identity import (
     manifest_schema_root,
     rebind_restored_store,
 )
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, LedgerSnapshot
 from research_system.store.binding_service import (
     StoreBindingService,
     load_verified_binding_context,
@@ -1398,15 +1398,19 @@ def _publication_evidence(
     )
 
     def stored_evidence_resolver() -> StoredReleasePublicationEvidence:
+        consumers = build_artefact_consumers(binding)
+        authority_snapshot = consumers.capture_authority_snapshot()
         return StoredReleasePublicationEvidence(
-            consumers=build_artefact_consumers(binding),
+            consumers=consumers,
             context_for_reference=_publication_context_for_reference(
                 binding,
                 schemas,
                 datetime.fromisoformat(str(source["decided_at"]).replace("Z", "+00:00")),
+                authority_snapshot=authority_snapshot,
             ),
             expected_store_identity=binding.store_identity,
             rederive=rederive_release_from_snapshot,
+            authority_snapshot=authority_snapshot,
         )
 
     def stored_evidence_matches(
@@ -1593,6 +1597,8 @@ def _publication_context_for_reference(
     binding: ControlBinding,
     schemas: SchemaRegistry,
     evaluation_time: datetime,
+    *,
+    authority_snapshot: LedgerSnapshot | None = None,
 ) -> Callable[[str], ArtefactConsumerContext]:
     """Build exact replay-derived contexts for release publication evidence."""
 
@@ -1605,8 +1611,9 @@ def _publication_context_for_reference(
         approved_witness=binding.origin_witness,
         approved_witness_path=binding.origin_witness_path,
     )
+    snapshot = authority_snapshot or ledger.snapshot()
     state = replay(
-        ledger.snapshot().events,
+        snapshot.events,
         schema_registry=schemas,
         authority_state_validator=authority.validate_replayed_administration_state,
     )
@@ -1806,15 +1813,19 @@ def _eval_release(args: argparse.Namespace) -> int:
     projected = projection.get("release_decisions", {}).get(decision_id)
     if not isinstance(projected, dict):
         raise ArsError("canonical release event is unavailable")
+    consumers = build_artefact_consumers(binding)
+    authority_snapshot = consumers.capture_authority_snapshot()
     resolver = StoredReleasePublicationEvidence(
-        consumers=build_artefact_consumers(binding),
+        consumers=consumers,
         context_for_reference=_publication_context_for_reference(
             binding,
             schema_registry,
             datetime.fromisoformat(str(supplied_document["decided_at"]).replace("Z", "+00:00")),
+            authority_snapshot=authority_snapshot,
         ),
         expected_store_identity=binding.store_identity,
         rederive=rederive_release_from_snapshot,
+        authority_snapshot=authority_snapshot,
     )
     manifest = resolver.resolve_evaluation_runs(projected["evaluation_runs_manifest_ref"])
     control = resolver.resolve_control_binding(projected["control_binding_ref"])

@@ -4574,6 +4574,7 @@ class CommandService:
                     or late_observed_at is None
                     or terminal_recorded_at is None
                     or submitted_at is None
+                    or submitted_at > self.clock()
                     or late_observed_at <= terminal_recorded_at
                     or late_observed_at > submitted_at
                 ):
