@@ -46,3 +46,15 @@ docs/plans/agentic-research-system/handoffs/trials/gate6-wp6-2-t2-authority-adde
 # the two silently rewritten above — a 158-line whole-file diff for a 4-line change is
 # a review that does not happen.
 .claude/settings.json text eol=lf
+
+# The byte-guard test modules. tests/tools/test_gitattributes_lf_coverage.py discovers
+# every tracked file naming `canonical_byte_surface` / `_lf_sha256` and requires an
+# eol=lf pin for it. tests/tools/test_hook_script_lf_bytes.py names the first of those
+# in one docstring line, cross-referencing what it does NOT cover — enough to be
+# discovered, and tests/tools/ had no pin, so main went red the moment both landed
+# together (#273 and #274, each green against main alone).
+#
+# Pinning the root is the honest resolution rather than rewording the docstring around
+# the detector: these modules assert byte-level properties, so LF coverage is a
+# property they should have anyway, and the cross-reference is prose worth keeping.
+tests/tools/** text eol=lf
