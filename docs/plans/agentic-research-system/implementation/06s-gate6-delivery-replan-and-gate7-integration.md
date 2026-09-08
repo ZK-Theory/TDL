@@ -176,7 +176,11 @@ Consult 06q only for the explicitly retained action/source references.
 
 **Authorized scope:** verification, this plan, D1–D6 decision entries, a
 superseded-by-06s header in 06q, documentation PR and bounded Jira reconciliation.
-No production-code or tracked test changes. A disposable, uncommitted driver may
+No production-code changes. On 2026-09-08 Stephen additionally authorized
+assessment and necessary repair of the 11 verification failures. The resulting
+exception is limited to the event-rewrite test helpers and their regression
+coverage described in §12; it does not expand STORE or Gate 7 scope.
+A disposable, uncommitted driver may
 reuse existing fixture setup to exercise the genuine CLI against scratch stores.
 It must not replace the service, weaken admission or touch the live store.
 
@@ -429,15 +433,55 @@ The probe used the real service, did not replace it, and did not touch the live
 control store. Full JSON evidence is retained at
 C:/Users/steph/.codex/tmp/gate6-06s-phase0-20260905/public-cli-result.json.
 
-**Bounded STORE packet:** unresolved. The selected pytest command produced
-partial progress (24 tests reported) but did not return a terminal summary
-within the bounded execution window; it was stopped and is not counted as
-passing. No STORE failure was silently repaired. Phase 0 therefore remains
-**INCOMPLETE — the genuine CLI smoke path passes, but the bounded STORE packet
-has no terminal result and the documentation PR is not yet merged.**
+**Initial STORE packet:** the subsequent run without a runtime cutoff completed
+naturally at c0829aedf58f6bddb260da255fcfc58a86018d03: **11 failed, 52 passed
+in 946.96s**, exit 1. This supersedes the earlier interrupted partial run.
 
-**Documentation checks:** git diff --check passes. The revised plan, six
+**Failure assessment (2026-09-08):** all 11 failures share a date-dependent
+fixture defect in integration/test_current_binding.py. The two event-rewrite
+helpers sorted full paths lexically, whereas EventLedger orders batches by
+their numeric ledger-position filename prefix. Restored events at positions 1–2
+were under September; historical binding events at positions 3–4 were under
+August. The helpers therefore rewrote the wrong tail or rebuilt the hash chain
+in the wrong order. Validation correctly rejected the resulting chain before
+reaching the intended binding-provenance checks.
+
+The affected checks cover historical command identity (1), registered event
+schema (1), object-bound event provenance (6), successful historical replay (1),
+command-family provenance (1), and binding-object path/digest relation (1).
+These remain required Phase 0 evidence; none is bypassed as legacy or deferred
+to Gate 7. The repair changes only the two test helpers to order by ledger
+position and adds deterministic cross-month regression coverage. Production
+STORE, historical schemas, assertions and live-store bytes remain unchanged.
+
+**Repair validation:** **65 passed in 960.11s (0:16:00), exit 0**, completed
+naturally without a runtime cutoff on 2026-09-08. This is the original 63-test
+selection plus two deterministic opposite-month helper controls; JUnit records
+zero failures, errors and skips. The tested subject is c0829aed plus the
+test-only repair; test_current_binding.py SHA-256 is
+70326546146237cb2f19cb658e0ee20d126d314525076c08c8e195f6600891e2.
+Two Luna agents supplied diagnosis/repair and independent review. The reviewer
+reproduced both defects with the old helpers and found no remaining issue.
+Existing assertions remain unchanged. Ruff and format checks passed.
+
+From the named worktree, with PYTHONDONTWRITEBYTECODE=1, the exact command was:
+
+```powershell
+C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p no:cacheprovider -v --tb=short --junitxml=C:/Users/steph/.codex/tmp/gate6-06s-phase0-20260905/store-packet-repair-20260908.xml tests/research_system/unit/test_spec_operator_config.py tests/research_system/integration/test_store_binding_cli.py tests/research_system/integration/test_store_binding_public_contract.py tests/research_system/integration/test_store_binding_service.py tests/research_system/integration/test_current_binding.py tests/research_system/integration/test_wp64_create_backup.py::test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic_submit tests/research_system/integration/test_wp64_create_backup.py::test_store_verify_restore_appends_evidence_without_cutover_and_replays
+```
+
+**Capability status:** INCOMPLETE — the inherited STORE path is verified;
+Phases 1–5 remain. PR #271 is pending owner review/merge and Phase 1 dispatch.
+This test repair does not close Gate 6 or open Gate 7.
+
+**Documentation checks:** git diff --check passes for the task's two changed
+files; unrelated pre-existing Repowise edits are excluded. The revised plan, six
 decision records (P-051–P-056), and 06q supersession banner are present in this
 worktree. Jira descriptions for KAN-106–109 were updated and read back; their
-statuses remain To Do and dependency links were unchanged. KAN-105, KAN-103
-and KAN-12 remain open pending the unresolved packet, docs PR and owner review.
+statuses remain To Do and dependency links were unchanged. On 2026-09-08,
+KAN-105 was explicitly classified MILESTONE and marked Done after STORE
+verification. KAN-104's obsolete STORE blocker and source version were corrected.
+KAN-103 and KAN-12 remain open, now To Do with the exact owner merge/dispatch
+resume action; stale STORE construction instructions were removed. All four
+changed descriptions/statuses/labels were read back and dependency links were
+verified unchanged. Live backup/restore remains required in Phase 5.
