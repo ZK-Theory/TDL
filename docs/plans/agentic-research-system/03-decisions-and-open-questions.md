@@ -1278,6 +1278,121 @@ These questions must be resolved in the specifications. They are deliberately bo
 **Decision to make:** Import the complete APM history or only authoritative decisions, active dependencies, and selected failure fixtures.  
 **Default recommendation:** Do not normalize the entire tracker. Import authoritative decisions and active dependencies; preserve the old files as immutable historical evidence.
 
+## 06s delivery revisions — accepted 2026-09-05
+
+The following [DECISION] entries record Stephen's instruction after the plan review:
+"Update the plan with these revisions and begine phase 0 when ready."
+The accepted revisions and their operational application are in
+[06s](implementation/06s-gate6-delivery-replan-and-gate7-integration.md), §§3–5.
+They supersede conflicting 06q execution instructions and its active-plan pointers
+in P-049/P-050, while preserving those decisions' historical evidence and the
+distinction between merge admission, capability integration and owner closure.
+Authorization is Phase 0 only; later dispatches and owner-only actions remain gated.
+
+### P-051 — [DECISION] 06s D1: finite action table and early public integration
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** Preserve the finite SPEC action composition, implement its entries
+incrementally on one public status/advance/result path, and derive completion from
+all correctly bound effects for the same subject. Individual commands retain
+their actor and transaction boundaries. No blob-hash registry, document parser,
+composite seal or additional persisted workflow state.<br>
+**Rationale/evidence:** The review identified deferred CLI assembly and multi-actor
+actions hidden by a single-role table; 06q §4 Step 5 and W11 supply the underlying
+composition and command semantics. 06s Phases 1–4 define progressive public exits.<br>
+**Affected specifications:** 06q Step 5, 06s D1 and construction sequence.<br>
+**Migration consequence:** No historical event or schema rewrite. A second material
+review round requires diagnosis and an owner continuation decision, not automatic
+retirement. Preserve valid implementation.<br>
+**Supersedes:** 06q registry ceremony and automatic retirement; no successor decision.
+
+### P-052 — [DECISION] 06s D2: reuse inherited authority checks
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** Omit additional SPEC session/grant machinery; preserve existing
+CommandService/DiscoveryRuntime authority checks, including expiry and exact-subject
+independence. SpecOperatorConfig@1.0.0 stays authority-neutral and unchanged.
+Permitted actions derive from existing authority records, not a new declared role.<br>
+**Rationale/evidence:** research_system/config.py supplies actor/session/grant IDs
+and rejects additional fields; discovery/runtime.py resolves lifecycle grants.
+The smaller route must use those interfaces rather than assume absent role/owner
+fields or introduce an authority bypass.<br>
+**Affected specifications:** 06q AUTHORITY, 06s D2 and Phase 2.<br>
+**Migration consequence:** None; existing grants and historical validation remain.
+No session containment or authority migration is commissioned.<br>
+**Supersedes:** Additional SPEC authority machinery in 06q and v2 D2's proposal to
+drop inherited expiry semantics; no successor decision.
+
+### P-053 — [DECISION] 06s D3: explicit record validation without global policy change
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** Preserve existing validators and historical versions. New operative
+records declare required/optional fields and reject unrecognized fields. Version
+only required record changes; no global ignore-with-warning path.<br>
+**Rationale/evidence:** The approved review distinguishes ordinary validation from
+unnecessary schema machinery; strict current config validation remains inherited.<br>
+**Affected specifications:** 06s D3 and new SOURCE/MODEL documents.<br>
+**Migration consequence:** Historical bytes remain readable unchanged.<br>
+**Supersedes:** v2 D3's unknown-field warning proposal; no successor decision.
+
+### P-054 — [DECISION] 06s D4: version the causal-prefix source correction
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** Keep spec_01_source_correction@1.0.0 readable for historical replay.
+Register the new causal-prefix form as 2.0.0; never replace historical bytes.<br>
+**Rationale/evidence:** P-050 and its evidence handoff preserve the historical
+append-only correction; 06s Phase 1 requires a correctly bound fresh correction.<br>
+**Affected specifications:** 06q SOURCE and 06s D4/Phase 1.<br>
+**Migration consequence:** Append-only new version only; no rewrite.<br>
+**Supersedes:** Any fresh-path instruction using the historical version for the
+new form; no successor decision.
+
+### P-055 — [DECISION] 06s D5: inherited STORE and bounded verification
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** Select current merged main, account for relevant production deltas,
+run the named Phase 0 packet and a genuine scratch CLI publication/readback/retry.
+Historical test counts are provenance, not acceptance totals. Protect STORE from
+speculative work. A demonstrated required-path defect needs a reproducer and the
+smallest proposed repair, with an explicit scoped exception before implementation.<br>
+**Rationale/evidence:** PR #268 is integrated; current baseline
+ced524b7b59d019ad35bb44a5580400e757787b8 includes PR #270 production remediation.
+The review found fake-service CLI routing and direct service tests insufficient
+alone to prove the assembled positive CLI path.<br>
+**Affected specifications:** 06q STORE, 06s D5 and Phase 0.<br>
+**Migration consequence:** No production change is authorized in Phase 0. On
+2026-09-08 Stephen authorized the demonstrated test-helper repair in
+`tests/research_system/integration/test_current_binding.py`: numeric ledger
+batch ordering and two deterministic opposite-month regression controls. This
+is a narrow verification-instrument exception, not an expansion of inherited
+STORE scope. Scope/review checkpoints preserve the candidate rather than force
+a restart.<br>
+**Supersedes:** Old-baseline/docs-only-delta stop and fixed historical test totals;
+no successor decision.
+
+### P-056 — [DECISION] 06s D6: bounded operational closure permits legitimate PARK
+
+**Date/status:** 2026-09-05; accepted by Stephen.<br>
+**Decision:** A fresh owner-approved subset of the historical 126/42 design proves
+the operational route. A legitimate terminal PARK/no_spike may satisfy that proof
+when Task acceptance, independently accepted result, replay and governed restore
+all succeed. Scratch verification covers allowed/blocked SPEC-02 branches; the
+historical full real SPEC-02 run remains historical evidence. Fresh live SPEC-02
+is optional, only with valid promotion and separate owner approval.<br>
+**Rationale/evidence:** A bounded Assay may legitimately remain PARK. W11's
+revisit predicate and later PROMOTE cannot be manufactured to complete the gate.
+The review explicitly proposed this alternative and Stephen approved the revisions.<br>
+**Affected specifications:** 06q §6's mandatory fresh live SPEC-02 requirement,
+P-049/P-050's current execution application, and 06s §§3–5.<br>
+**Migration consequence:** Preserve historical science and source evidence. The
+fresh ProjectUseDecision states the subset and limitations; no replication or
+scientific-promotion claim. Paid-run subset/cost, live writes, merges and final
+closure still require separate owner approval. Final closure includes replay after
+the final documentation merge and verified Jira reconciliation. Gate 7 cannot add
+requirements back to Gate 6.<br>
+**Supersedes:** Mandatory fresh full 126/42 computation and mandatory fresh live
+SPEC-02 for Gate 6 closure; no successor decision.
+
 ## Decision protocol
 
 Each future decision entry must record:

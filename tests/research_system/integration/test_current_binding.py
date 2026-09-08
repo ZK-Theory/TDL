@@ -5,6 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -49,7 +50,10 @@ def _write_json(path: Path, value: dict[str, object]) -> bytes:
 
 
 def _rewrite_last_event(fixture: _Fixture, **updates: object) -> tuple[dict[str, object], ...]:
-    paths = sorted(fixture.ledger.events_root.rglob("*.jsonl"))
+    paths = sorted(
+        fixture.ledger.events_root.rglob("*.jsonl"),
+        key=lambda path: int(path.name.partition("-")[0]),
+    )
     assert paths
     path = paths[-1]
     events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
@@ -68,7 +72,10 @@ def _rewrite_event_at_position(
 ) -> tuple[dict[str, object], ...]:
     batches: list[tuple[Path, list[dict[str, object]]]] = []
     found = False
-    for path in sorted(fixture.ledger.events_root.rglob("*.jsonl")):
+    for path in sorted(
+        fixture.ledger.events_root.rglob("*.jsonl"),
+        key=lambda path: int(path.name.partition("-")[0]),
+    ):
         events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
         for event in events:
             if event["global_position"] == position:
@@ -87,6 +94,57 @@ def _rewrite_event_at_position(
     for path, events in batches:
         path.write_bytes(b"".join(canonical_bytes(event) + b"\n" for event in events))
     return tuple(fixture.ledger.iter_events())
+
+
+@pytest.mark.parametrize("helper", ("last", "position"))
+def test_event_rewrite_helpers_follow_numeric_batch_position(tmp_path: Path, helper: str) -> None:
+    """Keep fixture rewrites aligned with the ledger across month directories."""
+
+    events_root = tmp_path / "events"
+    september = events_root / "2026" / "09" / "00000000000000000001-september.jsonl"
+    august = events_root / "2026" / "08" / "00000000000000000002-august.jsonl"
+    first_unsigned = {
+        "global_position": 1,
+        "previous_event_hash": "0" * 64,
+        "marker": "first",
+    }
+    first = {**first_unsigned, "event_hash": sha256_hex(canonical_bytes(first_unsigned))}
+    second_unsigned = {
+        "global_position": 2,
+        "previous_event_hash": first["event_hash"],
+        "marker": "second",
+    }
+    second = {**second_unsigned, "event_hash": sha256_hex(canonical_bytes(second_unsigned))}
+    september.parent.mkdir(parents=True)
+    august.parent.mkdir(parents=True)
+    september.write_bytes(canonical_bytes(first) + b"\n")
+    august.write_bytes(canonical_bytes(second) + b"\n")
+
+    def iter_events():
+        paths = sorted(
+            events_root.rglob("*.jsonl"),
+            key=lambda item: int(item.name.partition("-")[0]),
+        )
+        for path in paths:
+            yield from (json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line)
+
+    fixture = SimpleNamespace(
+        ledger=SimpleNamespace(events_root=events_root, iter_events=iter_events),
+    )
+    if helper == "last":
+        events = _rewrite_last_event(fixture, marker="updated")
+    else:
+        events = _rewrite_event_at_position(fixture, 1, marker="updated")
+
+    assert [event["global_position"] for event in events] == [1, 2]
+    assert events[0]["marker"] == ("updated" if helper == "position" else "first")
+    assert events[1]["marker"] == ("updated" if helper == "last" else "second")
+    assert events[0]["previous_event_hash"] == "0" * 64
+    assert events[1]["previous_event_hash"] == events[0]["event_hash"]
+    for event in events:
+        unsigned = dict(event)
+        unsigned.pop("event_hash")
+        assert event["event_hash"] == sha256_hex(canonical_bytes(unsigned))
 
 
 @dataclass(frozen=True)
