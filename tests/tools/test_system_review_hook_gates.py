@@ -17,6 +17,9 @@ ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / ".claude" / "hooks" / "install-git-hooks.py"
 MIRROR_GUARD = ROOT / ".claude" / "hooks" / "mirror-tree-guard.sh"
 RECEIPT_WRAP = ROOT / ".claude" / "hooks" / "_receipt-wrap.sh"
+SETTINGS = ROOT / ".claude" / "settings.json"
+RESEARCH_CONTEXT_CHECK = ROOT / ".claude" / "hooks" / "research-context-check.sh"
+RESULTS_VAULT_REMINDER = ROOT / ".claude" / "hooks" / "results-vault-reminder.sh"
 
 
 def _git_bash() -> str:
@@ -194,3 +197,126 @@ def test_mirror_tree_guard_malformed_input_fails_open_with_receipt(tmp_path: Pat
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "allow"
     receipt = (tmp_path / ".claude" / "hooks" / "hook-receipts.log").read_text(encoding="utf-8")
     assert "hook=mirror-tree-guard decision=FAILOPEN" in receipt
+
+
+# --- PostToolUse advisory-hook receipts -------------------------------------
+# obs 2026-09-08-posttooluse-hooks-lack-receipt-wrap: both PostToolUse hooks are
+# advisory-only (every path exits 0), so nothing downstream can observe whether
+# they ran. The receipt line is their entire liveness signal, which makes these
+# the negative controls the observation asks for: a matching fixture Write must
+# land `decision=advise` and a non-matching one `decision=silent`, so the log
+# distinguishes "ran and found nothing" from "never ran" (both previously
+# indistinguishable: zero receipts for either hook across the log's history).
+
+
+def _run_advisory(hook: Path, project: Path, payload: dict) -> str:
+    """Run a PostToolUse hook through the receipt wrapper; return the receipt log."""
+    (project / ".claude" / "hooks").mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)}
+    result = subprocess.run(
+        [_git_bash(), _bash_path(RECEIPT_WRAP), "--advisory", _bash_path(hook)],
+        input=json.dumps({"hook_event_name": "PostToolUse", "tool_name": "Write", **payload}),
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    return (project / ".claude" / "hooks" / "hook-receipts.log").read_text(encoding="utf-8")
+
+
+def test_results_vault_reminder_receipt_records_advise_and_silent(tmp_path: Path) -> None:
+    fired = _run_advisory(
+        RESULTS_VAULT_REMINDER,
+        tmp_path / "fired",
+        {"tool_input": {"file_path": "papers/P01/results/w2_permutation_2026-09-08.json"}},
+    )
+    assert "hook=results-vault-reminder decision=advise" in fired
+    assert "file=papers/P01/results/w2_permutation_2026-09-08.json" in fired
+
+    quiet = _run_advisory(
+        RESULTS_VAULT_REMINDER,
+        tmp_path / "quiet",
+        {"tool_input": {"file_path": "docs/notes/summary.md"}},
+    )
+    assert "hook=results-vault-reminder decision=silent" in quiet
+
+
+def test_research_context_check_receipt_records_advise_and_silent(tmp_path: Path) -> None:
+    headerless = _run_advisory(
+        RESEARCH_CONTEXT_CHECK,
+        tmp_path / "headerless",
+        {"tool_input": {"file_path": "trajectory_tda/scripts/run_probe.py", "content": "import numpy as np\n"}},
+    )
+    assert "hook=research-context-check decision=advise" in headerless
+    assert "file=trajectory_tda/scripts/run_probe.py" in headerless
+
+    with_header = _run_advisory(
+        RESEARCH_CONTEXT_CHECK,
+        tmp_path / "with_header",
+        {
+            "tool_input": {
+                "file_path": "trajectory_tda/scripts/run_probe.py",
+                "content": "# Research context: TDA-Research/03-Papers/P01/_project.md\n# Purpose: probe\n",
+            }
+        },
+    )
+    assert "hook=research-context-check decision=silent" in with_header
+
+
+def test_advisory_mode_flags_a_pretooluse_gate_instead_of_downgrading_it(tmp_path: Path) -> None:
+    """A gate wrapped in advisory mode must be flagged, never recorded as mere advice.
+
+    This is the dangerous mis-wiring direction: a real `deny` from a PreToolUse
+    guard would otherwise be filed as `advise`, turning the receipt into false
+    evidence that the gate allowed the write.
+    """
+    (tmp_path / ".claude" / "hooks").mkdir(parents=True)
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)}
+    subprocess.run(
+        [_git_bash(), _bash_path(RECEIPT_WRAP), "--advisory", _bash_path(MIRROR_GUARD)],
+        input=json.dumps(
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Write",
+                "tool_input": {"file_path": str(tmp_path / ".claude" / "skills" / "demo" / "SKILL.md")},
+            }
+        ),
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    receipt = (tmp_path / ".claude" / "hooks" / "hook-receipts.log").read_text(encoding="utf-8")
+    assert "hook=mirror-tree-guard decision=MISWIRED(PreToolUse)" in receipt
+
+
+def test_settings_wires_both_posttooluse_hooks_through_receipt_wrap() -> None:
+    """The receipt only exists if settings.json actually routes through the wrapper.
+
+    Wiring is the thing that regressed; a hook can carry perfect receipt logic
+    and still emit nothing because settings.json invokes it directly.
+    """
+    settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    commands = [
+        hook["command"]
+        for group in settings["hooks"]["PostToolUse"]
+        for hook in group["hooks"]
+        if "research-context-check.sh" in hook["command"] or "results-vault-reminder.sh" in hook["command"]
+    ]
+    assert len(commands) == 2, commands
+    for command in commands:
+        assert "_receipt-wrap.sh" in command
+        assert "--advisory" in command
+
+
+def test_receipt_wrap_selftests_pass() -> None:
+    """The wrapper's own sanitizer and mode negative controls still hold."""
+    result = subprocess.run(
+        [_git_bash(), _bash_path(RECEIPT_WRAP), "--selftest"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "FAIL:" not in result.stdout

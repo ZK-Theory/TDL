@@ -50,14 +50,14 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/research-context-check.sh",
-            "timeout": 10,
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/_receipt-wrap.sh\" --advisory \"$CLAUDE_PROJECT_DIR/.claude/hooks/research-context-check.sh\"",
+            "timeout": 30,
             "statusMessage": "Checking research context header..."
           },
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/results-vault-reminder.sh",
-            "timeout": 5,
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/_receipt-wrap.sh\" --advisory \"$CLAUDE_PROJECT_DIR/.claude/hooks/results-vault-reminder.sh\"",
+            "timeout": 30,
             "statusMessage": "Checking for vault reminder..."
           }
         ]
