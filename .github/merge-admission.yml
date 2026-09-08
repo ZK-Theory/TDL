@@ -1,0 +1,40 @@
+# Merge-admission gate configuration.
+#
+# Consumed by tools/check_merge_admission.py, which is run by
+# .github/workflows/merge-admission.yml. Both gates fail closed: missing or
+# truncated evidence blocks admission rather than passing silently.
+#
+# Provenance:
+#   thread_finality  -> observation 01M0PWSR73ABY48X8YW7KQX6Q6 (PR #262)
+#   platform_order   -> observation 01M0Q0WXJSCX5WJ69H2G9DG4E3 (PR #263)
+
+thread_finality:
+  # Every producer listed here must have submitted a review whose commit oid is
+  # the exact merge candidate before admission is evaluated. A producer that has
+  # not yet reached that terminal state blocks the candidate; it does not pass.
+  # Logins verified against ZK-Theory/TDL PR #262 review history (2026-08-23).
+  review_producers:
+    - chatgpt-codex-connector
+    - coderabbitai
+
+platform_order:
+  # The Linux-required job whose check-run name must be terminal and green on the
+  # candidate BEFORE any approving review is submitted, for candidates touching
+  # platform-sensitive code.
+  linux_check_run: lint-and-test
+
+  # Filesystem and concurrency surfaces. A trailing "/" (or any pattern without a
+  # glob metacharacter) is a path prefix; otherwise the pattern is fnmatch-style
+  # against the POSIX path. Keep this list explicit: an over-broad pattern turns
+  # the gate into a repo-wide ordering rule, which is not what was approved.
+  sensitive_paths:
+    - research_system/store/
+    - research_system/evals/executors/control_store.py
+    - research_system/evals/release_publication.py
+    - "**/*_lock.py"
+    - "**/lock.py"
+    - "**/anchor.py"
+    - "**/durability.py"
+    - "**/layout.py"
+    - "**/*concurrency*.py"
+    - "**/*atomic*.py"

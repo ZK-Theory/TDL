@@ -1,0 +1,562 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "headRefOid": "af680b81f10df2bf0f0803a475e34656a926f766",
+        "reviewThreads": {
+          "pageInfo": {
+            "hasNextPage": false
+          },
+          "nodes": [
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:45:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:45:24Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:45:24Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:45:24Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:47:28Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:47:28Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:47:28Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:47:28Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T01:47:28Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": true,
+              "isOutdated": true,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:05:10Z",
+                    "author": {
+                      "login": "coderabbitai"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:40:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:40:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:40:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:40:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "isResolved": false,
+              "isOutdated": false,
+              "comments": {
+                "nodes": [
+                  {
+                    "createdAt": "2026-08-23T07:40:23Z",
+                    "author": {
+                      "login": "chatgpt-codex-connector"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "pageInfo": {
+            "hasNextPage": false
+          },
+          "nodes": [
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T01:45:23Z",
+              "author": {
+                "login": "chatgpt-codex-connector"
+              },
+              "commit": {
+                "oid": "b8929de146bcc16dd4f646ee4bf3db559bbc71f2"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T01:47:30Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "b8929de146bcc16dd4f646ee4bf3db559bbc71f2"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:01:37Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:38Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:39Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:41Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:42Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:44Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:46Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:47Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:48Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:02:50Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:05:10Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:06:15Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:06:20Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:07:06Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:07:08Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:07:10Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:14:46Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "971098ba69fcd5141cd966e9d57af2fc21d0a1c3"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:27:53Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:28:14Z",
+              "author": {
+                "login": "stephendor"
+              },
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:30:13Z",
+              "author": {
+                "login": "coderabbitai"
+              },
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766"
+              }
+            },
+            {
+              "state": "COMMENTED",
+              "submittedAt": "2026-08-23T07:40:23Z",
+              "author": {
+                "login": "chatgpt-codex-connector"
+              },
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766"
+              }
+            }
+          ]
+        },
+        "files": {
+          "pageInfo": {
+            "hasNextPage": false
+          },
+          "nodes": [
+            {
+              "path": "docs/plans/agentic-research-system/implementation/06q-gate6-spec-real-run-integration-and-follow-up.md"
+            },
+            {
+              "path": "research_system/command/service.py"
+            },
+            {
+              "path": "research_system/evals/calibration.py"
+            },
+            {
+              "path": "research_system/evals/executors/release_tranche.py"
+            },
+            {
+              "path": "research_system/evals/release_snapshot.py"
+            },
+            {
+              "path": "research_system/store/ledger.py"
+            },
+            {
+              "path": "research_system/store/lock.py"
+            },
+            {
+              "path": "research_system/store/objects.py"
+            },
+            {
+              "path": "tests/research_system/contracts/test_wp64_session_exchange.py"
+            },
+            {
+              "path": "tests/research_system/integration/test_gate3_scenarios.py"
+            },
+            {
+              "path": "tests/research_system/integration/test_gate5_release_tranche.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_calibration.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_command_lock_retry.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_ledger_schema_admission.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_release_publication.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_store.py"
+            },
+            {
+              "path": "tests/research_system/unit/test_store_publication_contract.py"
+            }
+          ]
+        },
+        "commits": {
+          "pageInfo": {
+            "hasNextPage": false
+          },
+          "nodes": [
+            {
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766",
+                "statusCheckRollup": {
+                  "contexts": {
+                    "pageInfo": {
+                      "hasNextPage": false
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "contract-and-session-currency",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "completedAt": "2026-08-23T07:29:03Z"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "require-active-currency-workflow",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "completedAt": "2026-08-23T07:27:59Z"
+                      },
+                      {
+                        "__typename": "StatusContext",
+                        "context": "CodeRabbit",
+                        "state": "SUCCESS",
+                        "createdAt": "2026-08-23T07:29:43Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
