@@ -22,6 +22,7 @@ on:
   pull_request_review_thread:
     types: [created, resolved, unresolved]
   merge_group:
+    types: [checks_requested]
   workflow_dispatch:
     inputs:
       pull_request_number:
@@ -37,7 +38,7 @@ permissions:
 concurrency:
   # Keyed on the PR, not the SHA: a superseded evaluation of an older head must
   # not outlive the evaluation of the current one.
-  group: merge-admission-${{ github.event.pull_request.number || github.event.merge_group.head_ref || inputs.pull_request_number }}
+  group: merge-admission-${{ github.event.pull_request.number || github.event.merge_group.head_ref || github.event.inputs.pull_request_number }}
   cancel-in-progress: true
 
 jobs:
@@ -73,7 +74,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
-          DISPATCH_PR_NUMBER: ${{ inputs.pull_request_number }}
+          DISPATCH_PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
