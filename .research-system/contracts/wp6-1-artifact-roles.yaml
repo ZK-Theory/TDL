@@ -1,0 +1,59 @@
+schema_id: ars://contracts/wp6-1-artifact-roles
+schema_version: 1.0.0
+manifest_id: wp6-1-artifact-roles
+status: proposed_pending_fresh_independent_review_and_stephen_exact_hash_acceptance
+purpose: >-
+  Declare the producer/validator/oracle roles of the WP6.1 schema-materialization lane so the
+  producer-independence property is machine-checked from a contract declaration rather than held
+  by convention. The sibling WP6.2 T2 lane already declares these roles in
+  .research-system/contracts/wp6-2-t2-schema-identities.yaml and asserts the independence edge by
+  AST; WP6.1 pinned the same five files' bytes but declared no role and had no equivalent guard.
+  Observation 2026-08-12-wp61-lane-lacks-t2-independence-guard.
+derivation: >-
+  Roles assigned from the observed import graph of the WP6.1 lane at the revision recorded below,
+  not asserted a priori. Verified by tests/research_system/contracts/artifact_role_independence.py.
+declared_revision: 56f71aa
+enforcement:
+  guard_module: tests/research_system/contracts/artifact_role_independence.py
+  binding_test: tests/research_system/contracts/test_artifact_role_independence.py
+  negative_control: test_negative_control_forbidden_import_is_detected
+artifacts:
+- artifact_role: schema_materializer
+  repository_path: tests/research_system/contracts/wp6_1_schema_materializer.py
+  module: tests.research_system.contracts.wp6_1_schema_materializer
+  note: >-
+    The producer under test. Generates the WP6.1 schemas whose bytes the lane pins.
+- artifact_role: semantic_validator
+  repository_path: tests/research_system/contracts/wp6_1_materialization_validation.py
+  module: tests.research_system.contracts.wp6_1_materialization_validation
+  note: >-
+    Shared validation helpers. The materializer imports this module (wp6_1_schema_materializer.py
+    line 17). That edge is declared here rather than left unnoticed: it is producer-uses-helpers,
+    not expected-side contamination, because this module supplies no expected values to the
+    comparison. It is deliberately NOT the expected side of the lane.
+- artifact_role: independent_oracle
+  repository_path: tests/research_system/contracts/wp6_1_schema_expectations.py
+  module: tests.research_system.contracts.wp6_1_schema_expectations
+  note: >-
+    Expected side. Imports only approved_fact_annex_bytes from the accepted source.
+- artifact_role: independent_oracle
+  repository_path: tests/research_system/contracts/wp6_1_schema_fact_oracle.py
+  module: tests.research_system.contracts.wp6_1_schema_fact_oracle
+  note: >-
+    Expected side. Binds the fact-annex proposal with no intra-lane imports at all.
+- artifact_role: accepted_source
+  repository_path: tests/research_system/contracts/wp6_1_schema_source.py
+  module: tests.research_system.contracts.wp6_1_schema_source
+  note: >-
+    Owner-accepted input. Both sides may derive from it — that is the point of an accepted source,
+    and it is declared so the shared derivation is visible rather than mistaken for independence.
+independence_edges:
+- forbidden_importer_role: independent_oracle
+  forbidden_imported_role: schema_materializer
+  rationale: >-
+    The expected side must not derive from the producer under test. An expectation computed from
+    the materializer's own output is self-attestation wearing a comparison's clothes.
+- forbidden_importer_role: schema_materializer
+  forbidden_imported_role: independent_oracle
+  rationale: >-
+    The reverse edge is equally disqualifying: a producer that reads the oracle can be tuned to it.
