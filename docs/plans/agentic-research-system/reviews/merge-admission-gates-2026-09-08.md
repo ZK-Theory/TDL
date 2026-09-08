@@ -41,11 +41,20 @@ the candidate; a producer short of that blocks rather than passes. Any
 unresolved, non-outdated thread blocks.
 
 Evidence invalidation is structural rather than a stored timestamp: the workflow
-re-runs on `pull_request_review_thread` (created/resolved/unresolved),
-`pull_request_review`, `pull_request` and `merge_group`, replacing the check
-conclusion on the head SHA each time. A thread published after an earlier clean
-run flips the check back to failure. `evidence_is_stale()` states the same rule
-directly and is exercised against the PR #262 window.
+re-runs on `pull_request_review_comment`, `pull_request_review`, `pull_request`
+and `merge_group`, replacing the check conclusion on the head SHA each time. A
+thread published after an earlier clean run flips the check back to failure.
+`evidence_is_stale()` states the same rule directly and is exercised against the
+PR #262 window.
+
+GitHub has no `pull_request_review_thread` Actions trigger — actionlint caught
+the first draft, which used one and was rejected at workflow validation. A newly
+published thread still retriggers, because it arrives as a review comment and
+the review carrying it fires `pull_request_review` (Codex's five threads on
+PR #262 came with a submitted review at `07:40:23Z`). What is *not* covered is
+thread **resolution**, which no event exposes. That direction only ever moves
+the check from failure to success, so it cannot admit silently: re-run the check
+once the threads carry a disposition.
 
 ### platform-order
 

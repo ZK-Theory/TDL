@@ -252,9 +252,12 @@ def test_workflow_reevaluates_on_every_admission_relevant_event() -> None:
     # PyYAML parses the unquoted `on:` key as the boolean True.
     triggers = workflow.get("on", workflow.get(True))
     assert triggers is not None, "workflow must declare triggers"
-    for event in ("pull_request", "pull_request_review", "pull_request_review_thread", "merge_group"):
+    for event in ("pull_request", "pull_request_review", "pull_request_review_comment", "merge_group"):
         assert event in triggers, f"merge admission must re-evaluate on {event}"
-    assert "created" in triggers["pull_request_review_thread"]["types"]
+    # A newly published thread arrives as a review comment; there is no
+    # `pull_request_review_thread` Actions trigger to key on.
+    assert "created" in triggers["pull_request_review_comment"]["types"]
+    assert "submitted" in triggers["pull_request_review"]["types"]
 
     body = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "tools/check_merge_admission.py thread-finality" in body

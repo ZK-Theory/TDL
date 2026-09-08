@@ -19,8 +19,14 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   pull_request_review:
     types: [submitted, dismissed]
-  pull_request_review_thread:
-    types: [created, resolved, unresolved]
+  # A new review thread arrives as a review comment, and the review that carries
+  # it also fires `pull_request_review` above -- both cover the case this gate
+  # exists for. GitHub has no `pull_request_review_thread` Actions trigger, so
+  # *resolving* a thread does not re-run the gate on its own. That direction only
+  # ever moves the check from failure to success, so it cannot admit silently:
+  # re-run the check (or push) once the threads carry a disposition.
+  pull_request_review_comment:
+    types: [created, edited, deleted]
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
