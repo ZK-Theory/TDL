@@ -17,6 +17,8 @@
 #   0. Dual-tree skill sync: .agents/skills/ (authoring source) and .claude/skills/
 #      must stay mirrored, or a research-assurance skill is invisible to one runtime.
 #   1. ruff lint + format, via the pre-commit framework (.pre-commit-config.yaml).
+#   1b. CRLF byte surface: no staged file may carry a CR-LF byte pair in the working tree
+#      or the index blob. Runs after ruff, which has re-emitted CRLF post-normalisation.
 #   2. The math-correctness contract validator: meta-schema validation of every
 #      contract, binding test_file existence + function presence (AST-checked),
 #      pytest invocation of every bound test, and JSON-schema validation of
@@ -93,6 +95,20 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f "$REPO_ROOT/.pre-commit-config.
     echo "pre-commit: ruff gate FAILED — commit blocked." >&2
     exit 1
   fi
+fi
+
+# Gate 1b — CRLF byte surface. Runs AFTER ruff deliberately: in the 2026-08-13 incident the
+# pre-commit `ruff-format` hook itself re-emitted CRLF on one file *after* normalisation, so a
+# check placed before gate 1 would have passed on bytes gate 1 then changed.
+#
+# This is not made redundant by `* text=auto eol=lf` in .gitattributes. That attribute
+# normalises the index blob silently — it fixes the committed bytes and reports nothing, so the
+# producer keeps emitting CRLF and the working tree the contract validators hash stays wrong.
+# Normalisation hides the incident; this gate surfaces it. See tools/check_crlf_byte_surface.py.
+if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/check_crlf_byte_surface.py" --repo-root "$REPO_ROOT"; then
+  echo "" >&2
+  echo "pre-commit: CRLF byte-surface gate FAILED — commit blocked." >&2
+  exit 1
 fi
 
 # Gate 2 — math-correctness contract validator. Materialize the Git index in a
