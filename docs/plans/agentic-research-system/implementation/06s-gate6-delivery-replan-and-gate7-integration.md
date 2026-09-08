@@ -474,14 +474,14 @@ C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p
 Phases 1–5 remain. PR #271 is pending owner review/merge and Phase 1 dispatch.
 This test repair does not close Gate 6 or open Gate 7.
 
-**Documentation checks:** git diff --check passes for the task's two changed
-files; unrelated pre-existing Repowise edits are excluded. The revised plan, six
-decision records (P-051–P-056), and 06q supersession banner are present in this
-worktree. Jira descriptions for KAN-106–109 were updated and read back; their
-statuses remain To Do and dependency links were unchanged. On 2026-09-08,
-KAN-105 was explicitly classified MILESTONE and marked Done after STORE
-verification. KAN-104's obsolete STORE blocker and source version were corrected.
-KAN-103 and KAN-12 remain open, now To Do with the exact owner merge/dispatch
-resume action; stale STORE construction instructions were removed. All four
-changed descriptions/statuses/labels were read back and dependency links were
-verified unchanged. Live backup/restore remains required in Phase 5.
+**Documentation checks:** the initial Phase 0 documentation PR contains the
+three required records: this 06s plan, P-051–P-056 in
+03-decisions-and-open-questions.md, and the supersession banner in 06q. Later
+Phase 0 evidence adds the test-only repair and the reconciliation note; each
+task change passes `git diff --check`. Unrelated pre-existing Repowise edits
+are excluded. Jira descriptions for KAN-106, KAN-107, KAN-108, KAN-109,
+KAN-105, KAN-104, KAN-103 and KAN-12 were updated and read back. KAN-106–109
+remain To Do; KAN-105 is a verified MILESTONE and Done; KAN-104 is To Do with
+its obsolete STORE blocker removed; KAN-103 and KAN-12 are To Do pending owner
+merge/Phase 1 dispatch. All eight dependency-link sets were verified unchanged.
+Live backup/restore remains required in Phase 5.

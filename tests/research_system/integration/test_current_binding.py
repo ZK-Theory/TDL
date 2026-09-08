@@ -103,18 +103,18 @@ def test_event_rewrite_helpers_follow_numeric_batch_position(tmp_path: Path, hel
     events_root = tmp_path / "events"
     september = events_root / "2026" / "09" / "00000000000000000001-september.jsonl"
     august = events_root / "2026" / "08" / "00000000000000000002-august.jsonl"
-    first = {
+    first_unsigned = {
         "global_position": 1,
         "previous_event_hash": "0" * 64,
-        "event_hash": "1" * 64,
         "marker": "first",
     }
-    second = {
+    first = {**first_unsigned, "event_hash": sha256_hex(canonical_bytes(first_unsigned))}
+    second_unsigned = {
         "global_position": 2,
-        "previous_event_hash": "1" * 64,
-        "event_hash": "2" * 64,
+        "previous_event_hash": first["event_hash"],
         "marker": "second",
     }
+    second = {**second_unsigned, "event_hash": sha256_hex(canonical_bytes(second_unsigned))}
     september.parent.mkdir(parents=True)
     august.parent.mkdir(parents=True)
     september.write_bytes(canonical_bytes(first) + b"\n")
@@ -141,6 +141,10 @@ def test_event_rewrite_helpers_follow_numeric_batch_position(tmp_path: Path, hel
     assert events[1]["marker"] == ("updated" if helper == "last" else "second")
     assert events[0]["previous_event_hash"] == "0" * 64
     assert events[1]["previous_event_hash"] == events[0]["event_hash"]
+    for event in events:
+        unsigned = dict(event)
+        unsigned.pop("event_hash")
+        assert event["event_hash"] == sha256_hex(canonical_bytes(unsigned))
 
 
 @dataclass(frozen=True)

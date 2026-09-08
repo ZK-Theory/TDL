@@ -1360,8 +1360,13 @@ ced524b7b59d019ad35bb44a5580400e757787b8 includes PR #270 production remediation
 The review found fake-service CLI routing and direct service tests insufficient
 alone to prove the assembled positive CLI path.<br>
 **Affected specifications:** 06q STORE, 06s D5 and Phase 0.<br>
-**Migration consequence:** No production or tracked test changes in Phase 0.
-Scope/review checkpoints preserve the candidate rather than force a restart.<br>
+**Migration consequence:** No production change is authorized in Phase 0. On
+2026-09-08 Stephen authorized the demonstrated test-helper repair in
+`tests/research_system/integration/test_current_binding.py`: numeric ledger
+batch ordering and two deterministic opposite-month regression controls. This
+is a narrow verification-instrument exception, not an expansion of inherited
+STORE scope. Scope/review checkpoints preserve the candidate rather than force
+a restart.<br>
 **Supersedes:** Old-baseline/docs-only-delta stop and fixed historical test totals;
 no successor decision.
 
