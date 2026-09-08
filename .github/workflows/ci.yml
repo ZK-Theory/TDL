@@ -6,10 +6,16 @@ on:
   pull_request:
     branches: [main]
 
+# Lint and test were one `lint-and-test` job until 2026-09-08. They are split
+# because this workflow was `disabled_manually` from some point before
+# 2026-07-30 until 2026-09-08, and re-enabling it whole would have gated every
+# PR on a pytest baseline nobody had established. Ruff's debt was finite and is
+# now cleared, so `lint` blocks; `test` does not, yet. See the [DECISION] entry
+# of 2026-09-08 in the vault Computational-Log.
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -32,14 +38,56 @@ jobs:
       - name: Install dependencies
         run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
 
+      # Blocking. `ruff check .` passes cleanly on main as of 2026-09-08 (71
+      # pre-existing errors cleared: F401/F541/F841 removed, E741/E722 fixed,
+      # E402 granted per-file ignores in .ruff.toml, listed file-by-file so a
+      # NEW script in those directories is still checked). Any regression here
+      # is therefore new debt, and must fail the PR rather than accumulate.
       - name: Run ruff linting
         run: |
           source .venv/bin/activate
           ruff check . --output-format=github
 
-      # This unfiltered suite is also the post-merge composition and exact-
-      # reference currency signal on pushes to main. A stale pinned blob or a
-      # producer/schema composition failure must therefore turn the merge red.
+  # NON-BLOCKING (`continue-on-error`), deliberately and temporarily.
+  #
+  # This unfiltered suite is meant to be the post-merge composition and exact-
+  # reference currency signal on pushes to main: a stale pinned blob or a
+  # producer/schema composition failure should turn the merge red. It cannot
+  # play that role until it is green, and its true state is unknown -- the last
+  # recorded run of this workflow was 2026-07-30, and the suite has never been
+  # observed passing in CI. Gating on it now would simply block every PR.
+  #
+  # So it runs for its evidence value while the debt it reveals is sized and
+  # cleared. THE EXIT CONDITION IS EXPLICIT: once this job is observed green on
+  # main, delete `continue-on-error` and restore it to a required check. Until
+  # then, treat a green tick on this workflow as attesting LINT ONLY -- this
+  # lane's result is advisory and a red run here is not a merge blocker.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Create virtual environment
+        run: uv venv
+
+      - name: Install dependencies
+        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+
       - name: Run pytest with coverage
         run: |
           source .venv/bin/activate
@@ -52,6 +100,12 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+  # Blocking, but NEVER YET EXECUTED: this job was added 2026-08-02, after the
+  # last recorded run of this workflow (2026-07-30), and the workflow was
+  # disabled throughout. Its first real run is therefore also its own liveness
+  # test -- a lane that has never been watched either pass or fail is not yet
+  # evidence of anything. It is left blocking so that first run is honest; if it
+  # fails on this PR, fix the lane rather than assuming the controls are broken.
   windows-store-lock:
     runs-on: windows-latest
     permissions:
@@ -90,7 +144,7 @@ jobs:
           or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
           -o "addopts=" -p no:cacheprovider -p no:cov
 
-  # The PETLS C++ backend is an optional dependency group, so `lint-and-test`
+  # The PETLS C++ backend is an optional dependency group, so `test`
   # (which installs only `.[dev]`) leaves PETLS_AVAILABLE false and skips every
   # backend test -- including the cross-backend agreement checks, which are the
   # only thing that would catch the backend drifting from the validated numpy

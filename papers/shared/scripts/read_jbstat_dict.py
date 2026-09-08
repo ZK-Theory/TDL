@@ -4,7 +4,6 @@ import re
 import zipfile
 import os
 from pathlib import Path
-from typing import Dict
 
 DATA_DICT_ROOT = os.getenv("DATA_DICT_ROOT", "")
 if DATA_DICT_ROOT:
@@ -27,6 +26,7 @@ else:
 if not zip_path.exists():
     raise FileNotFoundError(f"ZIP archive not found: {zip_path}")
 
+
 def strip_rtf(rtf_bytes: bytes) -> str:
     """Convert raw RTF bytes to a plain-text string.
 
@@ -43,6 +43,7 @@ def strip_rtf(rtf_bytes: bytes) -> str:
     text = re.sub(r"\s+", " ", text)
     return text
 
+
 # Read wave k data dictionary
 target = "ukhls/k_indresp_ukda_data_dictionary.rtf"
 with zipfile.ZipFile(zip_path, "r") as z:
@@ -58,7 +59,7 @@ if matches:
     # Look for the value labels section — typically after the variable name
     # Find first occurrence and print surrounding context
     for i, (start, end) in enumerate(matches[:5]):
-        snippet = text[max(0, start-50):start+500]
+        snippet = text[max(0, start - 50) : start + 500]
         print(f"\n--- occurrence {i+1} at pos {start} ---")
         print(snippet)
 
@@ -67,7 +68,7 @@ print("\n\n=== Searching for value labels 10-15 ===")
 if matches:
     # Look for patterns like "12 " or "12=" near jbstat section
     jbstat_region_start = matches[0][0]
-    jbstat_region = text[jbstat_region_start:jbstat_region_start + 5000]
+    jbstat_region = text[jbstat_region_start : jbstat_region_start + 5000]
     # Find lines with "12" "13" "14" "15"
     for code in [10, 11, 12, 13, 14, 15]:
         pattern = rf"\b{code}\b.{{0,80}}"

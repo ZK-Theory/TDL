@@ -87,7 +87,6 @@ def run_validation():
             # Note: iloc is exclusive on end, so i+1 includes index i
             window_stats = stats_df.iloc[i - P + 1 : i + 1]
 
-            row = {"Date": stats_df.index[i]}
             max_tau = -1.0
 
             for metric in metrics:
@@ -106,10 +105,7 @@ def run_validation():
                     if not np.isnan(tau):
                         max_tau = max(max_tau, tau)
                 except Exception as e:
-                    print(
-                        f"Error computing Kendall tau for metric '{metric}' on date "
-                        f"{stats_df.index[i]}: {e}"
-                    )
+                    print(f"Error computing Kendall tau for metric '{metric}' on date " f"{stats_df.index[i]}: {e}")
 
             if max_tau > -1.0:
                 results.append(max_tau)

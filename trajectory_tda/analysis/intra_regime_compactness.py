@@ -51,9 +51,7 @@ def _bigrams_from_idx(idx_arr: np.ndarray, n_states: int = N_STATES) -> np.ndarr
     return vec
 
 
-def _compute_unigrams_from_idx(
-    idx_arr: np.ndarray, n_states: int = N_STATES
-) -> np.ndarray:
+def _compute_unigrams_from_idx(idx_arr: np.ndarray, n_states: int = N_STATES) -> np.ndarray:
     """Compute unigram vector from integer index array."""
     vec = np.bincount(idx_arr, minlength=n_states).astype(np.float64)
     vec /= len(idx_arr)
@@ -137,14 +135,9 @@ def intra_regime_compactness_test(
     """
     n = len(trajectories)
     regime_labels = np.asarray(regime_labels)
-    assert len(regime_labels) == n, (
-        f"Mismatch: {n} trajectories vs {len(regime_labels)} labels"
-    )
+    assert len(regime_labels) == n, f"Mismatch: {n} trajectories vs {len(regime_labels)} labels"
 
-    logger.info(
-        f"Intra-regime compactness test: {n} trajectories, "
-        f"{n_permutations} permutations, PCA-{pca_dim}D"
-    )
+    logger.info(f"Intra-regime compactness test: {n} trajectories, " f"{n_permutations} permutations, PCA-{pca_dim}D")
 
     # Step 1-2: Compute observed embedding and freeze PCA/scaler
     obs_embeddings, obs_info = ngram_embed(
@@ -158,10 +151,7 @@ def intra_regime_compactness_test(
     fitted_pca = obs_info["fitted_models"]["reducer"]
     observed_explained_var = obs_info.get("explained_variance")
 
-    logger.info(
-        f"  Observed embedding: {obs_embeddings.shape}, "
-        f"explained variance: {observed_explained_var}"
-    )
+    logger.info(f"  Observed embedding: {obs_embeddings.shape}, " f"explained variance: {observed_explained_var}")
 
     # Step 3: Observed compactness
     obs_compactness = _within_regime_compactness(obs_embeddings, regime_labels)
@@ -175,9 +165,6 @@ def intra_regime_compactness_test(
     unique_regimes = sorted(obs_compactness.keys())
     null_compactness = {k: [] for k in unique_regimes}
     rng = np.random.RandomState(seed)
-
-    # Pre-allocate bigram buffer
-    shuffled_bigrams = np.empty((n, N_STATES * N_STATES), dtype=np.float64)
 
     # Pre-allocate combined raw features buffer (reused each iteration)
     shuffled_raw = np.empty((n, N_STATES + N_STATES * N_STATES), dtype=np.float64)
@@ -211,9 +198,7 @@ def intra_regime_compactness_test(
         null_std = float(null_arr.std())
         z_score = (obs_val - null_mean) / null_std if null_std > 0 else 0.0
         # Two-sided p-value: is observed compactness different from null?
-        p_value = float(
-            np.mean(np.abs(null_arr - null_mean) >= abs(obs_val - null_mean))
-        )
+        p_value = float(np.mean(np.abs(null_arr - null_mean) >= abs(obs_val - null_mean)))
 
         results_per_regime[k] = {
             "observed_compactness": obs_val,
@@ -250,8 +235,7 @@ def intra_regime_compactness_test(
     }
 
     logger.info(
-        f"Compactness test: {n_significant}/{len(unique_regimes)} regimes "
-        f"show significant order-dependence"
+        f"Compactness test: {n_significant}/{len(unique_regimes)} regimes " f"show significant order-dependence"
     )
 
     return result
@@ -288,9 +272,7 @@ def run_compactness_test(
         analysis = json.load(f)
     regime_labels = np.array(analysis["gmm_labels"])
 
-    logger.info(
-        f"Loaded {len(trajectories)} trajectories, {len(regime_labels)} regime labels"
-    )
+    logger.info(f"Loaded {len(trajectories)} trajectories, {len(regime_labels)} regime labels")
 
     result = intra_regime_compactness_test(
         trajectories=trajectories,
@@ -318,9 +300,7 @@ if __name__ == "__main__":
         default="results/trajectory_tda_integration",
         help="Pipeline results directory",
     )
-    parser.add_argument(
-        "--n-perms", type=int, default=500, help="Number of permutations"
-    )
+    parser.add_argument("--n-perms", type=int, default=500, help="Number of permutations")
     parser.add_argument("--output", default=None, help="Output JSON path")
     args = parser.parse_args()
 

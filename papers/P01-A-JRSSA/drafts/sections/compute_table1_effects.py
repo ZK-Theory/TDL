@@ -12,8 +12,6 @@ import math
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from numpy.typing import NDArray
 
 PROJ_ROOT = Path(__file__).resolve().parents[4]
 
@@ -21,51 +19,38 @@ POST_AUDIT_JSONS: list[tuple[str, str, Path]] = [
     (
         "USoc",
         "L5000_postaudit_2026-05-02",
-        PROJ_ROOT
-        / "results/trajectory_tda_integration/post_audit/"
-        "04_nulls_wasserstein_w2_L5000_20260502.json",
+        PROJ_ROOT / "results/trajectory_tda_integration/post_audit/" "04_nulls_wasserstein_w2_L5000_20260502.json",
     ),
     (
         "USoc",
         "L5000_markov2_postaudit_2026-05-02",
-        PROJ_ROOT
-        / "results/trajectory_tda_integration/post_audit/"
+        PROJ_ROOT / "results/trajectory_tda_integration/post_audit/"
         "04_nulls_wasserstein_w2_L5000_markov2_20260502.json",
     ),
     (
         "USoc",
         "L2000_legacy_2026-04-07",
-        PROJ_ROOT
-        / "results/trajectory_tda_integration/post_audit/"
-        "04_nulls_wasserstein_w2_20260407.json",
+        PROJ_ROOT / "results/trajectory_tda_integration/post_audit/" "04_nulls_wasserstein_w2_20260407.json",
     ),
     (
         "USoc",
         "stratified_markov1_L5000_2026-05-02",
-        PROJ_ROOT
-        / "results/trajectory_tda_integration/stratified_markov/"
-        "stratified_markov1_W2_L5000_20260502.json",
+        PROJ_ROOT / "results/trajectory_tda_integration/stratified_markov/" "stratified_markov1_W2_L5000_20260502.json",
     ),
     (
         "BHPS",
         "L5000_postaudit_2026-05-02",
-        PROJ_ROOT
-        / "results/trajectory_tda_bhps/post_audit/"
-        "04_nulls_wasserstein_w2_L5000_20260502.json",
+        PROJ_ROOT / "results/trajectory_tda_bhps/post_audit/" "04_nulls_wasserstein_w2_L5000_20260502.json",
     ),
     (
         "BHPS",
         "L2000_legacy_2026-04-07",
-        PROJ_ROOT
-        / "results/trajectory_tda_bhps/post_audit/"
-        "04_nulls_wasserstein_w2_20260407.json",
+        PROJ_ROOT / "results/trajectory_tda_bhps/post_audit/" "04_nulls_wasserstein_w2_20260407.json",
     ),
     (
         "BHPS",
         "stratified_markov1_L5000_2026-05-02",
-        PROJ_ROOT
-        / "results/trajectory_tda_bhps/stratified_markov/"
-        "stratified_markov1_W2_L5000_20260502.json",
+        PROJ_ROOT / "results/trajectory_tda_bhps/stratified_markov/" "stratified_markov1_W2_L5000_20260502.json",
     ),
 ]
 
@@ -109,9 +94,9 @@ def _rho_hat_delta_ci(
     if std_obs_null is None or std_null_null is None:
         return None
     rho = mean_obs_null / mean_null_null
-    var_on = (std_obs_null ** 2) / max(n_obs, 1)
-    var_nn = (std_null_null ** 2) / max(n_null_pairs, 1)
-    var_rho = var_on / (mean_null_null ** 2) + (mean_obs_null ** 2) * var_nn / (mean_null_null ** 4)
+    var_on = (std_obs_null**2) / max(n_obs, 1)
+    var_nn = (std_null_null**2) / max(n_null_pairs, 1)
+    var_rho = var_on / (mean_null_null**2) + (mean_obs_null**2) * var_nn / (mean_null_null**4)
     se_rho = math.sqrt(var_rho)
     return float(rho), float(rho - z * se_rho), float(rho + z * se_rho)
 
@@ -135,11 +120,7 @@ def _collect_cells(label: str, source: str, payload: dict[str, Any]) -> list[dic
             obs_null_arr = dim_block.get("obs_null_distribution")
             obs_null_len = len(obs_null_arr) if isinstance(obs_null_arr, list) else 0
 
-            d_perm = (
-                _d_perm(mean_on, mean_nn, std_nn)
-                if mean_on is not None and mean_nn is not None
-                else None
-            )
+            d_perm = _d_perm(mean_on, mean_nn, std_nn) if mean_on is not None and mean_nn is not None else None
             rho_ci = (
                 _rho_hat_delta_ci(
                     mean_on,
@@ -149,13 +130,10 @@ def _collect_cells(label: str, source: str, payload: dict[str, Any]) -> list[dic
                     std_nn,
                     n_nn_pairs,
                 )
-                if mean_on is not None
-                and mean_nn is not None
-                and std_on is not None
-                and std_nn is not None
+                if mean_on is not None and mean_nn is not None and std_on is not None and std_nn is not None
                 else None
             )
-            rho_hat, ci_lo, ci_hi = (rho_ci if rho_ci is not None else (None, None, None))
+            rho_hat, ci_lo, ci_hi = rho_ci if rho_ci is not None else (None, None, None)
 
             rows.append(
                 {
@@ -175,9 +153,7 @@ def _collect_cells(label: str, source: str, payload: dict[str, Any]) -> list[dic
                     "rho_hat": rho_hat,
                     "rho_hat_ci_lo": ci_lo,
                     "rho_hat_ci_hi": ci_hi,
-                    "rho_hat_ci_excludes_1": (
-                        ci_lo is not None and ci_hi is not None and (ci_lo > 1.0 or ci_hi < 1.0)
-                    ),
+                    "rho_hat_ci_excludes_1": (ci_lo is not None and ci_hi is not None and (ci_lo > 1.0 or ci_hi < 1.0)),
                 }
             )
     return rows
@@ -191,6 +167,7 @@ def _format_md_table(rows: list[dict[str, Any]]) -> str:
     sep = "|---" * 13 + "|"
     lines = [header, sep]
     for r in rows:
+
         def fmt(x: Any, digits: int = 3) -> str:
             if x is None:
                 return "n/a"
@@ -201,11 +178,7 @@ def _format_md_table(rows: list[dict[str, Any]]) -> str:
             except (TypeError, ValueError):
                 return str(x)
 
-        ci = (
-            f"[{fmt(r['rho_hat_ci_lo'])}, {fmt(r['rho_hat_ci_hi'])}]"
-            if r["rho_hat_ci_lo"] is not None
-            else "n/a"
-        )
+        ci = f"[{fmt(r['rho_hat_ci_lo'])}, {fmt(r['rho_hat_ci_hi'])}]" if r["rho_hat_ci_lo"] is not None else "n/a"
         lines.append(
             f"| {r['dataset']} | {r['source']} | {r['null']} | {r['dim']} | "
             f"{r['n_permutations']} | {fmt(r['mean_obs_null'])} | "
@@ -237,9 +210,7 @@ def main() -> None:
         "missing_inputs": missing,
         "n_rows": len(rows),
         "delta_method_z_95": 1.959963984540054,
-        "sources": [
-            {"dataset": d, "source": s, "path": str(p)} for d, s, p in POST_AUDIT_JSONS
-        ],
+        "sources": [{"dataset": d, "source": s, "path": str(p)} for d, s, p in POST_AUDIT_JSONS],
         "notes": (
             "d_perm = (mean_obs_null - mean_null_null) / std_null_null. "
             "rho_hat = mean_obs_null / mean_null_null. "

@@ -51,6 +51,40 @@ and the freeze instructions at
 
 ---
 
+## Repo-Wide CI: Lint Blocks, Tests Advisory (locked 2026-09-08)
+
+**Rule.** `.github/workflows/ci.yml` is the repository's general regression
+signal and is **enabled**. Its `lint` job (`ruff check .`) and its
+`windows-store-lock` and `petls-backend` jobs are blocking. Its `test` job
+(the unfiltered pytest suite) carries `continue-on-error: true` and is
+**advisory**: a green tick on this workflow attests **lint only**. The exit
+condition is explicit — once `test` is observed green on `main`, remove
+`continue-on-error` and restore it to a required check. Ruff suppressions are
+recorded, never silent: E402 exemptions in `.ruff.toml` are listed
+**file-by-file**, never by directory glob, so a new script in an exempted
+directory is still checked.
+
+**Rationale.** `ci.yml` sat `disabled_manually` from before 2026-07-30 until
+2026-09-08. The narrower `ars-artefact-currency.yml` and its watchdog cover only
+a named file list, so for that whole window no CI-level check existed for the
+repo's Ruff config or the `financial_tda` / `poverty_tda` / `trajectory_tda`
+suites — pre-commit hooks lint staged files only, so untouched files accumulated
+debt invisibly (71 errors by 2026-09-08). Re-enabling the workflow whole would
+have gated every PR on a pytest baseline nobody had established; leaving it
+disabled left the repo with no general signal at all. Splitting the lanes buys
+the lint signal immediately at a debt cost that was finite and is now paid,
+while the test debt is sized separately rather than blocking work.
+
+**Caveat (silent absence).** An advisory lane is a lane whose failure emits no
+blocking signal — exactly the failure shape this project's record warns about.
+It is accepted here only because it is bounded by a written exit condition and
+because the alternative was no signal whatsoever. `windows-store-lock` is
+blocking but had **never executed** when this was locked (added 2026-08-02,
+after the last recorded run); its first run is its own liveness test. See the
+2026-09-08 `[DECISION]` in `04-Methods/Computational-Log.md`.
+
+---
+
 ## Authorship
 
 All papers in this programme are single-authored:

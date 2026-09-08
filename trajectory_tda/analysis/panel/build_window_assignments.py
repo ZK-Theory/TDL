@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 from collections import defaultdict
 from datetime import date
 from pathlib import Path
@@ -47,30 +46,31 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-PROJ_ROOT  = Path("C:/Users/steph/TDL")
-CP_DIR     = PROJ_ROOT / "results/trajectory_tda_integration"
-OUT_DIR    = PROJ_ROOT / "results/trajectory_tda_priority2"
-XWAVEDAT   = PROJ_ROOT / "data/UKDA-6614-tab/tab/ukhls/xwavedat.tab"
-TODAY      = date.today().strftime("%Y-%m-%d")
-OUT_PATH   = OUT_DIR / f"window_escape_assignments_{TODAY}.json"
+PROJ_ROOT = Path("C:/Users/steph/TDL")
+CP_DIR = PROJ_ROOT / "results/trajectory_tda_integration"
+OUT_DIR = PROJ_ROOT / "results/trajectory_tda_priority2"
+XWAVEDAT = PROJ_ROOT / "data/UKDA-6614-tab/tab/ukhls/xwavedat.tab"
+TODAY = date.today().strftime("%Y-%m-%d")
+OUT_PATH = OUT_DIR / f"window_escape_assignments_{TODAY}.json"
 
-N_COMPONENTS   = 7
-RANDOM_STATE   = 42
-N_INIT         = 5
-WINDOW_YEARS   = 10
-WINDOW_STEP    = 5
-DISADV_ORIG    = {2, 6}
-GOOD_ORIG      = {1, 4}   # escape = reaching stable employment (R1) or regular employment (R4)
+N_COMPONENTS = 7
+RANDOM_STATE = 42
+N_INIT = 5
+WINDOW_YEARS = 10
+WINDOW_STEP = 5
+DISADV_ORIG = {2, 6}
+GOOD_ORIG = {1, 4}  # escape = reaching stable employment (R1) or regular employment (R4)
 
 # Expected reference values from p2_5_age_stratified.json
 REF_N_STARTERS = 7453
-REF_RATE       = 0.05581644975177781
+REF_RATE = 0.05581644975177781
 
 
 def load_birth_years(pidps: list[int]) -> dict[int, int | None]:
     """Load birth years from xwavedat, keyed by pidp."""
     logger.info("Loading birth years from xwavedat...")
     import csv
+
     birth_years: dict[int, int | None] = {}
     with open(XWAVEDAT, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
@@ -88,9 +88,7 @@ def load_birth_years(pidps: list[int]) -> dict[int, int | None]:
     return birth_years
 
 
-def build_label_map(
-    new_labels: NDArray[np.intp], orig_labels: NDArray[np.intp], n_components: int
-) -> dict[int, int]:
+def build_label_map(new_labels: NDArray[np.intp], orig_labels: NDArray[np.intp], n_components: int) -> dict[int, int]:
     """Map new GMM label indices to original label indices by majority vote."""
     label_map: dict[int, int] = {}
     for k in range(n_components):
@@ -204,7 +202,7 @@ def main() -> None:
 
     label_map = build_label_map(new_traj_labels, orig_labels, N_COMPONENTS)
     disadv_new = {k for k, v in label_map.items() if v in DISADV_ORIG}
-    good_new   = {k for k, v in label_map.items() if v in GOOD_ORIG}
+    good_new = {k for k, v in label_map.items() if v in GOOD_ORIG}
     logger.info(f"Label map (new → orig): {label_map}")
     logger.info(f"New labels mapping to R2/R6 (disadvantaged): {disadv_new}")
     logger.info(f"New labels mapping to R1/R4 (good): {good_new}")
@@ -219,9 +217,7 @@ def main() -> None:
     # Step 6: Build windows and embed using fitted scaler → PCA pipeline
     # ------------------------------------------------------------------
     logger.info(f"Building {WINDOW_YEARS}-year windows (step={WINDOW_STEP})...")
-    windows = build_windows(
-        trajectories, metadata, window_years=WINDOW_YEARS, window_step=WINDOW_STEP
-    )
+    windows = build_windows(trajectories, metadata, window_years=WINDOW_YEARS, window_step=WINDOW_STEP)
     logger.info(f"Total windows: {len(windows):,}")
 
     logger.info("Computing 90-dim features for all windows...")
@@ -230,7 +226,7 @@ def main() -> None:
         win_raw[i] = np.concatenate([_compute_unigrams(w["states"]), _compute_bigrams(w["states"])])
 
     logger.info("Applying scaler → PCA → GMM to windows...")
-    win_emb     = pca.transform(scaler.transform(win_raw))
+    win_emb = pca.transform(scaler.transform(win_raw))
     new_win_reg = gmm.predict(win_emb)
     win_reg_mapped = np.array([label_map[k] for k in new_win_reg], dtype=int)
 
@@ -255,18 +251,18 @@ def main() -> None:
 
     assignments = []
     n_starters = 0
-    n_escaped  = 0
+    n_escaped = 0
     n_wa_starters = 0
-    n_wa_escaped  = 0
+    n_wa_escaped = 0
 
     for pidp, pw_list in person_windows.items():
         pw_sorted = sorted(pw_list, key=lambda x: x[1]["start_year"])
-        win_regs  = [int(win_reg_mapped[idx]) for idx, _ in pw_sorted]
-        starts    = [w["start_year"] for _, w in pw_sorted]
-        ends      = [w["end_year"]   for _, w in pw_sorted]
+        win_regs = [int(win_reg_mapped[idx]) for idx, _ in pw_sorted]
+        starts = [w["start_year"] for _, w in pw_sorted]
+        ends = [w["end_year"] for _, w in pw_sorted]
 
         first_regime = win_regs[0]
-        first_start  = starts[0]
+        first_start = starts[0]
 
         by = birth_years.get(pidp)
         # Use window midpoint, matching attach_age_to_windows in age_stratified.py
@@ -283,27 +279,29 @@ def main() -> None:
 
         if is_starter:
             n_starters += 1
-            n_escaped  += escape
+            n_escaped += escape
 
         is_wa = age_fw is not None and age_fw < 60
         if is_starter and is_wa:
             n_wa_starters += 1
-            n_wa_escaped  += escape
+            n_wa_escaped += escape
 
-        assignments.append({
-            "pidp":                      pidp,
-            "n_windows":                 len(pw_sorted),
-            "first_window_start_year":   int(first_start),
-            "first_window_end_year":     int(ends[0]),
-            "first_window_regime":       int(first_regime),
-            "escape":                    int(escape),
-            "window_regimes":            win_regs,
-            "age_first_window":          int(age_fw) if age_fw is not None else None,
-            "is_disadvantaged_starter":  bool(is_starter),
-        })
+        assignments.append(
+            {
+                "pidp": pidp,
+                "n_windows": len(pw_sorted),
+                "first_window_start_year": int(first_start),
+                "first_window_end_year": int(ends[0]),
+                "first_window_regime": int(first_regime),
+                "escape": int(escape),
+                "window_regimes": win_regs,
+                "age_first_window": int(age_fw) if age_fw is not None else None,
+                "is_disadvantaged_starter": bool(is_starter),
+            }
+        )
 
-    overall_rate = n_escaped  / n_starters    if n_starters    > 0 else 0.0
-    wa_rate      = n_wa_escaped / n_wa_starters if n_wa_starters > 0 else 0.0
+    overall_rate = n_escaped / n_starters if n_starters > 0 else 0.0
+    wa_rate = n_wa_escaped / n_wa_starters if n_wa_starters > 0 else 0.0
 
     logger.info(f"n_starters_all_ages: {n_starters}")
     logger.info(f"n_escaped_all_ages:  {n_escaped}")
@@ -313,13 +311,9 @@ def main() -> None:
     logger.info(f"wa_escape_rate:      {wa_rate:.4f}   (ref=0.1785)")
 
     if n_starters == 0 or abs(n_starters - REF_N_STARTERS) / REF_N_STARTERS > 0.10:
-        logger.warning(
-            f"WARNING: n_starters={n_starters} deviates >10% from expected {REF_N_STARTERS}. ESCALATE."
-        )
+        logger.warning(f"WARNING: n_starters={n_starters} deviates >10% from expected {REF_N_STARTERS}. ESCALATE.")
     if n_starters > 0 and abs(overall_rate - REF_RATE) / REF_RATE > 0.10:
-        logger.warning(
-            f"WARNING: escape_rate={overall_rate:.4f} deviates >10% from expected {REF_RATE:.4f}. ESCALATE."
-        )
+        logger.warning(f"WARNING: escape_rate={overall_rate:.4f} deviates >10% from expected {REF_RATE:.4f}. ESCALATE.")
 
     # ------------------------------------------------------------------
     # Step 9: Save JSON
@@ -335,32 +329,32 @@ def main() -> None:
 
     output = {
         "run_params": {
-            "date":                       TODAY,
-            "gmm_n_components":           N_COMPONENTS,
-            "gmm_n_init":                 N_INIT,
-            "gmm_random_state":           RANDOM_STATE,
-            "window_years":               WINDOW_YEARS,
-            "window_step":                WINDOW_STEP,
-            "disadv_regimes_orig":        sorted(DISADV_ORIG),
-            "good_regimes_orig":          sorted(GOOD_ORIG),
-            "disadv_new_labels":          sorted(disadv_new),
-            "good_new_labels":            sorted(good_new),
-            "label_map":                  {str(k): v for k, v in label_map.items()},
-            "gmm_refit_path":             str(refit_path),
-            "pca_svd_solver":             "full",
-            "pca_explained_variance":     float(pca.explained_variance_ratio_.sum()),
-            "pca_sign_flips":             sign_flips,
-            "embedding_refit_max_diff":   float(max_diff),
+            "date": TODAY,
+            "gmm_n_components": N_COMPONENTS,
+            "gmm_n_init": N_INIT,
+            "gmm_random_state": RANDOM_STATE,
+            "window_years": WINDOW_YEARS,
+            "window_step": WINDOW_STEP,
+            "disadv_regimes_orig": sorted(DISADV_ORIG),
+            "good_regimes_orig": sorted(GOOD_ORIG),
+            "disadv_new_labels": sorted(disadv_new),
+            "good_new_labels": sorted(good_new),
+            "label_map": {str(k): v for k, v in label_map.items()},
+            "gmm_refit_path": str(refit_path),
+            "pca_svd_solver": "full",
+            "pca_explained_variance": float(pca.explained_variance_ratio_.sum()),
+            "pca_sign_flips": sign_flips,
+            "embedding_refit_max_diff": float(max_diff),
         },
         "summary": {
-            "n_starters_all_ages":   n_starters,
-            "n_escaped_all_ages":    n_escaped,
-            "escape_rate_all_ages":  round(overall_rate, 6),
-            "n_wa_starters":         n_wa_starters,
-            "n_wa_escaped":          n_wa_escaped,
-            "wa_escape_rate":        round(wa_rate, 6),
-            "ref_n_starters":        REF_N_STARTERS,
-            "ref_escape_rate":       REF_RATE,
+            "n_starters_all_ages": n_starters,
+            "n_escaped_all_ages": n_escaped,
+            "escape_rate_all_ages": round(overall_rate, 6),
+            "n_wa_starters": n_wa_starters,
+            "n_wa_escaped": n_wa_escaped,
+            "wa_escape_rate": round(wa_rate, 6),
+            "ref_n_starters": REF_N_STARTERS,
+            "ref_escape_rate": REF_RATE,
         },
         "assignments": assignments,
     }
