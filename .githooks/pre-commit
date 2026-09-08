@@ -21,6 +21,10 @@
 #      contract, binding test_file existence + function presence (AST-checked),
 #      pytest invocation of every bound test, and JSON-schema validation of
 #      staged output files. See contracts/README.md.
+#   3. No-new-diff: no gate may leave a tracked file dirty that was clean before
+#      it ran. The two Repowise-owned tracked files are snapshotted before the
+#      gates and restored before this comparison, because their writer is the
+#      previous commit's background post-commit updater, not a gate.
 #
 # To bypass in a genuine emergency: git commit --no-verify. Project rules forbid
 # this — if a gate fails, fix the cause.
@@ -44,6 +48,73 @@ fi
 # guards the class, not just that one instance.
 PRE_GATE_DIRTY=$(git diff --no-ext-diff --binary)
 PRE_GATE_DIRTY_NAMES=$(git diff --name-only)
+
+# Repowise-owned tracked files: snapshot now, restore before gate 3 compares.
+#
+# `.githooks/post-commit` fires `repowise update` into the background after every
+# commit, and that updater rewrites two TRACKED files — the REPOWISE block in
+# `.claude/CLAUDE.md` and the `last_commit_at_index` line in
+# `.repowise-workspace.yaml`. When the next commit lands while that background
+# refresh is still running, gate 3 sees a tracked file that changed during the
+# gate window and blocks — reporting "a validation gate modified tracked files",
+# which is a misdiagnosis: no gate wrote them, the previous commit's updater did
+# (obs 2026-08-09-commit-gate-repowise-tracked-write: a documentation-only amend
+# was blocked this way, and the retry left one or both files dirty afterwards).
+#
+# So for exactly these two paths the pre-commit path is made byte-neutral: their
+# pre-gate bytes are snapshotted and restored before gate 3 runs. Gate 3 itself is
+# NOT relaxed — it still blocks for every other tracked file, and it still blocks
+# for these two if the author staged them (a staged path is the author's
+# deliberate content and is never snapshotted or restored).
+#
+# What this does not do: the background updater that fires AFTER this commit will
+# regenerate both files again, so a refreshed index still shows up as an unstaged
+# diff between commits. That is the auto-sync working as designed. The property
+# restored here is narrower and is the one the observation asked for — the commit
+# validation path does not itself change tracked setup bytes.
+REPOWISE_OWNED_PATHS=".claude/CLAUDE.md .repowise-workspace.yaml"
+REPOWISE_SNAPSHOT_DIR=""
+_repowise_staged=$(git diff --cached --name-only 2>/dev/null)
+if REPOWISE_SNAPSHOT_DIR=$(mktemp -d 2>/dev/null); then
+  for _repowise_path in $REPOWISE_OWNED_PATHS; do
+    if printf '%s\n' "$_repowise_staged" | grep -qxF -- "$_repowise_path"; then
+      continue
+    fi
+    [ -f "$REPO_ROOT/$_repowise_path" ] || continue
+    if [ -L "$REPO_ROOT/$_repowise_path" ]; then
+      continue
+    fi
+    mkdir -p "$REPOWISE_SNAPSHOT_DIR/$(dirname "$_repowise_path")" 2>/dev/null || continue
+    cp "$REPO_ROOT/$_repowise_path" "$REPOWISE_SNAPSHOT_DIR/$_repowise_path" 2>/dev/null || true
+  done
+else
+  REPOWISE_SNAPSHOT_DIR=""
+fi
+
+# Restore the snapshotted Repowise-owned files to their pre-gate bytes. Called
+# once, immediately before gate 3, and on every early-exit path so a blocked
+# commit does not leave the worktree holding a mid-gate refresh either.
+restore_repowise_owned() {
+  [ -n "$REPOWISE_SNAPSHOT_DIR" ] || return 0
+  _repowise_restored=""
+  for _repowise_path in $REPOWISE_OWNED_PATHS; do
+    [ -f "$REPOWISE_SNAPSHOT_DIR/$_repowise_path" ] || continue
+    if ! cmp -s "$REPOWISE_SNAPSHOT_DIR/$_repowise_path" "$REPO_ROOT/$_repowise_path" 2>/dev/null; then
+      if cp "$REPOWISE_SNAPSHOT_DIR/$_repowise_path" "$REPO_ROOT/$_repowise_path" 2>/dev/null; then
+        _repowise_restored="$_repowise_restored $_repowise_path"
+      fi
+    fi
+  done
+  rm -rf "$REPOWISE_SNAPSHOT_DIR" 2>/dev/null || true
+  REPOWISE_SNAPSHOT_DIR=""
+  if [ -n "$_repowise_restored" ]; then
+    # Positive execution signal: this path is silent unless it acted, and when it
+    # acts it names what it touched. A restore line means the background updater
+    # overlapped this commit — not that a gate misbehaved.
+    echo "pre-commit: restored Repowise-owned tracked file(s) to their pre-gate bytes:$_repowise_restored" >&2
+  fi
+}
+trap restore_repowise_owned EXIT
 
 # Interpreter resolution, needed by gates 0 and 2 alike.
 #
@@ -104,6 +175,11 @@ if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/run_staged_contract_gate.py" --rep
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
   exit 1
 fi
+
+# Restore the Repowise-owned files first, so gate 3 compares like for like: a
+# background `repowise update` from the PREVIOUS commit overlapping this one is
+# not a gate side effect and must not be reported as one.
+restore_repowise_owned
 
 # Gate 3 — no-new-diff: every gate above is validation, and validation must be
 # read-only. If any of them left a tracked file dirty that wasn't dirty before
