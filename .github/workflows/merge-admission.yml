@@ -160,9 +160,11 @@ jobs:
           --candidate-sha "${{ steps.snapshot.outputs.candidate }}"
 
       # Observation 01M0Q0WXJSCX5WJ69H2G9DG4E3. Runs even when the gate above
-      # fails so one run reports both defects rather than one per push.
+      # fails so one run reports both defects rather than one per push, but only
+      # when a snapshot exists: without one there is no candidate to evaluate,
+      # and the job is already failing.
       - name: Gate on platform evidence preceding review acceptance
-        if: always()
+        if: always() && steps.snapshot.outcome == 'success'
         run: >-
           python tools/check_merge_admission.py platform-order
           --snapshot snapshot.json
