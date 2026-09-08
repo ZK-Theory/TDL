@@ -17,3 +17,32 @@ tests/research_system/contracts/** text eol=lf
 
 docs/plans/agentic-research-system/design/09-wp6-2-t2-cost-grant-authority-addendum-2026-07-22.md text eol=lf
 docs/plans/agentic-research-system/handoffs/trials/gate6-wp6-2-t2-authority-addendum-exact-state-handback.md text eol=lf
+
+# A second LF-critical class, on the same reasoning as the block above but a different
+# failure mode: executable scripts. A CRLF shebang is `#!/bin/bash\r`, and a shell that
+# does not tolerate it answers `bad interpreter: /bin/bash^M` — so the hook does not
+# run, and an advisory hook that does not run is indistinguishable from one that ran
+# and found nothing. That is the exact silent-absence shape the receipt wrapper and the
+# `.git/hooks` vs `.githooks` incident already record.
+#
+# Not hypothetical: agent edits silently rewrote `.claude/hooks/_receipt-wrap.sh` (276
+# lines) and `.claude/settings.json` (79) from LF to CRLF on 2026-09-08, and again
+# `tests/tools/test_gitattributes_lf_coverage.py` (143) an hour later, on a checkout
+# with `core.autocrlf=false` where nothing had asked for it. Both were caught only by
+# reading a diffstat. Until now no pattern here matched `.claude/`, `.codex/`, or
+# `.githooks/` at all — including the five git hooks that are the commit-time gate.
+#
+# Every tracked file under these patterns is committed pure-LF today (verified against
+# origin/main), so this changes no committed content. Enforced by
+# tests/tools/test_hook_script_lf_bytes.py, which asserts the pin AND the committed
+# bytes — the pin alone would not catch a blob that was already CRLF before it landed.
+*.sh text eol=lf
+.githooks/** text eol=lf
+.claude/hooks/** text eol=lf
+.codex/hooks/** text eol=lf
+
+# The hook wiring itself. Not executable, so no shebang to break, but it is the file
+# that declares which hooks participate in the enforcement surface, and it was one of
+# the two silently rewritten above — a 158-line whole-file diff for a 4-line change is
+# a review that does not happen.
+.claude/settings.json text eol=lf
