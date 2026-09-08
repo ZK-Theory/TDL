@@ -24,6 +24,15 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MARKERS = ("canonical_byte_surface", "_lf_sha256")
 
+# This file names both markers — in MARKERS above, and throughout the docstring
+# explaining them — so an unrestricted scan matches the detector itself and
+# reports it as an uncovered marker file. That finding is false: nothing hashes
+# or byte-compares this module, so no `eol=lf` pin is owed for it. Left in, the
+# canary is permanently red on a green tree, and a real uncovered root arriving
+# later reads as "the known failure" rather than as news. Resolved by path so a
+# rename carries the exclusion with it.
+SELF = Path(__file__).resolve().relative_to(REPO_ROOT).as_posix()
+
 
 def _tracked_files() -> list[str]:
     out = subprocess.run(
@@ -43,10 +52,12 @@ def _tracked_files() -> list[str]:
 SCHEMA_OR_TEST_SUFFIXES = (".yaml", ".yml", ".py")
 
 
-def _files_referencing_lf_canonical_bytes() -> list[str]:
+def _files_referencing_lf_canonical_bytes(*, exclude_self: bool = True) -> list[str]:
     hits: list[str] = []
     for rel in _tracked_files():
         if not rel.endswith(SCHEMA_OR_TEST_SUFFIXES):
+            continue
+        if exclude_self and rel == SELF:
             continue
         path = REPO_ROOT / rel
         if not path.is_file():
@@ -96,3 +107,37 @@ def test_negative_control_an_unrelated_root_is_not_pinned_to_lf() -> None:
     """Proves the check can fail: CONVENTIONS.md carries no LF-canonical marker and must
     not resolve to eol=lf, or the coverage assertion above would be vacuously true."""
     assert _check_attr("CONVENTIONS.md", "eol") != "lf"
+
+
+def test_self_exclusion_removes_exactly_this_file_and_nothing_else() -> None:
+    """The exclusion must be surgical, or it becomes a hole the canary cannot see through.
+
+    Skipping the detector's own source is only safe while it skips *precisely* that —
+    a broader predicate (any file under tests/tools, say, or anything mentioning the
+    markers in a docstring) would silently stop covering real binding tests that live
+    alongside it. Pin the difference to the single expected path.
+    """
+    with_self = set(_files_referencing_lf_canonical_bytes(exclude_self=False))
+    without_self = set(_files_referencing_lf_canonical_bytes())
+    assert with_self - without_self == {SELF}
+    assert without_self
+
+
+def test_negative_control_discovery_still_flags_a_genuinely_uncovered_marker_file() -> None:
+    """Proves the self-exclusion did not blind the coverage predicate itself.
+
+    The canary went red because of a false positive; the failure mode of fixing that
+    is a canary which no longer reports true ones. Run the same predicate the coverage
+    test uses over a hit list containing a path known to carry no eol pin (asserted by
+    the negative control above) and require it to be reported.
+    """
+    unpinned = "CONVENTIONS.md"
+    uncovered = [rel for rel in [*_files_referencing_lf_canonical_bytes(), unpinned] if _check_attr(rel, "eol") != "lf"]
+    assert uncovered == [unpinned]
+
+
+def test_the_real_contract_roots_are_still_covered() -> None:
+    """The 21 files this canary exists for must remain in scope after the exclusion."""
+    discovered = _files_referencing_lf_canonical_bytes()
+    for root in (".research-system/contracts/", "tests/research_system/"):
+        assert any(rel.startswith(root) for rel in discovered), f"no discovered file under {root}"
