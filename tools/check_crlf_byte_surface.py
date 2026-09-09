@@ -68,13 +68,20 @@ def staged_paths(repo_root: Path) -> list[str]:
     return [chunk.decode("utf-8") for chunk in out.split(b"\x00") if chunk]
 
 
-def binary_declared(paths: list[str], repo_root: Path) -> set[str]:
-    """Return the subset of `paths` that `.gitattributes` declares `binary`."""
+def binary_declared(paths: list[str], repo_root: Path, *, cached: bool = True) -> set[str]:
+    """Return the subset of `paths` that `.gitattributes` declares `binary`.
+
+    `cached` resolves attributes from the index rather than the working tree, which is the
+    correct surface when validating a commit: if a staged `.gitattributes` change removes a
+    `binary` declaration that the unstaged working copy still carries, the commit being built
+    treats that path as text and so must this check.
+    """
     if not paths:
         return set()
     stdin = "\x00".join(paths).encode("utf-8")
+    command = ["git", "check-attr", "--stdin", "-z"] + (["--cached"] if cached else []) + ["binary"]
     completed = subprocess.run(
-        ["git", "check-attr", "--stdin", "-z", "binary"],
+        command,
         cwd=repo_root,
         input=stdin,
         capture_output=True,
@@ -103,6 +110,25 @@ def index_bytes(path: str, repo_root: Path) -> bytes | None:
     return completed.stdout
 
 
+def looks_binary(data: bytes) -> bool:
+    """Return True when git's own text heuristic would classify `data` as binary.
+
+    `text=auto` calls a blob binary when a NUL byte appears in its first 8000 bytes, and this
+    check must agree with it or it rejects content git never treats as text.
+
+    Necessary because the repository tracks binary formats that `.gitattributes` leaves as
+    `binary: unspecified` — a `.gif`, an `.rds`, and two `.npy` embeddings, carrying 13, 12, 31
+    and 14 incidental CRLF byte pairs respectively. Skipping only *declared* binary would reject
+    any legitimate update to those files, and project rules forbid `--no-verify`, so the gate
+    would have to be bypassed illegally or the file could never be updated.
+
+    Declared `binary` remains a separate, independent skip: the inverse error also exists, and
+    `.gitattributes` documents it — 99 of the 160 committed PDFs have no NUL in their first 8000
+    bytes and this heuristic would call them text.
+    """
+    return b"\x00" in data[:8000]
+
+
 def scan_paths(paths: list[str], repo_root: Path, *, check_index: bool) -> list[str]:
     """Return one violation line per CRLF-bearing surface, empty when the surface is clean."""
     skip = binary_declared(paths, repo_root) if check_index else set()
@@ -111,15 +137,22 @@ def scan_paths(paths: list[str], repo_root: Path, *, check_index: bool) -> list[
         if path in skip:
             continue
         absolute = repo_root / path
-        if absolute.is_file():
-            count = count_crlf(absolute.read_bytes())
-            if count:
+        # `is_symlink` is checked first and short-circuits: `is_file()` and `read_bytes()` both
+        # follow links, so a symlink whose target happens to contain CRLF would be reported as
+        # though the link itself did. Git stores only the target pathname for a symlink, and the
+        # staged-blob branch below already inspects exactly those bytes.
+        if absolute.is_symlink():
+            pass
+        elif absolute.is_file():
+            data = absolute.read_bytes()
+            count = count_crlf(data)
+            if count and not looks_binary(data):
                 violations.append(f"{path}: {count} CRLF pair(s) in the working tree")
         if check_index:
             blob = index_bytes(path, repo_root)
             if blob is not None:
                 count = count_crlf(blob)
-                if count:
+                if count and not looks_binary(blob):
                     violations.append(f"{path}: {count} CRLF pair(s) in the staged blob")
     return violations
 
