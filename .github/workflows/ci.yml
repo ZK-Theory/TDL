@@ -5,11 +5,23 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Required so a blocking check can report on the merge queue's synthetic
+  # merge-group commit. Without it a required `lint` stalls the queue, and a
+  # non-required one lets a candidate merge without ever running this check.
+  # Both currency workflows already carry this trigger.
+  merge_group:
+    types: [checks_requested]
 
+# Lint and test were one `lint-and-test` job until 2026-09-08. They are split
+# because this workflow was `disabled_manually` from some point before
+# 2026-07-30 until 2026-09-08, and re-enabling it whole would have gated every
+# PR on a pytest baseline nobody had established. Ruff's debt was finite and is
+# now cleared, so `lint` blocks; `test` does not, yet. See the [DECISION] entry
+# of 2026-09-08 in the vault Computational-Log.
 jobs:
-  lint-and-test:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -26,20 +38,70 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
+      # From the lockfile, matching ars-artefact-currency.yml. A resolving
+      # install (`uv pip install -e ".[dev]"`) floats every unpinned dependency:
+      # pyproject asks for `ruff>=0.8.0`, so the first run of this job on
+      # 2026-09-08 resolved ruff 0.16.6 while uv.lock pins 0.14.9 and
+      # .pre-commit-config.yaml pins v0.8.4 -- three versions of the linter for
+      # one repo. `.ruff.toml` sets no `[lint] select`, so it inherits ruff's
+      # DEFAULT rule set, which changed between those versions: 0 errors under
+      # 0.14.9 and 1635 under 0.16.6 on identical bytes. Locking the install
+      # makes the gate reproducible; see the 2026-09-10 [DECISION].
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
 
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
-
+      # Blocking. `ruff check .` passes cleanly on main as of 2026-09-08 (71
+      # pre-existing errors cleared: F401/F541/F841 removed, E741/E722 fixed,
+      # E402 granted per-file ignores in .ruff.toml, listed file-by-file so a
+      # NEW script in those directories is still checked). Any regression here
+      # is therefore new debt, and must fail the PR rather than accumulate.
       - name: Run ruff linting
         run: |
           source .venv/bin/activate
           ruff check . --output-format=github
 
-      # This unfiltered suite is also the post-merge composition and exact-
-      # reference currency signal on pushes to main. A stale pinned blob or a
-      # producer/schema composition failure must therefore turn the merge red.
+  # NON-BLOCKING (`continue-on-error`), deliberately and temporarily.
+  #
+  # This unfiltered suite is meant to be the post-merge composition and exact-
+  # reference currency signal on pushes to main: a stale pinned blob or a
+  # producer/schema composition failure should turn the merge red. It cannot
+  # play that role until it is green, and its true state is unknown -- the last
+  # recorded run of this workflow was 2026-07-30, and the suite has never been
+  # observed passing in CI. Gating on it now would simply block every PR.
+  #
+  # So it runs for its evidence value while the debt it reveals is sized and
+  # cleared. THE EXIT CONDITION IS EXPLICIT: once this job is observed green on
+  # main, delete `continue-on-error` and restore it to a required check. Until
+  # then, treat a green tick on this workflow as attesting LINT ONLY -- this
+  # lane's result is advisory and a red run here is not a merge blocker.
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    continue-on-error: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      # From the lockfile, for the same reason as `lint` above, and with extra
+      # force here: this lane exists to SIZE the test debt, so two runs of the
+      # same SHA must not exercise different pytest/pandas/geospatial versions.
+      # A red-to-green transition has to mean the code changed, not that the
+      # resolver drifted.
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
+
       - name: Run pytest with coverage
         run: |
           source .venv/bin/activate
@@ -52,6 +114,14 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
+  # Not continue-on-error. Added 2026-08-02, after the last recorded run of this
+  # workflow, it first executed on 2026-09-08 in PR #277 -- and failed for a real
+  # reason: `test_composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback[runtime]`
+  # ("held runtime directory was replaceable"). Bisected locally: green through
+  # 571236e (#265), red from e13b77b (#267). Its red state is therefore evidence
+  # of a store-lock regression that landed while CI was disabled, not a broken
+  # lane, and it must not be relaxed to turn green. (It is not a ruleset-required
+  # check, so it reports rather than blocks the merge queue.)
   windows-store-lock:
     runs-on: windows-latest
     permissions:
@@ -71,11 +141,10 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+      # From the lockfile, like every lane in this workflow: a resolving install
+      # could pick different torch/dev versions for the same SHA.
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
 
       - name: Run Windows directory-anchor controls
         run: >-
@@ -90,7 +159,7 @@ jobs:
           or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
           -o "addopts=" -p no:cacheprovider -p no:cov
 
-  # The PETLS C++ backend is an optional dependency group, so `lint-and-test`
+  # The PETLS C++ backend is an optional dependency group, so `test`
   # (which installs only `.[dev]`) leaves PETLS_AVAILABLE false and skips every
   # backend test -- including the cross-backend agreement checks, which are the
   # only thing that would catch the backend drifting from the validated numpy
@@ -115,14 +184,12 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
-
-      - name: Install the optional PETLS backend
-        run: uv pip install --group petls
+      # From the lockfile, with the PETLS group added (uv.lock pins petls 1.0.1).
+      # `uv pip install --group petls` resolved the backend afresh on every run,
+      # so the cross-backend agreement checks this lane exists for could compare
+      # against a different PETLS build for the same SHA.
+      - name: Install dependencies and the PETLS backend from the lockfile
+        run: uv sync --locked --extra dev --group petls
 
       - name: Run the persistent-Laplacian suite with PETLS required
         # TDL_REQUIRE_PETLS=1 turns the availability check from tolerated into

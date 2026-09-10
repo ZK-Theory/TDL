@@ -107,7 +107,6 @@ def run_analysis():
 
     # Pre-compute valid mask to speed up
     y_full = stats_df[metric_col].values
-    valid_mask_full = ~np.isnan(y_full)
 
     dates_full = stats_df.index
     n_days = len(dates_full)

@@ -105,7 +105,7 @@ def compute_rolling_tau(stats_df, stat_col, window=P):
             tau, p_val = kendalltau(x, segment.values, nan_policy="omit")
             tau_values[i] = tau
             p_values[i] = p_val
-        except:
+        except Exception:
             continue
 
     return tau_values, p_values

@@ -51,6 +51,64 @@ and the freeze instructions at
 
 ---
 
+## Repo-Wide CI: Lint Blocks, Tests Advisory (locked 2026-09-08)
+
+**Rule.** `.github/workflows/ci.yml` is the repository's general regression
+signal and is **enabled**. Its `lint` job (`ruff check .`) and its
+`windows-store-lock` and `petls-backend` jobs are blocking. Its `test` job
+(the unfiltered pytest suite) carries `continue-on-error: true` and is
+**advisory**: a green tick on this workflow attests **lint only**. The exit
+condition is explicit — once `test` is observed green on `main`, remove
+`continue-on-error` and restore it to a required check. Ruff suppressions are
+recorded, never silent: E402 exemptions in `.ruff.toml` are listed
+**file-by-file**, never by directory glob, so a new script in an exempted
+directory is still checked.
+
+**Amendment (2026-09-10) — CI installs from the lockfile, and CI liveness is
+watched.** Every `ci.yml` lane installs with `uv sync --locked --extra dev`,
+never a resolving `uv pip install -e ".[dev]"`. A gate whose tool version floats
+is not a gate: `pyproject.toml` asks for `ruff>=0.8.0`, so the first run of the
+re-enabled `lint` job resolved **ruff 0.16.6** while `uv.lock` pins **0.14.9**
+and `.pre-commit-config.yaml` pins **v0.8.4** — three linter versions for one
+repo. Because `.ruff.toml` declares no `[lint] select`, it inherits ruff's
+*default* rule set, which changed across those versions: the same bytes give **0
+errors under 0.14.9 and 1635 under 0.16.6**. Two consequences follow. (1) Any
+lane whose red/green transition is used as evidence must install from the
+lockfile, or the transition may mean only that the resolver moved. (2) A config
+that relies on a tool's defaults inherits that tool's release decisions;
+`.ruff.toml` should eventually declare `select` explicitly — under an explicit
+`select = ["E","F","I","W"]` both versions agree exactly (761 errors), which is
+the real, documented convention and remains open debt. Separately, `ci.yml` is
+now asserted `active` by the currency watchdog, since a workflow cannot report
+its own administrative absence and this rule would otherwise keep claiming a
+signal that had silently gone away. Finally, `.ruff.toml` excludes `scratch/`
+explicitly: 18 tracked audit files sit under that gitignored directory, and Ruff
+honours `.gitignore` only inside a git checkout — so CI silently skipped them
+while a `git archive` of the same commit did not. An exemption that depends on
+whether `.git` exists is not a recorded suppression; an explicit one is. The
+files are not rewritten to pass: they are frozen audit provenance.
+
+**Rationale.** `ci.yml` sat `disabled_manually` from before 2026-07-30 until
+2026-09-08. The narrower `ars-artefact-currency.yml` and its watchdog cover only
+a named file list, so for that whole window no CI-level check existed for the
+repo's Ruff config or the `financial_tda` / `poverty_tda` / `trajectory_tda`
+suites — pre-commit hooks lint staged files only, so untouched files accumulated
+debt invisibly (71 errors by 2026-09-08). Re-enabling the workflow whole would
+have gated every PR on a pytest baseline nobody had established; leaving it
+disabled left the repo with no general signal at all. Splitting the lanes buys
+the lint signal immediately at a debt cost that was finite and is now paid,
+while the test debt is sized separately rather than blocking work.
+
+**Caveat (silent absence).** An advisory lane is a lane whose failure emits no
+blocking signal — exactly the failure shape this project's record warns about.
+It is accepted here only because it is bounded by a written exit condition and
+because the alternative was no signal whatsoever. `windows-store-lock` is
+blocking but had **never executed** when this was locked (added 2026-08-02,
+after the last recorded run); its first run is its own liveness test. See the
+2026-09-08 `[DECISION]` in `04-Methods/Computational-Log.md`.
+
+---
+
 ## Authorship
 
 All papers in this programme are single-authored:

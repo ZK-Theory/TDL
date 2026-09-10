@@ -104,14 +104,10 @@ def run_sensitivity(args: argparse.Namespace) -> dict:
         # Compute n_components for 90% variance from saved PCA
         n_components_90pct = None
         fitted_reducer = info.get("fitted_models", {}).get("reducer")
-        if fitted_reducer is not None and hasattr(
-            fitted_reducer, "explained_variance_ratio_"
-        ):
+        if fitted_reducer is not None and hasattr(fitted_reducer, "explained_variance_ratio_"):
             cumvar = np.cumsum(fitted_reducer.explained_variance_ratio_)
             above_90 = np.where(cumvar >= 0.90)[0]
-            n_components_90pct = (
-                int(above_90[0] + 1) if len(above_90) > 0 else len(cumvar)
-            )
+            n_components_90pct = int(above_90[0] + 1) if len(above_90) > 0 else len(cumvar)
 
         logger.info(
             f"  Embedding: {embeddings.shape}, raw_dims={info['raw_dims']}, "
@@ -176,16 +172,13 @@ def run_sensitivity(args: argparse.Namespace) -> dict:
     total_elapsed = time.time() - t0
 
     # Check qualitative stability
-    baseline = results_table[0]
     all_significant_h0 = all(r["H0_order_shuffle_p"] < 0.05 for r in results_table)
     all_significant_h1 = all(r["H1_order_shuffle_p"] < 0.05 for r in results_table)
 
     # Trigram vs bigram comparison
     bigram_baseline = results_table[0]  # bigram_tf_pca20
     trigram_tf = results_table[2]  # trigram_tf_pca20
-    trigram_h1_diff = abs(
-        trigram_tf["H1_total_persistence"] - bigram_baseline["H1_total_persistence"]
-    )
+    trigram_h1_diff = abs(trigram_tf["H1_total_persistence"] - bigram_baseline["H1_total_persistence"])
     trigram_h1_ratio = (
         trigram_tf["H1_total_persistence"] / bigram_baseline["H1_total_persistence"]
         if bigram_baseline["H1_total_persistence"] > 0
@@ -227,9 +220,7 @@ def run_sensitivity(args: argparse.Namespace) -> dict:
     logger.info("=" * 80)
     logger.info("EMBEDDING SENSITIVITY RESULTS")
     logger.info("=" * 80)
-    logger.info(
-        f"{'Config':<25} {'H0 Total':>10} {'H1 Total':>10} {'OS H0 p':>10} {'OS H1 p':>10}"
-    )
+    logger.info(f"{'Config':<25} {'H0 Total':>10} {'H1 Total':>10} {'OS H0 p':>10} {'OS H1 p':>10}")
     logger.info("-" * 65)
     for r in results_table:
         logger.info(
@@ -239,18 +230,14 @@ def run_sensitivity(args: argparse.Namespace) -> dict:
         )
     logger.info("-" * 65)
     logger.info(f"Qualitatively stable: {summary['qualitative_stability']['stable']}")
-    logger.info(
-        f"Trigram meaningfully different: {summary['trigram_vs_bigram']['meaningfully_different']}"
-    )
+    logger.info(f"Trigram meaningfully different: {summary['trigram_vs_bigram']['meaningfully_different']}")
     logger.info(f"Total elapsed: {total_elapsed:.1f}s")
 
     return summary
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Embedding sensitivity analysis (Phase 5B)"
-    )
+    parser = argparse.ArgumentParser(description="Embedding sensitivity analysis (Phase 5B)")
     parser.add_argument(
         "--checkpoint-dir",
         default="results/trajectory_tda_integration",

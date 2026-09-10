@@ -28,9 +28,7 @@ from trajectory_tda.embedding.ngram_embed import (
 )
 
 # Path to cached P01 results (may not exist in CI)
-CHECKPOINT_DIR = (
-    Path(__file__).parent.parent.parent / "results" / "trajectory_tda_integration"
-)
+CHECKPOINT_DIR = Path(__file__).parent.parent.parent / "results" / "trajectory_tda_integration"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -115,9 +113,7 @@ class TestFittedPCAReuse:
 
         # Should match the corresponding rows from the full embedding
         emb_subset_expected = emb_full[subset_idx]
-        np.testing.assert_allclose(
-            emb_subset_transformed, emb_subset_expected, atol=1e-10
-        )
+        np.testing.assert_allclose(emb_subset_transformed, emb_subset_expected, atol=1e-10)
 
     def test_fitted_models_present(self):
         """Info dict contains fitted scaler and reducer."""
@@ -184,9 +180,7 @@ class TestCheckpointConsistency:
             # Column-oriented dict: metadata["pidp"] is {str_idx: pidp_value}
             n_meta = len(traj_meta.get("metadata", {}).get("pidp", {}))
 
-        assert n_meta == emb.shape[0], (
-            f"Metadata has {n_meta} individuals but embedding has {emb.shape[0]} rows"
-        )
+        assert n_meta == emb.shape[0], f"Metadata has {n_meta} individuals but embedding has {emb.shape[0]} rows"
 
     def test_fitted_pca_loadable(self):
         """Saved PCA joblib can be loaded and has correct shape."""
@@ -219,9 +213,7 @@ class TestIncomeAlignmentReadiness:
         for traj in trajs:
             for state in traj:
                 # Every state should end with L, M, or H (income band)
-                assert state[-1] in ("L", "M", "H"), (
-                    f"State {state} lacks income band suffix"
-                )
+                assert state[-1] in ("L", "M", "H"), f"State {state} lacks income band suffix"
 
     def test_income_extractable_from_state_label(self):
         """Income band can be extracted from state labels for per-person stats."""
@@ -241,7 +233,7 @@ class TestIncomeAlignmentReadiness:
 
         regime_means = {}
         for regime in range(3):
-            regime_trajs = [trajs[i] for i, l in enumerate(labels) if l == regime]
+            regime_trajs = [trajs[i] for i, lab in enumerate(labels) if lab == regime]
             means = [np.mean([income_map[s[-1]] for s in t]) for t in regime_trajs]
             regime_means[regime] = np.mean(means)
 
