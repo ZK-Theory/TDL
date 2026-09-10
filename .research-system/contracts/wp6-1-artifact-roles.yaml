@@ -10,8 +10,8 @@ purpose: >-
   AST; WP6.1 pinned the same five files' bytes but declared no role and had no equivalent guard.
   Observation 2026-08-12-wp61-lane-lacks-t2-independence-guard.
 derivation: >-
-  Roles assigned from the observed import graph of the WP6.1 lane at the revision recorded below,
-  not asserted a priori. Verified by tests/research_system/contracts/artifact_role_independence.py.
+  Roles assigned from the observed import graph of the WP6.1 lane, not asserted a priori. Verified
+  by tests/research_system/contracts/artifact_role_independence.py.
 declared_revision: 56f71aa
 enforcement:
   guard_module: tests/research_system/contracts/artifact_role_independence.py
@@ -27,10 +27,12 @@ artifacts:
   repository_path: tests/research_system/contracts/wp6_1_materialization_validation.py
   module: tests.research_system.contracts.wp6_1_materialization_validation
   note: >-
-    Shared validation helpers. The materializer imports this module (wp6_1_schema_materializer.py
-    line 17). That edge is declared here rather than left unnoticed: it is producer-uses-helpers,
-    not expected-side contamination, because this module supplies no expected values to the
-    comparison. It is deliberately NOT the expected side of the lane.
+    Validates materializer output. It is NOT independent of the producer, and an earlier revision of
+    this manifest wrongly said it supplied no expected values. The materializer imports it (line 17)
+    and builds catalogue fields with its helpers — e.g. `_transition`, `_authority` and
+    `_atomic_claim_binding` — while this module computes the expected values it compares those same
+    fields against with the same helpers. For those fields the comparison is f(x) == f(x) and cannot
+    fail. Recorded as a pinned known breach on the edge below, not waived.
 - artifact_role: independent_oracle
   repository_path: tests/research_system/contracts/wp6_1_schema_expectations.py
   module: tests.research_system.contracts.wp6_1_schema_expectations
@@ -57,3 +59,27 @@ independence_edges:
   forbidden_imported_role: independent_oracle
   rationale: >-
     The reverse edge is equally disqualifying: a producer that reads the oracle can be tuned to it.
+- forbidden_importer_role: schema_materializer
+  forbidden_imported_role: semantic_validator
+  rationale: >-
+    A producer that builds its output with the validator's own helpers makes every validation of
+    those fields self-attesting. Forbidden for the same reason as the WP6.2 T2 lane forbids it.
+  known_breach:
+    status: open_pending_owner_decision
+    finding: >-
+      PR #281 review (P1). The WP6.1 materializer derives catalogue fields through the validator's
+      helpers, so validation of those fields is self-attesting. Removing the breach means splitting
+      the producer's helpers from an independently derived validator, which edits byte-pinned WP6.1
+      files and therefore needs owner authorisation. Until then the shared surface is pinned to
+      exactly the attributes below: using any other validator attribute fails the guard, and so does
+      a pinned attribute the materializer no longer uses, so this entry cannot outlive the fix.
+    attributes:
+    - _CORRECTION_MAPPINGS
+    - _NEGATIVE_PROFILES
+    - _NON_COMPENSATION
+    - _STATE_CLASSES
+    - _atomic_claim_binding
+    - _authority
+    - _authority_binding
+    - _reducer_projection_parts
+    - _transition
