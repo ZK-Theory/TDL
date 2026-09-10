@@ -21,6 +21,12 @@
 #      contract, binding test_file existence + function presence (AST-checked),
 #      pytest invocation of every bound test, and JSON-schema validation of
 #      staged output files. See contracts/README.md.
+#   3. No-new-diff: no gate may leave a tracked file dirty that was clean before
+#      it ran. For the two Repowise-owned tracked files, only the generated
+#      region is snapshotted and restored before this comparison — their writer
+#      is the previous commit's background post-commit updater, not a gate. Bytes
+#      outside that region still reach gate 3 and still block, so a gate (or an
+#      editor) writing there is neither masked nor silently reverted.
 #
 # To bypass in a genuine emergency: git commit --no-verify. Project rules forbid
 # this — if a gate fails, fix the cause.
@@ -44,6 +50,181 @@ fi
 # guards the class, not just that one instance.
 PRE_GATE_DIRTY=$(git diff --no-ext-diff --binary)
 PRE_GATE_DIRTY_NAMES=$(git diff --name-only)
+
+# Repowise-owned tracked files: snapshot now, restore before gate 3 compares.
+#
+# `.githooks/post-commit` fires `repowise update` into the background after every
+# commit, and that updater rewrites two TRACKED files — the REPOWISE block in
+# `.claude/CLAUDE.md` and the `last_commit_at_index` line in
+# `.repowise-workspace.yaml`. When the next commit lands while that background
+# refresh is still running, gate 3 sees a tracked file that changed during the
+# gate window and blocks — reporting "a validation gate modified tracked files",
+# which is a misdiagnosis: no gate wrote them, the previous commit's updater did
+# (obs 2026-08-09-commit-gate-repowise-tracked-write: a documentation-only amend
+# was blocked this way, and the retry left one or both files dirty afterwards).
+#
+# So for exactly these two paths the pre-commit path is made byte-neutral: their
+# pre-gate bytes are snapshotted and restored before gate 3 runs. Gate 3 itself is
+# NOT relaxed — it still blocks for every other tracked file, and it still blocks
+# for these two if the author staged them (a staged path is the author's
+# deliberate content and is never snapshotted or restored).
+#
+# What this does not do: the background updater that fires AFTER this commit will
+# regenerate both files again, so a refreshed index still shows up as an unstaged
+# diff between commits. That is the auto-sync working as designed. The property
+# restored here is narrower and is the one the observation asked for — the commit
+# validation path does not itself change tracked setup bytes.
+REPOWISE_OWNED_PATHS=".claude/CLAUDE.md .repowise-workspace.yaml"
+REPOWISE_SNAPSHOT_DIR=""
+_repowise_staged=$(git diff --cached --name-only 2>/dev/null)
+if REPOWISE_SNAPSHOT_DIR=$(mktemp -d 2>/dev/null); then
+  for _repowise_path in $REPOWISE_OWNED_PATHS; do
+    if printf '%s\n' "$_repowise_staged" | grep -qxF -- "$_repowise_path"; then
+      continue
+    fi
+    [ -f "$REPO_ROOT/$_repowise_path" ] || continue
+    if [ -L "$REPO_ROOT/$_repowise_path" ]; then
+      continue
+    fi
+    mkdir -p "$REPOWISE_SNAPSHOT_DIR/$(dirname "$_repowise_path")" 2>/dev/null || continue
+    cp "$REPO_ROOT/$_repowise_path" "$REPOWISE_SNAPSHOT_DIR/$_repowise_path" 2>/dev/null || true
+  done
+else
+  REPOWISE_SNAPSHOT_DIR=""
+fi
+
+# Restore ONLY the Repowise-generated region of each snapshotted file.
+#
+# An earlier version of this restored the whole file with `cp` whenever it
+# differed from the snapshot. That was too blunt in two directions at once, and
+# both were caught in review of PR #279:
+#
+#   * It destroyed concurrent non-Repowise edits. `.claude/CLAUDE.md` is 51 lines
+#     of hand-written policy followed by the generated block; a `cp` of the
+#     pre-gate snapshot over a file the author had just saved silently reverted
+#     that save, with no diff and no message naming what was lost.
+#   * It blinded gate 3 to the exact class of side effect gate 3 exists to catch.
+#     If gate 0/1/2 wrote either path, the blanket restore erased the evidence
+#     before POST_GATE_DIRTY was collected and the commit was accepted.
+#
+# So the restore is scoped to the bytes the updater actually owns:
+#   .claude/CLAUDE.md        — the <!-- REPOWISE:START --> … <!-- REPOWISE:END --> block
+#   .repowise-workspace.yaml — the generated scalars (last_commit_at_index, indexed_at)
+#
+# Anything outside those regions is left exactly as the gates left it, so it
+# still reaches gate 3 and still blocks. A gate (or an editor) writing inside the
+# generated block is still masked — that residue is deliberate and is bounded to
+# the region whose only legitimate writer is the updater.
+_restore_repowise_block() { # $1 = snapshot file, $2 = live file
+  awk -v snap="$1" '
+    BEGIN {
+      n = 0; inb = 0
+      while ((getline line < snap) > 0) {
+        if (line ~ /REPOWISE:START/) inb = 1
+        if (inb) blk[++n] = line
+        if (line ~ /REPOWISE:END/) inb = 0
+      }
+      close(snap)
+      if (n == 0) exit 3            # snapshot has no block: refuse to guess
+      spliced = 0; skip = 0
+    }
+    {
+      if (!spliced && $0 ~ /REPOWISE:START/) {
+        for (i = 1; i <= n; i++) print blk[i]
+        skip = 1
+      }
+      if (skip) { if ($0 ~ /REPOWISE:END/) { skip = 0; spliced = 1 } next }
+      print
+    }
+    END { if (!spliced) exit 4 }     # live file has no block: leave it for gate 3
+  ' "$2"
+}
+
+_restore_repowise_scalars() { # $1 = snapshot file, $2 = live file
+  awk -v snap="$1" '
+    function keyof(s) { sub(/:.*/, "", s); gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+    BEGIN {
+      while ((getline line < snap) > 0)
+        if (line ~ /^[[:space:]]*(last_commit_at_index|indexed_at):/) val[keyof(line)] = line
+      close(snap)
+    }
+    {
+      if ($0 ~ /^[[:space:]]*(last_commit_at_index|indexed_at):/) {
+        k = keyof($0)
+        if (k in val) { print val[k]; next }
+      }
+      print
+    }
+  ' "$2"
+}
+
+restore_repowise_owned() {
+  [ -n "$REPOWISE_SNAPSHOT_DIR" ] || return 0
+  _repowise_restored=""
+  for _repowise_path in $REPOWISE_OWNED_PATHS; do
+    _snap="$REPOWISE_SNAPSHOT_DIR/$_repowise_path"
+    _live="$REPO_ROOT/$_repowise_path"
+    [ -f "$_snap" ] || continue
+    cmp -s "$_snap" "$_live" 2>/dev/null && continue
+    _tmp="$_snap.rebuilt"
+    case "$_repowise_path" in
+      *.yaml|*.yml) _restore_repowise_scalars "$_snap" "$_live" > "$_tmp" 2>/dev/null ;;
+      *)            _restore_repowise_block   "$_snap" "$_live" > "$_tmp" 2>/dev/null ;;
+    esac
+    _rc=$?
+    # A non-zero status means the generated region could not be located in the
+    # snapshot or in the live file. Restoring nothing is the safe answer: the
+    # difference then survives into gate 3 and is reported rather than guessed at.
+    if [ "$_rc" -ne 0 ] || [ ! -s "$_tmp" ]; then
+      rm -f "$_tmp" 2>/dev/null || true
+      continue
+    fi
+    if ! cmp -s "$_tmp" "$_live" 2>/dev/null; then
+      if cp "$_tmp" "$_live" 2>/dev/null; then
+        _repowise_restored="$_repowise_restored $_repowise_path"
+      fi
+    fi
+    rm -f "$_tmp" 2>/dev/null || true
+  done
+  rm -rf "$REPOWISE_SNAPSHOT_DIR" 2>/dev/null || true
+  REPOWISE_SNAPSHOT_DIR=""
+  if [ -n "$_repowise_restored" ]; then
+    # Positive execution signal: this path is silent unless it acted, and when it
+    # acts it names what it touched. A restore line means the background updater
+    # overlapped this commit — not that a gate misbehaved.
+    echo "pre-commit: restored the Repowise-generated region of:$_repowise_restored" >&2
+  fi
+}
+trap restore_repowise_owned EXIT
+
+# Wait for the previous commit's background updater to finish before restoring.
+#
+# `.githooks/post-commit` holds `.repowise/.update.lock` around its updater and
+# loops until HEAD stops moving. Restoring while that is still running fixes
+# nothing: the updater rewrites the file again immediately afterwards, so gate 3
+# blocks if the write lands before its diff and the commit ends dirty if it lands
+# after. Quiescing first makes the restore meaningful rather than racing it.
+#
+# On timeout we deliberately do NOT restore. A blocked commit that names the
+# running updater is honest; a restore raced against a live writer is a coin flip
+# reported as a success.
+quiesce_repowise_updater() {
+  _lock="$REPO_ROOT/.repowise/.update.lock"
+  [ -d "$_lock" ] || return 0
+  _timeout=${REPOWISE_QUIESCE_TIMEOUT:-120}
+  _waited=0
+  while [ -d "$_lock" ] && [ "$_waited" -lt "$_timeout" ]; do
+    sleep 1
+    _waited=$((_waited + 1))
+  done
+  if [ -d "$_lock" ]; then
+    echo "pre-commit: the background repowise updater still holds $_lock after ${_waited}s." >&2
+    echo "pre-commit: skipping the generated-region restore — gate 3 will report the real state." >&2
+    return 1
+  fi
+  echo "pre-commit: waited ${_waited}s for the background repowise updater to finish." >&2
+  return 0
+}
 
 # Interpreter resolution, needed by gates 0 and 2 alike.
 #
@@ -103,6 +284,18 @@ if ! "$MAIN_PYTHON" "$REPO_ROOT/.claude/hooks/run_staged_contract_gate.py" --rep
   echo "" >&2
   echo "pre-commit: contract gate FAILED — commit blocked. See contracts/README.md." >&2
   exit 1
+fi
+
+# Quiesce, then restore, so gate 3 compares like for like: a background
+# `repowise update` from the PREVIOUS commit overlapping this one is not a gate
+# side effect and must not be reported as one. If the updater will not quiesce,
+# drop the snapshot entirely rather than restore against a live writer — gate 3
+# then reports whatever is actually there, which is the honest outcome.
+if quiesce_repowise_updater; then
+  restore_repowise_owned
+else
+  rm -rf "$REPOWISE_SNAPSHOT_DIR" 2>/dev/null || true
+  REPOWISE_SNAPSHOT_DIR=""
 fi
 
 # Gate 3 — no-new-diff: every gate above is validation, and validation must be
