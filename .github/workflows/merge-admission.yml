@@ -50,7 +50,10 @@ concurrency:
 jobs:
   merge-admission:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Long enough to outlast the WAIT_SECONDS budget below, which in turn
+    # outlasts `lint-and-test`'s own 45-minute ceiling. Only platform-sensitive
+    # candidates ever wait; everything else finishes in under a minute.
+    timeout-minutes: 60
 
     steps:
       # The gate logic is taken from the base branch, never from the candidate:
@@ -73,83 +76,139 @@ jobs:
       - name: Install the configuration parser
         run: pip install "PyYAML>=6"
 
-      - name: Resolve the pull request under evaluation
+      # Every event resolves both a pull request and the commit whose checks
+      # carry the platform evidence. They are the same commit outside a merge
+      # queue; inside one the queue's synthetic commit is what the required
+      # check is attached to, so certifying it with the pre-queue head's checks
+      # would let an integration-only Linux failure through.
+      - name: Resolve the pull request and the platform commit
         id: target
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           DISPATCH_PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
+          RUN_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           case "$EVENT_NAME" in
             merge_group)
               # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha>
               number="$(printf '%s' "$MERGE_GROUP_HEAD_REF" | sed -n 's|.*/pr-\([0-9][0-9]*\)-.*|\1|p')"
+              # Review threads live on the pull request, so the candidate stays
+              # the PR head; only the platform evidence moves to the queue commit.
               expected=""
+              platform="$MERGE_GROUP_HEAD_SHA"
               ;;
             workflow_dispatch)
+              # A dispatch can name any pull request, but this run's check lands
+              # on $RUN_SHA. Requiring the two to agree stops a dispatch from the
+              # default branch reporting success that never replaces the target
+              # PR's failed check, and stops one PR's ref carrying evidence for
+              # another PR's bytes. Dispatch from the pull request's own branch.
               number="$DISPATCH_PR_NUMBER"
-              expected=""
+              expected="$RUN_SHA"
+              platform="$RUN_SHA"
               ;;
             *)
               number="$PR_NUMBER"
               expected="$EVENT_HEAD_SHA"
+              platform="$EVENT_HEAD_SHA"
               ;;
           esac
           if [ -z "$number" ]; then
             echo "BLOCKED: could not resolve a pull request number for event $EVENT_NAME" >&2
             exit 1
           fi
+          if [ -z "$platform" ]; then
+            echo "BLOCKED: could not resolve a platform commit for event $EVENT_NAME" >&2
+            exit 1
+          fi
           echo "number=$number" >> "$GITHUB_OUTPUT"
           echo "expected_head=$expected" >> "$GITHUB_OUTPUT"
+          echo "platform=$platform" >> "$GITHUB_OUTPUT"
 
-      - name: Capture one admission-evidence snapshot
+      - name: Capture admission evidence, waiting for the Linux lane if required
         id: snapshot
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.target.outputs.number }}
           EXPECTED_HEAD: ${{ steps.target.outputs.expected_head }}
+          PLATFORM_SHA: ${{ steps.target.outputs.platform }}
+          # `synchronize` starts this gate alongside CI, so on a
+          # platform-sensitive candidate the Linux lane is routinely still
+          # running when the first snapshot is taken -- and no event fires when
+          # it finishes. Failing then would leave a permanently red check on a
+          # candidate that is fine. Waiting costs runner time only on the
+          # candidates the ordering rule actually governs.
+          WAIT_SECONDS: "3000"
+          POLL_SECONDS: "30"
         run: |
           set -euo pipefail
-          gh api graphql \
-            -F owner="${{ github.repository_owner }}" \
-            -F name="${{ github.event.repository.name }}" \
-            -F number="${PR_NUMBER}" \
-            -f query='
-              query($owner:String!,$name:String!,$number:Int!){
-                repository(owner:$owner,name:$name){
-                  pullRequest(number:$number){
-                    headRefOid
-                    reviewThreads(first:100){
-                      pageInfo{hasNextPage}
-                      nodes{ isResolved isOutdated comments(first:1){nodes{createdAt author{login}}} }
-                    }
-                    reviews(first:100){
-                      pageInfo{hasNextPage}
-                      nodes{ state submittedAt author{login} commit{oid} }
-                    }
-                    files(first:100){ pageInfo{hasNextPage} nodes{ path } }
-                    commits(last:1){
-                      pageInfo{hasNextPage}
-                      nodes{ commit{ oid statusCheckRollup{ contexts(first:100){
+
+          capture() {
+            gh api graphql \
+              -F owner="${{ github.repository_owner }}" \
+              -F name="${{ github.event.repository.name }}" \
+              -F number="${PR_NUMBER}" \
+              -F platformSha="${PLATFORM_SHA}" \
+              -f query='
+                query($owner:String!,$name:String!,$number:Int!,$platformSha:GitObjectID!){
+                  repository(owner:$owner,name:$name){
+                    pullRequest(number:$number){
+                      headRefOid
+                      reviewThreads(first:100){
                         pageInfo{hasNextPage}
-                        nodes{
-                          __typename
-                          ... on CheckRun{ name status conclusion completedAt }
-                          ... on StatusContext{ context state createdAt }
-                        }
-                      } } } }
+                        nodes{ isResolved isOutdated comments(first:1){nodes{createdAt author{login}}} }
+                      }
+                      reviews(first:100){
+                        pageInfo{hasNextPage}
+                        nodes{ state submittedAt author{login} commit{oid} }
+                      }
+                      files(first:100){ pageInfo{hasNextPage} nodes{ path } }
+                    }
+                    platformCommit: object(oid:$platformSha){
+                      ... on Commit{
+                        oid
+                        statusCheckRollup{ contexts(first:100){
+                          pageInfo{hasNextPage}
+                          nodes{
+                            __typename
+                            ... on CheckRun{ name status conclusion completedAt }
+                            ... on StatusContext{ context state createdAt }
+                          }
+                        } }
+                      }
                     }
                   }
-                }
-              }' > snapshot.json
-          candidate="$(python -c 'import json,sys; print(json.load(open("snapshot.json"))["data"]["repository"]["pullRequest"]["headRefOid"])')"
-          if [ -n "$EXPECTED_HEAD" ] && [ "$candidate" != "$EXPECTED_HEAD" ]; then
-            echo "BLOCKED: head moved to $candidate while evaluating $EXPECTED_HEAD; the push event will re-run this gate" >&2
-            exit 1
-          fi
+                }' > snapshot.json
+            candidate="$(python -c 'import json; print(json.load(open("snapshot.json"))["data"]["repository"]["pullRequest"]["headRefOid"])')"
+            if [ -n "$EXPECTED_HEAD" ] && [ "$candidate" != "$EXPECTED_HEAD" ]; then
+              echo "BLOCKED: evidence head is $candidate, not the $EXPECTED_HEAD this run is attached to" >&2
+              exit 1
+            fi
+          }
+
+          status_of() {
+            python tools/check_merge_admission.py platform-status \
+              --snapshot snapshot.json \
+              --candidate-sha "$candidate" \
+              --platform-sha "$PLATFORM_SHA"
+          }
+
+          capture
+          deadline=$(( SECONDS + WAIT_SECONDS ))
+          while [ "$(status_of)" = "pending" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::warning::${WAIT_SECONDS}s elapsed with the Linux lane still running; the gate will fail closed"
+              break
+            fi
+            echo "Linux evidence for $PLATFORM_SHA is not terminal yet; re-checking in ${POLL_SECONDS}s"
+            sleep "$POLL_SECONDS"
+            capture
+          done
           echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
 
       # Observation 01M0PWSR73ABY48X8YW7KQX6Q6.
@@ -169,3 +228,4 @@ jobs:
           python tools/check_merge_admission.py platform-order
           --snapshot snapshot.json
           --candidate-sha "${{ steps.snapshot.outputs.candidate }}"
+          --platform-sha "${{ steps.target.outputs.platform }}"

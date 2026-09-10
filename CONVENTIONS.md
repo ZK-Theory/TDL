@@ -606,6 +606,21 @@ Three journal-targeted papers replacing the original four technique-first papers
   authorities but not inputs certifies that a task may start, not that it can
   finish** — enumerate the deliverable's required fields and name a source for
   each before declaring readiness. Locked 2026-07-28.
+- **For a pull request touching platform-sensitive paths, review acceptance is a
+  GitHub `APPROVED` review, and nothing else.** A verdict posted in a
+  `COMMENTED` review — the habit on most independent reviews here — does not
+  count as acceptance for these pull requests. The `merge-admission` gate
+  (`tools/check_merge_admission.py platform-order`) requires each reviewer's
+  latest approval of the candidate to postdate a green `lint-and-test` on the
+  platform commit; it can only enforce ordering on a record it can see, and
+  this convention is what puts acceptance into that record. The paths are the
+  `platform_order.sensitive_paths` list in `.github/merge-admission.yml`.
+  Origin: PR #263's first head was accepted on Windows-reachable controls while
+  13 decisive POSIX controls were skipped, and the Linux workflow then failed
+  (observation `01M0Q0WXJSCX5WJ69H2G9DG4E3`). Chosen over parsing verdict tokens
+  from comment bodies, which rests on reviewers typing an exact string, and over
+  treating every human review as acceptance, which blocks on routine questions.
+  Decided by Stephen on PR #278, Codex thread `3962013251`. Locked 2026-09-10.
 
 ---
 
@@ -647,4 +662,4 @@ Reference: `tests/research_system/contracts/` went 133 failed / 601 passed → *
 
 ---
 
-*Last updated: 2026-07-28*
+*Last updated: 2026-09-10*

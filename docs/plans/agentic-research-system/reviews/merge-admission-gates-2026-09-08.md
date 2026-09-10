@@ -60,16 +60,46 @@ once the threads carry a disposition.
 
 Applies only when the candidate touches a configured filesystem or concurrency
 path. When it does, `lint-and-test` must be COMPLETED and SUCCESS on the
-candidate, and every `APPROVED` review on that candidate must have been
-submitted after that job concluded.
+**platform commit**, and each reviewer's latest `APPROVED` review of the
+candidate must have been submitted after that job concluded.
+
+The platform commit is the pull request head for ordinary events and the
+synthetic merge-group commit inside a merge queue. Review threads stay bound to
+the PR head, where they live; only the platform evidence moves. The snapshot
+reads it through an explicit `platformCommit: object(oid:)` and the tool refuses
+a rollup whose oid is not the requested commit.
+
+`synchronize` starts this gate alongside CI, and no event fires when CI later
+completes. So the workflow asks `platform-status` first: `not-applicable` and
+`ready` proceed at once; `pending` polls every 30s for up to 50 minutes, which
+outlasts `lint-and-test`'s own 45-minute ceiling. Only platform-sensitive
+candidates ever wait. An exhausted budget fails closed.
+
+A `workflow_dispatch` must run on the pull request's own branch: its check
+lands on `github.sha`, so the evidence head is required to equal it.
+
+### Review round 1 (Codex, 2026-09-10)
+
+Six findings on `91539a9`. One (`pull_request_review_comment` trigger) was
+already fixed in `e7c1d15`. Four were fixed with negative and positive controls:
+waiting on a running Linux lane, merge-group platform evidence, superseded
+approvals, and dispatch binding. The sixth — reviews recorded as `COMMENTED`
+escaping the ordering rule — was a design question; Stephen decided on
+2026-09-10 that an `APPROVED` review is the only acceptance record for
+platform-sensitive pull requests (see Known limits).
 
 ## Watched failures
 
-Both rules were mutation-tested on 2026-09-08: neutralising the live-thread
-filter and the approval-ordering comparison fails
+Every rule is mutation-tested. On 2026-09-08, neutralising the live-thread filter
+and the approval-ordering comparison failed
 `test_recorded_pr262_candidate_is_refused_admission`,
 `test_cli_blocks_on_the_recorded_candidate`, and
-`test_approval_before_linux_evidence_is_refused`. Restoring them returns 22/22.
+`test_approval_before_linux_evidence_is_refused`. On 2026-09-10, inverting the
+latest-approval comparison failed
+`test_a_reapproval_after_green_linux_supersedes_the_early_one`, and removing the
+platform-commit oid check failed
+`test_a_snapshot_for_the_wrong_platform_commit_is_refused`. Restoring returns
+35/35.
 
 The strongest negative control is not a probe PR: the committed snapshot is the
 actual evidence GitHub held at the moment PR #262 merged, and both gates refuse
@@ -89,11 +119,14 @@ five threads; approving after a green Linux run) confirm neither gate is vacuous
 
 ## Known limits
 
-- Acceptance is observed as a GitHub `APPROVED` review. Independent reviews
-  recorded as `COMMENTED` (the usual shape in this repo) are invisible to the
-  ordering gate; the reviewer-side obligation from observation
-  `01M0Q0WXJSCX5WJ69H2G9DG4E3` — report `PLATFORM-EVIDENCE-PENDING` rather than
-  ACCEPT — remains a skill-level rule in `tda-large-workflow-supervision`.
+- **Decided 2026-09-10: `APPROVED` is the acceptance record.** For a pull request
+  touching platform-sensitive paths, review acceptance means a GitHub `APPROVED`
+  review; a verdict posted in a `COMMENTED` review does not count. Stephen chose
+  this over parsing verdict tokens out of comment bodies, which would rest on
+  reviewers typing an exact string, and over treating every human review as
+  acceptance, which would block on routine questions. It is locked in
+  `CONVENTIONS.md`. The gate enforces ordering for the record it can see; the
+  convention is what puts acceptance into that record.
 - Connections are queried at `first: 100`; a larger PR trips the truncation
   guard and blocks rather than admitting on a partial page.
 - For `pull_request` events the gate is checked out from the base SHA, so a

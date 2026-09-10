@@ -514,47 +514,38 @@
               "path": "tests/research_system/unit/test_store_publication_contract.py"
             }
           ]
-        },
-        "commits": {
-          "pageInfo": {
-            "hasNextPage": false
-          },
-          "nodes": [
-            {
-              "commit": {
-                "oid": "af680b81f10df2bf0f0803a475e34656a926f766",
-                "statusCheckRollup": {
-                  "contexts": {
-                    "pageInfo": {
-                      "hasNextPage": false
-                    },
-                    "nodes": [
-                      {
-                        "__typename": "CheckRun",
-                        "name": "contract-and-session-currency",
-                        "status": "COMPLETED",
-                        "conclusion": "SUCCESS",
-                        "completedAt": "2026-08-23T07:29:03Z"
-                      },
-                      {
-                        "__typename": "CheckRun",
-                        "name": "require-active-currency-workflow",
-                        "status": "COMPLETED",
-                        "conclusion": "SUCCESS",
-                        "completedAt": "2026-08-23T07:27:59Z"
-                      },
-                      {
-                        "__typename": "StatusContext",
-                        "context": "CodeRabbit",
-                        "state": "SUCCESS",
-                        "createdAt": "2026-08-23T07:29:43Z"
-                      }
-                    ]
-                  }
-                }
+        }
+      },
+      "platformCommit": {
+        "oid": "af680b81f10df2bf0f0803a475e34656a926f766",
+        "statusCheckRollup": {
+          "contexts": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": [
+              {
+                "__typename": "CheckRun",
+                "name": "contract-and-session-currency",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "completedAt": "2026-08-23T07:29:03Z"
+              },
+              {
+                "__typename": "CheckRun",
+                "name": "require-active-currency-workflow",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "completedAt": "2026-08-23T07:27:59Z"
+              },
+              {
+                "__typename": "StatusContext",
+                "context": "CodeRabbit",
+                "state": "SUCCESS",
+                "createdAt": "2026-08-23T07:29:43Z"
               }
-            }
-          ]
+            ]
+          }
         }
       }
     }
