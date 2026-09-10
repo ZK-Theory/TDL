@@ -1,5 +1,7 @@
 # 06q — Gate 6 Recovery and Closure Plan
 
+> **SUPERSEDED — 2026-09-05:** Stephen approved the revised [06s delivery plan](06s-gate6-delivery-replan-and-gate7-integration.md) and authorized Phase 0. The text below is historical, including its sole-authority, no-successor, retirement and fresh-live-SPEC-02 instructions. Consult only the specific action/source references retained by 06s; execute 06s and decisions P-051–P-056.
+
 **Date:** 2026-08-22
 **Status:** `INCOMPLETE — the historical real SPEC run is PROVEN, but no complete Gate 6 implementation is integrated on main`
 **Authority:** sole active Gate 6 recovery and closure plan. Do not create a

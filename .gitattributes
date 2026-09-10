@@ -1,3 +1,26 @@
+# Repo-wide default: every text file is stored and checked out with LF.
+#
+# The per-root pins below predate this line and are kept deliberately — they document
+# *why* each root is byte-critical, and the hook-surface test asserts them by name. This
+# rule exists because those pins were only ever added after a failure: the contract
+# roots after 133 tests failed at once, the hook surface after agent edits silently
+# CRLF-ified three files in one day. A default removes the need to predict the next one.
+#
+# `text=auto` classifies a file as text when it has no NUL byte in its first 8000 bytes.
+# That heuristic is wrong for 99 of this repo's 160 committed PDFs, which contain no
+# early NUL and would therefore be treated as text and have their CR bytes stripped —
+# silently corrupting them (a sampled figure PDF: 83250 bytes, 110 CRLF pairs, no NUL in
+# the first 8000). Binary types are declared explicitly below rather than left to it.
+* text=auto eol=lf
+
+# Never line-ending converted, never diffed as text.
+*.pdf binary
+*.png binary
+*.zip binary
+*.vti binary
+*.vtp binary
+*.synctex.gz binary
+
 .gitattributes text eol=lf
 
 # The contract system declares `canonical_byte_surface: git_blob_utf8_lf`, and its
