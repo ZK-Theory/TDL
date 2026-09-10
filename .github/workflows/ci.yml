@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Required so a blocking check can report on the merge queue's synthetic
+  # merge-group commit. Without it a required `lint` stalls the queue, and a
+  # non-required one lets a candidate merge without ever running this check.
+  # Both currency workflows already carry this trigger.
+  merge_group:
+    types: [checks_requested]
 
 # Lint and test were one `lint-and-test` job until 2026-09-08. They are split
 # because this workflow was `disabled_manually` from some point before
@@ -32,11 +38,17 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+      # From the lockfile, matching ars-artefact-currency.yml. A resolving
+      # install (`uv pip install -e ".[dev]"`) floats every unpinned dependency:
+      # pyproject asks for `ruff>=0.8.0`, so the first run of this job on
+      # 2026-09-08 resolved ruff 0.16.6 while uv.lock pins 0.14.9 and
+      # .pre-commit-config.yaml pins v0.8.4 -- three versions of the linter for
+      # one repo. `.ruff.toml` sets no `[lint] select`, so it inherits ruff's
+      # DEFAULT rule set, which changed between those versions: 0 errors under
+      # 0.14.9 and 1635 under 0.16.6 on identical bytes. Locking the install
+      # makes the gate reproducible; see the 2026-09-10 [DECISION].
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
 
       # Blocking. `ruff check .` passes cleanly on main as of 2026-09-08 (71
       # pre-existing errors cleared: F401/F541/F841 removed, E741/E722 fixed,
@@ -82,11 +94,13 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+      # From the lockfile, for the same reason as `lint` above, and with extra
+      # force here: this lane exists to SIZE the test debt, so two runs of the
+      # same SHA must not exercise different pytest/pandas/geospatial versions.
+      # A red-to-green transition has to mean the code changed, not that the
+      # resolver drifted.
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
 
       - name: Run pytest with coverage
         run: |
