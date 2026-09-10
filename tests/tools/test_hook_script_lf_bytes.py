@@ -142,10 +142,13 @@ def test_negative_control_the_crlf_predicate_flags_crlf_bytes() -> None:
     assert not lf_script.split(b"\n", 1)[0].endswith(CR)
 
 
-def test_negative_control_an_unpinned_path_is_still_reported_as_unpinned() -> None:
+def test_negative_control_the_attribute_reader_still_discriminates() -> None:
     """Proves the pin check reads real attribute state rather than always returning lf.
 
-    CONVENTIONS.md carries no eol pin (the LF-coverage canary asserts the same thing for
-    its own negative control), so a check that called it `lf` would be broken.
+    Previously asserted that CONVENTIONS.md resolved to something other than `eol=lf`.
+    The repo-wide `* text=auto eol=lf` default means no path resolves otherwise, so the
+    discriminating axis moved to `text`: binary-declared paths resolve `text: unset`,
+    source files do not.
     """
-    assert _check_attr("CONVENTIONS.md", "eol") != "lf"
+    assert _check_attr("example.pdf", "text") == "unset"
+    assert _check_attr("example.sh", "text") != "unset"
