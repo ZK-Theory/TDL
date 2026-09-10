@@ -81,7 +81,12 @@ that relies on a tool's defaults inherits that tool's release decisions;
 the real, documented convention and remains open debt. Separately, `ci.yml` is
 now asserted `active` by the currency watchdog, since a workflow cannot report
 its own administrative absence and this rule would otherwise keep claiming a
-signal that had silently gone away.
+signal that had silently gone away. Finally, `.ruff.toml` excludes `scratch/`
+explicitly: 18 tracked audit files sit under that gitignored directory, and Ruff
+honours `.gitignore` only inside a git checkout — so CI silently skipped them
+while a `git archive` of the same commit did not. An exemption that depends on
+whether `.git` exists is not a recorded suppression; an explicit one is. The
+files are not rewritten to pass: they are frozen audit provenance.
 
 **Rationale.** `ci.yml` sat `disabled_manually` from before 2026-07-30 until
 2026-09-08. The narrower `ars-artefact-currency.yml` and its watchdog cover only

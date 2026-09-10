@@ -114,12 +114,14 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
-  # Blocking, but NEVER YET EXECUTED: this job was added 2026-08-02, after the
-  # last recorded run of this workflow (2026-07-30), and the workflow was
-  # disabled throughout. Its first real run is therefore also its own liveness
-  # test -- a lane that has never been watched either pass or fail is not yet
-  # evidence of anything. It is left blocking so that first run is honest; if it
-  # fails on this PR, fix the lane rather than assuming the controls are broken.
+  # Not continue-on-error. Added 2026-08-02, after the last recorded run of this
+  # workflow, it first executed on 2026-09-08 in PR #277 -- and failed for a real
+  # reason: `test_composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback[runtime]`
+  # ("held runtime directory was replaceable"). Bisected locally: green through
+  # 571236e (#265), red from e13b77b (#267). Its red state is therefore evidence
+  # of a store-lock regression that landed while CI was disabled, not a broken
+  # lane, and it must not be relaxed to turn green. (It is not a ruleset-required
+  # check, so it reports rather than blocks the merge queue.)
   windows-store-lock:
     runs-on: windows-latest
     permissions:
@@ -139,11 +141,10 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
+      # From the lockfile, like every lane in this workflow: a resolving install
+      # could pick different torch/dev versions for the same SHA.
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
 
       - name: Run Windows directory-anchor controls
         run: >-
@@ -183,14 +184,12 @@ jobs:
       - name: Install uv package manager
         run: pip install uv
 
-      - name: Create virtual environment
-        run: uv venv
-
-      - name: Install dependencies
-        run: uv pip install setuptools && uv pip install torch && uv pip install --no-build-isolation -e ".[dev]"
-
-      - name: Install the optional PETLS backend
-        run: uv pip install --group petls
+      # From the lockfile, with the PETLS group added (uv.lock pins petls 1.0.1).
+      # `uv pip install --group petls` resolved the backend afresh on every run,
+      # so the cross-backend agreement checks this lane exists for could compare
+      # against a different PETLS build for the same SHA.
+      - name: Install dependencies and the PETLS backend from the lockfile
+        run: uv sync --locked --extra dev --group petls
 
       - name: Run the persistent-Laplacian suite with PETLS required
         # TDL_REQUIRE_PETLS=1 turns the availability check from tolerated into

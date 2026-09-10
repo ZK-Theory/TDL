@@ -1,5 +1,16 @@
 line-length = 120
 
+# `scratch/` is gitignored, yet 18 files under scratch/vintage_audit/ are tracked:
+# audit drivers kept as provenance. Ruff honours .gitignore only inside a git
+# checkout, so CI's checkout silently skipped those tracked files while a `git
+# archive` of the same commit (no .git, so no .gitignore semantics) reported errors
+# in them — raised in review of PR #277. Excluding the directory explicitly makes
+# every environment agree, and turns an accidental, invisible exemption into a
+# recorded one. The files are deliberately not rewritten to satisfy lint: they are
+# frozen audit records, and editing them would alter the provenance they preserve
+# (2026-09-10 [DECISION]).
+extend-exclude = ["scratch/"]
+
 [lint.per-file-ignores]
 # Dashboard files - allow imports after try/except blocks
 "**/viz/streamlit_app.py" = ["E402"]
