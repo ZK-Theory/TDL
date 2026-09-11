@@ -135,7 +135,14 @@ class SpecCoordinator:
             observation = projection["source_observations"].get(ids["observation_id"])
             if observation:
                 batch = observation["batch"]
-                validate_source_refs(batch, events, before_position=observation["global_position"])
+                validate_source_refs(
+                    batch,
+                    events,
+                    before_position=observation["global_position"],
+                    objects=self.objects,
+                    schemas=self.schemas,
+                    ledger=self.ledger,
+                )
                 candidate = projection["candidates"].get(ids["candidate_id"])
                 if (
                     batch["raw_source_refs"] != [source_ref(registration)]
@@ -357,5 +364,9 @@ class SpecCoordinator:
                 )
             raise
         if receipt.status not in {"accepted", "replayed"}:
+            if effect == "RegisterArtefact" and self.ledger.snapshot() == ledger_before:
+                self.objects.rollback_new_revision(
+                    "spec_source_document", artefact_id, 1, document, existed_before=existed_before
+                )
             raise ArsError(f"SOURCE effect rejected: {asdict(receipt)}")
         return {**self.status(intent), "receipt": asdict(receipt)}

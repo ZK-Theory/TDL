@@ -54,7 +54,7 @@ def source_ref(event: dict) -> dict:
     }
 
 
-def validate_source_refs(batch: dict, events, *, before_position: int) -> None:
+def validate_source_refs(batch: dict, events, *, before_position: int, objects=None, schemas=None, ledger=None) -> None:
     """Bind each SOURCE multiset member to an exact earlier AR event."""
     events = tuple(events)
     for ref in batch.get("raw_source_refs", []):
@@ -63,6 +63,8 @@ def validate_source_refs(batch: dict, events, *, before_position: int) -> None:
             continue
         identity, separator, event_hash = locator[len(SOURCE_REF_PREFIX) :].partition(":")
         event = registration_event(events, identity)
+        if objects is not None and schemas is not None and ledger is not None:
+            read_document(identity, objects=objects, schemas=schemas, ledger=ledger)
         if (
             not separator
             or source_ref(event) != ref

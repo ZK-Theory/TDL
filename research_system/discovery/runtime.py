@@ -2773,7 +2773,16 @@ class DiscoveryRuntime:
         except SchemaError as exc:
             raise IntegrityError("invalid Scout observation batch") from exc
         source_snapshot = self.ledger.snapshot()
-        validate_source_refs(batch, source_snapshot.events, before_position=source_snapshot.global_position + 1)
+        from research_system.store.objects import ObjectStore
+
+        validate_source_refs(
+            batch,
+            source_snapshot.events,
+            before_position=source_snapshot.global_position + 1,
+            objects=ObjectStore(self.control_root),
+            schemas=self.schemas,
+            ledger=self.ledger,
+        )
         batch_sha256 = sha256_hex(canonical_bytes(batch))
         dedup_keys = batch.get("normalized_dedup_keys")
         if (
