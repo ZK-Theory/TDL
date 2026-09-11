@@ -64,6 +64,12 @@ jobs:
     timeout-minutes: 60
     permissions:
       checks: read
+      # The snapshot authenticates platform evidence through
+      # `checkSuite.workflowRun.file.path`. Job-level permissions set every
+      # unlisted scope to none, and without `actions: read` the token can be
+      # denied that field, which would reject every genuine run (Codex review
+      # 3990012219).
+      actions: read
       # Write access is for one call only: dequeuePullRequest, when a queued
       # pull request's review state changes. No candidate code is checked out
       # or executed by this job.
@@ -233,7 +239,7 @@ jobs:
                     nodes{
                       __typename
                       ... on CheckRun{
-                        name status conclusion completedAt
+                        databaseId name status conclusion completedAt
                         checkSuite{ app{slug} workflowRun{ file{path} } }
                       }
                       ... on StatusContext{ context state createdAt }

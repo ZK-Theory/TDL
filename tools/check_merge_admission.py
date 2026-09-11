@@ -314,17 +314,23 @@ def _platform_contexts(payload: Mapping[str, Any], platform_sha: str) -> list[Ma
 def _platform_check(
     contexts: Sequence[Mapping[str, Any]], *, producer: PlatformProducer, sha: str
 ) -> Mapping[str, Any] | None:
-    """Return the trusted platform check run on one commit, or ``None`` if absent.
+    """Return the current trusted platform check run on one commit, or ``None`` if absent.
 
     A check run is identified by name alone in the rollup, and any workflow can
     publish a check with that name. Evidence is accepted only from the
     configured app and workflow file (Codex review 3988684703).
 
+    A re-run leaves every attempt in the rollup: commit 2146780 carried a
+    FAILURE and a later CANCELLED ``merge-admission`` run side by side.
+    Check-run ids increase with creation, so the highest trusted id is the
+    current attempt, and earlier attempts are history rather than ambiguity
+    (Codex review 3990012209).
+
     Raises:
-        ValueError: If a same-named check run comes from any other producer, or
-            if more than one trusted run carries the name.
+        ValueError: If a same-named check run comes from any other producer,
+            or a trusted run carries no ``databaseId`` to order attempts by.
     """
-    trusted = []
+    trusted: list[Mapping[str, Any]] = []
     for context in contexts:
         if context.get("__typename") != "CheckRun" or context.get("name") != producer.check_run:
             continue
@@ -336,14 +342,24 @@ def _platform_check(
         file = run.get("file") if isinstance(run, Mapping) else None
         path = file.get("path") if isinstance(file, Mapping) else None
         if slug != producer.app_slug or path != producer.workflow_path:
+            # Job-level permissions set unlisted scopes to none, and the token
+            # needs `actions: read` to see workflowRun (Codex review 3990012219).
+            hint = (
+                ""
+                if isinstance(run, Mapping)
+                else "; workflowRun was unavailable, so check the job grants actions: read"
+            )
             raise ValueError(
                 f"{producer.check_run!r} on {sha} was produced by app {slug!r} from {path!r}, not "
-                f"{producer.app_slug!r} from {producer.workflow_path!r}; refusing untrusted platform evidence"
+                f"{producer.app_slug!r} from {producer.workflow_path!r}; refusing untrusted platform evidence{hint}"
             )
+        check_id = context.get("databaseId")
+        if not isinstance(check_id, int) or isinstance(check_id, bool):
+            raise ValueError(f"{producer.check_run!r} on {sha} carries no databaseId; its latest attempt is unknown")
         trusted.append(context)
-    if len(trusted) > 1:
-        raise ValueError(f"{len(trusted)} check runs named {producer.check_run!r} on {sha}; result is ambiguous")
-    return trusted[0] if trusted else None
+    if not trusted:
+        return None
+    return max(trusted, key=lambda context: context["databaseId"])
 
 
 def _platform_commits(payload: Mapping[str, Any], *, candidate_sha: str, platform_sha: str) -> list[tuple[str, Any]]:
@@ -592,7 +608,12 @@ def _live_thread_count(pull_request: Mapping[str, Any], what: str) -> int:
 
 
 def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: str) -> list[int]:
-    """Return workflow-run ids of the head's currently green admission checks."""
+    """Return the workflow-run id of the head's current admission check, if it is green.
+
+    Only the latest attempt is judged: an older green attempt followed by a
+    failing re-run already reflects the live thread, and re-running the old
+    success would be noise (Codex review 3990012209).
+    """
     commits = _require_nodes(pull_request.get("commits"), f"{what}.commits")
     if len(commits) != 1:
         raise ValueError(f"{what}: expected exactly one tip commit, got {len(commits)}")
@@ -601,25 +622,27 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
     if rollup is None:
         return []
     contexts = _require_nodes(_require_mapping(rollup, f"{what} statusCheckRollup").get("contexts"), f"{what} contexts")
-    run_ids: list[int] = []
+    latest: Mapping[str, Any] | None = None
+    latest_run: Mapping[str, Any] | None = None
     for context in contexts:
         if context.get("__typename") != "CheckRun" or context.get("name") != gate.check_run:
             continue
         suite = context.get("checkSuite")
         run = suite.get("workflowRun") if isinstance(suite, Mapping) else None
         file = run.get("file") if isinstance(run, Mapping) else None
-        if not isinstance(file, Mapping) or file.get("path") != gate.workflow_path:
+        if not isinstance(run, Mapping) or not isinstance(file, Mapping) or file.get("path") != gate.workflow_path:
             continue
-        if context.get("conclusion") != "SUCCESS":
-            continue
-        run_id = run.get("databaseId") if isinstance(run, Mapping) else None
-        if not isinstance(run_id, int) or isinstance(run_id, bool):
-            raise ValueError(
-                f"{what}: a green {gate.check_run} check carries no workflow run id, so it cannot be re-run"
-            )
-        if run_id not in run_ids:
-            run_ids.append(run_id)
-    return run_ids
+        check_id = context.get("databaseId")
+        if not isinstance(check_id, int) or isinstance(check_id, bool):
+            raise ValueError(f"{what}: a {gate.check_run} check carries no databaseId; its latest attempt is unknown")
+        if latest is None or check_id > latest["databaseId"]:
+            latest, latest_run = context, run
+    if latest is None or latest_run is None or latest.get("conclusion") != "SUCCESS":
+        return []
+    run_id = latest_run.get("databaseId")
+    if not isinstance(run_id, int) or isinstance(run_id, bool):
+        raise ValueError(f"{what}: a green {gate.check_run} check carries no workflow run id, so it cannot be re-run")
+    return [run_id]
 
 
 def sweep_actions(payload: Mapping[str, Any], *, gate: SweepGate) -> list[str]:

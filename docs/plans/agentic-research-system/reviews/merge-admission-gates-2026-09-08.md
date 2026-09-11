@@ -159,6 +159,24 @@ Three more findings on `082b934`, posted while round 2 was being fixed.
   otherwise was wrong. Stephen chose a 5-minute sweep (`merge-admission-sweep.yml`)
   over relying on the queue-time check alone.
 
+### Review round 4 (Codex, 2026-09-11)
+
+Two findings on `e805a3c`.
+
+- **3990012209** — a re-run leaves every attempt in the rollup. Commit `2146780`
+  carries a FAILURE and a later CANCELLED `merge-admission` run side by side.
+  Treating duplicate trusted runs as ambiguous would have blocked a sensitive
+  candidate permanently after any re-run. The current attempt is now the trusted
+  run with the highest check-run `databaseId`, since ids increase with creation.
+  The sweep had the mirror defect, re-running an old success behind a newer
+  failure, and now judges only the latest attempt.
+- **3990012219** — job-level permissions set unlisted scopes to none, and the
+  admission job did not list `actions`. The token could therefore be denied
+  `checkSuite.workflowRun`, rejecting every genuine run. The job now grants
+  `actions: read`, and a null `workflowRun` is reported as a permission problem.
+  Whether `GITHUB_TOKEN` really returns the field is first shown by a live run
+  from `main`.
+
 ## Watched failures
 
 Every rule is mutation-tested.
@@ -188,6 +206,20 @@ Every rule is mutation-tested.
   The tool was restored byte-identical, verified by sha256. The gate suite then
   passed 61/61, and the gate, policy and currency controls together passed
   75/75.
+- **2026-09-11, rounds 3–4.** More rules were mutation-tested in the same way:
+
+  | Mutant | Failing controls |
+  |---|---|
+  | Sweep skips every pull request | 5 |
+  | Sweep counts outdated threads | 1 |
+  | Sweep never dequeues | 2 |
+  | Sweep re-runs failing checks | 2 |
+  | Sweep trusts any workflow | 1 |
+  | Sweep prints an empty line when idle | 1 |
+  | Platform gate picks the oldest attempt | ≥1 |
+  | Sweep picks the oldest attempt | ≥1 |
+
+  Every mutant was caught, and the tool was restored byte-identical each time.
 
 The strongest negative control is not a probe PR: the committed snapshot is the
 actual evidence GitHub held at the moment PR #262 merged, and both gates refuse

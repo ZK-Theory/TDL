@@ -90,7 +90,7 @@ jobs:
                           pageInfo{hasNextPage}
                           nodes{
                             __typename
-                            ... on CheckRun{ name status conclusion checkSuite{ workflowRun{ databaseId file{path} } } }
+                            ... on CheckRun{ databaseId name status conclusion checkSuite{ workflowRun{ databaseId file{path} } } }
                           }
                         } } } }
                       }

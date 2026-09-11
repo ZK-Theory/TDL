@@ -182,10 +182,12 @@ def _platform_run(
     conclusion: str | None = "SUCCESS",
     status: str = "COMPLETED",
     suite: dict[str, Any] | None = None,
+    database_id: int = 900,
 ) -> dict[str, Any]:
     """Return a `windows-store-lock` check run, trusted unless ``suite`` says otherwise."""
     return {
         "__typename": "CheckRun",
+        "databaseId": database_id,
         "name": "windows-store-lock",
         "status": status,
         "conclusion": conclusion,
@@ -433,6 +435,51 @@ def test_the_same_candidate_without_the_workflow_edit_is_admitted(
     rows = [{"filename": "research_system/store/lock.py", "previous_filename": None, "status": "modified"}]
     _with_files(_approved_after_green_head(snapshot), rows)
     assert "green before approval" in _platform_order(snapshot, config)
+
+
+# Codex review 3990012209: a re-run leaves every attempt on the commit; only the latest attempt counts.
+
+
+def test_a_green_rerun_supersedes_an_earlier_failed_attempt(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """The normal remedy for a flaky failure -- re-run it -- must be able to admit."""
+    _with_head_run(snapshot, completed_at="2026-08-23T07:20:00Z", conclusion="FAILURE", database_id=100)
+    _with_head_run(snapshot, completed_at="2026-08-23T07:30:00Z", database_id=200)
+    _with_approval(snapshot, submitted_at="2026-08-23T07:45:00Z")
+    assert "green before approval" in _platform_order(snapshot, config)
+
+
+def test_a_failed_rerun_supersedes_an_earlier_green_attempt(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """Negative control: the older success does not survive a newer failure."""
+    _with_head_run(snapshot, completed_at="2026-08-23T07:20:00Z", database_id=100)
+    _with_head_run(snapshot, completed_at="2026-08-23T07:30:00Z", conclusion="FAILURE", database_id=200)
+    _with_approval(snapshot, submitted_at="2026-08-23T07:45:00Z")
+    with pytest.raises(ValueError, match="concluded 'FAILURE'"):
+        _platform_order(snapshot, config)
+
+
+def test_a_rerun_in_progress_keeps_the_gate_waiting(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """A newer attempt still running means the older result is no longer the answer."""
+    _with_head_run(snapshot, completed_at="2026-08-23T07:20:00Z", database_id=100)
+    _with_head_run(snapshot, completed_at=None, conclusion=None, status="IN_PROGRESS", database_id=200)
+    assert _platform_status(snapshot, config) == "pending"
+
+
+def test_a_trusted_run_without_a_database_id_is_refused(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """Without an id, attempts cannot be ordered, so none can be trusted as current."""
+    _approved_after_green_head(snapshot)
+    del _head_rollup(snapshot)[-1]["databaseId"]
+    with pytest.raises(ValueError, match="carries no databaseId"):
+        _platform_order(snapshot, config)
+
+
+def test_a_missing_workflow_run_points_at_the_token_permission(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """Codex review 3990012219: a token without actions:read sees workflowRun as null; say so."""
+    _with_head_run(snapshot, completed_at="2026-08-23T07:30:00Z", suite={"app": {"slug": "github-actions"}})
+    _with_approval(snapshot, submitted_at="2026-08-23T07:45:00Z")
+    with pytest.raises(ValueError, match="actions: read"):
+        _platform_order(snapshot, config)
 
 
 # Codex review 3962013214: a still-running platform lane is a reason to wait, not to fail.
@@ -684,6 +731,18 @@ def test_snapshot_carries_rename_sources_and_producer_identity() -> None:
     assert "checkSuite{ app{slug} workflowRun{ file{path} } }" in body
 
 
+def test_admission_and_sweep_jobs_can_read_workflow_run_identity() -> None:
+    """Codex review 3990012219: job-level permissions zero every unlisted scope, including actions."""
+    admission = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]["merge-admission"]
+    sweep = yaml.safe_load(
+        (REPO_ROOT / ".github" / "workflows" / "merge-admission-sweep.yml").read_text(encoding="utf-8")
+    )["jobs"]["sweep"]
+    assert admission["permissions"].get("actions") in {"read", "write"}
+    assert sweep["permissions"].get("actions") in {"read", "write"}
+    body = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "databaseId name status conclusion completedAt" in body, "attempts cannot be ordered without databaseId"
+
+
 def test_python_captures_strip_carriage_returns_on_windows() -> None:
     """Python on Windows ends lines with CRLF; an unstripped capture silently breaks SHA comparisons."""
     captures = 0
@@ -725,6 +784,7 @@ def _open_pull_request(
     )
     gate = {
         "__typename": "CheckRun",
+        "databaseId": 500,
         "name": "merge-admission",
         "status": status,
         "conclusion": conclusion,
@@ -785,6 +845,29 @@ def test_an_admission_check_that_is_not_green_is_not_re_run_again(
     """Repeated sweeps must not pile re-runs onto a check that already reflects the thread."""
     pull_request = _open_pull_request(conclusion=conclusion, status=status)
     assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == []
+
+
+def _with_gate_attempt(pull_request: dict[str, Any], *, database_id: int, conclusion: str, run_id: int) -> None:
+    """Append another attempt of the admission check to a pull request's head rollup."""
+    contexts = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"]
+    attempt = copy.deepcopy(contexts[0])
+    attempt.update({"databaseId": database_id, "conclusion": conclusion, "status": "COMPLETED"})
+    attempt["checkSuite"]["workflowRun"]["databaseId"] = run_id
+    contexts.append(attempt)
+
+
+def test_the_sweep_ignores_an_old_success_behind_a_newer_failure(config: dict[str, Any]) -> None:
+    """Codex review 3990012209: the current attempt already reflects the live thread."""
+    pull_request = _open_pull_request()
+    _with_gate_attempt(pull_request, database_id=600, conclusion="FAILURE", run_id=777)
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == []
+
+
+def test_the_sweep_re_runs_the_newer_green_attempt(config: dict[str, Any]) -> None:
+    """Positive control: when the latest attempt is the green one, that run is re-run."""
+    pull_request = _open_pull_request(conclusion="FAILURE")
+    _with_gate_attempt(pull_request, database_id=600, conclusion="SUCCESS", run_id=777)
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == ["rerun 777 278"]
 
 
 def test_a_same_named_check_from_another_workflow_is_not_re_run(config: dict[str, Any]) -> None:
