@@ -121,7 +121,11 @@ jobs:
   # 571236e (#265), red from e13b77b (#267). Its red state is therefore evidence
   # of a store-lock regression that landed while CI was disabled, not a broken
   # lane, and it must not be relaxed to turn green. (It is not a ruleset-required
-  # check, so it reports rather than blocks the merge queue.)
+  # check, so it reports rather than blocks the merge queue.) Fixed on
+  # pipe/windows-store-rename-fence: held delete-protected directory anchors
+  # request FILE_LIST_DIRECTORY so their withheld FILE_SHARE_DELETE is enforced.
+  # The direct held-anchor invariants below watch that fence with no child
+  # handles open, plus an unprotected negative control.
   windows-store-lock:
     runs-on: windows-latest
     permissions:
@@ -156,7 +160,10 @@ jobs:
           or windows_anchor_close_failure_attempts_both_handles_and_preserves_primary_error
           or windows_anchor_close_failure_without_primary_surfaces_first_error
           or directory_anchor_close_failure_retains_live_handle_for_retry
-          or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
+          or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback
+          or windows_delete_protected_anchor_refuses_replacement_of_its_own_directory
+          or windows_nested_delete_protected_anchors_coexist_and_each_keeps_the_fence
+          or windows_unprotected_anchor_does_not_fence_replacement"
           -o "addopts=" -p no:cacheprovider -p no:cov
 
   # The PETLS C++ backend is an optional dependency group, so `test`

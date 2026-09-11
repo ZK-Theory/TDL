@@ -412,7 +412,8 @@ def test_windows_runtime_anchor_rejects_inside_open_identity_swap_without_public
             self.final_path = final_path
             self.closed = False
 
-    def fake_open(path, *, open_reparse_point, delete_protect=False):
+    def fake_open(path, *, open_reparse_point, delete_protect=False, directory_fence=False):
+        assert directory_fence == delete_protect
         nonlocal phase
         assert path == runtime
         assert not delete_protect
@@ -487,7 +488,8 @@ def test_windows_anchor_close_failure_attempts_both_handles_and_preserves_primar
             self.name = name
             self.closed = False
 
-    def fake_open(path, *, open_reparse_point, delete_protect=False):
+    def fake_open(path, *, open_reparse_point, delete_protect=False, directory_fence=False):
+        assert directory_fence == delete_protect
         assert path == runtime
         if open_reparse_point:
             assert not delete_protect
@@ -560,7 +562,8 @@ def test_windows_anchor_close_failure_without_primary_surfaces_first_error(
             self.name = name
             self.closed = False
 
-    def fake_open(path, *, open_reparse_point, delete_protect=False):
+    def fake_open(path, *, open_reparse_point, delete_protect=False, directory_fence=False):
+        assert directory_fence == delete_protect
         assert path == runtime
         if open_reparse_point:
             assert not delete_protect
