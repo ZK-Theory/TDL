@@ -64,8 +64,6 @@ def fetch_data(start, end):
 def run_pipeline(period_name, start, end):
     logger.info(f"--- Running {period_name} ---")
 
-    t0 = time.time()
-
     # 1. Fetch
     prices = fetch_data(start, end)
 
@@ -78,8 +76,6 @@ def run_pipeline(period_name, start, end):
     # Window=50, Stride=1, Layers=5
     logger.info(f"Computing Norms (N={len(prices)} rows)...")
     norms = compute_persistence_landscape_norms(prices_dict, window_size=50, stride=1, n_layers=5)
-
-    t_norms = time.time()
 
     # 3. Compute Stats
     # Window=500

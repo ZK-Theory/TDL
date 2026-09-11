@@ -231,3 +231,9 @@ scratch/
 agent_docs/
 .codex_workflow_hidden_resources/
 AGENTS.md
+
+# Local Claude Code plugin clone, accidentally committed as a bare gitlink
+# (mode 160000) with no .gitmodules entry from 2026-05-28 until 2026-09-08.
+# That orphan gitlink made `git submodule foreach` fail with exit 128, which
+# broke actions/checkout in every CI job using persist-credentials: false.
+.superpowers/

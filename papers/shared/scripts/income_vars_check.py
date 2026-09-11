@@ -10,6 +10,7 @@ if not DICT_ROOT:
 else:
     DICT_ROOT = Path(DICT_ROOT)
 
+
 def strip_rtf(raw):
     text = raw.decode("latin-1", errors="replace")
     text = re.sub(r"\\[a-z]+\d*\s?", " ", text)
@@ -17,10 +18,15 @@ def strip_rtf(raw):
     text = re.sub(r"\s+", " ", text)
     return text
 
+
 def find_vars(text, keywords):
     pairs = re.findall(r"Variable = (\S+) Variable label = (.+?) (?:This variable|Pos\.)", text)
-    return [(n, l.strip()) for n, l in pairs
-            if any(k.lower() in l.lower() or k.lower() in n.lower() for k in keywords)]
+    return [
+        (n, label.strip())
+        for n, label in pairs
+        if any(k.lower() in label.lower() or k.lower() in n.lower() for k in keywords)
+    ]
+
 
 # Check hhresp files (household-level derived income)
 for wave, survey in [("a", "ukhls"), ("br", "bhps")]:

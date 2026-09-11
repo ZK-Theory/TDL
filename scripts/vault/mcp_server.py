@@ -57,6 +57,7 @@ def _log(msg: str) -> None:
     except OSError:
         pass
 
+
 # Resolve QMD — find qmd.js and invoke via node for cross-platform reliability
 _QMD_JS_CANDIDATES = [
     Path.home() / "AppData" / "Roaming" / "npm" / "node_modules" / "@tobilu" / "qmd" / "dist" / "cli" / "qmd.js",
@@ -95,6 +96,7 @@ QMD_ENV = {
 
 
 # ── Database layer ──────────────────────────────────────────────────
+
 
 def _ensure_db() -> sqlite3.Connection:
     """Create or open the vault-graph database."""
@@ -288,6 +290,7 @@ def _ensure_index() -> sqlite3.Connection:
 
 # ── Skeletonization ─────────────────────────────────────────────────
 
+
 def _skeletonize(content: str) -> str:
     """Reduce a page to frontmatter + heading tree + first sentence per section."""
     parts: list[str] = []
@@ -302,7 +305,7 @@ def _skeletonize(content: str) -> str:
     if content.startswith("---"):
         end = content.find("---", 3)
         if end != -1:
-            body = content[end + 3:].strip()
+            body = content[end + 3 :].strip()
 
     # Split by headings
     sections = re.split(r"(^#{1,6}\s+.+$)", body, flags=re.MULTILINE)
@@ -327,6 +330,7 @@ def _skeletonize(content: str) -> str:
 
 
 # ── QMD integration ─────────────────────────────────────────────────
+
 
 def _qmd_cmd(args: list[str], timeout: int = 30) -> list[dict]:
     """Run a QMD CLI command via node, returns parsed JSON list."""
@@ -385,6 +389,7 @@ def _qmd_query(query: str, collection: str | None = None, n: int = 10) -> list[d
 
 
 # ── Page reading ────────────────────────────────────────────────────
+
 
 def _resolve_page(vault: str, path_or_stem: str) -> Path | None:
     """Resolve a page reference to a filesystem path."""
@@ -530,16 +535,10 @@ def vault_query(
         # Read full content for primary results
         content, rel = _read_page(collection, path)
         if content:
-            output_parts.append(
-                f"## [{collection}] {path}  (score: {score:.0%})\n"
-                f"**Title:** {title}\n\n{content}"
-            )
+            output_parts.append(f"## [{collection}] {path}  (score: {score:.0%})\n" f"**Title:** {title}\n\n{content}")
             seen_stems.add(Path(path).stem)
         else:
-            output_parts.append(
-                f"## [{collection}] {path}  (score: {score:.0%})\n"
-                f"**Title:** {title}\n\n{snippet}"
-            )
+            output_parts.append(f"## [{collection}] {path}  (score: {score:.0%})\n" f"**Title:** {title}\n\n{snippet}")
 
     # Expand via wikilink graph
     if expand_links and seen_stems:
@@ -578,9 +577,7 @@ def vault_query(
             for (v, rp), (title, stem) in list(all_neighbors.items())[:8]:
                 content, _ = _read_page(v, rp)
                 if content:
-                    output_parts.append(
-                        f"### [{v}] {rp}\n**Title:** {title}\n\n{_skeletonize(content)}"
-                    )
+                    output_parts.append(f"### [{v}] {rp}\n**Title:** {title}\n\n{_skeletonize(content)}")
 
     return "\n\n".join(output_parts)
 
@@ -631,10 +628,7 @@ def vault_get(
             (stem,),
         ).fetchall()
         if back:
-            parts.append(
-                "\n**Backlinks:**\n"
-                + "\n".join(f"- [{v}] {rp} — {title}" for v, rp, title in back)
-            )
+            parts.append("\n**Backlinks:**\n" + "\n".join(f"- [{v}] {rp} — {title}" for v, rp, title in back))
 
     return "\n".join(parts)
 
@@ -748,7 +742,9 @@ def vault_graph(
             parts.append(f"  ← [[{s}]]")
 
     if len(unique_edges) > len(fwd_targets) + len(back_sources):
-        parts.append(f"\n**Extended neighborhood:** {len(unique_edges) - len(fwd_targets) - len(back_sources)} more edges")
+        parts.append(
+            f"\n**Extended neighborhood:** {len(unique_edges) - len(fwd_targets) - len(back_sources)} more edges"
+        )
 
     return "\n".join(parts)
 
@@ -819,8 +815,8 @@ def vault_status(
                 s = report["summary"]
                 health_lines = [
                     f"\n## Health Check — {v}\n",
-                    f"| Metric | Value |",
-                    f"|---|---|",
+                    "| Metric | Value |",
+                    "|---|---|",
                     f"| Total files | {s['total_files']} |",
                     f"| Orphan notes | {s['orphan_count']} ({s['orphan_pct']}%) |",
                     f"| Stale TODOs | {s['stale_todo_count']} across {s['stale_todo_files']} files |",
@@ -883,7 +879,8 @@ def cross_vault(
     """).fetchall()
 
     # Find wikilink targets referenced from both vaults
-    shared_links = conn.execute("""
+    shared_links = conn.execute(
+        """
         SELECT l1.target_stem, COUNT(DISTINCT l1.source_path) as tda_refs,
                COUNT(DISTINCT l2.source_path) as cl_refs
         FROM links l1
@@ -891,7 +888,9 @@ def cross_vault(
         WHERE l1.source_vault = 'tda' AND l2.source_vault = 'cl'
         GROUP BY l1.target_stem
         HAVING tda_refs + cl_refs >= ?
-    """, (min_overlap,)).fetchall()
+    """,
+        (min_overlap,),
+    ).fetchall()
 
     parts = ["# Cross-Vault Analysis\n"]
 
@@ -976,8 +975,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="vault-engine MCP server")
-    parser.add_argument("--http", type=int, default=None, metavar="PORT",
-                        help="Run as HTTP server on given port")
+    parser.add_argument("--http", type=int, default=None, metavar="PORT", help="Run as HTTP server on given port")
     args = parser.parse_args()
 
     if args.http:

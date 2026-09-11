@@ -46,9 +46,20 @@
   fi
 
   # Serialize + coalesce: one updater per repo behind an atomic mkdir lock.
-  # A concurrent commit that cannot take the lock exits; its work is absorbed
-  # because the lock holder re-reads HEAD and re-runs until HEAD stops moving,
-  # so rapid commits never spawn overlapping `repowise update` processes.
+  # A concurrent commit that cannot take the lock exits; its work is absorbed by
+  # the lock holder, which re-reads HEAD and re-runs until HEAD stops moving, so
+  # rapid commits never spawn overlapping `repowise update` processes.
+  #
+  # The in-loop re-read alone leaves one window open: between the holder's final
+  # HEAD read and its release of the lock, a commit's hook finds the lock held and
+  # exits, the holder then releases and exits too, and that commit is never
+  # indexed (review of PR #279; pinned by a test watched failing against the old
+  # loop). So after releasing, the holder reads HEAD once more and goes round
+  # again if it moved. That closes the window: git advances HEAD before it runs
+  # post-commit, so any hook that failed `mkdir` did so after HEAD moved and while
+  # the lock was still held -- before this post-release read, which therefore sees
+  # the new HEAD. If another hook took the lock in between, `mkdir` fails here and
+  # that holder owns the work.
   LOCK="$ROOT/.repowise/.update.lock"
   (
     cd "$ROOT" || exit 1
@@ -58,7 +69,7 @@
     if [ -d "$LOCK" ] && [ -n "$(find "$LOCK" -maxdepth 0 -mmin +30 2>/dev/null)" ]; then
       rmdir "$LOCK" 2>/dev/null || true
     fi
-    if mkdir "$LOCK" 2>/dev/null; then
+    while mkdir "$LOCK" 2>/dev/null; do
       trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
       last=""
       while :; do
@@ -68,7 +79,14 @@
         # shellcheck disable=SC2086
         $UPDATER update >> "$LOG" 2>&1
       done
-    fi
+      rmdir "$LOCK" 2>/dev/null
+      trap - EXIT INT TERM
+      # Post-release re-read (see the comment above): go round again only if a
+      # commit landed after the final in-loop read.
+      [ -n "$last" ] || break
+      now=$(git rev-parse HEAD 2>/dev/null) || break
+      [ "$now" = "$last" ] && break
+    done
   ) &
 } >/dev/null 2>&1
 # repowise-hook-end

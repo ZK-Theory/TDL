@@ -221,9 +221,7 @@ def generate_report(pos_spikes, neg_spikes, control, all_results):
     report.append("")
 
     # Check positive spike hypothesis
-    pos_vs_ctrl_ret = all_results["fwd_ret_30d"]["Pos vs Control"]
     pos_vs_ctrl_dd = all_results["max_dd_30d"]["Pos vs Control"]
-    neg_vs_ctrl_ret = all_results["fwd_ret_30d"]["Neg vs Control"]
     neg_vs_ctrl_dd = all_results["max_dd_30d"]["Neg vs Control"]
 
     report.append("### Positive τ Spikes (Endogenous Crisis Hypothesis)")
@@ -251,7 +249,6 @@ def generate_report(pos_spikes, neg_spikes, control, all_results):
     report.append("")
 
     # Pos vs Neg comparison
-    pos_vs_neg_ret = all_results["fwd_ret_30d"]["Pos vs Neg"]
     pos_vs_neg_dd = all_results["max_dd_30d"]["Pos vs Neg"]
 
     report.append("### Positive vs Negative Spikes (Direct Comparison)")

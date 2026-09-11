@@ -125,7 +125,6 @@ def run_analysis(prices, label, crash_date=None, pre_crisis_window=250):
         processed_count = 0
         for i in valid_indices:
             window_data = stats_df.iloc[i - pre_crisis_window : i]
-            current_date = stats_df.index[i]
 
             day_max_tau = -1.0
 

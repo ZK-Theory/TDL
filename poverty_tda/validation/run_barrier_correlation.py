@@ -118,7 +118,6 @@ def compute_barrier_gradient_correlation(ms_result, gdf, le_column: str):
         return None
 
     # Build minimum point_id → index mapping
-    min_id_to_idx = {m.point_id: i for i, m in enumerate(minima)}
 
     # Average minimum value for reference
     avg_min = np.mean([m.value for m in minima])

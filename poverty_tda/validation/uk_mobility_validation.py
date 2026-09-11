@@ -737,7 +737,7 @@ class UKMobilityValidator:
 
             # Get bottom quartile LADs
             bottom_lads = [
-                l for l in results["lad_mobility_stats"] if l["mean"] <= results["bottom_quartile_threshold"]
+                lad for lad in results["lad_mobility_stats"] if lad["mean"] <= results["bottom_quartile_threshold"]
             ]
             bottom_lads = sorted(bottom_lads, key=lambda x: x["mean"])[:20]
 
