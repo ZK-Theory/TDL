@@ -808,12 +808,11 @@ class _DirectoryAnchor:
                         final_path,
                         open_reparse_point=False,
                         delete_protect=True,
-                        # Windows enforces this replacement fence only when
-                        # the held handle both requests DELETE and withholds
-                        # FILE_SHARE_DELETE. Anchors reaching this branch were
-                        # opened share-delete, so the transient handle can
-                        # request DELETE without conflicting with its owner.
-                        delete_access=True,
+                        # A DELETE-requesting fence would conflict with any
+                        # other fence already held on this directory, such as
+                        # a composite writer's delete-protected anchor.
+                        delete_access=False,
+                        directory_fence=True,
                     )
                 except OSError as exc:
                     if not _is_windows_sharing_violation(exc) or attempt == 63:
@@ -1321,6 +1320,7 @@ if os.name == "nt":
     _FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
     _FILE_DISPOSITION_INFO_CLASS = 4
     _FILE_READ_ATTRIBUTES = 0x00000080
+    _FILE_TRAVERSE = 0x00000020
     _GENERIC_READ = 0x80000000
     _DELETE = 0x00010000
     _SYNCHRONIZE = 0x00100000
@@ -1349,6 +1349,7 @@ def _windows_open_handle(
     delete_access: bool | None = None,
     read_contents: bool = False,
     share_mode: int | None = None,
+    directory_fence: bool = False,
 ) -> object:
     _drain_windows_close_quarantine()
     flags = _FILE_FLAG_BACKUP_SEMANTICS
@@ -1356,12 +1357,22 @@ def _windows_open_handle(
         flags |= _FILE_FLAG_OPEN_REPARSE_POINT
     access = _FILE_READ_ATTRIBUTES | _SYNCHRONIZE
     if delete_access is None:
-        # Delete protection is a share-mode property: omitting
-        # FILE_SHARE_DELETE blocks a later delete/rename opener. Request
-        # DELETE only at the exact deletion seam, whose callers pass True.
+        # Request DELETE only at the exact deletion seam, whose callers pass
+        # True. A directory replacement fence uses ``directory_fence``.
         delete_access = False
     if delete_access:
         access |= _DELETE
+    if directory_fence:
+        # Withholding FILE_SHARE_DELETE fences a rename or delete of this
+        # directory only if the handle's share mode is recorded, and the
+        # filesystem records it only for opens requesting data or DELETE
+        # access, not attribute-only opens. FILE_TRAVERSE is share-accounted
+        # as read access, so any number of fences on one directory stay
+        # mutually compatible while each refuses the replacement. It is also
+        # the right already needed to reach a known child such as runtime/,
+        # so, unlike FILE_LIST_DIRECTORY, it does not stop a root that denies
+        # "List folder" from being anchored.
+        access |= _FILE_TRAVERSE
     if read_contents:
         access |= _GENERIC_READ
     if share_mode is None:
@@ -1751,6 +1762,7 @@ def _open_windows_anchor(
             path,
             open_reparse_point=False,
             delete_protect=delete_protect,
+            directory_fence=delete_protect,
         )
         attributes, _ = _windows_file_attribute_tag(handle)
         if not attributes & _FILE_ATTRIBUTE_DIRECTORY:
