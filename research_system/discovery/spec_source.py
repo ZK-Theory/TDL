@@ -112,6 +112,13 @@ def validate_document(document: dict, *, schemas, ledger, registration: dict | N
         raise IntegrityError("SOURCE action and document family disagree")
     if correction:
         prior = registration_event(snapshot.events, intent["corrects_artefact_id"])
+        prior_manifest = prior["payload"]["manifest"]
+        if (
+            prior_manifest.get("artefact_schema_id") not in {OBSERVATION_SCHEMA, CORRECTION_SCHEMA}
+            or prior_manifest.get("artefact_schema_version") not in {"1.0.0", "2.0.0"}
+            or prior_manifest.get("artefact_type") not in {"spec_source_observation", "spec_01_source_correction"}
+        ):
+            raise IntegrityError("SOURCE correction target is not a SOURCE document family")
         if prior["global_position"] > position or registration_ref(prior) != document["prior_evidence"]:
             raise IntegrityError("SOURCE correction does not bind exact prior evidence")
 
@@ -149,6 +156,12 @@ def prepare_document(intent: dict, artefact_id: str, *, actor_id: str, now: str,
     if intent["action"] == "correct_spec_01_source":
         event = registration_event(snapshot.events, intent["corrects_artefact_id"])
         manifest = event["payload"]["manifest"]
+        if (
+            manifest.get("artefact_schema_id") not in {OBSERVATION_SCHEMA, CORRECTION_SCHEMA}
+            or manifest.get("artefact_schema_version") not in {"1.0.0", "2.0.0"}
+            or manifest.get("artefact_type") not in {"spec_source_observation", "spec_01_source_correction"}
+        ):
+            raise IntegrityError("SOURCE correction target is not a SOURCE document family")
         from pathlib import Path
         from research_system.discovery.spec_source_git import _physical_repository
 

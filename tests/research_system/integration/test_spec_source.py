@@ -86,6 +86,20 @@ def test_git_ambiguous_absent_unavailable_and_malformed(source_repo, tmp_path):
             resolve_source(str(source_repo), locator)
 
 
+def test_git_rejects_invalid_components_and_archive_transformations(source_repo):
+    with pytest.raises(ConfigurationError):
+        resolve_source(str(source_repo), "release.lock/v1")
+    for attribute in ("evidence.txt export-ignore", "evidence.txt export-subst"):
+        (source_repo / ".gitattributes").write_text(attribute + "\n")
+        (source_repo / "evidence.txt").write_text("$Format:%H$\n")
+        git(source_repo, "add", ".")
+        git(source_repo, "commit", "-m", attribute)
+        with pytest.raises(ConfigurationError, match="archive.*committed"):
+            resolve_source(str(source_repo), "main")
+        result, raw = resolve_source(str(source_repo), "main:evidence.txt")
+        assert result["status"] == "resolved" and raw is not None
+
+
 @pytest.fixture
 def bound_source(tmp_path, monkeypatch):
     scratch = tmp_path / "bound"

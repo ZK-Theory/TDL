@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import UTC, datetime
+from collections.abc import Callable
+from research_system.store.binding_service import VerifiedBindingContext
 
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.artefacts.runtime import GoverningScientificReviewStore
@@ -12,7 +14,6 @@ from research_system.command.service import CommandService
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.discovery.spec_source import (
-    DOCUMENT_KIND,
     document_manifest,
     prepare_document,
     read_document,
@@ -25,6 +26,7 @@ from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
 from research_system.schema_registry import runtime_schema_registry
+from research_system.config import SpecOperatorConfig
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -36,7 +38,13 @@ ACTION_EFFECTS = {
 
 
 class SpecCoordinator:
-    def __init__(self, context, operator, *, clock=lambda: datetime.now(UTC)):
+    def __init__(
+        self,
+        context: VerifiedBindingContext,
+        operator: SpecOperatorConfig,
+        *,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    ) -> None:
         self.binding = context.current_binding.revalidate()
         self.operator = operator
         self.clock = clock
@@ -63,7 +71,7 @@ class SpecCoordinator:
             clock=clock,
         )
 
-    def _discovery(self):
+    def _discovery(self) -> DiscoveryRuntime:
         binding = self.binding
         return DiscoveryRuntime(
             binding.control_root,
@@ -133,6 +141,21 @@ class SpecCoordinator:
                     batch["raw_source_refs"] != [source_ref(registration)]
                     or candidate is None
                     or candidate["source_observation_refs"] != [ids["observation_id"]]
+                    or batch
+                    != {
+                        "schema_id": "ars://portfolio/scout-observation-batch",
+                        "schema_version": "1.0.0",
+                        "source_query": intent["repository_url"] + "@" + intent["requested_locator"],
+                        "source_version": document["resolution"]["commit_oid"],
+                        "observed_at": document["recorded_at"],
+                        "returned_identifiers": [ids["artefact_id"]],
+                        "normalized_dedup_keys": [ids["artefact_id"]],
+                        "raw_source_refs": [source_ref(registration)],
+                        "matching_facts": [intent["title"]],
+                        "omissions_or_errors": [],
+                        "viability_judgment_absent": True,
+                    }
+                    or candidate.get("title") != intent["title"]
                 ):
                     raise IntegrityError("SOURCE completion is bound to another Candidate or observation")
                 completed.append(
@@ -221,7 +244,8 @@ class SpecCoordinator:
             payload = {"new_artefact_id": artefact_id, "manifest": document_manifest(document, artefact_id)}
             # Bytes become durable before AR can make any authoritative claim.
             self.binding.revalidate()
-            self.objects.write(DOCUMENT_KIND, artefact_id, 1, document)
+            existed_before = self.objects.revision_exists("spec_source_document", artefact_id, 1)
+            self.objects.write("spec_source_document", artefact_id, 1, document)
         elif effect == "IngestScoutObservationBatch":
             document, registration = read_document(
                 artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
@@ -312,7 +336,15 @@ class SpecCoordinator:
                 project_id=self.binding.project_id,
             )
         self.binding.revalidate()
-        receipt = (self._discovery() if effect == "IngestScoutObservationBatch" else self.service).submit(command)
+        ledger_before = self.ledger.snapshot()
+        try:
+            receipt = (self._discovery() if effect == "IngestScoutObservationBatch" else self.service).submit(command)
+        except ArsError:
+            if effect == "RegisterArtefact" and self.ledger.snapshot() == ledger_before:
+                self.objects.rollback_new_revision(
+                    "spec_source_document", artefact_id, 1, document, existed_before=existed_before
+                )
+            raise
         if receipt.status not in {"accepted", "replayed"}:
             raise ArsError(f"SOURCE effect rejected: {asdict(receipt)}")
         return {**self.status(intent), "receipt": asdict(receipt)}

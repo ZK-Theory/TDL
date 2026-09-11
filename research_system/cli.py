@@ -42,7 +42,7 @@ from research_system.config import (
     load_foundation_origin_pins,
 )
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
-from research_system.discovery.spec import SpecCoordinator
+from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
 from research_system.evals.harness import (
@@ -1904,7 +1904,7 @@ def _parser() -> argparse.ArgumentParser:
         action = spec_commands.add_parser(verb)
         action.add_argument("--operator-config", type=Path, required=True)
         if verb == "advance":
-            action.add_argument("--action", choices=("observe_source", "correct_spec_01_source"), required=True)
+            action.add_argument("--action", choices=tuple(ACTION_EFFECTS), required=True)
             action.add_argument(
                 "--input", type=Path, required=True, help="semantic SOURCE intent and optional independent evidence"
             )

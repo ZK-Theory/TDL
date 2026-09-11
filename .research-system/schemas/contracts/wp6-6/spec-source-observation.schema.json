@@ -7,7 +7,7 @@
     "schema_id": {"const": "ars://portfolio/spec-source-observation"},
     "schema_version": {"const": "1.0.0"},
     "document_type": {"const": "spec_source_observation"},
-    "intent": {"$ref": "ars://portfolio/spec-source-intent"},
+    "intent": {"allOf": [{"$ref": "ars://portfolio/spec-source-intent"}, {"properties": {"action": {"const": "observe_source"}}}]},
     "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
     "producer_actor_id": {"type": "string", "pattern": "^act_"},
     "resolution": {"allOf": [{"$ref": "ars://portfolio/git-reference-resolution"}, {"properties": {"status": {"const": "resolved"}}}]},

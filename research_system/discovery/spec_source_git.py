@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import subprocess
+import io
+import tarfile
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from research_system.errors import ConfigurationError, IntegrityError
-from research_system.git_execution import run_git
+from research_system.git_execution import git_blob_sha1, run_git
 
 
 def parse_locator(locator: str) -> tuple[str, str | None]:
@@ -22,7 +24,7 @@ def parse_locator(locator: str) -> tuple[str, str | None]:
         or ".." in ref
         or "//" in ref
         or ref.endswith(("/", ".", ".lock"))
-        or any(part.startswith(".") for part in ref.split("/"))
+        or any(part.startswith(".") or part.endswith(".lock") for part in ref.split("/"))
     ):
         raise ConfigurationError("malformed SOURCE Git reference")
     if separator and (
@@ -97,6 +99,9 @@ def resolve_source(repository_url: str, requested_locator: str) -> tuple[dict, b
                     "+refs/tags/*:refs/tags/*",
                 )
                 trace.append("fetch: all advertised heads and tags succeeded")
+                if re.fullmatch(r"[0-9a-f]{40}", ref):
+                    checked(root, "fetch", "--quiet", "--no-recurse-submodules", "--no-tags", repository_url, ref)
+                    trace.append("fetch: requested exact commit succeeded")
             else:
                 root = _physical_repository(Path(repository_url))
             refs = checked(root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/tags").decode().splitlines()
@@ -115,7 +120,24 @@ def resolve_source(repository_url: str, requested_locator: str) -> tuple[dict, b
                     selections.append((ref, "commit"))
             candidates = []
             for name, kind in selections:
-                oid = checked(root, "rev-parse", "--verify", f"{name}^{{commit}}").decode().strip()
+                peel = run_git(
+                    root, "cat-file", "--batch-check", text=False, timeout=60, input=f"{name}^{{commit}}\n".encode()
+                )
+                if peel.returncode:
+                    detail = peel.stderr.decode("utf-8", errors="replace").lower()
+                    if (
+                        "not a valid object name" in detail
+                        or "cannot peel" in detail
+                        or "needed a single revision" in detail
+                    ):
+                        trace.append(f"peel: {name} has no commit")
+                        continue
+                    raise _Unavailable("transport")
+                peeled = peel.stdout
+                if peeled.rstrip().endswith(b" missing"):
+                    trace.append(f"peel: {name} has no commit")
+                    continue
+                oid = peeled.split()[0].decode()
                 candidates.append({"canonical_ref": name, "resolved_kind": kind, "commit_oid": oid})
                 trace.append(f"peel: {name} -> {oid}")
             if not candidates:
@@ -134,10 +156,12 @@ def resolve_source(repository_url: str, requested_locator: str) -> tuple[dict, b
                     raw = checked(root, "cat-file", "blob", f"{oid}:{subpath}")
                 elif path_type.split()[1] == b"tree":
                     raw = checked(root, "archive", "--format=tar", oid, "--", subpath)
+                    _verify_archive(raw, checked(root, "ls-tree", "-rz", "--full-tree", oid, "--", subpath))
                 else:
                     raise ConfigurationError("SOURCE subpath must select a Git blob or tree")
             else:
                 raw = checked(root, "archive", "--format=tar", oid)
+                _verify_archive(raw, checked(root, "ls-tree", "-rz", "--full-tree", oid))
             trace.append("read: exact committed source bytes")
             return {**result, "status": "resolved", **selected}, raw
     except _Unavailable as exc:
@@ -150,6 +174,38 @@ def resolve_source(repository_url: str, requested_locator: str) -> tuple[dict, b
         raise
     except OSError:
         return unavailable("transport")
+
+
+def _verify_archive(raw: bytes, listing: bytes) -> None:
+    """Reject archive omissions or substitutions by joining every blob to its tree OID."""
+    expected = {}
+    for entry in listing.split(b"\0"):
+        if not entry:
+            continue
+        metadata, name = entry.split(b"\t", 1)
+        mode, kind, oid = metadata.split()
+        if kind != b"blob":
+            raise ConfigurationError("SOURCE archive cannot preserve non-blob committed entries")
+        expected[name.decode("utf-8", "surrogateescape")] = (mode, oid.decode())
+    observed = {}
+    with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive:
+        for member in archive:
+            if member.isdir():
+                continue
+            if member.name not in expected or member.name in observed:
+                raise ConfigurationError("SOURCE archive differs from committed tree membership")
+            mode, oid = expected[member.name]
+            if member.issym() and mode == b"120000":
+                content = member.linkname.encode("utf-8", "surrogateescape")
+            elif member.isfile() and mode != b"120000":
+                content = archive.extractfile(member).read()
+            else:
+                raise ConfigurationError("SOURCE archive differs from committed entry type")
+            if git_blob_sha1(content) != oid:
+                raise ConfigurationError("SOURCE archive transforms committed blob bytes")
+            observed[member.name] = oid
+    if set(observed) != set(expected):
+        raise ConfigurationError("SOURCE archive omits committed blob bytes")
 
 
 class _Unavailable(Exception):
