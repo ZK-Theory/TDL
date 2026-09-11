@@ -14,9 +14,15 @@ thread_finality:
   # the exact merge candidate before admission is evaluated. A producer that has
   # not yet reached that terminal state blocks the candidate; it does not pass.
   # Logins verified against ZK-Theory/TDL PR #262 review history (2026-08-23).
+  #
+  # Codex only (decided by Stephen, 2026-09-11). CodeRabbit reviewed 1 of the 4
+  # PRs merged before that date (#277, #279, #280 got "Review skipped: manual
+  # review required for this OSS repository"), so requiring it would block
+  # nearly every PR. Its threads still block whenever it does post them: thread
+  # finality checks every unresolved thread regardless of author. When Codex is
+  # at its usage limit, admission waits for it rather than passing.
   review_producers:
     - chatgpt-codex-connector
-    - coderabbitai
 
 platform_order:
   # The project supports Windows only (decided 2026-09-11), so the decisive
@@ -44,6 +50,10 @@ platform_order:
     # stage onto the final root (initialize_authority_control_store). Added from
     # Codex review 3988789995 on 2026-09-11 after checking the code.
     - research_system/authority.py
+    # Backup publication: fsync plus a Windows-specific os.rename publication
+    # path (os.name == "nt", backups.py:622-624) alongside a Linux branch. Added
+    # from Codex review 3990242353 on 2026-09-11 after checking the code.
+    - research_system/operations/backups.py
     - "**/*_lock.py"
     - "**/lock.py"
     - "**/anchor.py"

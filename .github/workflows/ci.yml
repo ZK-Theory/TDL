@@ -115,3 +115,40 @@ jobs:
           or directory_anchor_close_failure_retains_live_handle_for_retry
           or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
           -o "addopts=" -p no:cacheprovider -p no:cov
+
+  # The admission gate's and the Windows-only policy's own controls. With the
+  # unfiltered `test` lane removed, nothing else runs them, so a later PR could
+  # weaken the gate or restore a Linux runner with every required check green
+  # (Codex review 3990242343). Blocking, and to be a required check in the
+  # P-049 ruleset (decided by Stephen, 2026-09-11).
+  admission-controls:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
+
+      - name: Run merge-admission and CI platform controls
+        run: >-
+          .venv\Scripts\python.exe -m pytest -q
+          tests/tools/test_merge_admission.py
+          tests/tools/test_ci_platform_policy.py
+          tests/tools/test_ars_currency_workflow_controls.py
+          tests/tools/test_check_workflow_liveness.py
+          -o "addopts=" -p no:cacheprovider -p no:cov

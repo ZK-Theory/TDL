@@ -149,6 +149,25 @@ def test_truncated_thread_evidence_is_refused(snapshot: dict[str, Any], config: 
         _thread_finality(snapshot, config)
 
 
+def test_codex_is_the_only_required_review_producer(config: dict[str, Any]) -> None:
+    """Decided 2026-09-11: CodeRabbit skipped most PRs, so requiring it would block nearly every merge."""
+    assert config["thread_finality"]["review_producers"] == ["chatgpt-codex-connector"]
+
+
+def test_a_coderabbit_thread_still_blocks_without_coderabbit_being_required(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """Dropping a producer requirement must not drop its threads: finality ignores thread authorship."""
+    threads = _pull_request(snapshot)["reviewThreads"]["nodes"]
+    for thread in threads:
+        if thread["comments"]["nodes"][0]["author"]["login"] == "chatgpt-codex-connector":
+            thread["isResolved"] = True
+    live_rabbit = next(t for t in threads if t["comments"]["nodes"][0]["author"]["login"] == "coderabbitai")
+    live_rabbit.update({"isResolved": False, "isOutdated": False})
+    with pytest.raises(ValueError, match="from coderabbitai"):
+        _thread_finality(snapshot, config)
+
+
 def test_a_graphql_error_response_is_refused(config: dict[str, Any]) -> None:
     """A failed query is absence of evidence, not evidence of a clean candidate."""
     with pytest.raises(ValueError, match="carries errors"):
@@ -882,6 +901,58 @@ def test_a_truncated_pull_request_listing_is_refused(config: dict[str, Any]) -> 
         sweep_actions(_sweep_payload(_open_pull_request(), truncated=True), gate=_sweep_gate(config))
 
 
+def _page(*pulls: dict[str, Any], has_next: bool) -> dict[str, Any]:
+    """Return one page of a ``--paginate --slurp`` sweep listing."""
+    return _sweep_payload(*pulls, truncated=has_next)
+
+
+def _numbered(number: int, **kwargs: Any) -> dict[str, Any]:
+    """Return an open pull request with a distinct number and node id."""
+    pull_request = _open_pull_request(**kwargs)
+    pull_request.update({"number": number, "id": f"PR_{number}"})
+    return pull_request
+
+
+def test_the_sweep_acts_on_every_page_of_open_pull_requests(config: dict[str, Any]) -> None:
+    """Codex review 3990242357: a second page of pull requests is swept, not abandoned."""
+    listing = [_page(_numbered(101, live=0), has_next=True), _page(_numbered(151), has_next=False)]
+    assert sweep_actions(listing, gate=_sweep_gate(config)) == [f"rerun {GATE_RUN_ID} 151"]
+
+
+@pytest.mark.parametrize(
+    ("flags", "message"),
+    [
+        ((True, True), "truncated or inconsistent"),
+        ((False, False), "truncated or inconsistent"),
+        ((), "contains no pages"),
+    ],
+    ids=["stopped-early", "page-claims-last-but-more-follow", "empty"],
+)
+def test_an_incomplete_or_inconsistent_page_chain_is_refused(
+    config: dict[str, Any], flags: tuple[bool, ...], message: str
+) -> None:
+    """Pagination must not reintroduce the silent skip it replaced."""
+    listing = [_page(_numbered(200 + index), has_next=flag) for index, flag in enumerate(flags)]
+    with pytest.raises(ValueError, match=message):
+        sweep_actions(listing, gate=_sweep_gate(config))
+
+
+def test_a_pull_request_listed_on_two_pages_is_refused(config: dict[str, Any]) -> None:
+    """A cursor that repeats a page is a broken listing, not two pull requests."""
+    listing = [_page(_numbered(301), has_next=True), _page(_numbered(301), has_next=False)]
+    with pytest.raises(ValueError, match="more than one page"):
+        sweep_actions(listing, gate=_sweep_gate(config))
+
+
+def test_the_sweep_cli_accepts_a_slurped_page_list(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """The workflow passes the --slurp array straight through."""
+    listing = [_page(_numbered(401, live=0), has_next=True), _page(_numbered(451, queued=True), has_next=False)]
+    snapshot_path = tmp_path / "sweep.json"
+    snapshot_path.write_text(json.dumps(listing), encoding="utf-8")
+    assert main(["sweep", "--snapshot", str(snapshot_path), "--config", str(CONFIG_PATH)]) == 0
+    assert capsys.readouterr().out.splitlines() == ["dequeue PR_451 451", f"rerun {GATE_RUN_ID} 451"]
+
+
 def test_truncated_threads_are_refused(config: dict[str, Any]) -> None:
     """The live thread could be on the page the sweep did not read."""
     pull_request = _open_pull_request(live=0)
@@ -931,6 +1002,8 @@ def test_the_sweep_workflow_runs_on_a_schedule_and_acts() -> None:
     assert workflow["on"]["schedule"] == [{"cron": "*/5 * * * *"}]
     body = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "tools/check_merge_admission.py sweep" in body
+    assert "gh api graphql --paginate --slurp" in body
+    assert "after:$endCursor" in body and "pageInfo{hasNextPage endCursor}" in body
     assert "dequeuePullRequest" in body
     assert 'gh run rerun "$target"' in body
     assert "databaseId file{path}" in body

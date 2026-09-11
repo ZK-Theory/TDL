@@ -89,3 +89,56 @@ def test_platform_gate_reads_a_windows_job_from_its_trusted_workflow() -> None:
     assert section["check_run"] in jobs, f"{section['check_run']} is not a job in {section['workflow_path']}"
     assert jobs[section["check_run"]]["runs-on"].startswith("windows")
     assert "continue-on-error" not in jobs[section["check_run"]], "advisory evidence cannot gate admission"
+
+
+ADMISSION_CONTROL_MODULES = (
+    "tests/tools/test_merge_admission.py",
+    "tests/tools/test_ci_platform_policy.py",
+)
+
+
+def test_admission_controls_run_in_a_blocking_windows_job() -> None:
+    """Codex review 3990242343: these controls must execute in CI, or a PR can weaken them unseen."""
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"].get("admission-controls")
+    assert job is not None, "ci.yml has no admission-controls job"
+    assert job["runs-on"].startswith("windows")
+    assert "continue-on-error" not in job and "if" not in job
+    scripts = " ".join(step.get("run", "") for step in job["steps"])
+    for module in ADMISSION_CONTROL_MODULES:
+        assert module in scripts, f"admission-controls does not run {module}"
+
+
+# Every file the gate's behaviour depends on. If a new gate file appears, it must
+# be added here AND to CODEOWNERS, or edits to it would bypass code-owner review.
+GATE_FILES = (
+    ".github/CODEOWNERS",
+    ".github/merge-admission.yml",
+    ".github/workflows/merge-admission.yml",
+    ".github/workflows/merge-admission-sweep.yml",
+    ".github/workflows/ci.yml",
+    "tools/check_merge_admission.py",
+)
+
+
+def _codeowners_rules() -> dict[str, list[str]]:
+    """Return CODEOWNERS path patterns mapped to their owners."""
+    rules: dict[str, list[str]] = {}
+    for line in (REPO_ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#"):
+            pattern, *owners = stripped.split()
+            rules[pattern] = owners
+    return rules
+
+
+def test_every_gate_file_exists_and_has_a_code_owner() -> None:
+    """Edits to the gate need code-owner review; a file missing from CODEOWNERS silently escapes it."""
+    rules = _codeowners_rules()
+    for path in GATE_FILES:
+        assert (REPO_ROOT / path).is_file(), f"gate file {path} does not exist"
+        assert rules.get(f"/{path}"), f"{path} has no code owner in .github/CODEOWNERS"
+
+
+def test_codeowners_names_no_file_outside_the_gate() -> None:
+    """Positive control on scope: code-owner review must not spread to ordinary PRs unannounced."""
+    assert set(_codeowners_rules()) == {f"/{path}" for path in GATE_FILES}

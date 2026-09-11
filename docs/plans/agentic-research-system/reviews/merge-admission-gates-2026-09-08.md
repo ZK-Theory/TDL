@@ -177,6 +177,31 @@ Two findings on `e805a3c`.
   Whether `GITHUB_TOKEN` really returns the field is first shown by a live run
   from `main`.
 
+### Review round 5 and the ruleset decision (2026-09-11)
+
+The ruleset-required workflow chosen in round 3 proved unavailable on the Free
+plan (see owner action 1). Stephen then decided:
+
+- **Protect gate files through code ownership, with admin bypass.**
+- **Require Codex as the only review producer.** CodeRabbit reviewed only 1 of
+  the 4 PRs merged before this change. The other 3 got "manual review required
+  for this OSS repository". CodeRabbit threads still block when they exist.
+- **Run the admission and policy controls in a new required Windows job.**
+- **Merge this PR before changing the ruleset.**
+
+Codex findings on `0c39378`:
+
+- **3990242343** — the new controls never ran in CI once the `test` lane was
+  removed. The new `admission-controls` job now runs them.
+- **3990242353** — `research_system/operations/backups.py` publishes with fsync
+  and a Windows `os.rename` branch (checked, `backups.py:622-624`). It was added
+  to `sensitive_paths`.
+- **3990242357** — the sweep refused beyond 50 open PRs, which silently disabled
+  it. It now paginates with `--paginate --slurp`, and the page chain must be
+  consistent. Before relying on this, it was verified against GitHub: 262 merged
+  PRs over 11 pages matched `totalCount`, with nested connections truncated on
+  144 of them.
+
 ## Watched failures
 
 Every rule is mutation-tested.
@@ -244,18 +269,31 @@ five threads; approving after a green Linux run) confirm neither gate is vacuous
 
 ## Owner actions still required
 
-1. **Add `.github/workflows/merge-admission.yml` to the P-049 ruleset as a
-   required workflow pinned to `refs/heads/main`** (a `workflows` rule), rather
-   than as a plain required status check. Decided 2026-09-11 (Codex review
-   3988790007). On a same-repository pull request, GitHub runs the pull request's
-   own copy of the workflow file. A candidate could therefore replace the gate's
-   steps with a no-op that still reports `merge-admission` green. Checking the
-   gate code out from base does not help, because the candidate's YAML has
-   already chosen what runs, and no in-repository check can close the gap: it
-   would run under the same control. A ruleset-required workflow runs the
-   definition from `main` whatever the pull request edits. Until this is done,
-   the workflow reports but does not block. This is a repository settings change
-   and was not made from this session.
+1. **Update the P-049 ruleset after this PR merges** (decided 2026-09-11).
+   Three changes are needed:
+   - require the `merge-admission` and `admission-controls` status checks, from
+     the GitHub Actions app;
+   - require review from code owners;
+   - keep an admin bypass, so gate-file changes remain possible deliberately.
+
+   **Why not a required workflow.** On a same-repository pull request, GitHub runs
+   the pull request's own copy of the workflow file, so a candidate could replace
+   the gate's steps with a no-op that still reports green (Codex review
+   3988790007). The first plan was an organization ruleset requiring the
+   workflow from `main`, but GitHub offers ruleset workflows "at the organization
+   or enterprise level" only, and organization rulesets only "for customers on
+   GitHub Team or GitHub Enterprise plans". ZK-Theory is on Free. Push rulesets
+   that restrict file paths are limited to private and internal repositories, and
+   TDL is public.
+
+   **What replaces it.** The gate files are owned in `.github/CODEOWNERS`, so
+   editing them needs code-owner review. Because PRs here are opened under the
+   owner's own account, that means a deliberate admin bypass, which GitHub
+   records. The gap that remains is recorded under Known limits.
+
+   **Sequencing.** The change is applied after merge because the gate cannot pass
+   on this PR (it is checked out from `main`, which lacks the tool until merge).
+   Until it is applied, the workflow reports but does not block.
 2. **Confirm the sensitive-path list.** `.github/merge-admission.yml` lists the
    store package plus lock/anchor/durability/layout/atomic/concurrency filename
    patterns. It is deliberately narrow; broadening it turns the ordering rule

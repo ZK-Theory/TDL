@@ -645,7 +645,48 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
     return [run_id]
 
 
-def sweep_actions(payload: Mapping[str, Any], *, gate: SweepGate) -> list[str]:
+SweepListing = Mapping[str, Any] | Sequence[Mapping[str, Any]]
+
+
+def _paginated_pull_requests(listing: SweepListing) -> list[Mapping[str, Any]]:
+    """Return every open pull request across a ``gh api graphql --paginate --slurp`` listing.
+
+    The sweep pages through open pull requests rather than refusing at one page
+    (Codex review 3990242357). A failed sweep replaces no green check, so refusing
+    a long listing would silently switch off reopened-thread detection for every
+    pull request. Every page but the last must report more pages and the last must
+    report none, so a listing that stopped early is still refused.
+
+    Raises:
+        ValueError: If there are no pages, a page is malformed, the page chain
+            is truncated or inconsistent, or a pull request appears twice.
+    """
+    pages = [listing] if isinstance(listing, Mapping) else list(listing)
+    if not pages:
+        raise ValueError("sweep listing contains no pages")
+    pulls: list[Mapping[str, Any]] = []
+    for index, page in enumerate(pages):
+        what = f"repository.pullRequests page {index + 1} of {len(pages)}"
+        connection = _require_mapping(_repository(_require_mapping(page, what)).get("pullRequests"), what)
+        page_info = connection.get("pageInfo")
+        if not isinstance(page_info, Mapping) or not isinstance(page_info.get("hasNextPage"), bool):
+            raise ValueError(f"{what} is missing pageInfo.hasNextPage; listing completeness is unknown")
+        is_last = index == len(pages) - 1
+        if page_info["hasNextPage"] is is_last:
+            raise ValueError(
+                f"{what} reports hasNextPage={page_info['hasNextPage']}; the listing is truncated or inconsistent"
+            )
+        nodes = connection.get("nodes")
+        if not isinstance(nodes, list) or not all(isinstance(node, Mapping) for node in nodes):
+            raise ValueError(f"{what} must contain a list of node objects")
+        pulls.extend(nodes)
+    numbers = [pull_request.get("number") for pull_request in pulls]
+    if len(numbers) != len(set(numbers)):
+        raise ValueError("a pull request appears on more than one page; the listing is inconsistent")
+    return pulls
+
+
+def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
     """Return what a scheduled sweep must do for open pull requests with live threads.
 
     Reopening a resolved thread (``unresolveReviewThread``) emits no Actions
@@ -662,7 +703,8 @@ def sweep_actions(payload: Mapping[str, Any], *, gate: SweepGate) -> list[str]:
     do not pile up re-runs.
 
     Args:
-        payload: ``gh api graphql`` response listing open pull requests.
+        payload: ``gh api graphql`` response listing open pull requests, or the
+            list of page responses from ``--paginate --slurp``.
         gate: The admission check to re-run.
 
     Returns:
@@ -672,7 +714,7 @@ def sweep_actions(payload: Mapping[str, Any], *, gate: SweepGate) -> list[str]:
         ValueError: If the listing or any nested connection is truncated or
             malformed, or queue membership is not stated.
     """
-    pulls = _require_nodes(_repository(payload).get("pullRequests"), "repository.pullRequests")
+    pulls = _paginated_pull_requests(payload)
     actions: list[str] = []
     for pull_request in pulls:
         number = pull_request.get("number")
@@ -797,7 +839,12 @@ def main(argv: list[str] | None = None) -> int:
         elif args.gate == "sweep":
             # One action per line and nothing at all when there is none: the
             # workflow treats a non-empty output file as work to do.
-            verdict = "\n".join(sweep_actions(_load_json(args.snapshot, "--snapshot"), gate=sweep_gate(config)))
+            if args.snapshot is None:
+                raise ValueError("--snapshot is required for this gate")
+            listing = json.loads(args.snapshot.read_text(encoding="utf-8"))
+            if not isinstance(listing, (Mapping, list)):
+                raise ValueError("--snapshot must contain a JSON object or a list of page objects")
+            verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config)))
         elif args.gate == "queue-disposition":
             verdict = queue_disposition(
                 _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")

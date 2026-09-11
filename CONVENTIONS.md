@@ -697,6 +697,28 @@ Three journal-targeted papers replacing the original four technique-first papers
   from comment bodies, which rests on reviewers typing an exact string, and over
   treating every human review as acceptance, which blocks on routine questions.
   Decided by Stephen on PR #278, Codex thread `3962013251`. Locked 2026-09-10.
+- **The merge-admission gate's own files change only through a deliberate admin
+  bypass.** `.github/CODEOWNERS` owns the gate: `merge-admission.yml`,
+  `merge-admission-sweep.yml`, `ci.yml`, `.github/merge-admission.yml`,
+  `tools/check_merge_admission.py`, and `CODEOWNERS` itself. P-049 requires
+  code-owner review. PRs here are opened under the owner's own account, so an
+  edit to any of these needs an admin bypass, and GitHub records every bypass in
+  rule insights.
+
+  The reason is structural. On a same-repository pull request GitHub runs that
+  pull request's copy of a workflow, so an unprotected edit could rewrite the gate
+  that admits it. The durable fix, an organization ruleset requiring the workflow
+  from `main`, needs GitHub Team or Enterprise, and ZK-Theory is on Free.
+  Path-restricting push rulesets are for private repositories only.
+
+  A new file the gate depends on must be added to both CODEOWNERS and
+  `GATE_FILES` in `tests/tools/test_ci_platform_policy.py`. That test fails if a
+  gate file lacks an owner, or if CODEOWNERS reaches beyond the gate.
+
+  Codex (`chatgpt-codex-connector`) is the only required review producer.
+  CodeRabbit's threads still block when it posts them.
+
+  Decided by Stephen on PR #278, 2026-09-11. Locked 2026-09-11.
 
 ---
 

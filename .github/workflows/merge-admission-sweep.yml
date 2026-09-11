@@ -63,22 +63,27 @@ jobs:
       - name: Install the configuration parser
         run: pip install "PyYAML>=6"
 
-      # Connection sizes keep the query under GitHub's node budget. Every
-      # connection's hasNextPage is checked by the tool, so a repository that
-      # outgrows these sizes fails the sweep loudly instead of skipping PRs.
+      # Open pull requests are paginated (--paginate --slurp) rather than capped:
+      # a sweep that aborted on page one would replace no green check, silently
+      # switching off reopened-thread detection for every PR (Codex review
+      # 3990242357). gh pages on the connection carrying `endCursor`; nested
+      # connections are not paginated, and the tool refuses any that report
+      # hasNextPage, so a pull request with more than 100 threads fails loudly.
+      # Verified 2026-09-11: 262 merged PRs over 11 pages matched totalCount
+      # exactly, with nested connections truncated on 144 of them.
       - name: Capture thread and admission state for every open pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh api graphql \
+          gh api graphql --paginate --slurp \
             -F owner="${{ github.repository_owner }}" \
             -F name="${{ github.event.repository.name }}" \
             -f query='
-              query($owner:String!,$name:String!){
+              query($owner:String!,$name:String!,$endCursor:String){
                 repository(owner:$owner,name:$name){
-                  pullRequests(states:OPEN, baseRefName:"main", first:50){
-                    pageInfo{hasNextPage}
+                  pullRequests(states:OPEN, baseRefName:"main", first:50, after:$endCursor){
+                    pageInfo{hasNextPage endCursor}
                     nodes{
                       number
                       id
