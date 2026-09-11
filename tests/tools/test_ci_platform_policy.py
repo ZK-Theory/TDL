@@ -94,6 +94,7 @@ def test_platform_gate_reads_a_windows_job_from_its_trusted_workflow() -> None:
 ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_merge_admission.py",
     "tests/tools/test_ci_platform_policy.py",
+    "tests/tools/test_admin_bypass_guard_hook.py",
 )
 
 
@@ -117,6 +118,8 @@ GATE_FILES = (
     ".github/workflows/merge-admission-sweep.yml",
     ".github/workflows/ci.yml",
     "tools/check_merge_admission.py",
+    ".claude/hooks/admin-bypass-guard.sh",
+    ".claude/settings.json",
 )
 
 

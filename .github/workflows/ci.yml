@@ -149,6 +149,7 @@ jobs:
           .venv\Scripts\python.exe -m pytest -q
           tests/tools/test_merge_admission.py
           tests/tools/test_ci_platform_policy.py
+          tests/tools/test_admin_bypass_guard_hook.py
           tests/tools/test_ars_currency_workflow_controls.py
           tests/tools/test_check_workflow_liveness.py
           -o "addopts=" -p no:cacheprovider -p no:cov

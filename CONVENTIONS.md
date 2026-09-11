@@ -718,6 +718,20 @@ Three journal-targeted papers replacing the original four technique-first papers
   Codex (`chatgpt-codex-connector`) is the only required review producer.
   CodeRabbit's threads still block when it posts them.
 
+  **Agent sessions never take the bypass.** P-049's only bypass actor is the
+  repository admin role with `bypass_mode: pull_request`. Every agent acts
+  through the owner's admin login, so `.claude/hooks/admin-bypass-guard.sh`
+  refuses the following from Claude Code sessions:
+  - `gh pr merge --admin`;
+  - direct merges that skip the queue;
+  - writes to rulesets or branch protection.
+
+  The owner runs those commands in their own terminal. The guard and
+  `.claude/settings.json` are themselves code-owned, so unwiring the guard needs
+  the very bypass it refuses. Codex sessions do not read `.claude/settings.json`,
+  so a Codex session must be told explicitly not to use `--admin` or edit rules.
+  That is an instruction-level rule only, recorded here as the remaining gap.
+
   Decided by Stephen on PR #278, 2026-09-11. Locked 2026-09-11.
 
 ---

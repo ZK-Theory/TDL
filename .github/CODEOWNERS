@@ -17,3 +17,8 @@
 /.github/workflows/merge-admission-sweep.yml     @stephendor
 /.github/workflows/ci.yml                        @stephendor
 /tools/check_merge_admission.py                  @stephendor
+
+# The guard that keeps agent sessions from taking the P-049 bypass, and its
+# wiring. Unowned, an agent could unwire the guard without code-owner review.
+/.claude/hooks/admin-bypass-guard.sh             @stephendor
+/.claude/settings.json                           @stephendor

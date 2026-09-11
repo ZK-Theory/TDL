@@ -274,7 +274,17 @@ five threads; approving after a green Linux run) confirm neither gate is vacuous
    - require the `merge-admission` and `admission-controls` status checks, from
      the GitHub Actions app;
    - require review from code owners;
-   - keep an admin bypass, so gate-file changes remain possible deliberately.
+   - add a bypass actor: the repository admin role, `bypass_mode: pull_request`.
+     P-049 has **no bypass actors today** (`current_user_can_bypass: never`), so
+     without one, code-owner review would block every gate-file PR outright,
+     because PRs are opened under the owner's own account.
+
+   Every agent acts through the owner's admin login, so the bypass is kept
+   deliberate by `.claude/hooks/admin-bypass-guard.sh` (Stephen, 2026-09-11). It
+   refuses `gh pr merge --admin`, direct merges that skip the queue, and writes to
+   rulesets or branch protection from Claude Code sessions. The owner runs those
+   in their own terminal. It does not cover Codex sessions, which do not read
+   `.claude/settings.json`.
 
    **Why not a required workflow.** On a same-repository pull request, GitHub runs
    the pull request's own copy of the workflow file, so a candidate could replace
