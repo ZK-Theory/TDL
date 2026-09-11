@@ -1,0 +1,24 @@
+# Code owners for the merge-admission gate.
+#
+# A pull request's own copy of a workflow file is what GitHub runs on that pull
+# request, so a candidate could rewrite the gate that admits it. The durable fix,
+# an organization ruleset requiring the workflow from main, needs GitHub Team;
+# ZK-Theory is on Free. Decided by Stephen on 2026-09-11: these files are owned
+# here, and P-049 requires code-owner review. Changes to the gate therefore need
+# a deliberate admin bypass, which GitHub records in rule insights.
+#
+# Takes effect only once "Require review from Code Owners" is enabled in the
+# P-049 ruleset. tests/tools/test_ci_platform_policy.py keeps this list aligned
+# with the files the gate actually depends on.
+
+/.github/CODEOWNERS                              @stephendor
+/.github/merge-admission.yml                     @stephendor
+/.github/workflows/merge-admission.yml           @stephendor
+/.github/workflows/merge-admission-sweep.yml     @stephendor
+/.github/workflows/ci.yml                        @stephendor
+/tools/check_merge_admission.py                  @stephendor
+
+# The guard that keeps agent sessions from taking the P-049 bypass, and its
+# wiring. Unowned, an agent could unwire the guard without code-owner review.
+/.claude/hooks/admin-bypass-guard.sh             @stephendor
+/.claude/settings.json                           @stephendor
