@@ -71,10 +71,10 @@ def _files_referencing_lf_canonical_bytes(*, exclude_self: bool = True) -> list[
     return hits
 
 
-def _check_attr(rel_path: str, attr: str) -> str:
+def _check_attr(rel_path: str, attr: str, cwd: Path = REPO_ROOT) -> str:
     out = subprocess.run(
         ["git", "check-attr", attr, "--", rel_path],
-        cwd=REPO_ROOT,
+        cwd=cwd,
         capture_output=True,
         text=True,
         check=True,
@@ -103,10 +103,22 @@ def test_every_lf_canonical_byte_marker_file_is_covered_by_gitattributes(
     )
 
 
-def test_negative_control_an_unrelated_root_is_not_pinned_to_lf() -> None:
-    """Proves the check can fail: CONVENTIONS.md carries no LF-canonical marker and must
-    not resolve to eol=lf, or the coverage assertion above would be vacuously true."""
-    assert _check_attr("CONVENTIONS.md", "eol") != "lf"
+def test_negative_control_the_attribute_reader_still_discriminates() -> None:
+    """Proves `_check_attr` reads real state rather than returning "lf" for everything.
+
+    This control used to assert that CONVENTIONS.md resolved to something other than
+    `eol=lf`. Since `.gitattributes` gained the repo-wide `* text=auto eol=lf` default,
+    no path resolves otherwise, so that assertion could no longer fail for the right
+    reason — it would have passed only until the default landed, then broken, and been
+    "fixed" by deleting it.
+
+    The discriminating axis is now `text`: a binary-declared path must resolve
+    `text: unset` while a source file must not. That is also the property actually worth
+    guarding — see test_gitattributes_binary_safety.py for why (99 committed PDFs would
+    otherwise be classified as text and have their CR bytes stripped).
+    """
+    assert _check_attr("example.pdf", "text") == "unset"
+    assert _check_attr("example.py", "text") != "unset"
 
 
 def test_self_exclusion_removes_exactly_this_file_and_nothing_else() -> None:
@@ -123,17 +135,29 @@ def test_self_exclusion_removes_exactly_this_file_and_nothing_else() -> None:
     assert without_self
 
 
-def test_negative_control_discovery_still_flags_a_genuinely_uncovered_marker_file() -> None:
-    """Proves the self-exclusion did not blind the coverage predicate itself.
+def test_negative_control_an_excluded_path_would_still_be_flagged(tmp_path: Path) -> None:
+    """Proves the coverage predicate still reports a true positive.
 
-    The canary went red because of a false positive; the failure mode of fixing that
-    is a canary which no longer reports true ones. Run the same predicate the coverage
-    test uses over a hit list containing a path known to carry no eol pin (asserted by
-    the negative control above) and require it to be reported.
+    The canary went red because of a false positive; the failure mode of fixing that is
+    a canary which no longer reports true ones. This used to be shown against
+    CONVENTIONS.md, which carried no eol pin — but the repo-wide `* text=auto eol=lf`
+    default means no path in this repo resolves to anything else, so that formulation
+    could no longer fail for the right reason.
+
+    The risk the coverage assertion now guards is not an unpinned root (the default
+    covers every root) but a deliberate *exclusion* re-introducing one. Built hermetically
+    in a scratch repo, since this repo correctly has no such exclusion to point at.
     """
-    unpinned = "CONVENTIONS.md"
-    uncovered = [rel for rel in [*_files_referencing_lf_canonical_bytes(), unpinned] if _check_attr(rel, "eol") != "lf"]
-    assert uncovered == [unpinned]
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, capture_output=True)
+    (repo / ".gitattributes").write_text("* text=auto eol=lf\nlegacy/** eol=crlf\n", encoding="utf-8", newline="\n")
+
+    assert _check_attr("src/thing.py", "eol", cwd=repo) == "lf"
+    assert _check_attr("legacy/thing.py", "eol", cwd=repo) != "lf"
+
+    uncovered = [rel for rel in ["src/thing.py", "legacy/thing.py"] if _check_attr(rel, "eol", cwd=repo) != "lf"]
+    assert uncovered == ["legacy/thing.py"]
 
 
 def test_the_real_contract_roots_are_still_covered() -> None:

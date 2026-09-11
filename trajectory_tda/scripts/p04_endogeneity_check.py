@@ -42,9 +42,9 @@ def load_data() -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     outcomes = np.load(CHECKPOINT_DIR / "trajectory_outcomes.npz")
     # mean income = 2*P(H) + 1*P(M) + 0*P(L) = 1 + P(H) - P(L)
     income_scores = 1.0 + outcomes["high_income_rate"] - outcomes["low_income_rate"]
-    assert len(income_scores) == embeddings.shape[0], (
-        f"Shape mismatch: {len(income_scores)} outcomes vs {embeddings.shape[0]} embeddings"
-    )
+    assert (
+        len(income_scores) == embeddings.shape[0]
+    ), f"Shape mismatch: {len(income_scores)} outcomes vs {embeddings.shape[0]} embeddings"
     return embeddings, income_scores
 
 
@@ -75,13 +75,15 @@ def run_endogeneity_check(
     pc_correlations = []
     for i in range(p):
         r, pval = pearsonr(embeddings[:, i], income_scores)
-        pc_correlations.append({
-            "pc": i + 1,
-            "r": float(r),
-            "abs_r": float(abs(r)),
-            "p_value": float(pval),
-            "coef": float(reg.coef_[i]),
-        })
+        pc_correlations.append(
+            {
+                "pc": i + 1,
+                "r": float(r),
+                "abs_r": float(abs(r)),
+                "p_value": float(pval),
+                "coef": float(reg.coef_[i]),
+            }
+        )
 
     pc_correlations.sort(key=lambda x: x["abs_r"], reverse=True)
 
@@ -89,8 +91,7 @@ def run_endogeneity_check(
     if r2 < 0.15:
         tier = "low"
         interpretation = (
-            "Concern moot: income proxy is largely orthogonal to PCA geometry. "
-            "Report R² in §4.1 as one sentence."
+            "Concern moot: income proxy is largely orthogonal to PCA geometry. " "Report R² in §4.1 as one sentence."
         )
     elif r2 < 0.40:
         tier = "moderate"
@@ -146,7 +147,7 @@ def main() -> None:
     print(f"  R²:            {results['r2']:.4f}")
     print(f"  Adjusted R²:   {results['adjusted_r2']:.4f}")
     print(f"  Tier:          {results['interpretation_tier'].upper()}")
-    print(f"\nTop 3 PCs by |r|:")
+    print("\nTop 3 PCs by |r|:")
     for pc in results["top3_pcs"]:
         print(f"  PC{pc['pc']:02d}  r={pc['r']:+.4f}  coef={pc['coef']:+.4f}")
     print(f"\nInterpretation:\n  {results['interpretation']}")

@@ -196,7 +196,6 @@ def rolling_stats_and_tau(norms_df, w_size, p_size, events):
             continue
 
         # Extract pre-crisis series
-        window_dates = norms_df.index[start_loc:end_loc]
         # Calculate Tau for L1 Var and L2 Var
 
         metrics = {}

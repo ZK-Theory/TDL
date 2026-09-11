@@ -150,11 +150,7 @@ def check_index_freshness(vault_root: Path) -> list[dict]:
         if not index_file.exists():
             continue
 
-        content = index_file.read_text(encoding="utf-8", errors="replace")
         index_mtime = datetime.fromtimestamp(index_file.stat().st_mtime)
-
-        # Find files mentioned in the index
-        mentioned = set(re.findall(r"[|\s]([^\s|]+\.md)", content))
 
         # Find files that have been modified more recently than the index
         newer_files = []

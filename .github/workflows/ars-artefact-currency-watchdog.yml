@@ -60,3 +60,22 @@ jobs:
           python tools/check_workflow_liveness.py
           --workflows-json workflows.json
           --target-path .github/workflows/ars-artefact-currency.yml
+
+      # ci.yml carries the repo-wide lint signal, and it sat `disabled_manually`
+      # from before 2026-07-30 until 2026-09-08 with nothing detecting it: a
+      # workflow cannot report its own administrative absence, and the durable
+      # rule in CONVENTIONS.md would have gone on claiming the signal was live.
+      # Watched from here, by the one workflow whose own liveness is already
+      # asserted, so the claim and the check cannot drift apart again.
+      - name: Read the CI workflow state from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml"
+          --jq '{workflows: [.]}' > ci-workflow.json
+
+      - name: Fail closed if the CI workflow is inactive
+        run: >-
+          python tools/check_workflow_liveness.py
+          --workflows-json ci-workflow.json
+          --target-path .github/workflows/ci.yml

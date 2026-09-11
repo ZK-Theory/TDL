@@ -1,5 +1,16 @@
 line-length = 120
 
+# `scratch/` is gitignored, yet 18 files under scratch/vintage_audit/ are tracked:
+# audit drivers kept as provenance. Ruff honours .gitignore only inside a git
+# checkout, so CI's checkout silently skipped those tracked files while a `git
+# archive` of the same commit (no .git, so no .gitignore semantics) reported errors
+# in them — raised in review of PR #277. Excluding the directory explicitly makes
+# every environment agree, and turns an accidental, invisible exemption into a
+# recorded one. The files are deliberately not rewritten to satisfy lint: they are
+# frozen audit records, and editing them would alter the provenance they preserve
+# (2026-09-10 [DECISION]).
+extend-exclude = ["scratch/"]
+
 [lint.per-file-ignores]
 # Dashboard files - allow imports after try/except blocks
 "**/viz/streamlit_app.py" = ["E402"]
@@ -12,3 +23,21 @@ line-length = 120
 "**/ttk_scripts/*.py" = ["F401"]  # TTK imports
 "tests/shared/ttk_*.py" = ["F841"]  # TTK tests
 "docs/notebooks/*.ipynb" = ["E402"]  # Notebooks
+
+# Research pipeline entrypoints that deliberately manipulate sys.path before
+# importing project modules, and/or import lazily between pipeline steps so a
+# long run fails fast on step 1 rather than on an import for step 5. Restructuring
+# these to satisfy E402 would rewrite working, result-bearing scripts for no
+# behavioural gain. Listed file-by-file rather than by directory glob so that a
+# NEW script in these directories is still checked (2026-09-08 [DECISION]).
+"financial_tda/validation/compute_continuous_tau_all.py" = ["E402"]
+"financial_tda/validation/validate_extended_crises.py" = ["E402"]
+"financial_tda/validation/validate_gk_complete.py" = ["E402"]
+"trajectory_tda/scripts/bhps_build_steps.py" = ["E402"]
+"trajectory_tda/scripts/bhps_pipeline.py" = ["E402"]
+"trajectory_tda/scripts/bhps_rerun_nulls.py" = ["E402"]
+"trajectory_tda/scripts/bhps_test_income.py" = ["E402"]
+"trajectory_tda/scripts/bhps_verify_counts.py" = ["E402"]
+"trajectory_tda/scripts/bhps_verify_trajectories.py" = ["E402"]
+"trajectory_tda/scripts/p04_appendix_b.py" = ["E402"]
+"trajectory_tda/scripts/spanning_pipeline.py" = ["E402"]

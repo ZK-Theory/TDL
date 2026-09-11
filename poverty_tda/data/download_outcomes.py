@@ -141,8 +141,6 @@ def process_life_expectancy(file_path: Path) -> pd.DataFrame:
     logger.info(f"Columns: {df.columns.tolist()[:10]}...")
 
     # Common column patterns
-    code_cols = [c for c in df.columns if "code" in c.lower() and "area" in c.lower()]
-    name_cols = [c for c in df.columns if "name" in c.lower() and "area" in c.lower()]
 
     # Filter to most recent period and local authorities
     # This will need adjustment based on actual data structure

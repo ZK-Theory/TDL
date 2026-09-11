@@ -79,7 +79,6 @@ def normalize_column(series, col_name, baselines_max, baselines_min):
         return series  # Fallback
 
     b_max = baselines_max[real_col]
-    b_min = baselines_min[real_col]
 
     if "acf" in col_name.lower():
         # Min-Max Scaling relative to 2008
