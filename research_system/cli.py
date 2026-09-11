@@ -42,6 +42,7 @@ from research_system.config import (
     load_foundation_origin_pins,
 )
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
 from research_system.evals.harness import (
@@ -132,6 +133,23 @@ def _load_gate6_binding_context(operator_config_path: Path):
         expected_project_id=operator_config.project_id,
         expected_store_identity=operator_config.store_identity,
     )
+
+
+def _spec(args: argparse.Namespace) -> int:
+    """Run one semantic SPEC action through the inherited verified binding."""
+    operator = SpecOperatorConfig.load(args.operator_config)
+    coordinator = SpecCoordinator(_load_gate6_binding_context(args.operator_config), operator)
+    if args.spec_command == "advance":
+        intent = _read_json(args.input)
+        evidence = intent.pop("evidence", None)
+        if "action" in intent and intent["action"] != args.action:
+            raise ConfigurationError("SPEC input action disagrees with --action")
+        intent["action"] = args.action
+        result = coordinator.advance(intent, evidence)
+    else:
+        result = coordinator.status()
+    _print_json(result)
+    return 0
 
 
 def _store_operation_binding(config_path: Path | None, operator_config_path: Path | None):
@@ -1878,6 +1896,20 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ars")
     groups = parser.add_subparsers(dest="group", required=True)
 
+    discovery = groups.add_parser("discovery")
+    discovery_commands = discovery.add_subparsers(dest="discovery_command", required=True)
+    spec = discovery_commands.add_parser("spec")
+    spec_commands = spec.add_subparsers(dest="spec_command", required=True)
+    for verb in ("status", "advance"):
+        action = spec_commands.add_parser(verb)
+        action.add_argument("--operator-config", type=Path, required=True)
+        if verb == "advance":
+            action.add_argument("--action", choices=tuple(ACTION_EFFECTS), required=True)
+            action.add_argument(
+                "--input", type=Path, required=True, help="semantic SOURCE intent and optional independent evidence"
+            )
+        action.set_defaults(handler=_spec)
+
     store = groups.add_parser("store")
     store_commands = store.add_subparsers(dest="store_command", required=True)
     init = store_commands.add_parser("init")
@@ -2109,7 +2141,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief", "context-packet"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "discovery"}:
         return int(args.handler(args))
     try:
         if args.group == "eval":

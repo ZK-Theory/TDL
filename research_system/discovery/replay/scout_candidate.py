@@ -11,6 +11,7 @@ from copy import deepcopy
 from research_system.canonical import canonical_bytes
 from research_system.canonical import sha256_hex
 from research_system.discovery.replay.scope import EventScope
+from research_system.discovery.spec_source import validate_source_refs
 from research_system.discovery.routes import discovery_identity_exists as _discovery_identity_exists
 from research_system.discovery.rules import _candidate_ref
 from research_system.discovery.rules import _candidate_replacement_is_used
@@ -48,6 +49,11 @@ def reduce_scout_observation_ingested(scope: EventScope) -> None:
         )
     ):
         raise IntegrityError("invalid Scout observation event")
+    validate_source_refs(
+        batch,
+        (member for members in transaction_events.values() for member in members),
+        before_position=event["global_position"],
+    )
     members = transaction_events.get(event.get("transaction_id"), ())
     candidates = [member for member in members if member.get("event_type") == "CandidateRegistered"]
     reconstructed_blueprints = []

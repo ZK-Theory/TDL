@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-01-source-correction",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "intent",
+    "recorded_at",
+    "producer_actor_id",
+    "resolution",
+    "source_bytes_base64",
+    "source_sha256",
+    "source_size_bytes",
+    "causal_prefix",
+    "prior_evidence"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://portfolio/spec-01-source-correction"
+    },
+    "schema_version": {
+      "const": "2.0.0"
+    },
+    "document_type": {
+      "const": "spec_01_source_correction"
+    },
+    "intent": {
+      "allOf": [
+        {"$ref": "ars://portfolio/spec-source-intent"},
+        {"properties": {"action": {"const": "correct_spec_01_source"}}}
+      ]
+    },
+    "recorded_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "producer_actor_id": {
+      "type": "string",
+      "pattern": "^act_"
+    },
+    "resolution": {
+      "allOf": [
+        {
+          "$ref": "ars://portfolio/git-reference-resolution"
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "resolved"
+            }
+          }
+        }
+      ]
+    },
+    "source_bytes_base64": {
+      "type": "string",
+      "contentEncoding": "base64"
+    },
+    "source_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source_size_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "causal_prefix": {
+      "$ref": "#/$defs/prefix"
+    },
+    "prior_evidence": {
+      "$ref": "#/$defs/registration"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "global_position",
+        "event_hash",
+        "raw_prefix_sha256"
+      ],
+      "properties": {
+        "global_position": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raw_prefix_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "registration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artefact_id",
+        "content_sha256",
+        "event_id",
+        "event_hash",
+        "global_position"
+      ],
+      "properties": {
+        "artefact_id": {
+          "type": "string",
+          "pattern": "^art_"
+        },
+        "content_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "event_id": {
+          "type": "string",
+          "pattern": "^evt_"
+        },
+        "event_hash": {
+          "$ref": "#/$defs/sha256"
+        },
+        "global_position": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

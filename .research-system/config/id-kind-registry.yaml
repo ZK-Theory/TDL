@@ -5,6 +5,7 @@ kinds:
   scope_definition: obj
   task: tsk
   artefact: art
+  spec_source_document: art
   review: rev
   decision: dec
   command: cmd

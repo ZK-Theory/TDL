@@ -1454,7 +1454,14 @@ class BackupMaterializer:
         manifest_path = root / "manifests" / "store-identity.json"
         manifest_raw = _read_physical_regular_file(manifest_path, "backup Source manifest")
         try:
-            manifest = load_store_manifest_unbound(root)
+            # The candidate contains source-bound bytes, including any committed
+            # restore binding. Admit that binding at its real source root; a
+            # staging directory is not the restored endpoint named by it.
+            manifest = load_store_manifest(
+                self.source_root,
+                approved_witness=self.approved_witness,
+                approved_witness_path=self.approved_witness_path,
+            )
         except (ArsError, IntegrityError, OSError) as exc:
             raise IntegrityError("backup candidate Source manifest is invalid") from exc
         if (
@@ -1463,7 +1470,7 @@ class BackupMaterializer:
             or manifest.get("control_root") != str(self.source_root)
             or manifest.get("endpoint_scheme") != record.get("source_endpoint_scheme")
             or sha256_hex(manifest_raw) != record.get("source_manifest_sha256")
-            or sha256_hex(canonical_bytes(manifest)) != self.approved_witness.initial_manifest_sha256
+            or canonical_bytes(manifest) != manifest_raw
         ):
             raise IntegrityError("backup candidate Source manifest differs from its approved witness")
         code_roots = manifest.get("code_roots")
@@ -1476,13 +1483,12 @@ class BackupMaterializer:
         if candidate_ledger.global_position != tail_position or candidate_ledger.event_hash != tail_hash:
             raise IntegrityError("backup candidate ledger differs from the committed pre-event tail")
         resolver = LedgerAuthorityGrantResolver(
-            root,
+            self.source_root,
             project_id,
             store_identity,
             schemas,
             approved_witness=self.approved_witness,
             approved_witness_path=self.approved_witness_path,
-            restore_source_alias=True,
         )
         state = replay(
             candidate_ledger.events,
