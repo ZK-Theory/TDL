@@ -215,6 +215,16 @@ and reported under D5, not silently repaired. Missing evidence remains explicit.
 
 ### Phase 1 — SOURCE on the public route — KAN-104
 
+**Status (2026-09-11): COMPLETE / INTEGRATED.** PR #282
+(`6e8a06202d662dc65e18787481dfeed0b62350d7`) is merged to `main` at
+`3ce730d94402781767e7602660506e4b06cf8d68`. The public SOURCE path, exact
+Git-reference resolution, append-only correction, replay, rejection controls,
+and the Stephen-approved bounded STORE backup-admission repair are integrated.
+The focused integration packet passed 9 tests with 1 documented skip; the
+mandatory hooks and CI checks passed, and all 19 PR review threads were
+resolved. This closes KAN-104 as a typed milestone only; Gate 6 remains
+INCOMPLETE pending Phases 2–5 and final owner closure.
+
 **Exit:** a public advance action registers source evidence; status reports its
 completion; replay preserves it. Introduce the thin CLI coordinator and only the
 action-table entries needed now. Phase 4 must not introduce the coordinator anew.
@@ -470,9 +480,10 @@ From the named worktree, with PYTHONDONTWRITEBYTECODE=1, the exact command was:
 C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p no:cacheprovider -v --tb=short --junitxml=C:/Users/steph/.codex/tmp/gate6-06s-phase0-20260905/store-packet-repair-20260908.xml tests/research_system/unit/test_spec_operator_config.py tests/research_system/integration/test_store_binding_cli.py tests/research_system/integration/test_store_binding_public_contract.py tests/research_system/integration/test_store_binding_service.py tests/research_system/integration/test_current_binding.py tests/research_system/integration/test_wp64_create_backup.py::test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic_submit tests/research_system/integration/test_wp64_create_backup.py::test_store_verify_restore_appends_evidence_without_cutover_and_replays
 ```
 
-**Capability status:** INCOMPLETE — the inherited STORE path is verified;
-Phases 1–5 remain. PR #271 is pending owner review/merge and Phase 1 dispatch.
-This test repair does not close Gate 6 or open Gate 7.
+**Capability status:** INCOMPLETE — the inherited STORE path and Phase 1 SOURCE
+path are integrated and verified; Phases 2–5 and final Gate 6 closure remain.
+PR #282 is merged at `3ce730d94402781767e7602660506e4b06cf8d68`; this does not
+open Gate 7 or authorize live/provider/paid work.
 
 **Documentation checks:** the initial Phase 0 documentation PR contains the
 three required records: this 06s plan, P-051–P-056 in
@@ -481,7 +492,8 @@ Phase 0 evidence adds the test-only repair and the reconciliation note; each
 task change passes `git diff --check`. Unrelated pre-existing Repowise edits
 are excluded. Jira descriptions for KAN-106, KAN-107, KAN-108, KAN-109,
 KAN-105, KAN-104, KAN-103 and KAN-12 were updated and read back. KAN-106–109
-remain To Do; KAN-105 is a verified MILESTONE and Done; KAN-104 is To Do with
-its obsolete STORE blocker removed; KAN-103 and KAN-12 are To Do pending owner
-merge/Phase 1 dispatch. All eight dependency-link sets were verified unchanged.
-Live backup/restore remains required in Phase 5.
+remain To Do; KAN-105 is a verified MILESTONE and Done; KAN-104 is now a
+verified MILESTONE and Done after PR #282; KAN-103 and KAN-12 remain open for
+the assembled capability. Phase 2 AUTHORITY/TASK is the next dispatchable
+production action, while live backup/restore remains required in Phase 5.
+All dependency-link sets remain unchanged.
