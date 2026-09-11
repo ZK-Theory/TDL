@@ -256,7 +256,11 @@ def test_public_advance_status_registration_and_replay(bound_source, source_repo
         document["causal_prefix"]["global_position"]
     )
     # A fresh process imports the public CLI and changes only its scratch foundation selection.
-    code = "import sys; from pathlib import Path; from research_system import cli; cli.canonical_foundation_path=lambda:Path(sys.argv[1]); raise SystemExit(cli.main(sys.argv[2:]))"
+    code = (
+        "import sys; from pathlib import Path; from research_system import cli; "
+        "cli.canonical_foundation_path=lambda:Path(sys.argv[1]); "
+        "raise SystemExit(cli.main(sys.argv[2:]))"
+    )
     result = subprocess.run(
         [
             __import__("sys").executable,

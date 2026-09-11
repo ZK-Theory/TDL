@@ -162,6 +162,7 @@ def prepare_document(intent: dict, artefact_id: str, *, actor_id: str, now: str,
             or manifest.get("artefact_type") not in {"spec_source_observation", "spec_01_source_correction"}
         ):
             raise IntegrityError("SOURCE correction target is not a SOURCE document family")
+        read_document(intent["corrects_artefact_id"], objects=objects, schemas=schemas, ledger=ledger)
         from pathlib import Path
         from research_system.discovery.spec_source_git import _physical_repository
 

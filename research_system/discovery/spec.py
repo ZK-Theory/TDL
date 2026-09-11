@@ -156,6 +156,17 @@ class SpecCoordinator:
                         "viability_judgment_absent": True,
                     }
                     or candidate.get("title") != intent["title"]
+                    or candidate.get("content_sha256")
+                    != sha256_hex(
+                        canonical_bytes(
+                            [
+                                {
+                                    "observation_id": ids["observation_id"],
+                                    "content_sha256": sha256_hex(canonical_bytes(batch)),
+                                }
+                            ]
+                        )
+                    )
                 ):
                     raise IntegrityError("SOURCE completion is bound to another Candidate or observation")
                 completed.append(
