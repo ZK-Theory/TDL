@@ -1319,8 +1319,8 @@ if os.name == "nt":
     _FILE_ATTRIBUTE_DIRECTORY = 0x00000010
     _FILE_ATTRIBUTE_REPARSE_POINT = 0x00000400
     _FILE_DISPOSITION_INFO_CLASS = 4
-    _FILE_LIST_DIRECTORY = 0x00000001
     _FILE_READ_ATTRIBUTES = 0x00000080
+    _FILE_TRAVERSE = 0x00000020
     _GENERIC_READ = 0x80000000
     _DELETE = 0x00010000
     _SYNCHRONIZE = 0x00100000
@@ -1366,11 +1366,13 @@ def _windows_open_handle(
         # Withholding FILE_SHARE_DELETE fences a rename or delete of this
         # directory only if the handle's share mode is recorded, and the
         # filesystem records it only for opens requesting data or DELETE
-        # access, not attribute-only opens. FILE_LIST_DIRECTORY is the
-        # smallest such right that is not DELETE, so any number of fences
-        # on one directory stay mutually compatible while each refuses the
-        # replacement.
-        access |= _FILE_LIST_DIRECTORY
+        # access, not attribute-only opens. FILE_TRAVERSE is share-accounted
+        # as read access, so any number of fences on one directory stay
+        # mutually compatible while each refuses the replacement. It is also
+        # the right already needed to reach a known child such as runtime/,
+        # so, unlike FILE_LIST_DIRECTORY, it does not stop a root that denies
+        # "List folder" from being anchored.
+        access |= _FILE_TRAVERSE
     if read_contents:
         access |= _GENERIC_READ
     if share_mode is None:

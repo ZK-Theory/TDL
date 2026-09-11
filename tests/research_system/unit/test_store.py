@@ -207,6 +207,33 @@ def test_windows_unprotected_anchor_does_not_fence_replacement(tmp_path):
         anchor.close()
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows held-anchor ACL control")
+@pytest.mark.parametrize("seam", ["registered-root", "registered-member"])
+def test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing(tmp_path, seam):
+    """The fence must not require enumeration rights the attribute-only anchor never needed.
+
+    A root may permit traversal to its known ``runtime`` child while denying
+    "List folder"; opening such a directory as a held anchor must still
+    succeed and still refuse replacement.
+    """
+
+    held = tmp_path / "container" / "held"
+    held.mkdir(parents=True)
+    everyone = "*S-1-1-0"
+    subprocess.run(["icacls", str(held), "/deny", f"{everyone}:(RD)"], check=True, capture_output=True)
+    opened: list = []
+    try:
+        with pytest.raises(PermissionError):
+            os.listdir(held)  # precondition: the deny-list ACE is in force
+        _open_held_directory_anchor(seam, held, opened)
+        refused = _attempt_directory_replacement(held)
+        assert refused is not None and getattr(refused, "winerror", None) == 32
+    finally:
+        for anchor in reversed(opened):
+            anchor.close()
+        subprocess.run(["icacls", str(held), "/remove:d", everyone], check=True, capture_output=True)
+
+
 def test_second_composite_writer_lock_reports_existing_writer(tmp_path):
     root = tmp_path / "control"
     (root / "runtime").mkdir(parents=True)

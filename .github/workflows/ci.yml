@@ -123,7 +123,7 @@ jobs:
   # lane, and it must not be relaxed to turn green. (It is not a ruleset-required
   # check, so it reports rather than blocks the merge queue.) Fixed on
   # pipe/windows-store-rename-fence: held delete-protected directory anchors
-  # request FILE_LIST_DIRECTORY so their withheld FILE_SHARE_DELETE is enforced.
+  # request FILE_TRAVERSE so their withheld FILE_SHARE_DELETE is enforced.
   # The direct held-anchor invariants below watch that fence with no child
   # handles open, plus an unprotected negative control.
   windows-store-lock:
@@ -163,7 +163,8 @@ jobs:
           or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback
           or windows_delete_protected_anchor_refuses_replacement_of_its_own_directory
           or windows_nested_delete_protected_anchors_coexist_and_each_keeps_the_fence
-          or windows_unprotected_anchor_does_not_fence_replacement"
+          or windows_unprotected_anchor_does_not_fence_replacement
+          or windows_delete_protected_anchor_fences_a_directory_that_denies_listing"
           -o "addopts=" -p no:cacheprovider -p no:cov
 
   # The PETLS C++ backend is an optional dependency group, so `test`
