@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-source-intent",
+  "type": "object", "additionalProperties": false,
+  "required": ["action", "source_key", "title", "repository_url", "requested_locator", "production"],
+  "properties": {
+    "action": {"enum": ["observe_source", "correct_spec_01_source"]},
+    "source_key": {"type": "string", "minLength": 1}, "title": {"type": "string", "minLength": 1},
+    "repository_url": {"type": "string", "minLength": 1}, "requested_locator": {"type": "string", "minLength": 1},
+    "corrects_artefact_id": {"type": "string", "pattern": "^art_"},
+    "correction_reason": {"type": "string", "minLength": 1},
+    "production": {
+      "type": "object", "additionalProperties": false,
+      "required": ["task_id", "dispatch_id", "attempt_id", "context_packet_id", "producer_profile", "code_commit", "branch_identity", "worktree_identity", "environment_fingerprint", "accepted_scope"],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^tsk_"}, "dispatch_id": {"type": "string", "pattern": "^dsp_"},
+        "attempt_id": {"type": "string", "pattern": "^att_"}, "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "producer_profile": {"type": "string", "minLength": 1}, "code_commit": {"type": "string", "pattern": "^git:sha1:[0-9a-f]{40}$"},
+        "branch_identity": {"type": "string", "minLength": 1}, "worktree_identity": {"type": "string", "minLength": 1},
+        "environment_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "accepted_scope": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "if": {"properties": {"action": {"const": "correct_spec_01_source"}}},
+  "then": {"required": ["corrects_artefact_id", "correction_reason"]},
+  "else": {"not": {"anyOf": [{"required": ["corrects_artefact_id"]}, {"required": ["correction_reason"]}]}}
+}

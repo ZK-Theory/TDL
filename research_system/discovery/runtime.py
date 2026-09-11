@@ -57,6 +57,7 @@ from research_system.discovery.rules import (
     _valid_spike_promotion_option,
 )
 from research_system.discovery.replay.driver import replay_discovery
+from research_system.discovery.spec_source import validate_source_refs
 from research_system.discovery.replay.transactions import validate_prepared_transaction_contract
 from research_system.discovery.commands import (
     DISCOVERY_COMMAND_TYPES,
@@ -2771,6 +2772,8 @@ class DiscoveryRuntime:
             self.schemas.validate("ars://portfolio/scout-observation-batch", batch, schema_version="1.0.0")
         except SchemaError as exc:
             raise IntegrityError("invalid Scout observation batch") from exc
+        source_snapshot = self.ledger.snapshot()
+        validate_source_refs(batch, source_snapshot.events, before_position=source_snapshot.global_position + 1)
         batch_sha256 = sha256_hex(canonical_bytes(batch))
         dedup_keys = batch.get("normalized_dedup_keys")
         if (
