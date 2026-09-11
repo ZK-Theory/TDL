@@ -70,6 +70,73 @@ def test_git_exact_heads_tags_oid_and_subpath(source_repo):
     assert raw == b"exact source\r\n"
 
 
+def test_remote_fetch_with_master_branch(source_repo, monkeypatch):
+    from research_system.discovery import spec_source_git
+
+    git(source_repo, "branch", "master")
+    original = spec_source_git.run_git
+    url = "https://source.example.invalid/repo.git"
+
+    def local_transport(root, *args, **kwargs):
+        # Exercise real Git init/fetch/peel; substitute only the network endpoint.
+        args = tuple(str(source_repo) if value == url else value for value in args)
+        if args[0] == "fetch":
+            return subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=False, **kwargs)
+        return original(root, *args, **kwargs)
+
+    monkeypatch.setattr(spec_source_git, "run_git", local_transport)
+    for locator in ("master:evidence.txt", "light:evidence.txt"):
+        result, raw = resolve_source(url, locator)
+        assert result["status"] == "resolved"
+        assert raw == b"exact source\r\n"
+
+
+def test_source_registration_holds_writer_lock_through_rejection(bound_source, source_repo, monkeypatch):
+    from research_system.errors import ArsError
+    from research_system.store.lock import CompositeWriterLock, WriterLockContentionError
+
+    coordinator = bound_source.coordinator
+    intent = source_intent(source_repo)
+    artefact_id = source_ids(PROJECT_ID, intent)["artefact_id"]
+    grant = activate_lifecycle_grant(
+        bound_source.harness, subject_kind="artefact", subject_id=artefact_id, command_types=("RegisterArtefact",)
+    )
+    original_operator = coordinator.operator
+    coordinator.operator = replace(original_operator, authority_grant_id=grant, operator_actor_id=ACTORS["actor-b"])
+    stages = []
+
+    def assert_competitor_blocked(stage):
+        with pytest.raises(WriterLockContentionError):
+            with CompositeWriterLock((coordinator.binding.control_root,), {"command_id": "competitor"}):
+                pytest.fail("competing writer entered SOURCE publication transaction")
+        stages.append(stage)
+
+    original_write = coordinator.objects.write
+    original_rollback = coordinator.objects.rollback_new_revision
+
+    def write(kind, *args, **kwargs):
+        if kind == DOCUMENT_KIND:
+            assert_competitor_blocked("publish")
+        return original_write(kind, *args, **kwargs)
+
+    def rollback(kind, *args, **kwargs):
+        if kind == DOCUMENT_KIND:
+            assert_competitor_blocked("rollback")
+        return original_rollback(kind, *args, **kwargs)
+
+    monkeypatch.setattr(coordinator.objects, "write", write)
+    monkeypatch.setattr(coordinator.objects, "rollback_new_revision", rollback)
+    before = coordinator.ledger.snapshot()
+    with pytest.raises(ArsError, match="SOURCE effect rejected"):
+        coordinator.advance(intent)
+    assert coordinator.ledger.snapshot() == before
+    assert stages == ["publish", "rollback"]
+    assert not coordinator.objects.revision_exists(DOCUMENT_KIND, artefact_id, 1)
+    coordinator.operator = replace(original_operator, authority_grant_id=grant)
+    assert coordinator.advance(intent)["state"] == "prepared"
+    read_document(artefact_id, objects=coordinator.objects, schemas=coordinator.schemas, ledger=coordinator.ledger)
+
+
 def test_git_ambiguous_absent_unavailable_and_malformed(source_repo, tmp_path):
     git(source_repo, "tag", "main")
     result, raw = resolve_source(str(source_repo), "main")
@@ -354,6 +421,10 @@ def test_correction_publication_failures_and_governed_backup(bound_source, sourc
         correction_id, objects=coordinator.objects, schemas=coordinator.schemas, ledger=coordinator.ledger
     )
     assert corrected_document["schema_version"] == "2.0.0"
+    wrong_action = deepcopy(corrected_document)
+    wrong_action["intent"] = intent
+    with pytest.raises(SchemaError):
+        coordinator.schemas.validate(corrected_document["schema_id"], wrong_action, schema_version="2.0.0")
     assert corrected_document["prior_evidence"] == registration_ref(prior_event)
     assert corrected_document["causal_prefix"]["global_position"] < correction_event["global_position"]
     assert canonical_bytes(coordinator.objects.read(DOCUMENT_KIND, ids["artefact_id"], 1)) == prior_bytes

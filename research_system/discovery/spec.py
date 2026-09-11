@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import UTC, datetime
 from collections.abc import Callable
+from contextlib import contextmanager
 from research_system.store.binding_service import VerifiedBindingContext
 
 from research_system.authority import LedgerAuthorityGrantResolver
@@ -37,6 +38,31 @@ ACTION_EFFECTS = {
 }
 
 
+class _SourceRegistrationService(CommandService):
+    """Publish SOURCE bytes inside the existing command admission lock."""
+
+    def __init__(self, *args, source_document: dict, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.source_document = source_document
+
+    @contextmanager
+    def _submission_lock(self, command):
+        with super()._submission_lock(command) as submission:
+            artefact_id = command.target_stream_id
+            document = self.source_document
+            existed_before = self.objects.revision_exists("spec_source_document", artefact_id, 1)
+            self.objects.write("spec_source_document", artefact_id, 1, document)
+            try:
+                yield submission
+            finally:
+                # This comparison and deletion share admission's writer lock.
+                # Preserve bytes if admission appended, even if later work raised.
+                if self.ledger.snapshot() == submission.snapshot:
+                    self.objects.rollback_new_revision(
+                        "spec_source_document", artefact_id, 1, document, existed_before=existed_before
+                    )
+
+
 class SpecCoordinator:
     def __init__(
         self,
@@ -60,15 +86,20 @@ class SpecCoordinator:
             approved_witness=binding.origin_witness,
             approved_witness_path=binding.origin_witness_path,
         )
-        self.service = CommandService(
-            binding.control_root,
+        self.service = self._command_service()
+
+    def _command_service(self, source_document: dict | None = None) -> CommandService:
+        service_type = CommandService if source_document is None else _SourceRegistrationService
+        return service_type(
+            self.binding.control_root,
             self.ledger,
             self.objects,
-            ReceiptStore(binding.control_root),
+            ReceiptStore(self.binding.control_root),
             self.schemas,
             authority_resolver=self.resolver,
             governing_evidence_resolver=GoverningScientificReviewStore(self.objects, self.schemas),
-            clock=clock,
+            clock=self.clock,
+            **({} if source_document is None else {"source_document": source_document}),
         )
 
     def _discovery(self) -> DiscoveryRuntime:
@@ -260,10 +291,6 @@ class SpecCoordinator:
                 ledger=self.ledger,
             )
             payload = {"new_artefact_id": artefact_id, "manifest": document_manifest(document, artefact_id)}
-            # Bytes become durable before AR can make any authoritative claim.
-            self.binding.revalidate()
-            existed_before = self.objects.revision_exists("spec_source_document", artefact_id, 1)
-            self.objects.write("spec_source_document", artefact_id, 1, document)
         elif effect == "IngestScoutObservationBatch":
             document, registration = read_document(
                 artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
@@ -354,19 +381,10 @@ class SpecCoordinator:
                 project_id=self.binding.project_id,
             )
         self.binding.revalidate()
-        ledger_before = self.ledger.snapshot()
-        try:
-            receipt = (self._discovery() if effect == "IngestScoutObservationBatch" else self.service).submit(command)
-        except ArsError:
-            if effect == "RegisterArtefact" and self.ledger.snapshot() == ledger_before:
-                self.objects.rollback_new_revision(
-                    "spec_source_document", artefact_id, 1, document, existed_before=existed_before
-                )
-            raise
+        service = self._discovery() if effect == "IngestScoutObservationBatch" else self.service
+        if effect == "RegisterArtefact":
+            service = self._command_service(document)
+        receipt = service.submit(command)
         if receipt.status not in {"accepted", "replayed"}:
-            if effect == "RegisterArtefact" and self.ledger.snapshot() == ledger_before:
-                self.objects.rollback_new_revision(
-                    "spec_source_document", artefact_id, 1, document, existed_before=existed_before
-                )
             raise ArsError(f"SOURCE effect rejected: {asdict(receipt)}")
         return {**self.status(intent), "receipt": asdict(receipt)}

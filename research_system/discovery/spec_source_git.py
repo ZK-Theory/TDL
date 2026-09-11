@@ -87,7 +87,7 @@ def resolve_source(repository_url: str, requested_locator: str) -> tuple[dict, b
         with TemporaryDirectory(prefix="ars-source-") as temporary:
             if remote:
                 root = Path(temporary)
-                checked(root, "init", "--quiet")
+                checked(root, "init", "--bare", "--quiet")
                 checked(
                     root,
                     "fetch",

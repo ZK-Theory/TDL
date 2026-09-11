@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import base64
 from copy import deepcopy
+from collections.abc import Iterable
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from research_system.schema_registry import SchemaRegistry
+    from research_system.store.ledger import EventLedger
+    from research_system.store.objects import ObjectStore
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery.spec_source_git import parse_locator, resolve_source
@@ -54,8 +61,28 @@ def source_ref(event: dict) -> dict:
     }
 
 
-def validate_source_refs(batch: dict, events, *, before_position: int, objects=None, schemas=None, ledger=None) -> None:
-    """Bind each SOURCE multiset member to an exact earlier AR event."""
+def validate_source_refs(
+    batch: dict[str, Any],
+    events: Iterable[dict[str, Any]],
+    *,
+    before_position: int,
+    objects: ObjectStore | None = None,
+    schemas: SchemaRegistry | None = None,
+    ledger: EventLedger | None = None,
+) -> None:
+    """Bind SOURCE references to exact earlier registration events.
+
+    Args:
+        batch: Observation batch containing raw source references.
+        events: Persisted registration and observation events.
+        before_position: Exclusive upper bound for referenced registrations.
+        objects: Immutable store for document validation, when available.
+        schemas: Registry used with objects and ledger for document validation.
+        ledger: Ledger used with objects and schemas for causal-prefix checks.
+
+    Raises:
+        IntegrityError: A SOURCE reference or its registered document is invalid.
+    """
     events = tuple(events)
     for ref in batch.get("raw_source_refs", []):
         locator = ref.get("locator", "")

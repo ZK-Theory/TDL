@@ -28,7 +28,10 @@
       "const": "spec_01_source_correction"
     },
     "intent": {
-      "$ref": "ars://portfolio/spec-source-intent"
+      "allOf": [
+        {"$ref": "ars://portfolio/spec-source-intent"},
+        {"properties": {"action": {"const": "correct_spec_01_source"}}}
+      ]
     },
     "recorded_at": {
       "type": "string",
