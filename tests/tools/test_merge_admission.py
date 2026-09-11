@@ -18,6 +18,7 @@ import pytest
 import yaml
 
 from tools.check_merge_admission import (
+    SweepGate,
     evaluate_merge_group_size,
     evaluate_platform_order,
     evaluate_thread_finality,
@@ -28,6 +29,7 @@ from tools.check_merge_admission import (
     platform_producer,
     platform_status,
     queue_disposition,
+    sweep_actions,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -568,6 +570,7 @@ def test_admission_group_limit_matches_the_one_pull_request_it_evaluates(config:
     [
         ("research_system/store/lock.py", True),
         ("research_system/evals/release_publication.py", True),
+        ("research_system/authority.py", True),
         ("research_system/store/nested/deep.py", True),
         ("shared/durability.py", True),
         ("papers/P01/draft.md", False),
@@ -691,6 +694,163 @@ def test_python_captures_strip_carriage_returns_on_windows() -> None:
                 captures += 1
                 assert "tr -d '\\r'" in line, f"step {step.get('name')!r} captures python output without stripping CR"
     assert captures >= 3, "expected the candidate, disposition, and PR-id captures"
+
+
+# Codex review 3988790015: reopening a thread emits no event, so a schedule re-derives thread state.
+
+SWEEP_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "merge-admission-sweep.yml"
+GATE_RUN_ID = 34594304981
+
+
+def _sweep_gate(config: dict[str, Any]) -> SweepGate:
+    """Return the configured admission check the sweep re-runs."""
+    section = config["sweep"]
+    return SweepGate(check_run=section["gate_check_run"], workflow_path=section["gate_workflow_path"])
+
+
+def _open_pull_request(
+    *,
+    live: int = 1,
+    outdated: int = 0,
+    queued: bool = False,
+    conclusion: str | None = "SUCCESS",
+    status: str = "COMPLETED",
+    workflow_path: str = ".github/workflows/merge-admission.yml",
+) -> dict[str, Any]:
+    """Return one open pull request as the sweep query reports it."""
+    threads = (
+        [{"isResolved": False, "isOutdated": False} for _ in range(live)]
+        + [{"isResolved": False, "isOutdated": True} for _ in range(outdated)]
+        + [{"isResolved": True, "isOutdated": False}]
+    )
+    gate = {
+        "__typename": "CheckRun",
+        "name": "merge-admission",
+        "status": status,
+        "conclusion": conclusion,
+        "checkSuite": {"workflowRun": {"databaseId": GATE_RUN_ID, "file": {"path": workflow_path}}},
+    }
+    rollup = {"contexts": {"pageInfo": {"hasNextPage": False}, "nodes": [gate]}}
+    return {
+        "number": 278,
+        "id": "PR_278",
+        "mergeQueueEntry": {"id": "MQE_278"} if queued else None,
+        "reviewThreads": {"pageInfo": {"hasNextPage": False}, "nodes": threads},
+        "commits": {
+            "pageInfo": {"hasNextPage": False},
+            "nodes": [{"commit": {"oid": "a" * 40, "statusCheckRollup": rollup}}],
+        },
+    }
+
+
+def _sweep_payload(*pulls: dict[str, Any], truncated: bool = False) -> dict[str, Any]:
+    """Return the sweep query response wrapping the given pull requests."""
+    return {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": truncated}, "nodes": list(pulls)}}}}
+
+
+def test_a_reopened_thread_behind_a_green_admission_check_is_re_run(config: dict[str, Any]) -> None:
+    """The silent case: success stands while a thread is live again."""
+    assert sweep_actions(_sweep_payload(_open_pull_request()), gate=_sweep_gate(config)) == [f"rerun {GATE_RUN_ID} 278"]
+
+
+def test_a_queued_pull_request_with_a_live_thread_is_dequeued_and_re_run(config: dict[str, Any]) -> None:
+    """Both the queue entry and the stale success must go."""
+    actions = sweep_actions(_sweep_payload(_open_pull_request(queued=True)), gate=_sweep_gate(config))
+    assert actions == ["dequeue PR_278 278", f"rerun {GATE_RUN_ID} 278"]
+
+
+@pytest.mark.parametrize(
+    "pull_request",
+    [
+        _open_pull_request(live=0, queued=True),
+        _open_pull_request(live=0, outdated=1, queued=True),
+    ],
+    ids=["all-resolved", "only-outdated-unresolved"],
+)
+def test_a_pull_request_without_a_live_thread_is_left_alone(
+    config: dict[str, Any], pull_request: dict[str, Any]
+) -> None:
+    """Positive control: a queued, green pull request with no live thread needs nothing."""
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == []
+
+
+@pytest.mark.parametrize(
+    ("conclusion", "status"),
+    [("FAILURE", "COMPLETED"), (None, "IN_PROGRESS")],
+    ids=["already-failing", "already-re-running"],
+)
+def test_an_admission_check_that_is_not_green_is_not_re_run_again(
+    config: dict[str, Any], conclusion: str | None, status: str
+) -> None:
+    """Repeated sweeps must not pile re-runs onto a check that already reflects the thread."""
+    pull_request = _open_pull_request(conclusion=conclusion, status=status)
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == []
+
+
+def test_a_same_named_check_from_another_workflow_is_not_re_run(config: dict[str, Any]) -> None:
+    """Only the configured admission workflow's run is re-run."""
+    pull_request = _open_pull_request(workflow_path=".github/workflows/lookalike.yml")
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config)) == []
+
+
+def test_a_truncated_pull_request_listing_is_refused(config: dict[str, Any]) -> None:
+    """A sweep that saw only some open pull requests cannot report the rest as clean."""
+    with pytest.raises(ValueError, match="truncated"):
+        sweep_actions(_sweep_payload(_open_pull_request(), truncated=True), gate=_sweep_gate(config))
+
+
+def test_truncated_threads_are_refused(config: dict[str, Any]) -> None:
+    """The live thread could be on the page the sweep did not read."""
+    pull_request = _open_pull_request(live=0)
+    pull_request["reviewThreads"]["pageInfo"]["hasNextPage"] = True
+    with pytest.raises(ValueError, match="truncated"):
+        sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config))
+
+
+def test_a_sweep_without_queue_membership_is_refused(config: dict[str, Any]) -> None:
+    """A query that did not ask about the queue cannot say the pull request is not queued."""
+    pull_request = _open_pull_request()
+    del pull_request["mergeQueueEntry"]
+    with pytest.raises(ValueError, match="queue membership is unknown"):
+        sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config))
+
+
+def test_the_sweep_cli_prints_one_action_per_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], config: dict[str, Any]
+) -> None:
+    """The workflow reads the CLI's stdout line by line."""
+    snapshot_path = tmp_path / "sweep.json"
+    snapshot_path.write_text(json.dumps(_sweep_payload(_open_pull_request(queued=True))), encoding="utf-8")
+    assert main(["sweep", "--snapshot", str(snapshot_path), "--config", str(CONFIG_PATH)]) == 0
+    assert capsys.readouterr().out.splitlines() == ["dequeue PR_278 278", f"rerun {GATE_RUN_ID} 278"]
+
+
+def test_the_sweep_cli_prints_nothing_when_there_is_nothing_to_do(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An empty line would make the workflow's non-empty-file check treat 'no work' as a blank action."""
+    snapshot_path = tmp_path / "sweep.json"
+    snapshot_path.write_text(json.dumps(_sweep_payload(_open_pull_request(live=0))), encoding="utf-8")
+    assert main(["sweep", "--snapshot", str(snapshot_path), "--config", str(CONFIG_PATH)]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_the_sweep_targets_the_real_admission_job(config: dict[str, Any]) -> None:
+    """The configured check name and workflow must name the job that actually reports admission."""
+    gate = _sweep_gate(config)
+    assert (REPO_ROOT / gate.workflow_path).resolve() == WORKFLOW_PATH.resolve()
+    assert gate.check_run in yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]
+
+
+def test_the_sweep_workflow_runs_on_a_schedule_and_acts() -> None:
+    """A sweep that is written but not scheduled, or never acts, is not a mechanism."""
+    workflow = yaml.load(SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    assert workflow["on"]["schedule"] == [{"cron": "*/5 * * * *"}]
+    body = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "tools/check_merge_admission.py sweep" in body
+    assert "dequeuePullRequest" in body
+    assert 'gh run rerun "$target"' in body
+    assert "databaseId file{path}" in body
 
 
 def test_config_is_a_shallow_copy_not_shared(config: dict[str, Any], snapshot: dict[str, Any]) -> None:

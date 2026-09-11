@@ -27,9 +27,12 @@ on:
   # A new review thread arrives as a review comment, and the review that carries
   # it also fires `pull_request_review` above -- both cover the case this gate
   # exists for. GitHub has no `pull_request_review_thread` Actions trigger, so
-  # *resolving* a thread does not re-run the gate on its own. That direction only
-  # ever moves the check from failure to success, so it cannot admit silently:
-  # re-run the check (or push) once the threads carry a disposition.
+  # thread-state changes made without a comment re-run nothing here:
+  #   * *resolving* a thread moves the check from failure to success, so it
+  #     cannot admit silently -- re-run the check once threads carry a disposition;
+  #   * *reopening* a resolved thread moves it the other way, from success to
+  #     blocked. That IS silent, and merge-admission-sweep.yml closes it on a
+  #     5-minute schedule by dequeuing the pull request and re-running this check.
   pull_request_review_comment:
     types: [created, edited, deleted]
   merge_group:

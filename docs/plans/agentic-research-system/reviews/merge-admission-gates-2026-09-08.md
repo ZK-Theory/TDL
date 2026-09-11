@@ -52,10 +52,20 @@ GitHub has no `pull_request_review_thread` Actions trigger — actionlint caught
 the first draft, which used one and was rejected at workflow validation. A newly
 published thread still retriggers, because it arrives as a review comment and
 the review carrying it fires `pull_request_review` (Codex's five threads on
-PR #262 came with a submitted review at `07:40:23Z`). What is *not* covered is
-thread **resolution**, which no event exposes. That direction only ever moves
-the check from failure to success, so it cannot admit silently: re-run the check
-once the threads carry a disposition.
+PR #262 came with a submitted review at `07:40:23Z`). No event exposes thread
+state changes made without a comment, and the two directions differ:
+
+- **Resolving** a thread moves the check from failure to success, so it cannot
+  admit silently. Re-run the check once the threads carry a disposition.
+- **Reopening** a resolved thread moves it from success to blocked, and *that is
+  silent*. An earlier version of this record claimed thread-state changes only
+  moved failure to success; Codex review 3988790015 showed the reverse case. The
+  merge queue re-checks threads when it builds a queue commit, which covers
+  reopens before queueing. `merge-admission-sweep.yml` covers the rest: every 5
+  minutes it lists open pull requests, and for any with a live thread it dequeues
+  a queued entry and re-runs a currently green admission check, so the success is
+  replaced on the same commit. The window is the cron interval plus GitHub's
+  scheduling delay, typically 5–10 minutes.
 
 ### platform-order
 
@@ -134,6 +144,21 @@ Six findings on `082b934`, after `main` (#277–#281) was merged into the branch
 - **3988684703** — platform evidence is trusted by producer, and a candidate
   editing the producer workflow is refused.
 
+### Review round 3 (Codex, 2026-09-11)
+
+Three more findings on `082b934`, posted while round 2 was being fixed.
+
+- **3988789995** — `research_system/authority.py` performs control-store
+  publication: staged writes, `fsync`, and an atomic `os.rename` of the stage onto
+  the final root (checked at `authority.py:1784`). It was added to
+  `sensitive_paths`.
+- **3988790007** — the candidate controls the gate's own workflow YAML. This
+  cannot be closed in the repository, so Stephen chose a ruleset-required
+  workflow pinned to `main` (owner action 1).
+- **3988790015** — reopening a thread is silent; the record's earlier claim
+  otherwise was wrong. Stephen chose a 5-minute sweep (`merge-admission-sweep.yml`)
+  over relying on the queue-time check alone.
+
 ## Watched failures
 
 Every rule is mutation-tested.
@@ -172,9 +197,18 @@ five threads; approving after a green Linux run) confirm neither gate is vacuous
 
 ## Owner actions still required
 
-1. **Add `merge-admission` to the P-049 ruleset's required status checks.** Until
-   that is done the workflow reports but does not block. This is a repository
-   settings change and was not made from this session.
+1. **Add `.github/workflows/merge-admission.yml` to the P-049 ruleset as a
+   required workflow pinned to `refs/heads/main`** (a `workflows` rule), rather
+   than as a plain required status check. Decided 2026-09-11 (Codex review
+   3988790007). On a same-repository pull request, GitHub runs the pull request's
+   own copy of the workflow file. A candidate could therefore replace the gate's
+   steps with a no-op that still reports `merge-admission` green. Checking the
+   gate code out from base does not help, because the candidate's YAML has
+   already chosen what runs, and no in-repository check can close the gap: it
+   would run under the same control. A ruleset-required workflow runs the
+   definition from `main` whatever the pull request edits. Until this is done,
+   the workflow reports but does not block. This is a repository settings change
+   and was not made from this session.
 2. **Confirm the sensitive-path list.** `.github/merge-admission.yml` lists the
    store package plus lock/anchor/durability/layout/atomic/concurrency filename
    patterns. It is deliberately narrow; broadening it turns the ordering rule

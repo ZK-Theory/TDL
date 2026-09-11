@@ -4,8 +4,8 @@
 # platform-evidence ordering cannot be established at the exact merge candidate.
 """Merge-admission gates evaluated against a single evidence snapshot.
 
-Four gates. The first two derive from recorded Gate 6 failures; the last two
-close merge-queue gaps found in review of PR #278:
+Five gates. The first two derive from recorded Gate 6 failures; the last three
+close merge-queue and thread-state gaps found in review of PR #278:
 
 ``thread-finality``
     Observation ``01M0PWSR73ABY48X8YW7KQX6Q6``. PR #262 merged 89 seconds after
@@ -28,6 +28,12 @@ close merge-queue gaps found in review of PR #278:
     pull request's evidence. The first removes a queued pull request when its
     review state changes; the second refuses a queue commit carrying more
     entries than configured.
+
+``sweep``
+    Reopening a resolved thread emits no Actions event, so a green admission
+    check can outlive a newly live blocker. Run on a schedule, this lists what
+    must happen for every open pull request with a live thread: dequeue it if
+    queued, and re-run a currently green admission check.
 
 Every gate raises :class:`ValueError` on absent, malformed, truncated, or
 untrusted evidence: silent absence is the failure mode these gates exist to
@@ -563,6 +569,106 @@ def evaluate_merge_group_size(compare: Mapping[str, Any], *, base_sha: str, head
     return f"merge-group-size: {total} entry on {head_sha} (limit {max_entries})"
 
 
+@dataclass(frozen=True)
+class SweepGate:
+    """The admission check a sweep re-runs, identified by producer as well as name.
+
+    Attributes:
+        check_run: Check-run name of the admission job.
+        workflow_path: Repository path of the workflow that produces it.
+    """
+
+    check_run: str
+    workflow_path: str
+
+
+def _live_thread_count(pull_request: Mapping[str, Any], what: str) -> int:
+    """Return the number of unresolved, non-outdated review threads."""
+    threads = _require_nodes(pull_request.get("reviewThreads"), f"{what}.reviewThreads")
+    for index, thread in enumerate(threads):
+        if "isResolved" not in thread or "isOutdated" not in thread:
+            raise ValueError(f"{what}.reviewThreads.nodes[{index}] is missing isResolved/isOutdated")
+    return sum(1 for thread in threads if not thread["isResolved"] and not thread["isOutdated"])
+
+
+def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: str) -> list[int]:
+    """Return workflow-run ids of the head's currently green admission checks."""
+    commits = _require_nodes(pull_request.get("commits"), f"{what}.commits")
+    if len(commits) != 1:
+        raise ValueError(f"{what}: expected exactly one tip commit, got {len(commits)}")
+    commit = _require_mapping(commits[0].get("commit"), f"{what} head commit")
+    rollup = commit.get("statusCheckRollup")
+    if rollup is None:
+        return []
+    contexts = _require_nodes(_require_mapping(rollup, f"{what} statusCheckRollup").get("contexts"), f"{what} contexts")
+    run_ids: list[int] = []
+    for context in contexts:
+        if context.get("__typename") != "CheckRun" or context.get("name") != gate.check_run:
+            continue
+        suite = context.get("checkSuite")
+        run = suite.get("workflowRun") if isinstance(suite, Mapping) else None
+        file = run.get("file") if isinstance(run, Mapping) else None
+        if not isinstance(file, Mapping) or file.get("path") != gate.workflow_path:
+            continue
+        if context.get("conclusion") != "SUCCESS":
+            continue
+        run_id = run.get("databaseId") if isinstance(run, Mapping) else None
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            raise ValueError(
+                f"{what}: a green {gate.check_run} check carries no workflow run id, so it cannot be re-run"
+            )
+        if run_id not in run_ids:
+            run_ids.append(run_id)
+    return run_ids
+
+
+def sweep_actions(payload: Mapping[str, Any], *, gate: SweepGate) -> list[str]:
+    """Return what a scheduled sweep must do for open pull requests with live threads.
+
+    Reopening a resolved thread (``unresolveReviewThread``) emits no Actions
+    event, so a green admission check can outlive a newly live blocker (Codex
+    review 3988790015). A pull request with at least one unresolved,
+    non-outdated thread yields:
+
+    - ``dequeue <pull-request-id> <number>`` if it is in the merge queue;
+    - ``rerun <workflow-run-id> <number>`` for each currently green admission
+      check on its head, so the re-run replaces that success on the same commit.
+
+    Pull requests with no live thread, and admission checks that are already
+    failing or still running, need nothing and yield nothing, so repeated sweeps
+    do not pile up re-runs.
+
+    Args:
+        payload: ``gh api graphql`` response listing open pull requests.
+        gate: The admission check to re-run.
+
+    Returns:
+        Action lines in pull-request order.
+
+    Raises:
+        ValueError: If the listing or any nested connection is truncated or
+            malformed, or queue membership is not stated.
+    """
+    pulls = _require_nodes(_repository(payload).get("pullRequests"), "repository.pullRequests")
+    actions: list[str] = []
+    for pull_request in pulls:
+        number = pull_request.get("number")
+        if not isinstance(number, int) or isinstance(number, bool):
+            raise ValueError("a repository.pullRequests node is missing its number")
+        what = f"pull request #{number}"
+        if _live_thread_count(pull_request, what) == 0:
+            continue
+        pull_request_id = pull_request.get("id")
+        if not isinstance(pull_request_id, str) or not pull_request_id:
+            raise ValueError(f"{what} is missing its node id")
+        if "mergeQueueEntry" not in pull_request:
+            raise ValueError(f"{what}.mergeQueueEntry is absent; queue membership is unknown")
+        if pull_request["mergeQueueEntry"] is not None:
+            actions.append(f"dequeue {pull_request_id} {number}")
+        actions.extend(f"rerun {run_id} {number}" for run_id in _green_gate_runs(pull_request, gate=gate, what=what))
+    return actions
+
+
 def load_config(path: Path) -> Mapping[str, Any]:
     """Load and shallow-validate the merge-admission configuration file."""
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -624,7 +730,19 @@ def _required(value: str | None, flag: str) -> str:
     return value
 
 
-GATES = ("thread-finality", "platform-order", "platform-status", "queue-disposition", "merge-group-size")
+def sweep_gate(config: Mapping[str, Any]) -> SweepGate:
+    """Return the configured admission check the scheduled sweep re-runs."""
+    section = _section(config, "sweep")
+    values: dict[str, str] = {}
+    for key, field in (("gate_check_run", "check_run"), ("gate_workflow_path", "workflow_path")):
+        value = section.get(key)
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"configuration key 'sweep.{key}' must be a non-empty string")
+        values[field] = value
+    return SweepGate(**values)
+
+
+GATES = ("thread-finality", "platform-order", "platform-status", "queue-disposition", "merge-group-size", "sweep")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -653,6 +771,10 @@ def main(argv: list[str] | None = None) -> int:
                 head_sha=_required(args.head_sha, "--head-sha"),
                 max_entries=_max_entries(config),
             )
+        elif args.gate == "sweep":
+            # One action per line and nothing at all when there is none: the
+            # workflow treats a non-empty output file as work to do.
+            verdict = "\n".join(sweep_actions(_load_json(args.snapshot, "--snapshot"), gate=sweep_gate(config)))
         elif args.gate == "queue-disposition":
             verdict = queue_disposition(
                 _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")
@@ -680,7 +802,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 1
 
-    print(verdict)
+    if verdict:
+        print(verdict)
     return 0
 
 

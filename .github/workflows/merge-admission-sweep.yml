@@ -1,0 +1,128 @@
+name: Merge Admission Sweep
+
+# Re-derives review-thread state for every open pull request on a schedule.
+#
+# Reopening a resolved thread (`unresolveReviewThread`) emits no Actions event,
+# so a green `merge-admission` check can outlive a newly live blocker (Codex
+# review 3988790015). The merge queue re-checks threads when it builds a queue
+# commit, which covers reopens before queueing; this sweep covers the rest:
+#
+#   * a pull request with a live thread that is in the merge queue is removed;
+#   * if its head's `merge-admission` check is currently green, that workflow run
+#     is re-run, so current thread state replaces the stale success on the same
+#     commit.
+#
+# The window is the cron interval plus GitHub's best-effort scheduling delay,
+# typically 5-10 minutes. Chosen by Stephen on 2026-09-11 over relying on the
+# queue-time check alone. Scheduled workflows run only from the default branch,
+# so this takes effect once merged.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-admission-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      checks: read
+      # `gh run rerun` for a stale green admission check.
+      actions: write
+      # dequeuePullRequest. No pull request code is checked out or executed.
+      contents: write
+      pull-requests: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out the gate from the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            tools
+            .github/merge-admission.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install the configuration parser
+        run: pip install "PyYAML>=6"
+
+      # Connection sizes keep the query under GitHub's node budget. Every
+      # connection's hasNextPage is checked by the tool, so a repository that
+      # outgrows these sizes fails the sweep loudly instead of skipping PRs.
+      - name: Capture thread and admission state for every open pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api graphql \
+            -F owner="${{ github.repository_owner }}" \
+            -F name="${{ github.event.repository.name }}" \
+            -f query='
+              query($owner:String!,$name:String!){
+                repository(owner:$owner,name:$name){
+                  pullRequests(states:OPEN, baseRefName:"main", first:50){
+                    pageInfo{hasNextPage}
+                    nodes{
+                      number
+                      id
+                      mergeQueueEntry{ id }
+                      reviewThreads(first:100){ pageInfo{hasNextPage} nodes{ isResolved isOutdated } }
+                      commits(last:1){
+                        pageInfo{hasNextPage}
+                        nodes{ commit{ oid statusCheckRollup{ contexts(first:50){
+                          pageInfo{hasNextPage}
+                          nodes{
+                            __typename
+                            ... on CheckRun{ name status conclusion checkSuite{ workflowRun{ databaseId file{path} } } }
+                          }
+                        } } } }
+                      }
+                    }
+                  }
+                }
+              }' > sweep.json
+
+      - name: Dequeue and re-run where a live thread outlived admission
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python tools/check_merge_admission.py sweep --snapshot sweep.json | tr -d '\r' > actions.txt
+          if [ ! -s actions.txt ]; then
+            echo "No open pull request has a live thread behind a queued entry or a green admission check."
+            exit 0
+          fi
+          while read -r action target number; do
+            case "$action" in
+              dequeue)
+                gh api graphql -F id="$target" -f query='
+                  mutation($id:ID!){ dequeuePullRequest(input:{id:$id}){ mergeQueueEntry{ state } } }' > /dev/null
+                echo "::warning::Removed PR #${number} from the merge queue: it has an unresolved review thread."
+                ;;
+              rerun)
+                gh run rerun "$target"
+                echo "::warning::Re-ran merge-admission run ${target} for PR #${number}: a live review thread outlived its success."
+                ;;
+              *)
+                echo "BLOCKED: unknown sweep action '${action}'" >&2
+                exit 1
+                ;;
+            esac
+          done < actions.txt

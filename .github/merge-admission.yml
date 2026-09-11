@@ -40,6 +40,10 @@ platform_order:
     - research_system/store/
     - research_system/evals/executors/control_store.py
     - research_system/evals/release_publication.py
+    # Control-store publication: staged writes, fsync, and atomic os.rename of the
+    # stage onto the final root (initialize_authority_control_store). Added from
+    # Codex review 3988789995 on 2026-09-11 after checking the code.
+    - research_system/authority.py
     - "**/*_lock.py"
     - "**/lock.py"
     - "**/anchor.py"
@@ -54,3 +58,10 @@ merge_queue:
   # re-derives the count from the queue commit, so widening the ruleset without
   # widening admission fails closed instead of certifying unevaluated entries.
   max_entries: 1
+
+sweep:
+  # The admission check the scheduled sweep re-runs when a live review thread
+  # outlives its success (merge-admission-sweep.yml, Codex review 3988790015).
+  # Identified by producing workflow as well as name, like platform evidence.
+  gate_check_run: merge-admission
+  gate_workflow_path: .github/workflows/merge-admission.yml
