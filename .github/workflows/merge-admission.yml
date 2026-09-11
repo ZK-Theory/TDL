@@ -1,0 +1,319 @@
+name: Merge Admission
+
+# Re-derives admission evidence at the exact merge candidate.
+#
+# The trigger list is the mechanism, not decoration: every event that can change
+# review state re-runs this workflow and replaces the check conclusion on the
+# head SHA. A review thread published after an earlier clean readback therefore
+# invalidates that readback automatically -- the failure recorded as observation
+# 01M0PWSR73ABY48X8YW7KQX6Q6, where PR #262 merged 89 seconds after five Codex
+# threads appeared.
+#
+# `merge-admission` must be a required status check in the P-049 ruleset. Until
+# it is, this workflow reports but does not gate; a run that never posts (a
+# deleted workflow, a disabled Action) leaves the required check pending, which
+# is the intended fail-closed state.
+#
+# Runs on Windows like every job in this repository (decided 2026-09-11). Bash is
+# the declared shell, and every `$(python ...)` capture strips `\r`: Python on
+# Windows ends stdout lines with CRLF, which would otherwise make SHA equality
+# and the `pending` comparison fail silently.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+  # A new review thread arrives as a review comment, and the review that carries
+  # it also fires `pull_request_review` above -- both cover the case this gate
+  # exists for. GitHub has no `pull_request_review_thread` Actions trigger, so
+  # thread-state changes made without a comment re-run nothing here:
+  #   * *resolving* a thread moves the check from failure to success, so it
+  #     cannot admit silently -- re-run the check once threads carry a disposition;
+  #   * *reopening* a resolved thread moves it the other way, from success to
+  #     blocked. That IS silent, and merge-admission-sweep.yml closes it on a
+  #     5-minute schedule by dequeuing the pull request and re-running this check.
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Pull request to re-evaluate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+
+concurrency:
+  # Keyed on the PR, not the SHA: a superseded evaluation of an older head must
+  # not outlive the evaluation of the current one.
+  group: merge-admission-${{ github.event.pull_request.number || github.event.merge_group.head_ref || github.event.inputs.pull_request_number }}
+  cancel-in-progress: true
+
+jobs:
+  merge-admission:
+    runs-on: windows-latest
+    # Outlasts the WAIT_SECONDS budget below, which in turn outlasts
+    # `windows-store-lock`'s own 30-minute ceiling. Only platform-sensitive
+    # candidates ever wait; everything else finishes in a few minutes.
+    timeout-minutes: 60
+    permissions:
+      checks: read
+      # The snapshot authenticates platform evidence through
+      # `checkSuite.workflowRun.file.path`. Job-level permissions set every
+      # unlisted scope to none, and without `actions: read` the token can be
+      # denied that field, which would reject every genuine run (Codex review
+      # 3990012219).
+      actions: read
+      # Write access is for one call only: dequeuePullRequest, when a queued
+      # pull request's review state changes. No candidate code is checked out
+      # or executed by this job.
+      contents: write
+      pull-requests: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # The gate logic is taken from the base branch, never from the candidate:
+      # a pull request must not be able to relax the gate that admits it.
+      - name: Check out the gate from the base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            tools
+            .github/merge-admission.yml
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install the configuration parser
+        run: pip install "PyYAML>=6"
+
+      # Every event resolves both a pull request and the commit whose checks
+      # carry the platform evidence. They are the same commit outside a merge
+      # queue; inside one the queue's synthetic commit must also pass, because a
+      # candidate can fail only after integration with the current base.
+      - name: Resolve the pull request and the platform commit
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          DISPATCH_PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          base=""
+          case "$EVENT_NAME" in
+            merge_group)
+              # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha>
+              number="$(printf '%s' "$MERGE_GROUP_HEAD_REF" | sed -n 's|.*/pr-\([0-9][0-9]*\)-.*|\1|p')"
+              # Review threads and approvals live on the pull request, so the
+              # candidate stays the PR head; the queue commit is checked as well.
+              expected=""
+              platform="$MERGE_GROUP_HEAD_SHA"
+              base="$MERGE_GROUP_BASE_SHA"
+              ;;
+            workflow_dispatch)
+              # A dispatch can name any pull request, but this run's check lands
+              # on $RUN_SHA. Requiring the two to agree stops a dispatch from the
+              # default branch reporting success that never replaces the target
+              # PR's failed check, and stops one PR's ref carrying evidence for
+              # another PR's bytes. Dispatch from the pull request's own branch.
+              number="$DISPATCH_PR_NUMBER"
+              expected="$RUN_SHA"
+              platform="$RUN_SHA"
+              ;;
+            *)
+              number="$PR_NUMBER"
+              expected="$EVENT_HEAD_SHA"
+              platform="$EVENT_HEAD_SHA"
+              ;;
+          esac
+          if [ -z "$number" ]; then
+            echo "BLOCKED: could not resolve a pull request number for event $EVENT_NAME" >&2
+            exit 1
+          fi
+          if [ -z "$platform" ]; then
+            echo "BLOCKED: could not resolve a platform commit for event $EVENT_NAME" >&2
+            exit 1
+          fi
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "expected_head=$expected" >> "$GITHUB_OUTPUT"
+          echo "platform=$platform" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      # Codex review 3988684699. Admission below evaluates one pull request, so a
+      # queue commit carrying more entries would certify the others unevaluated.
+      - name: Refuse a merge-group commit carrying more entries than admission evaluates
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ steps.target.outputs.base }}
+          HEAD_SHA: ${{ steps.target.outputs.platform }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE_SHA}...${HEAD_SHA}" > compare.json
+          python tools/check_merge_admission.py merge-group-size \
+            --compare compare.json --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA"
+
+      # Codex review 3988684692. A merge-group run evaluates review state once,
+      # when the queue commit is built; a review event afterwards re-runs this
+      # gate on the PR head only, so the queue commit's green check would never
+      # learn of the new thread. Removing the entry forces a rebuild, and the
+      # rebuilt queue commit is re-evaluated from current review state. Cost,
+      # accepted 2026-09-11: any review event on a queued PR removes it, even a
+      # trivial comment.
+      - name: Remove a queued pull request whose review state just changed
+        if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          gh api graphql \
+            -F owner="${{ github.repository_owner }}" \
+            -F name="${{ github.event.repository.name }}" \
+            -F number="${PR_NUMBER}" \
+            -f query='
+              query($owner:String!,$name:String!,$number:Int!){
+                repository(owner:$owner,name:$name){
+                  pullRequest(number:$number){ id mergeQueueEntry{ id state } }
+                }
+              }' > queue.json
+          disposition="$(python tools/check_merge_admission.py queue-disposition \
+            --snapshot queue.json --event-name "$EVENT_NAME" | tr -d '\r')"
+          if [ "$disposition" = "dequeue" ]; then
+            pr_id="$(python -c 'import json; print(json.load(open("queue.json", encoding="utf-8"))["data"]["repository"]["pullRequest"]["id"])' | tr -d '\r')"
+            gh api graphql -F id="$pr_id" -f query='
+              mutation($id:ID!){ dequeuePullRequest(input:{id:$id}){ mergeQueueEntry{ state } } }'
+            echo "::warning::Removed PR #${PR_NUMBER} from the merge queue: its review state changed after the queue commit was built. Re-queue it once the change carries a disposition."
+          else
+            echo "PR #${PR_NUMBER}: ${disposition} (not queued, or not a review event)"
+          fi
+
+      - name: Capture admission evidence, waiting for the platform lane if required
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          EXPECTED_HEAD: ${{ steps.target.outputs.expected_head }}
+          PLATFORM_SHA: ${{ steps.target.outputs.platform }}
+          # `synchronize` starts this gate alongside CI, so on a
+          # platform-sensitive candidate the platform lane is routinely still
+          # running when the first snapshot is taken -- and no event fires when
+          # it finishes. Failing then would leave a permanently red check on a
+          # candidate that is fine. Waiting costs runner time only on the
+          # candidates the ordering rule actually governs.
+          WAIT_SECONDS: "2400"
+          POLL_SECONDS: "30"
+        run: |
+          set -euo pipefail
+
+          capture() {
+            gh api graphql \
+              -F owner="${{ github.repository_owner }}" \
+              -F name="${{ github.event.repository.name }}" \
+              -F number="${PR_NUMBER}" \
+              -F platformSha="${PLATFORM_SHA}" \
+              -f query='
+                fragment platformChecks on Commit {
+                  oid
+                  statusCheckRollup{ contexts(first:100){
+                    pageInfo{hasNextPage}
+                    nodes{
+                      __typename
+                      ... on CheckRun{
+                        databaseId name status conclusion completedAt
+                        checkSuite{ app{slug} workflowRun{ file{path} } }
+                      }
+                      ... on StatusContext{ context state createdAt }
+                    }
+                  } }
+                }
+                query($owner:String!,$name:String!,$number:Int!,$platformSha:GitObjectID!){
+                  repository(owner:$owner,name:$name){
+                    pullRequest(number:$number){
+                      id
+                      headRefOid
+                      changedFiles
+                      mergeQueueEntry{ id state }
+                      reviewThreads(first:100){
+                        pageInfo{hasNextPage}
+                        nodes{ isResolved isOutdated comments(first:1){nodes{createdAt author{login}}} }
+                      }
+                      reviews(first:100){
+                        pageInfo{hasNextPage}
+                        nodes{ state submittedAt author{login} commit{oid} }
+                      }
+                      commits(last:1){ pageInfo{hasNextPage} nodes{ commit{ ...platformChecks } } }
+                    }
+                    platformCommit: object(oid:$platformSha){ ...platformChecks }
+                  }
+                }' > snapshot.json
+            # GraphQL `files` omits rename sources; the REST listing carries
+            # `previous_filename`. The tool checks its length against
+            # `changedFiles`, so a truncated listing fails closed.
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+              --jq '.[] | {filename, previous_filename, status}' > files.jsonl
+            python -c 'import json; s = json.load(open("snapshot.json", encoding="utf-8")); s["restFiles"] = [json.loads(line) for line in open("files.jsonl", encoding="utf-8") if line.strip()]; json.dump(s, open("snapshot.json", "w", encoding="utf-8"))'
+            candidate="$(python -c 'import json; print(json.load(open("snapshot.json", encoding="utf-8"))["data"]["repository"]["pullRequest"]["headRefOid"])' | tr -d '\r')"
+            if [ -n "$EXPECTED_HEAD" ] && [ "$candidate" != "$EXPECTED_HEAD" ]; then
+              echo "BLOCKED: evidence head is $candidate, not the $EXPECTED_HEAD this run is attached to" >&2
+              exit 1
+            fi
+          }
+
+          status_of() {
+            python tools/check_merge_admission.py platform-status \
+              --snapshot snapshot.json \
+              --candidate-sha "$candidate" \
+              --platform-sha "$PLATFORM_SHA" | tr -d '\r'
+          }
+
+          capture
+          deadline=$(( SECONDS + WAIT_SECONDS ))
+          while [ "$(status_of)" = "pending" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::warning::${WAIT_SECONDS}s elapsed with the platform lane still running; the gate will fail closed"
+              break
+            fi
+            echo "Platform evidence is not terminal yet; re-checking in ${POLL_SECONDS}s"
+            sleep "$POLL_SECONDS"
+            capture
+          done
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+
+      # Observation 01M0PWSR73ABY48X8YW7KQX6Q6.
+      - name: Gate on review-thread finality at the candidate
+        run: >-
+          python tools/check_merge_admission.py thread-finality
+          --snapshot snapshot.json
+          --candidate-sha "${{ steps.snapshot.outputs.candidate }}"
+
+      # Observation 01M0Q0WXJSCX5WJ69H2G9DG4E3. Runs even when the gate above
+      # fails so one run reports both defects rather than one per push, but only
+      # when a snapshot exists: without one there is no candidate to evaluate,
+      # and the job is already failing.
+      - name: Gate on platform evidence preceding review acceptance
+        if: always() && steps.snapshot.outcome == 'success'
+        run: >-
+          python tools/check_merge_admission.py platform-order
+          --snapshot snapshot.json
+          --candidate-sha "${{ steps.snapshot.outputs.candidate }}"
+          --platform-sha "${{ steps.target.outputs.platform }}"

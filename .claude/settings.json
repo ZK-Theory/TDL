@@ -31,6 +31,17 @@
             "statusMessage": "Checking skill mirror-tree write boundary..."
           }
         ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/_receipt-wrap.sh\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/admin-bypass-guard.sh\"",
+            "timeout": 30,
+            "statusMessage": "Checking for ruleset bypass or rule changes..."
+          }
+        ]
       }
     ],
     "PostToolUse": [
