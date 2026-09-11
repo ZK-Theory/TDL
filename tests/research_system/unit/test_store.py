@@ -123,6 +123,90 @@ def test_composite_writer_lock_exposes_only_a_live_lease(tmp_path):
         candidate.locked_root(root)
 
 
+def _attempt_directory_replacement(held: Path) -> OSError | None:
+    moved = held.with_name(f"{held.name}-moved")
+    try:
+        os.replace(held, moved)
+    except OSError as refused:
+        return refused
+    moved.rename(held)
+    return None
+
+
+def _open_held_directory_anchor(seam: str, held: Path, opened: list):
+    if seam == "registered-root":
+        anchor = anchor_module.open_registered_root_anchor(held, delete_protect=True)
+    elif seam == "registered-member":
+        # Same call CompositeWriterLock._prepare_member makes for runtime/.
+        anchor = lock_module.open_registered_member_directory_anchor(held)
+    elif seam == "anchored-member":
+        # The parent handle is on the parent, not under ``held``, so it cannot
+        # fence the child's rename; only the child anchor's own handle can.
+        parent = anchor_module.open_registered_root_anchor(held.parent, delete_protect=False)
+        opened.append(parent)
+        anchor = parent.open_member_directory(held.name)
+    else:  # pragma: no cover - parametrisation guard
+        raise AssertionError(seam)
+    opened.append(anchor)
+    return anchor
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows held-anchor replacement invariant")
+@pytest.mark.parametrize("seam", ["registered-root", "registered-member", "anchored-member"])
+def test_windows_delete_protected_anchor_refuses_replacement_of_its_own_directory(tmp_path, seam):
+    """A held delete-protected anchor is itself the replacement fence.
+
+    The directory is empty and nothing else is open under it, so a refused
+    rename can only come from the anchor handle, never from a descendant.
+    """
+
+    held = tmp_path / "container" / "held"
+    held.mkdir(parents=True)
+    opened: list = []
+    try:
+        _open_held_directory_anchor(seam, held, opened)
+        refused = _attempt_directory_replacement(held)
+        assert refused is not None, f"{seam} delete-protected anchor did not refuse replacement of its directory"
+        assert getattr(refused, "winerror", None) == 32
+    finally:
+        for anchor in reversed(opened):
+            anchor.close()
+
+    assert _attempt_directory_replacement(held) is None, "replacement stayed refused after the anchor closed"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows held-anchor replacement invariant")
+def test_windows_nested_delete_protected_anchors_coexist_and_each_keeps_the_fence(tmp_path):
+    held = tmp_path / "container" / "held"
+    held.mkdir(parents=True)
+    outer = lock_module.open_registered_member_directory_anchor(held)
+    try:
+        inner = anchor_module.open_registered_root_anchor(held, delete_protect=True)
+        try:
+            assert inner.identity == outer.identity
+            inner.fsync()
+            assert inner.list_names() == ()
+            assert _attempt_directory_replacement(held) is not None
+        finally:
+            inner.close()
+        assert _attempt_directory_replacement(held) is not None, "closing a nested anchor released the outer fence"
+    finally:
+        outer.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows held-anchor replacement negative control")
+def test_windows_unprotected_anchor_does_not_fence_replacement(tmp_path):
+    held = tmp_path / "container" / "held"
+    held.mkdir(parents=True)
+    anchor = anchor_module.open_registered_root_anchor(held, delete_protect=False)
+    try:
+        # Negative control: the replacement probe can observe success, so a
+        # refusal in the protected cases is evidence rather than a probe fault.
+        assert _attempt_directory_replacement(held) is None
+    finally:
+        anchor.close()
+
+
 def test_second_composite_writer_lock_reports_existing_writer(tmp_path):
     root = tmp_path / "control"
     (root / "runtime").mkdir(parents=True)
