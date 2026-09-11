@@ -51,15 +51,12 @@ and the freeze instructions at
 
 ---
 
-## Repo-Wide CI: Lint Blocks, Tests Advisory (locked 2026-09-08)
+## Repo-Wide CI: Windows Only, Lint Blocks (locked 2026-09-08, amended 2026-09-11)
 
 **Rule.** `.github/workflows/ci.yml` is the repository's general regression
-signal and is **enabled**. Its `lint` job (`ruff check .`) and its
-`windows-store-lock` and `petls-backend` jobs are blocking. Its `test` job
-(the unfiltered pytest suite) carries `continue-on-error: true` and is
-**advisory**: a green tick on this workflow attests **lint only**. The exit
-condition is explicit — once `test` is observed green on `main`, remove
-`continue-on-error` and restore it to a required check. Ruff suppressions are
+signal and is **enabled**. Its jobs are `lint` (`ruff check .`) and
+`windows-store-lock`, both blocking. **No CI job runs on Linux** (amendment
+2026-09-11, below). Ruff suppressions are
 recorded, never silent: E402 exemptions in `.ruff.toml` are listed
 **file-by-file**, never by directory glob, so a new script in an exempted
 directory is still checked.
@@ -87,6 +84,27 @@ honours `.gitignore` only inside a git checkout — so CI silently skipped them
 while a `git archive` of the same commit did not. An exemption that depends on
 whether `.git` exists is not a recorded suppression; an explicit one is. The
 files are not rewritten to pass: they are frozen audit provenance.
+
+**Amendment (2026-09-11) — the project supports Windows only, so CI runs on
+Windows only.** Decided by Stephen on PR #278. Two Linux-only lanes were removed.
+`test`, the unfiltered pytest suite, had been advisory and never observed green;
+on its last runs it failed collection on `gtda`, `topologytoolkit` and
+`torch_geometric`, which the locked environment omits. `petls-backend` could
+exist only on Linux, because PETLS publishes no Windows wheel. The advisory
+lane's exit condition above is therefore retired rather than met, and no CI lane
+now runs the unfiltered suite. That coverage gap is accepted, not hidden. Jobs
+that check files or GitHub state rather than platform behaviour moved to
+`windows-latest` unchanged in substance: `lint`, both ARS currency jobs (which
+the P-049 ruleset requires; their pytest/ruff selection was run on Windows first:
+46 passed, ruff clean), and `merge-admission`. Scripts written for bash keep
+`shell: bash`. `tests/tools/test_ci_platform_policy.py` fails if any job runs on
+a non-Windows label, if a bash script falls to the Windows default shell, or if
+either removed lane returns. The `merge-admission` platform-order gate now reads
+`windows-store-lock`, trusted only from `.github/workflows/ci.yml` under the
+`github-actions` app. The POSIX-only branches in `research_system/store/`
+(`anchor.py`, `identity.py`, `writer.py`) now have **no CI coverage at all**.
+That is a direct consequence of this decision, recorded here so it is not
+mistaken for an oversight.
 
 **Rationale.** `ci.yml` sat `disabled_manually` from before 2026-07-30 until
 2026-09-08. The narrower `ars-artefact-currency.yml` and its watchdog cover only
@@ -664,6 +682,57 @@ Three journal-targeted papers replacing the original four technique-first papers
   authorities but not inputs certifies that a task may start, not that it can
   finish** — enumerate the deliverable's required fields and name a source for
   each before declaring readiness. Locked 2026-07-28.
+- **For a pull request touching platform-sensitive paths, review acceptance is a
+  GitHub `APPROVED` review, and nothing else.** A verdict posted in a
+  `COMMENTED` review — the habit on most independent reviews here — does not
+  count as acceptance for these pull requests. The `merge-admission` gate
+  (`tools/check_merge_admission.py platform-order`) requires each reviewer's
+  latest approval of the candidate to postdate a green `windows-store-lock` on the
+  platform commit; it can only enforce ordering on a record it can see, and
+  this convention is what puts acceptance into that record. The paths are the
+  `platform_order.sensitive_paths` list in `.github/merge-admission.yml`.
+  Origin: PR #263's first head was accepted on Windows-reachable controls while
+  13 decisive POSIX controls were skipped, and the Linux workflow then failed
+  (observation `01M0Q0WXJSCX5WJ69H2G9DG4E3`). Chosen over parsing verdict tokens
+  from comment bodies, which rests on reviewers typing an exact string, and over
+  treating every human review as acceptance, which blocks on routine questions.
+  Decided by Stephen on PR #278, Codex thread `3962013251`. Locked 2026-09-10.
+- **The merge-admission gate's own files change only through a deliberate admin
+  bypass.** `.github/CODEOWNERS` owns the gate: `merge-admission.yml`,
+  `merge-admission-sweep.yml`, `ci.yml`, `.github/merge-admission.yml`,
+  `tools/check_merge_admission.py`, and `CODEOWNERS` itself. P-049 requires
+  code-owner review. PRs here are opened under the owner's own account, so an
+  edit to any of these needs an admin bypass, and GitHub records every bypass in
+  rule insights.
+
+  The reason is structural. On a same-repository pull request GitHub runs that
+  pull request's copy of a workflow, so an unprotected edit could rewrite the gate
+  that admits it. The durable fix, an organization ruleset requiring the workflow
+  from `main`, needs GitHub Team or Enterprise, and ZK-Theory is on Free.
+  Path-restricting push rulesets are for private repositories only.
+
+  A new file the gate depends on must be added to both CODEOWNERS and
+  `GATE_FILES` in `tests/tools/test_ci_platform_policy.py`. That test fails if a
+  gate file lacks an owner, or if CODEOWNERS reaches beyond the gate.
+
+  Codex (`chatgpt-codex-connector`) is the only required review producer.
+  CodeRabbit's threads still block when it posts them.
+
+  **Agent sessions never take the bypass.** P-049's only bypass actor is the
+  repository admin role with `bypass_mode: pull_request`. Every agent acts
+  through the owner's admin login, so `.claude/hooks/admin-bypass-guard.sh`
+  refuses the following from Claude Code sessions:
+  - `gh pr merge --admin`;
+  - direct merges that skip the queue;
+  - writes to rulesets or branch protection.
+
+  The owner runs those commands in their own terminal. The guard and
+  `.claude/settings.json` are themselves code-owned, so unwiring the guard needs
+  the very bypass it refuses. Codex sessions do not read `.claude/settings.json`,
+  so a Codex session must be told explicitly not to use `--admin` or edit rules.
+  That is an instruction-level rule only, recorded here as the remaining gap.
+
+  Decided by Stephen on PR #278, 2026-09-11. Locked 2026-09-11.
 
 ---
 
@@ -705,4 +774,4 @@ Reference: `tests/research_system/contracts/` went 133 failed / 601 passed → *
 
 ---
 
-*Last updated: 2026-07-28*
+*Last updated: 2026-09-10*
