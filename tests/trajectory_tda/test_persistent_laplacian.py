@@ -96,8 +96,10 @@ def test_petls_is_importable_in_this_environment() -> None:
 
     The risk that motivated it — a silent fallback to numpy — is guarded independently and
     unconditionally by ``test_forced_petls_backend_raises_rather_than_falling_back``. Set
-    ``TDL_REQUIRE_PETLS=1`` (Linux, or a Windows venv seeded per the worktree skill) to
-    assert the backend rather than merely tolerate it; the ``petls-backend`` CI lane sets it.
+    ``TDL_REQUIRE_PETLS=1`` (a Windows venv seeded per the worktree skill, or any environment
+    with the compiled extension) to assert the backend rather than merely tolerate it. No CI
+    lane sets it: the ``petls-backend`` lane was removed on 2026-09-11 with the project's
+    Linux CI, because PETLS publishes no Windows wheel.
 
     ``PETLS_AVAILABLE`` alone is too weak to be that assertion: the module sets it from
     ``import petls`` *or* the ``petls_pytorch`` fallback, so an environment carrying only the

@@ -12,16 +12,24 @@ on:
   merge_group:
     types: [checks_requested]
 
-# Lint and test were one `lint-and-test` job until 2026-09-08. They are split
-# because this workflow was `disabled_manually` from some point before
-# 2026-07-30 until 2026-09-08, and re-enabling it whole would have gated every
-# PR on a pytest baseline nobody had established. Ruff's debt was finite and is
-# now cleared, so `lint` blocks; `test` does not, yet. See the [DECISION] entry
-# of 2026-09-08 in the vault Computational-Log.
+# The project supports Windows only (decided 2026-09-11). Every job here runs on
+# windows-latest, and tests/tools/test_ci_platform_policy.py fails if one does
+# not. That decision removed two Linux lanes:
+#   * `test`, the unfiltered pytest suite -- advisory (`continue-on-error`) and
+#     never observed green, it was failing collection on giotto-tda,
+#     topologytoolkit and torch_geometric, which the locked environment omits.
+#   * `petls-backend` -- PETLS publishes no Windows wheel, so the lane could
+#     exist only on Linux.
+# `lint` checks files rather than platform behaviour, so it moved to Windows
+# unchanged in substance. See the 2026-09-11 [DECISION] in the vault
+# Computational-Log.
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout repository
@@ -56,63 +64,7 @@ jobs:
       # NEW script in those directories is still checked). Any regression here
       # is therefore new debt, and must fail the PR rather than accumulate.
       - name: Run ruff linting
-        run: |
-          source .venv/bin/activate
-          ruff check . --output-format=github
-
-  # NON-BLOCKING (`continue-on-error`), deliberately and temporarily.
-  #
-  # This unfiltered suite is meant to be the post-merge composition and exact-
-  # reference currency signal on pushes to main: a stale pinned blob or a
-  # producer/schema composition failure should turn the merge red. It cannot
-  # play that role until it is green, and its true state is unknown -- the last
-  # recorded run of this workflow was 2026-07-30, and the suite has never been
-  # observed passing in CI. Gating on it now would simply block every PR.
-  #
-  # So it runs for its evidence value while the debt it reveals is sized and
-  # cleared. THE EXIT CONDITION IS EXPLICIT: once this job is observed green on
-  # main, delete `continue-on-error` and restore it to a required check. Until
-  # then, treat a green tick on this workflow as attesting LINT ONLY -- this
-  # lane's result is advisory and a red run here is not a merge blocker.
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    continue-on-error: true
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13.5"
-
-      - name: Install uv package manager
-        run: pip install uv
-
-      # From the lockfile, for the same reason as `lint` above, and with extra
-      # force here: this lane exists to SIZE the test debt, so two runs of the
-      # same SHA must not exercise different pytest/pandas/geospatial versions.
-      # A red-to-green transition has to mean the code changed, not that the
-      # resolver drifted.
-      - name: Install dependencies from the lockfile
-        run: uv sync --locked --extra dev
-
-      - name: Run pytest with coverage
-        run: |
-          source .venv/bin/activate
-          pytest --cov=financial_tda --cov=poverty_tda --cov=shared --cov-report=term-missing --cov-report=xml
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage.xml
+        run: .venv/Scripts/python.exe -m ruff check . --output-format=github
 
   # Not continue-on-error. Added 2026-08-02, after the last recorded run of this
   # workflow, it first executed on 2026-09-08 in PR #277 -- and failed for a real
@@ -122,8 +74,13 @@ jobs:
   # of a store-lock regression that landed while CI was disabled, not a broken
   # lane, and it must not be relaxed to turn green. (It is not a ruleset-required
   # check, so it reports rather than blocks the merge queue.)
+  #
+  # This is also the platform evidence the `merge-admission` gate reads for
+  # platform-sensitive pull requests (.github/merge-admission.yml). The gate
+  # waits on it, so its timeout must stay below the gate's WAIT_SECONDS budget.
   windows-store-lock:
     runs-on: windows-latest
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -158,45 +115,3 @@ jobs:
           or directory_anchor_close_failure_retains_live_handle_for_retry
           or composite_writer_lock_held_directories_reject_ordinary_replacement_before_callback"
           -o "addopts=" -p no:cacheprovider -p no:cov
-
-  # The PETLS C++ backend is an optional dependency group, so `test`
-  # (which installs only `.[dev]`) leaves PETLS_AVAILABLE false and skips every
-  # backend test -- including the cross-backend agreement checks, which are the
-  # only thing that would catch the backend drifting from the validated numpy
-  # implementation. Before 2026-07-29 petls was a core dependency and CI
-  # exercised it incidentally; this lane keeps that coverage deliberately.
-  #
-  # Linux only, and that is not a compromise: petls publishes a cp313
-  # manylinux wheel but no Windows wheel, and it is the sdist's CMake/Boost
-  # build that made petls a problem on Windows in the first place.
-  petls-backend:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13.5"
-
-      - name: Install uv package manager
-        run: pip install uv
-
-      # From the lockfile, with the PETLS group added (uv.lock pins petls 1.0.1).
-      # `uv pip install --group petls` resolved the backend afresh on every run,
-      # so the cross-backend agreement checks this lane exists for could compare
-      # against a different PETLS build for the same SHA.
-      - name: Install dependencies and the PETLS backend from the lockfile
-        run: uv sync --locked --extra dev --group petls
-
-      - name: Run the persistent-Laplacian suite with PETLS required
-        # TDL_REQUIRE_PETLS=1 turns the availability check from tolerated into
-        # asserted, so a silently failed install fails the lane rather than
-        # quietly skipping the backend tests it exists to run.
-        env:
-          TDL_REQUIRE_PETLS: "1"
-        run: |
-          source .venv/bin/activate
-          pytest tests/trajectory_tda/test_persistent_laplacian.py --no-cov

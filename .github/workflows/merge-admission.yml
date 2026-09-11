@@ -13,6 +13,11 @@ name: Merge Admission
 # it is, this workflow reports but does not gate; a run that never posts (a
 # deleted workflow, a disabled Action) leaves the required check pending, which
 # is the intended fail-closed state.
+#
+# Runs on Windows like every job in this repository (decided 2026-09-11). Bash is
+# the declared shell, and every `$(python ...)` capture strips `\r`: Python on
+# Windows ends stdout lines with CRLF, which would otherwise make SHA equality
+# and the `pending` comparison fail silently.
 
 on:
   pull_request:
@@ -49,11 +54,21 @@ concurrency:
 
 jobs:
   merge-admission:
-    runs-on: ubuntu-latest
-    # Long enough to outlast the WAIT_SECONDS budget below, which in turn
-    # outlasts `lint-and-test`'s own 45-minute ceiling. Only platform-sensitive
-    # candidates ever wait; everything else finishes in under a minute.
+    runs-on: windows-latest
+    # Outlasts the WAIT_SECONDS budget below, which in turn outlasts
+    # `windows-store-lock`'s own 30-minute ceiling. Only platform-sensitive
+    # candidates ever wait; everything else finishes in a few minutes.
     timeout-minutes: 60
+    permissions:
+      checks: read
+      # Write access is for one call only: dequeuePullRequest, when a queued
+      # pull request's review state changes. No candidate code is checked out
+      # or executed by this job.
+      contents: write
+      pull-requests: write
+    defaults:
+      run:
+        shell: bash
 
     steps:
       # The gate logic is taken from the base branch, never from the candidate:
@@ -78,9 +93,8 @@ jobs:
 
       # Every event resolves both a pull request and the commit whose checks
       # carry the platform evidence. They are the same commit outside a merge
-      # queue; inside one the queue's synthetic commit is what the required
-      # check is attached to, so certifying it with the pre-queue head's checks
-      # would let an integration-only Linux failure through.
+      # queue; inside one the queue's synthetic commit must also pass, because a
+      # candidate can fail only after integration with the current base.
       - name: Resolve the pull request and the platform commit
         id: target
         env:
@@ -89,18 +103,21 @@ jobs:
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
           MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           DISPATCH_PR_NUMBER: ${{ github.event.inputs.pull_request_number }}
           RUN_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+          base=""
           case "$EVENT_NAME" in
             merge_group)
               # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha>
               number="$(printf '%s' "$MERGE_GROUP_HEAD_REF" | sed -n 's|.*/pr-\([0-9][0-9]*\)-.*|\1|p')"
-              # Review threads live on the pull request, so the candidate stays
-              # the PR head; only the platform evidence moves to the queue commit.
+              # Review threads and approvals live on the pull request, so the
+              # candidate stays the PR head; the queue commit is checked as well.
               expected=""
               platform="$MERGE_GROUP_HEAD_SHA"
+              base="$MERGE_GROUP_BASE_SHA"
               ;;
             workflow_dispatch)
               # A dispatch can name any pull request, but this run's check lands
@@ -129,8 +146,59 @@ jobs:
           echo "number=$number" >> "$GITHUB_OUTPUT"
           echo "expected_head=$expected" >> "$GITHUB_OUTPUT"
           echo "platform=$platform" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
 
-      - name: Capture admission evidence, waiting for the Linux lane if required
+      # Codex review 3988684699. Admission below evaluates one pull request, so a
+      # queue commit carrying more entries would certify the others unevaluated.
+      - name: Refuse a merge-group commit carrying more entries than admission evaluates
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ steps.target.outputs.base }}
+          HEAD_SHA: ${{ steps.target.outputs.platform }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE_SHA}...${HEAD_SHA}" > compare.json
+          python tools/check_merge_admission.py merge-group-size \
+            --compare compare.json --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA"
+
+      # Codex review 3988684692. A merge-group run evaluates review state once,
+      # when the queue commit is built; a review event afterwards re-runs this
+      # gate on the PR head only, so the queue commit's green check would never
+      # learn of the new thread. Removing the entry forces a rebuild, and the
+      # rebuilt queue commit is re-evaluated from current review state. Cost,
+      # accepted 2026-09-11: any review event on a queued PR removes it, even a
+      # trivial comment.
+      - name: Remove a queued pull request whose review state just changed
+        if: github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          gh api graphql \
+            -F owner="${{ github.repository_owner }}" \
+            -F name="${{ github.event.repository.name }}" \
+            -F number="${PR_NUMBER}" \
+            -f query='
+              query($owner:String!,$name:String!,$number:Int!){
+                repository(owner:$owner,name:$name){
+                  pullRequest(number:$number){ id mergeQueueEntry{ id state } }
+                }
+              }' > queue.json
+          disposition="$(python tools/check_merge_admission.py queue-disposition \
+            --snapshot queue.json --event-name "$EVENT_NAME" | tr -d '\r')"
+          if [ "$disposition" = "dequeue" ]; then
+            pr_id="$(python -c 'import json; print(json.load(open("queue.json", encoding="utf-8"))["data"]["repository"]["pullRequest"]["id"])' | tr -d '\r')"
+            gh api graphql -F id="$pr_id" -f query='
+              mutation($id:ID!){ dequeuePullRequest(input:{id:$id}){ mergeQueueEntry{ state } } }'
+            echo "::warning::Removed PR #${PR_NUMBER} from the merge queue: its review state changed after the queue commit was built. Re-queue it once the change carries a disposition."
+          else
+            echo "PR #${PR_NUMBER}: ${disposition} (not queued, or not a review event)"
+          fi
+
+      - name: Capture admission evidence, waiting for the platform lane if required
         id: snapshot
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -138,12 +206,12 @@ jobs:
           EXPECTED_HEAD: ${{ steps.target.outputs.expected_head }}
           PLATFORM_SHA: ${{ steps.target.outputs.platform }}
           # `synchronize` starts this gate alongside CI, so on a
-          # platform-sensitive candidate the Linux lane is routinely still
+          # platform-sensitive candidate the platform lane is routinely still
           # running when the first snapshot is taken -- and no event fires when
           # it finishes. Failing then would leave a permanently red check on a
           # candidate that is fine. Waiting costs runner time only on the
           # candidates the ordering rule actually governs.
-          WAIT_SECONDS: "3000"
+          WAIT_SECONDS: "2400"
           POLL_SECONDS: "30"
         run: |
           set -euo pipefail
@@ -155,10 +223,27 @@ jobs:
               -F number="${PR_NUMBER}" \
               -F platformSha="${PLATFORM_SHA}" \
               -f query='
+                fragment platformChecks on Commit {
+                  oid
+                  statusCheckRollup{ contexts(first:100){
+                    pageInfo{hasNextPage}
+                    nodes{
+                      __typename
+                      ... on CheckRun{
+                        name status conclusion completedAt
+                        checkSuite{ app{slug} workflowRun{ file{path} } }
+                      }
+                      ... on StatusContext{ context state createdAt }
+                    }
+                  } }
+                }
                 query($owner:String!,$name:String!,$number:Int!,$platformSha:GitObjectID!){
                   repository(owner:$owner,name:$name){
                     pullRequest(number:$number){
+                      id
                       headRefOid
+                      changedFiles
+                      mergeQueueEntry{ id state }
                       reviewThreads(first:100){
                         pageInfo{hasNextPage}
                         nodes{ isResolved isOutdated comments(first:1){nodes{createdAt author{login}}} }
@@ -167,24 +252,18 @@ jobs:
                         pageInfo{hasNextPage}
                         nodes{ state submittedAt author{login} commit{oid} }
                       }
-                      files(first:100){ pageInfo{hasNextPage} nodes{ path } }
+                      commits(last:1){ pageInfo{hasNextPage} nodes{ commit{ ...platformChecks } } }
                     }
-                    platformCommit: object(oid:$platformSha){
-                      ... on Commit{
-                        oid
-                        statusCheckRollup{ contexts(first:100){
-                          pageInfo{hasNextPage}
-                          nodes{
-                            __typename
-                            ... on CheckRun{ name status conclusion completedAt }
-                            ... on StatusContext{ context state createdAt }
-                          }
-                        } }
-                      }
-                    }
+                    platformCommit: object(oid:$platformSha){ ...platformChecks }
                   }
                 }' > snapshot.json
-            candidate="$(python -c 'import json; print(json.load(open("snapshot.json"))["data"]["repository"]["pullRequest"]["headRefOid"])')"
+            # GraphQL `files` omits rename sources; the REST listing carries
+            # `previous_filename`. The tool checks its length against
+            # `changedFiles`, so a truncated listing fails closed.
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+              --jq '.[] | {filename, previous_filename, status}' > files.jsonl
+            python -c 'import json; s = json.load(open("snapshot.json", encoding="utf-8")); s["restFiles"] = [json.loads(line) for line in open("files.jsonl", encoding="utf-8") if line.strip()]; json.dump(s, open("snapshot.json", "w", encoding="utf-8"))'
+            candidate="$(python -c 'import json; print(json.load(open("snapshot.json", encoding="utf-8"))["data"]["repository"]["pullRequest"]["headRefOid"])' | tr -d '\r')"
             if [ -n "$EXPECTED_HEAD" ] && [ "$candidate" != "$EXPECTED_HEAD" ]; then
               echo "BLOCKED: evidence head is $candidate, not the $EXPECTED_HEAD this run is attached to" >&2
               exit 1
@@ -195,17 +274,17 @@ jobs:
             python tools/check_merge_admission.py platform-status \
               --snapshot snapshot.json \
               --candidate-sha "$candidate" \
-              --platform-sha "$PLATFORM_SHA"
+              --platform-sha "$PLATFORM_SHA" | tr -d '\r'
           }
 
           capture
           deadline=$(( SECONDS + WAIT_SECONDS ))
           while [ "$(status_of)" = "pending" ]; do
             if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::warning::${WAIT_SECONDS}s elapsed with the Linux lane still running; the gate will fail closed"
+              echo "::warning::${WAIT_SECONDS}s elapsed with the platform lane still running; the gate will fail closed"
               break
             fi
-            echo "Linux evidence for $PLATFORM_SHA is not terminal yet; re-checking in ${POLL_SECONDS}s"
+            echo "Platform evidence is not terminal yet; re-checking in ${POLL_SECONDS}s"
             sleep "$POLL_SECONDS"
             capture
           done

@@ -1,12 +1,13 @@
 # Merge-admission gate configuration.
 #
 # Consumed by tools/check_merge_admission.py, which is run by
-# .github/workflows/merge-admission.yml. Both gates fail closed: missing or
-# truncated evidence blocks admission rather than passing silently.
+# .github/workflows/merge-admission.yml. Every gate fails closed: missing,
+# truncated, or untrusted evidence blocks admission rather than passing silently.
 #
 # Provenance:
 #   thread_finality  -> observation 01M0PWSR73ABY48X8YW7KQX6Q6 (PR #262)
 #   platform_order   -> observation 01M0Q0WXJSCX5WJ69H2G9DG4E3 (PR #263)
+#   merge_queue      -> Codex reviews 3988684692 / 3988684699 on PR #278
 
 thread_finality:
   # Every producer listed here must have submitted a review whose commit oid is
@@ -18,15 +19,23 @@ thread_finality:
     - coderabbitai
 
 platform_order:
-  # The Linux-required job whose check-run name must be terminal and green on the
-  # candidate BEFORE any approving review is submitted, for candidates touching
-  # platform-sensitive code.
-  linux_check_run: lint-and-test
+  # The project supports Windows only (decided 2026-09-11), so the decisive
+  # platform controls are the Windows store-lock lane. For candidates touching
+  # the paths below it must be terminal and green on the pull request head
+  # BEFORE any approving review, and green on the merge-group commit in a queue.
+  check_run: windows-store-lock
+
+  # Evidence is trusted only from this app and workflow file. Any check run can
+  # be named `windows-store-lock`; these two fields are what make it this one.
+  # Values verified against PR #278's check suites on 2026-09-11.
+  workflow_path: .github/workflows/ci.yml
+  app_slug: github-actions
 
   # Filesystem and concurrency surfaces. A trailing "/" (or any pattern without a
   # glob metacharacter) is a path prefix; otherwise the pattern is fnmatch-style
-  # against the POSIX path. Keep this list explicit: an over-broad pattern turns
-  # the gate into a repo-wide ordering rule, which is not what was approved.
+  # against the POSIX path. Rename sources are matched as well as destinations.
+  # Keep this list explicit: an over-broad pattern turns the gate into a
+  # repo-wide ordering rule, which is not what was approved.
   sensitive_paths:
     - research_system/store/
     - research_system/evals/executors/control_store.py
@@ -38,3 +47,10 @@ platform_order:
     - "**/layout.py"
     - "**/*concurrency*.py"
     - "**/*atomic*.py"
+
+merge_queue:
+  # Admission evaluates the one pull request named in a merge-group ref. Mirrors
+  # the P-049 ruleset's max_entries_to_build / max_entries_to_merge; the gate
+  # re-derives the count from the queue commit, so widening the ruleset without
+  # widening admission fails closed instead of certifying unevaluated entries.
+  max_entries: 1

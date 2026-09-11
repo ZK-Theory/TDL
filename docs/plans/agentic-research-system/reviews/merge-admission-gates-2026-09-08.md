@@ -26,11 +26,12 @@ before the platform evidence that would have contradicted it existed.
 
 | Artifact | Role |
 |---|---|
-| `tools/check_merge_admission.py` | Two pure evaluators over one evidence snapshot; every absent, malformed, or truncated input raises rather than passes |
-| `.github/merge-admission.yml` | Producer logins, the Linux check-run name, and the explicit filesystem/concurrency path list |
-| `.github/workflows/merge-admission.yml` | Captures the snapshot and runs both gates on every admission-relevant event |
-| `tests/tools/test_merge_admission.py` | Negative controls, including the recorded PR #262 candidate |
-| `tests/tools/fixtures/pr262_merge_candidate_snapshot.json` | The real GraphQL evidence for `af680b81`, captured 2026-09-08 |
+| `tools/check_merge_admission.py` | Pure evaluators for thread finality, platform ordering, queue disposition and merge-group size; every absent, malformed, truncated or untrusted input raises rather than passes |
+| `.github/merge-admission.yml` | Review producers, the trusted platform producer (check run, workflow file, app), the filesystem/concurrency path list, and the merge-group entry limit |
+| `.github/workflows/merge-admission.yml` | Captures the snapshot, dequeues on review changes, sizes merge groups, and runs the gates on every admission-relevant event (Windows runner) |
+| `tests/tools/test_merge_admission.py` | Negative and positive controls, including the recorded PR #262 candidate |
+| `tests/tools/test_ci_platform_policy.py` | Locks the Windows-only CI decision and the bash-shell requirement for Windows runners |
+| `tests/tools/fixtures/pr262_merge_candidate_snapshot.json` | The real GitHub evidence for `af680b81` (GraphQL plus the REST file listing), last re-captured 2026-09-11 |
 
 ### thread-finality
 
@@ -59,21 +60,47 @@ once the threads carry a disposition.
 ### platform-order
 
 Applies only when the candidate touches a configured filesystem or concurrency
-path. When it does, `lint-and-test` must be COMPLETED and SUCCESS on the
-**platform commit**, and each reviewer's latest `APPROVED` review of the
-candidate must have been submitted after that job concluded.
+path, where a rename's **source** path counts as touched. The project supports
+Windows only (decided 2026-09-11), so the platform evidence is
+`windows-store-lock`. When the gate applies:
 
-The platform commit is the pull request head for ordinary events and the
-synthetic merge-group commit inside a merge queue. Review threads stay bound to
-the PR head, where they live; only the platform evidence moves. The snapshot
-reads it through an explicit `platformCommit: object(oid:)` and the tool refuses
-a rollup whose oid is not the requested commit.
+- `windows-store-lock` must be COMPLETED and SUCCESS on the **pull request
+  head**, and each reviewer's latest `APPROVED` review of the candidate must have
+  been submitted after it concluded. Reviewers approve the head, so ordering is
+  judged there.
+- Inside a merge queue, the **merge-group commit's** run must also pass. Its run
+  necessarily postdates approval, so no ordering is applied to it.
+- The check run is trusted only when its check suite belongs to the
+  `github-actions` app and its workflow run's file is `.github/workflows/ci.yml`.
+  A same-named run from anywhere else is refused, not ignored.
+- A candidate that changes `.github/workflows/ci.yml` is refused outright: a
+  `pull_request` run executes the candidate's own copy, so the file-path check
+  would pass while the job had been rewritten.
+
+Changed paths come from the REST files listing, which carries
+`previous_filename`; GraphQL `files` omits rename sources. The listing's length
+must equal GraphQL's `changedFiles`, so a truncated listing fails closed.
 
 `synchronize` starts this gate alongside CI, and no event fires when CI later
 completes. So the workflow asks `platform-status` first: `not-applicable` and
-`ready` proceed at once; `pending` polls every 30s for up to 50 minutes, which
-outlasts `lint-and-test`'s own 45-minute ceiling. Only platform-sensitive
+`ready` proceed at once; `pending` polls every 30s for up to 40 minutes, which
+outlasts `windows-store-lock`'s 30-minute ceiling. Only platform-sensitive
 candidates ever wait. An exhausted budget fails closed.
+
+### queue-disposition and merge-group-size
+
+A merge-group run evaluates review state once, when the queue commit is built.
+Later review events re-run the gate on the pull request head only, so a thread
+opened on a queued pull request would never reach the queue commit's green
+check. On `pull_request_review` and `pull_request_review_comment`, a queued pull
+request is therefore removed with `dequeuePullRequest`; re-queueing rebuilds and
+re-evaluates it. Cost, accepted 2026-09-11: any review event on a queued pull
+request removes it.
+
+Admission evaluates the one pull request named in a merge-group ref. On
+`merge_group`, the gate compares `base...head` and refuses a queue commit with
+more squash commits than `merge_queue.max_entries` (1), re-deriving the P-049
+ruleset's one-entry build and merge limit from the commit itself.
 
 A `workflow_dispatch` must run on the pull request's own branch: its check
 lands on `github.sha`, so the evidence head is required to equal it.
@@ -88,18 +115,54 @@ escaping the ordering rule — was a design question; Stephen decided on
 2026-09-10 that an `APPROVED` review is the only acceptance record for
 platform-sensitive pull requests (see Known limits).
 
+### Review round 2 (Codex, 2026-09-11)
+
+Six findings on `082b934`, after `main` (#277–#281) was merged into the branch.
+
+- **3988684679** — the gate waited on `lint-and-test`, which #277 had split away.
+  Stephen decided the project supports Windows only: the Linux test lanes were
+  removed and the gate was retargeted to `windows-store-lock`, keeping the
+  ordering rule rather than dropping it.
+- **3988684687** — approvals necessarily precede the queue commit's CI, so the
+  round-1 fix rejected every queued candidate. Its positive test used an
+  impossible event order. Ordering now uses the head run; the queue run must
+  separately pass.
+- **3988684692** — Stephen chose auto-dequeue over a manual check.
+- **3988684695** — rename sources now count as touched paths.
+- **3988684699** — the ruleset already enforced one-entry groups; the gate now
+  re-derives it.
+- **3988684703** — platform evidence is trusted by producer, and a candidate
+  editing the producer workflow is refused.
+
 ## Watched failures
 
-Every rule is mutation-tested. On 2026-09-08, neutralising the live-thread filter
-and the approval-ordering comparison failed
-`test_recorded_pr262_candidate_is_refused_admission`,
-`test_cli_blocks_on_the_recorded_candidate`, and
-`test_approval_before_linux_evidence_is_refused`. On 2026-09-10, inverting the
-latest-approval comparison failed
-`test_a_reapproval_after_green_linux_supersedes_the_early_one`, and removing the
-platform-commit oid check failed
-`test_a_snapshot_for_the_wrong_platform_commit_is_refused`. Restoring returns
-35/35.
+Every rule is mutation-tested.
+
+- **2026-09-08.** Neutralising the live-thread filter and the approval-ordering
+  comparison failed `test_recorded_pr262_candidate_is_refused_admission`,
+  `test_cli_blocks_on_the_recorded_candidate`, and the approval-ordering control
+  (now `test_approval_before_platform_evidence_is_refused`).
+- **2026-09-10.** Inverting the latest-approval comparison failed the
+  supersession control (now
+  `test_a_reapproval_after_green_platform_supersedes_the_early_one`). Removing
+  the platform-commit oid check failed
+  `test_a_snapshot_for_the_wrong_platform_commit_is_refused`.
+- **2026-09-11.** Each of the seven new rules was neutralised in turn, and every
+  mutant was caught:
+
+  | Mutant | Failing controls |
+  |---|---|
+  | Rename source ignored | 1 |
+  | Listing-completeness check skipped | 1 |
+  | Producer identity unchecked | 3 |
+  | Producer workflow edit allowed | 1 |
+  | Queue-commit run not required | 2 |
+  | Never dequeue | 2 |
+  | Merge-group size unbounded | 1 |
+
+  The tool was restored byte-identical, verified by sha256. The gate suite then
+  passed 61/61, and the gate, policy and currency controls together passed
+  75/75.
 
 The strongest negative control is not a probe PR: the committed snapshot is the
 actual evidence GitHub held at the moment PR #262 merged, and both gates refuse
@@ -127,6 +190,16 @@ five threads; approving after a green Linux run) confirm neither gate is vacuous
   acceptance, which would block on routine questions. It is locked in
   `CONVENTIONS.md`. The gate enforces ordering for the record it can see; the
   convention is what puts acceptance into that record.
+- **No CI coverage on POSIX.** The POSIX-only branches in
+  `research_system/store/` (`anchor.py`, `identity.py`, `writer.py`) are no
+  longer executed by any CI lane, and no lane runs the unfiltered pytest suite.
+  Both follow directly from the 2026-09-11 Windows-only decision and are recorded
+  in `CONVENTIONS.md`.
+- **Dequeue is not yet verified live.** The call's input shape was confirmed by
+  schema introspection, and the job grants `contents: write` and
+  `pull-requests: write`. Whether `GITHUB_TOKEN` is allowed to dequeue will
+  first be shown by a real queued pull request. If it isn't, the step fails
+  loudly rather than silently keeping the entry.
 - Connections are queried at `first: 100`; a larger PR trips the truncation
   guard and blocks rather than admitting on a partial page.
 - For `pull_request` events the gate is checked out from the base SHA, so a

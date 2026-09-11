@@ -4,7 +4,8 @@
 # platform-evidence ordering cannot be established at the exact merge candidate.
 """Merge-admission gates evaluated against a single evidence snapshot.
 
-Two gates, both derived from recorded Gate 6 failures:
+Four gates. The first two derive from recorded Gate 6 failures; the last two
+close merge-queue gaps found in review of PR #278:
 
 ``thread-finality``
     Observation ``01M0PWSR73ABY48X8YW7KQX6Q6``. PR #262 merged 89 seconds after
@@ -15,13 +16,22 @@ Two gates, both derived from recorded Gate 6 failures:
 
 ``platform-order``
     Observation ``01M0Q0WXJSCX5WJ69H2G9DG4E3``. PR #263's first head was
-    accepted on Windows-reachable controls while 13 decisive POSIX controls were
-    skipped; the Linux workflow then failed. For candidates touching
-    filesystem/concurrency surfaces the Linux job must be terminal and green
-    before any approving review is submitted.
+    accepted while the decisive platform controls had not run; the platform
+    workflow then failed. For candidates touching filesystem/concurrency
+    surfaces, the configured platform job must be terminal and green before any
+    approving review is submitted. The project supports Windows only (decided
+    2026-09-11), so that job is ``windows-store-lock``.
 
-Both gates raise :class:`ValueError` on absent, malformed, or truncated
-evidence: silent absence is the failure mode these gates exist to remove.
+``queue-disposition`` and ``merge-group-size``
+    A merge-queue commit's green check cannot see review changes made after it
+    was built, and a batched group would certify several pull requests on one
+    pull request's evidence. The first removes a queued pull request when its
+    review state changes; the second refuses a queue commit carrying more
+    entries than configured.
+
+Every gate raises :class:`ValueError` on absent, malformed, truncated, or
+untrusted evidence: silent absence is the failure mode these gates exist to
+remove.
 """
 
 from __future__ import annotations
@@ -31,6 +41,7 @@ import fnmatch
 import json
 import sys
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -216,61 +227,125 @@ def path_is_sensitive(path: str, patterns: Iterable[str]) -> bool:
     return False
 
 
-def _changed_paths(pull_request: Mapping[str, Any]) -> list[str]:
-    """Return the candidate's changed file paths."""
-    nodes = _require_nodes(pull_request.get("files"), "pullRequest.files")
+@dataclass(frozen=True)
+class PlatformProducer:
+    """The single trusted source of platform evidence.
+
+    Attributes:
+        check_run: Check-run name of the decisive platform job.
+        workflow_path: Repository path of the workflow that must produce it.
+        app_slug: GitHub App that must own the check suite.
+    """
+
+    check_run: str
+    workflow_path: str
+    app_slug: str
+
+
+def _changed_paths(payload: Mapping[str, Any]) -> list[str]:
+    """Return every path the candidate touches, rename sources included.
+
+    GraphQL ``PullRequest.files`` reports only a rename's destination, so a
+    sensitive file renamed to a non-matching name escaped the gate (Codex review
+    3988684695). The REST files listing carries ``previous_filename``; the
+    snapshot embeds it as ``restFiles``, and its length is checked against
+    GraphQL's ``changedFiles`` so a truncated listing cannot pass as complete.
+    """
+    pull_request = _pull_request(payload)
+    rows = payload.get("restFiles")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise ValueError("snapshot carries no restFiles list; the candidate's changed paths are unknown")
+    expected = pull_request.get("changedFiles")
+    if not isinstance(expected, int) or isinstance(expected, bool):
+        raise ValueError("pullRequest.changedFiles is missing; file-list completeness is unknown")
+    if len(rows) != expected:
+        raise ValueError(
+            f"restFiles lists {len(rows)} files but the pull request changes {expected}; listing is incomplete"
+        )
     paths: list[str] = []
-    for index, node in enumerate(nodes):
-        path = node.get("path")
-        if not isinstance(path, str) or not path:
-            raise ValueError(f"pullRequest.files.nodes[{index}].path is missing")
-        paths.append(path)
+    for index, row in enumerate(rows):
+        filename = row.get("filename")
+        if not isinstance(filename, str) or not filename:
+            raise ValueError(f"restFiles[{index}].filename is missing")
+        paths.append(filename)
+        previous = row.get("previous_filename")
+        if previous is not None:
+            if not isinstance(previous, str) or not previous:
+                raise ValueError(f"restFiles[{index}].previous_filename is present but empty")
+            paths.append(previous)
     return paths
 
 
-def _rollup_contexts(payload: Mapping[str, Any], platform_sha: str) -> list[Mapping[str, Any]]:
-    """Return the status-check contexts recorded against the platform commit.
-
-    The platform commit is the pull request head for ordinary events and the
-    synthetic merge-group commit inside a merge queue. Binding the rollup to an
-    explicit oid keeps the queue candidate from being certified by the pre-queue
-    head's checks.
-    """
-    commit = _repository(payload).get("platformCommit")
+def _rollup_nodes(commit: object, *, expected_oid: str, what: str) -> list[Mapping[str, Any]]:
+    """Return a commit's status-check contexts after binding it to ``expected_oid``."""
     if commit is None:
-        raise ValueError(f"snapshot carries no commit object for {platform_sha}; platform evidence is absent")
-    commit = _require_mapping(commit, "response.data.repository.platformCommit")
-    if commit.get("oid") != platform_sha:
-        raise ValueError(f"platform commit {commit.get('oid')!r} is not {platform_sha!r}")
+        raise ValueError(f"snapshot carries no {what} for {expected_oid}; platform evidence is absent")
+    commit = _require_mapping(commit, what)
+    if commit.get("oid") != expected_oid:
+        raise ValueError(f"{what} {commit.get('oid')!r} is not {expected_oid!r}")
     rollup = commit.get("statusCheckRollup")
     if rollup is None:
         # No checks have registered on this commit yet. That is a legitimate
         # transient state, distinct from a failed query, so it is reported as
         # zero contexts and the caller decides whether to block or wait.
         return []
-    return _require_nodes(_require_mapping(rollup, "statusCheckRollup").get("contexts"), "statusCheckRollup.contexts")
+    return _require_nodes(_require_mapping(rollup, "statusCheckRollup").get("contexts"), f"{what}.contexts")
 
 
-def _sensitive_paths_touched(pull_request: Mapping[str, Any], sensitive_paths: Sequence[str]) -> list[str]:
-    """Return the candidate's changed paths that are platform-sensitive."""
-    return sorted(path for path in _changed_paths(pull_request) if path_is_sensitive(path, sensitive_paths))
+def _head_contexts(payload: Mapping[str, Any], candidate_sha: str) -> list[Mapping[str, Any]]:
+    """Return the status-check contexts on the pull request head."""
+    commits = _require_nodes(_pull_request(payload).get("commits"), "pullRequest.commits")
+    if len(commits) != 1:
+        raise ValueError(f"expected exactly one tip commit in the snapshot, got {len(commits)}")
+    return _rollup_nodes(commits[0].get("commit"), expected_oid=candidate_sha, what="head commit")
 
 
-def _linux_check(payload: Mapping[str, Any], *, platform_sha: str, linux_check_run: str) -> Mapping[str, Any] | None:
-    """Return the Linux check run on the platform commit, or ``None`` if absent.
+def _platform_contexts(payload: Mapping[str, Any], platform_sha: str) -> list[Mapping[str, Any]]:
+    """Return the status-check contexts on the merge-group commit."""
+    return _rollup_nodes(_repository(payload).get("platformCommit"), expected_oid=platform_sha, what="platform commit")
+
+
+def _platform_check(
+    contexts: Sequence[Mapping[str, Any]], *, producer: PlatformProducer, sha: str
+) -> Mapping[str, Any] | None:
+    """Return the trusted platform check run on one commit, or ``None`` if absent.
+
+    A check run is identified by name alone in the rollup, and any workflow can
+    publish a check with that name. Evidence is accepted only from the
+    configured app and workflow file (Codex review 3988684703).
 
     Raises:
-        ValueError: If more than one check run carries the configured name,
-            which makes "the" platform result ambiguous.
+        ValueError: If a same-named check run comes from any other producer, or
+            if more than one trusted run carries the name.
     """
-    matches = [
-        context
-        for context in _rollup_contexts(payload, platform_sha)
-        if context.get("__typename") == "CheckRun" and context.get("name") == linux_check_run
-    ]
-    if len(matches) > 1:
-        raise ValueError(f"{len(matches)} check runs named {linux_check_run!r} on {platform_sha}; result is ambiguous")
-    return matches[0] if matches else None
+    trusted = []
+    for context in contexts:
+        if context.get("__typename") != "CheckRun" or context.get("name") != producer.check_run:
+            continue
+        suite = context.get("checkSuite")
+        suite = suite if isinstance(suite, Mapping) else {}
+        app = suite.get("app")
+        slug = app.get("slug") if isinstance(app, Mapping) else None
+        run = suite.get("workflowRun")
+        file = run.get("file") if isinstance(run, Mapping) else None
+        path = file.get("path") if isinstance(file, Mapping) else None
+        if slug != producer.app_slug or path != producer.workflow_path:
+            raise ValueError(
+                f"{producer.check_run!r} on {sha} was produced by app {slug!r} from {path!r}, not "
+                f"{producer.app_slug!r} from {producer.workflow_path!r}; refusing untrusted platform evidence"
+            )
+        trusted.append(context)
+    if len(trusted) > 1:
+        raise ValueError(f"{len(trusted)} check runs named {producer.check_run!r} on {sha}; result is ambiguous")
+    return trusted[0] if trusted else None
+
+
+def _platform_commits(payload: Mapping[str, Any], *, candidate_sha: str, platform_sha: str) -> list[tuple[str, Any]]:
+    """Return ``(sha, contexts)`` for every commit whose platform run must be green."""
+    commits: list[tuple[str, Any]] = [(candidate_sha, _head_contexts(payload, candidate_sha))]
+    if platform_sha != candidate_sha:
+        commits.append((platform_sha, _platform_contexts(payload, platform_sha)))
+    return commits
 
 
 def platform_status(
@@ -278,44 +353,57 @@ def platform_status(
     *,
     candidate_sha: str,
     platform_sha: str,
-    linux_check_run: str,
+    producer: PlatformProducer,
     sensitive_paths: Sequence[str],
 ) -> str:
     """Report whether the platform gate can be decided yet.
 
-    ``pull_request: synchronize`` starts this gate alongside CI, so the Linux
+    ``pull_request: synchronize`` starts this gate alongside CI, so the platform
     job is routinely queued or in progress when the first snapshot is taken. No
     event fires when it later completes, so failing at that moment would leave a
     permanently red check on a candidate that is actually fine. The caller waits
-    on ``pending`` instead.
+    on ``pending`` instead. Inside a merge queue both the pull request head and
+    the queue commit must be terminal.
 
     Args:
-        payload: Raw ``gh api graphql`` response for the pull request.
+        payload: Evidence snapshot for the pull request.
         candidate_sha: The exact merge candidate the evidence must describe.
-        platform_sha: Commit whose checks carry the platform evidence.
-        linux_check_run: Check-run name of the Linux-required job.
+        platform_sha: The merge-group commit inside a queue, else the candidate.
+        producer: Trusted producer of the platform check run.
         sensitive_paths: Filesystem/concurrency path prefixes and globs.
 
     Returns:
         ``"not-applicable"``, ``"pending"``, or ``"ready"``.
 
     Raises:
-        ValueError: If the evidence is stale, truncated, or malformed.
+        ValueError: If the evidence is stale, truncated, malformed, or untrusted.
     """
     pull_request = _pull_request(payload)
     _assert_candidate(pull_request, candidate_sha)
-    if not _sensitive_paths_touched(pull_request, sensitive_paths):
+    if not any(path_is_sensitive(path, sensitive_paths) for path in _changed_paths(payload)):
         return "not-applicable"
-    linux = _linux_check(payload, platform_sha=platform_sha, linux_check_run=linux_check_run)
-    if linux is None or linux.get("status") != "COMPLETED":
-        return "pending"
+    for sha, contexts in _platform_commits(payload, candidate_sha=candidate_sha, platform_sha=platform_sha):
+        run = _platform_check(contexts, producer=producer, sha=sha)
+        if run is None or run.get("status") != "COMPLETED":
+            return "pending"
     return "ready"
+
+
+def _require_green(run: Mapping[str, Any] | None, *, producer: PlatformProducer, sha: str, touched: str) -> datetime:
+    """Return a platform run's completion time, raising unless it passed."""
+    if run is None:
+        raise ValueError(f"no {producer.check_run!r} check run on {sha}; platform-sensitive paths changed: {touched}")
+    if run.get("status") != "COMPLETED":
+        raise ValueError(f"{producer.check_run} is {run.get('status')!r} on {sha}, not COMPLETED")
+    if run.get("conclusion") != "SUCCESS":
+        raise ValueError(f"{producer.check_run} concluded {run.get('conclusion')!r} on {sha}, not SUCCESS")
+    return _parse_timestamp(run.get("completedAt"), f"{producer.check_run}.completedAt")
 
 
 def _latest_approvals(pull_request: Mapping[str, Any], candidate_sha: str) -> dict[str, Mapping[str, Any]]:
     """Return each reviewer's most recent approval of the candidate.
 
-    GitHub keeps every review record, so an approval submitted before the Linux
+    GitHub keeps every review record, so an approval submitted before the platform
     job finished survives a later re-approval of the same commit. Only the
     latest one per reviewer is the reviewer's live position; judging the
     superseded record would leave the gate blocked with no reachable remedy.
@@ -337,46 +425,53 @@ def evaluate_platform_order(
     *,
     candidate_sha: str,
     platform_sha: str,
-    linux_check_run: str,
+    producer: PlatformProducer,
     sensitive_paths: Sequence[str],
 ) -> str:
-    """Require green Linux evidence before approval on platform-sensitive code.
+    """Require green platform evidence before approval on platform-sensitive code.
+
+    Ordering is judged on the pull request head, because that is the commit
+    reviewers approve. Inside a merge queue the approvals necessarily predate
+    the queue commit's run, so comparing them against it would reject every
+    queued candidate (Codex review 3988684687); the queue commit's run must
+    instead pass on its own.
 
     Args:
-        payload: Raw ``gh api graphql`` response for the pull request.
+        payload: Evidence snapshot for the pull request.
         candidate_sha: The exact merge candidate the evidence must describe.
-        platform_sha: Commit whose checks carry the platform evidence -- the
-            pull request head ordinarily, the merge-group commit in a queue.
-        linux_check_run: Check-run name of the Linux-required job.
+        platform_sha: The merge-group commit inside a queue, else the candidate.
+        producer: Trusted producer of the platform check run.
         sensitive_paths: Filesystem/concurrency path prefixes and globs.
 
     Returns:
         A one-line human-readable verdict for the passing cases.
 
     Raises:
-        ValueError: If the evidence is stale, truncated, or malformed; if the
-            Linux job is absent, non-terminal, or failing on the platform
-            commit; or if a reviewer's live approval of the candidate was
-            submitted before that job concluded.
+        ValueError: If the evidence is stale, truncated, malformed, or untrusted;
+            if the candidate edits the workflow that produces its own platform
+            evidence; if the platform run is absent, non-terminal, or failing
+            on the head or the queue commit; or if a reviewer's live approval of
+            the candidate was submitted before the head run concluded.
     """
     pull_request = _pull_request(payload)
     _assert_candidate(pull_request, candidate_sha)
 
-    touched = _sensitive_paths_touched(pull_request, sensitive_paths)
+    changed = _changed_paths(payload)
+    touched = sorted({path for path in changed if path_is_sensitive(path, sensitive_paths)})
     if not touched:
         return "platform-order: not applicable (no filesystem or concurrency paths changed)"
-
-    linux = _linux_check(payload, platform_sha=platform_sha, linux_check_run=linux_check_run)
-    if linux is None:
+    if producer.workflow_path in changed:
+        # A pull_request run executes the candidate's own copy of the workflow,
+        # so the producer check above would still see the trusted file path
+        # while the job itself had been rewritten to pass.
         raise ValueError(
-            f"no {linux_check_run!r} check run on {platform_sha}; platform-sensitive paths changed: "
-            + ", ".join(touched)
+            f"the candidate changes {producer.workflow_path}, which produces its own platform evidence; this gate "
+            "cannot certify it -- land the workflow change in a separate pull request"
         )
-    if linux.get("status") != "COMPLETED":
-        raise ValueError(f"{linux_check_run} is {linux.get('status')!r} on {platform_sha}, not COMPLETED")
-    if linux.get("conclusion") != "SUCCESS":
-        raise ValueError(f"{linux_check_run} concluded {linux.get('conclusion')!r} on {platform_sha}, not SUCCESS")
-    completed_at = _parse_timestamp(linux.get("completedAt"), f"{linux_check_run}.completedAt")
+    touched_text = ", ".join(touched)
+
+    head_run = _platform_check(_head_contexts(payload, candidate_sha), producer=producer, sha=candidate_sha)
+    completed_at = _require_green(head_run, producer=producer, sha=candidate_sha, touched=touched_text)
 
     early = []
     for login, review in _latest_approvals(pull_request, candidate_sha).items():
@@ -384,11 +479,88 @@ def evaluate_platform_order(
             early.append(f"{login} at {review['submittedAt']}")
     if early:
         raise ValueError(
-            f"approval preceded Linux evidence ({linux_check_run} completed {linux['completedAt']}): "
-            + "; ".join(sorted(early))
-            + "; re-request review against the Linux-green candidate"
+            f"approval preceded platform evidence ({producer.check_run} completed {completed_at.isoformat()} "
+            f"on {candidate_sha}): " + "; ".join(sorted(early)) + "; re-request review against the green candidate"
         )
-    return f"platform-order: {linux_check_run} green before approval; sensitive paths: {', '.join(touched)}"
+
+    verdict = f"platform-order: {producer.check_run} green before approval; sensitive paths: {touched_text}"
+    if platform_sha == candidate_sha:
+        return verdict
+    queue_run = _platform_check(_platform_contexts(payload, platform_sha), producer=producer, sha=platform_sha)
+    _require_green(queue_run, producer=producer, sha=platform_sha, touched=touched_text)
+    return f"{verdict}; also green on merge-group commit {platform_sha}"
+
+
+REVIEW_EVENTS = frozenset({"pull_request_review", "pull_request_review_comment"})
+
+
+def queue_disposition(payload: Mapping[str, Any], *, event_name: str) -> str:
+    """Decide whether a review change must remove the pull request from the merge queue.
+
+    A merge-group run evaluates threads once, when the queue commit is built.
+    Later review events re-run this gate on the pull request head only, so a
+    thread opened on a queued pull request never reaches the queue commit's
+    green check (Codex review 3988684692). Removing the entry forces the queue
+    to rebuild, which re-evaluates admission from current review state.
+
+    Args:
+        payload: ``gh api graphql`` response carrying ``pullRequest.mergeQueueEntry``.
+        event_name: The GitHub event that triggered this run.
+
+    Returns:
+        ``"dequeue"`` or ``"keep"``.
+
+    Raises:
+        ValueError: If the snapshot does not state queue membership.
+    """
+    pull_request = _pull_request(payload)
+    if "mergeQueueEntry" not in pull_request:
+        raise ValueError("pullRequest.mergeQueueEntry is absent from the snapshot; queue membership is unknown")
+    entry = pull_request["mergeQueueEntry"]
+    if event_name not in REVIEW_EVENTS or entry is None:
+        return "keep"
+    _require_mapping(entry, "pullRequest.mergeQueueEntry")
+    return "dequeue"
+
+
+def evaluate_merge_group_size(compare: Mapping[str, Any], *, base_sha: str, head_sha: str, max_entries: int) -> str:
+    """Refuse a merge-group commit that batches more pull requests than allowed.
+
+    Admission evaluates the single pull request named in the queue ref, so a
+    batched group would certify every other entry on that one pull request's
+    threads and files (Codex review 3988684699). The P-049 ruleset builds and
+    merges one entry at a time; this re-derives that from the commit itself, so
+    a later ruleset change cannot silently widen what one evaluation certifies.
+    Entries are squash-merged, so entries equal commits between the merge base
+    and the queue head.
+
+    Args:
+        compare: REST ``compare/{base}...{head}`` response.
+        base_sha: The merge group's base commit.
+        head_sha: The merge group's synthetic head commit.
+        max_entries: Largest group admission may certify.
+
+    Returns:
+        A one-line human-readable verdict.
+
+    Raises:
+        ValueError: If the comparison is malformed, is not rooted at the base, or
+            counts more entries than ``max_entries``.
+    """
+    merge_base = _require_mapping(compare.get("merge_base_commit"), "compare.merge_base_commit")
+    if merge_base.get("sha") != base_sha:
+        raise ValueError(
+            f"merge-group commit {head_sha} is not built on base {base_sha} (merge base {merge_base.get('sha')!r})"
+        )
+    total = compare.get("total_commits")
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
+        raise ValueError(f"compare {base_sha}...{head_sha} reports no commits; merge-group entries cannot be counted")
+    if total > max_entries:
+        raise ValueError(
+            f"merge-group commit {head_sha} carries {total} entries; admission evaluates one pull request at a time, "
+            f"so at most {max_entries} is allowed"
+        )
+    return f"merge-group-size: {total} entry on {head_sha} (limit {max_entries})"
 
 
 def load_config(path: Path) -> Mapping[str, Any]:
@@ -415,46 +587,95 @@ def _string_list(section: Mapping[str, Any], key: str) -> list[str]:
     return list(values)
 
 
+def platform_producer(config: Mapping[str, Any]) -> PlatformProducer:
+    """Return the configured trusted producer of platform evidence."""
+    section = _section(config, "platform_order")
+    values: dict[str, str] = {}
+    for key in ("check_run", "workflow_path", "app_slug"):
+        value = section.get(key)
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"configuration key 'platform_order.{key}' must be a non-empty string")
+        values[key] = value
+    return PlatformProducer(**values)
+
+
+def _max_entries(config: Mapping[str, Any]) -> int:
+    """Return the configured largest merge group admission may certify."""
+    value = _section(config, "merge_queue").get("max_entries")
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("configuration key 'merge_queue.max_entries' must be a positive integer")
+    return value
+
+
+def _load_json(path: Path | None, flag: str) -> Mapping[str, Any]:
+    """Load a JSON object named by a command-line flag."""
+    if path is None:
+        raise ValueError(f"{flag} is required for this gate")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"{flag} must contain a JSON object")
+    return payload
+
+
+def _required(value: str | None, flag: str) -> str:
+    """Return a command-line value, raising when this gate needs it and it is absent."""
+    if not value:
+        raise ValueError(f"{flag} is required for this gate")
+    return value
+
+
+GATES = ("thread-finality", "platform-order", "platform-status", "queue-disposition", "merge-group-size")
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Evaluate one merge-admission gate against a saved evidence snapshot."""
+    """Evaluate one merge-admission gate against saved GitHub evidence."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("gate", choices=("thread-finality", "platform-order", "platform-status"))
-    parser.add_argument("--snapshot", type=Path, required=True, help="saved `gh api graphql` response")
-    parser.add_argument("--candidate-sha", required=True, help="exact merge candidate the snapshot must describe")
+    parser.add_argument("gate", choices=GATES)
+    parser.add_argument("--snapshot", type=Path, help="saved evidence snapshot (all gates but merge-group-size)")
+    parser.add_argument("--candidate-sha", help="exact merge candidate the snapshot must describe")
     parser.add_argument(
         "--platform-sha",
-        help="commit carrying the platform evidence; defaults to the candidate, differs inside a merge queue",
+        help="merge-group commit whose platform run must also pass; defaults to the candidate",
     )
+    parser.add_argument("--event-name", help="GitHub event that triggered this run (queue-disposition)")
+    parser.add_argument("--compare", type=Path, help="saved REST compare base...head response (merge-group-size)")
+    parser.add_argument("--base-sha", help="merge group base commit (merge-group-size)")
+    parser.add_argument("--head-sha", help="merge group head commit (merge-group-size)")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     args = parser.parse_args(argv)
-    platform_sha = args.platform_sha or args.candidate_sha
 
     try:
-        payload = json.loads(args.snapshot.read_text(encoding="utf-8"))
-        if not isinstance(payload, Mapping):
-            raise ValueError("evidence snapshot must be a JSON object")
         config = load_config(args.config)
-        if args.gate == "thread-finality":
-            section = _section(config, "thread_finality")
-            evaluate_thread_finality(
-                payload,
-                candidate_sha=args.candidate_sha,
-                review_producers=_string_list(section, "review_producers"),
+        if args.gate == "merge-group-size":
+            verdict = evaluate_merge_group_size(
+                _load_json(args.compare, "--compare"),
+                base_sha=_required(args.base_sha, "--base-sha"),
+                head_sha=_required(args.head_sha, "--head-sha"),
+                max_entries=_max_entries(config),
             )
-            verdict = f"thread-finality: no live review threads on candidate {args.candidate_sha}"
+        elif args.gate == "queue-disposition":
+            verdict = queue_disposition(
+                _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")
+            )
         else:
-            section = _section(config, "platform_order")
-            linux_check_run = section.get("linux_check_run")
-            if not isinstance(linux_check_run, str) or not linux_check_run:
-                raise ValueError("configuration key 'linux_check_run' must be a non-empty string")
-            evaluator = platform_status if args.gate == "platform-status" else evaluate_platform_order
-            verdict = evaluator(
-                payload,
-                candidate_sha=args.candidate_sha,
-                platform_sha=platform_sha,
-                linux_check_run=linux_check_run,
-                sensitive_paths=_string_list(section, "sensitive_paths"),
-            )
+            payload = _load_json(args.snapshot, "--snapshot")
+            candidate_sha = _required(args.candidate_sha, "--candidate-sha")
+            if args.gate == "thread-finality":
+                evaluate_thread_finality(
+                    payload,
+                    candidate_sha=candidate_sha,
+                    review_producers=_string_list(_section(config, "thread_finality"), "review_producers"),
+                )
+                verdict = f"thread-finality: no live review threads on candidate {candidate_sha}"
+            else:
+                evaluator = platform_status if args.gate == "platform-status" else evaluate_platform_order
+                verdict = evaluator(
+                    payload,
+                    candidate_sha=candidate_sha,
+                    platform_sha=args.platform_sha or candidate_sha,
+                    producer=platform_producer(config),
+                    sensitive_paths=_string_list(_section(config, "platform_order"), "sensitive_paths"),
+                )
     except (OSError, json.JSONDecodeError, yaml.YAMLError, ValueError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 1

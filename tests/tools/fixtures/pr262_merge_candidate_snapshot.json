@@ -2,7 +2,10 @@
   "data": {
     "repository": {
       "pullRequest": {
+        "id": "PR_kwDOQn1MU88AAAABArZXjA",
         "headRefOid": "af680b81f10df2bf0f0803a475e34656a926f766",
+        "changedFiles": 17,
+        "mergeQueueEntry": null,
         "reviewThreads": {
           "pageInfo": {
             "hasNextPage": false
@@ -457,61 +460,64 @@
             }
           ]
         },
-        "files": {
+        "commits": {
           "pageInfo": {
             "hasNextPage": false
           },
           "nodes": [
             {
-              "path": "docs/plans/agentic-research-system/implementation/06q-gate6-spec-real-run-integration-and-follow-up.md"
-            },
-            {
-              "path": "research_system/command/service.py"
-            },
-            {
-              "path": "research_system/evals/calibration.py"
-            },
-            {
-              "path": "research_system/evals/executors/release_tranche.py"
-            },
-            {
-              "path": "research_system/evals/release_snapshot.py"
-            },
-            {
-              "path": "research_system/store/ledger.py"
-            },
-            {
-              "path": "research_system/store/lock.py"
-            },
-            {
-              "path": "research_system/store/objects.py"
-            },
-            {
-              "path": "tests/research_system/contracts/test_wp64_session_exchange.py"
-            },
-            {
-              "path": "tests/research_system/integration/test_gate3_scenarios.py"
-            },
-            {
-              "path": "tests/research_system/integration/test_gate5_release_tranche.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_calibration.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_command_lock_retry.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_ledger_schema_admission.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_release_publication.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_store.py"
-            },
-            {
-              "path": "tests/research_system/unit/test_store_publication_contract.py"
+              "commit": {
+                "oid": "af680b81f10df2bf0f0803a475e34656a926f766",
+                "statusCheckRollup": {
+                  "contexts": {
+                    "pageInfo": {
+                      "hasNextPage": false
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "contract-and-session-currency",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "completedAt": "2026-08-23T07:29:03Z",
+                        "checkSuite": {
+                          "app": {
+                            "slug": "github-actions"
+                          },
+                          "workflowRun": {
+                            "file": {
+                              "path": ".github/workflows/ars-artefact-currency.yml"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "require-active-currency-workflow",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS",
+                        "completedAt": "2026-08-23T07:27:59Z",
+                        "checkSuite": {
+                          "app": {
+                            "slug": "github-actions"
+                          },
+                          "workflowRun": {
+                            "file": {
+                              "path": ".github/workflows/ars-artefact-currency-watchdog.yml"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "__typename": "StatusContext",
+                        "context": "CodeRabbit",
+                        "state": "SUCCESS",
+                        "createdAt": "2026-08-23T07:29:43Z"
+                      }
+                    ]
+                  }
+                }
+              }
             }
           ]
         }
@@ -529,14 +535,34 @@
                 "name": "contract-and-session-currency",
                 "status": "COMPLETED",
                 "conclusion": "SUCCESS",
-                "completedAt": "2026-08-23T07:29:03Z"
+                "completedAt": "2026-08-23T07:29:03Z",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "file": {
+                      "path": ".github/workflows/ars-artefact-currency.yml"
+                    }
+                  }
+                }
               },
               {
                 "__typename": "CheckRun",
                 "name": "require-active-currency-workflow",
                 "status": "COMPLETED",
                 "conclusion": "SUCCESS",
-                "completedAt": "2026-08-23T07:27:59Z"
+                "completedAt": "2026-08-23T07:27:59Z",
+                "checkSuite": {
+                  "app": {
+                    "slug": "github-actions"
+                  },
+                  "workflowRun": {
+                    "file": {
+                      "path": ".github/workflows/ars-artefact-currency-watchdog.yml"
+                    }
+                  }
+                }
               },
               {
                 "__typename": "StatusContext",
@@ -549,5 +575,92 @@
         }
       }
     }
-  }
+  },
+  "restFiles": [
+    {
+      "filename": "docs/plans/agentic-research-system/implementation/06q-gate6-spec-real-run-integration-and-follow-up.md",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/command/service.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/evals/calibration.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/evals/executors/release_tranche.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/evals/release_snapshot.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/store/ledger.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/store/lock.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "research_system/store/objects.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/contracts/test_wp64_session_exchange.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/integration/test_gate3_scenarios.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/integration/test_gate5_release_tranche.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/unit/test_calibration.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/unit/test_command_lock_retry.py",
+      "previous_filename": null,
+      "status": "added"
+    },
+    {
+      "filename": "tests/research_system/unit/test_ledger_schema_admission.py",
+      "previous_filename": null,
+      "status": "added"
+    },
+    {
+      "filename": "tests/research_system/unit/test_release_publication.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/unit/test_store.py",
+      "previous_filename": null,
+      "status": "modified"
+    },
+    {
+      "filename": "tests/research_system/unit/test_store_publication_contract.py",
+      "previous_filename": null,
+      "status": "added"
+    }
+  ]
 }

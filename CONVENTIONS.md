@@ -51,15 +51,12 @@ and the freeze instructions at
 
 ---
 
-## Repo-Wide CI: Lint Blocks, Tests Advisory (locked 2026-09-08)
+## Repo-Wide CI: Windows Only, Lint Blocks (locked 2026-09-08, amended 2026-09-11)
 
 **Rule.** `.github/workflows/ci.yml` is the repository's general regression
-signal and is **enabled**. Its `lint` job (`ruff check .`) and its
-`windows-store-lock` and `petls-backend` jobs are blocking. Its `test` job
-(the unfiltered pytest suite) carries `continue-on-error: true` and is
-**advisory**: a green tick on this workflow attests **lint only**. The exit
-condition is explicit — once `test` is observed green on `main`, remove
-`continue-on-error` and restore it to a required check. Ruff suppressions are
+signal and is **enabled**. Its jobs are `lint` (`ruff check .`) and
+`windows-store-lock`, both blocking. **No CI job runs on Linux** (amendment
+2026-09-11, below). Ruff suppressions are
 recorded, never silent: E402 exemptions in `.ruff.toml` are listed
 **file-by-file**, never by directory glob, so a new script in an exempted
 directory is still checked.
@@ -87,6 +84,27 @@ honours `.gitignore` only inside a git checkout — so CI silently skipped them
 while a `git archive` of the same commit did not. An exemption that depends on
 whether `.git` exists is not a recorded suppression; an explicit one is. The
 files are not rewritten to pass: they are frozen audit provenance.
+
+**Amendment (2026-09-11) — the project supports Windows only, so CI runs on
+Windows only.** Decided by Stephen on PR #278. Two Linux-only lanes were removed.
+`test`, the unfiltered pytest suite, had been advisory and never observed green;
+on its last runs it failed collection on `gtda`, `topologytoolkit` and
+`torch_geometric`, which the locked environment omits. `petls-backend` could
+exist only on Linux, because PETLS publishes no Windows wheel. The advisory
+lane's exit condition above is therefore retired rather than met, and no CI lane
+now runs the unfiltered suite. That coverage gap is accepted, not hidden. Jobs
+that check files or GitHub state rather than platform behaviour moved to
+`windows-latest` unchanged in substance: `lint`, both ARS currency jobs (which
+the P-049 ruleset requires; their pytest/ruff selection was run on Windows first:
+46 passed, ruff clean), and `merge-admission`. Scripts written for bash keep
+`shell: bash`. `tests/tools/test_ci_platform_policy.py` fails if any job runs on
+a non-Windows label, if a bash script falls to the Windows default shell, or if
+either removed lane returns. The `merge-admission` platform-order gate now reads
+`windows-store-lock`, trusted only from `.github/workflows/ci.yml` under the
+`github-actions` app. The POSIX-only branches in `research_system/store/`
+(`anchor.py`, `identity.py`, `writer.py`) now have **no CI coverage at all**.
+That is a direct consequence of this decision, recorded here so it is not
+mistaken for an oversight.
 
 **Rationale.** `ci.yml` sat `disabled_manually` from before 2026-07-30 until
 2026-09-08. The narrower `ars-artefact-currency.yml` and its watchdog cover only
@@ -669,7 +687,7 @@ Three journal-targeted papers replacing the original four technique-first papers
   `COMMENTED` review — the habit on most independent reviews here — does not
   count as acceptance for these pull requests. The `merge-admission` gate
   (`tools/check_merge_admission.py platform-order`) requires each reviewer's
-  latest approval of the candidate to postdate a green `lint-and-test` on the
+  latest approval of the candidate to postdate a green `windows-store-lock` on the
   platform commit; it can only enforce ordering on a record it can see, and
   this convention is what puts acceptance into that record. The paths are the
   `platform_order.sensitive_paths` list in `.github/merge-admission.yml`.

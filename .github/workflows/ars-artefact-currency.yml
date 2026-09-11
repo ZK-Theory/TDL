@@ -14,8 +14,15 @@ permissions:
 
 jobs:
   contract-and-session-currency:
-    runs-on: ubuntu-latest
+    # Windows only, like every job in this repository (decided 2026-09-11). The
+    # pytest and ruff selection below was run on Windows before the move: 46
+    # passed, ruff clean. Bash stays the shell so the checkout script is
+    # unchanged.
+    runs-on: windows-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout workflow subject without submodule cleanup
@@ -52,7 +59,7 @@ jobs:
 
       - name: Run C-1 artefact contract and session currency
         run: |
-          .venv/bin/python -m ruff check \
+          .venv/Scripts/python.exe -m ruff check \
             research_system/session_exchange/exchange.py \
             research_system/artefacts/runtime.py \
             tests/research_system/contracts/test_06i_stage_a_candidate.py \
@@ -63,7 +70,7 @@ jobs:
             tests/tools/test_ars_currency_workflow_controls.py \
             tests/tools/test_check_workflow_liveness.py \
             tools/check_workflow_liveness.py
-          .venv/bin/python -m pytest -q \
+          .venv/Scripts/python.exe -m pytest -q \
             tests/tools/test_ars_currency_workflow_controls.py \
             tests/tools/test_check_workflow_liveness.py \
             tests/research_system/contracts/test_06i_stage_a_candidate.py \
