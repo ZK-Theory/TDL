@@ -206,20 +206,35 @@ Every rule is mutation-tested.
   The tool was restored byte-identical, verified by sha256. The gate suite then
   passed 61/61, and the gate, policy and currency controls together passed
   75/75.
-- **2026-09-11, rounds 3–4.** More rules were mutation-tested in the same way:
+- **2026-09-11, rounds 3–4, clean re-run of all 15 mutants.** An earlier run
+  was contaminated by stale bytecode. CPython trusts a cached `.pyc` when the
+  source size and whole-second mtime match, so the same-size `>`→`<` mutant,
+  restored within one second, kept running. The restored baseline then failed
+  exactly that mutant's tests, which exposed it. The same effect could just as
+  easily have let a mutant reuse the previous mutant's code and pass for the
+  wrong reason. The harness now clears `__pycache__` and disables bytecode
+  before every run. Clean results:
 
   | Mutant | Failing controls |
   |---|---|
-  | Sweep skips every pull request | 5 |
+  | Rename source ignored | 1 |
+  | Listing-completeness check skipped | 1 |
+  | Producer identity unchecked | 4 |
+  | Producer workflow edit allowed | 1 |
+  | Queue-commit run not required | 2 |
+  | Never dequeue | 2 |
+  | Merge-group size unbounded | 1 |
+  | Sweep skips every pull request | 6 |
   | Sweep counts outdated threads | 1 |
   | Sweep never dequeues | 2 |
-  | Sweep re-runs failing checks | 2 |
+  | Sweep re-runs failing checks | 3 |
   | Sweep trusts any workflow | 1 |
   | Sweep prints an empty line when idle | 1 |
-  | Platform gate picks the oldest attempt | ≥1 |
-  | Sweep picks the oldest attempt | ≥1 |
+  | Platform gate picks the oldest attempt | 3 |
+  | Sweep picks the oldest attempt | 2 |
 
-  Every mutant was caught, and the tool was restored byte-identical each time.
+  15/15 caught. The tool was restored byte-identical (sha256), and the restored
+  baseline passes 84/84.
 
 The strongest negative control is not a probe PR: the committed snapshot is the
 actual evidence GitHub held at the moment PR #262 merged, and both gates refuse
