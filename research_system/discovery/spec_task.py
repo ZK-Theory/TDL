@@ -14,7 +14,7 @@ from collections.abc import Callable
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.errors import ArsError, IntegrityError
+from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 
@@ -42,12 +42,21 @@ _EFFECT_EVENTS = {
 }
 
 # Route-fixed review policy. The caller supplies evidence, never the independence
-# grade, the visibility policy or the satisfaction authority.
+# grade, the visibility policy, the satisfaction authority or the allowed verdicts.
+#
+# The computed grade equals the required grade because it is exactly what this route
+# evidences and nothing more: a distinct recorded actor, a distinct authority grant
+# and a verdict bound to the exact reviewed subject hash. Never record a grade the
+# route cannot demonstrate; a stronger independence claim needs evidence about actor
+# families, sessions and context that this route does not collect.
 _INDEPENDENCE_GRADE = "independent_exact_subject"
-_COMPUTED_INDEPENDENCE_GRADE = "I2"
 _VISIBILITY_POLICY = "owner_and_reviewer"
 _SATISFACTION_AUTHORITY = "owner"
 _APPROVE_VERDICT = "approve"
+# The route records only an approving verdict; refusal is the reviewer's other
+# option and must therefore be permitted by the request the verdict answers.
+_ALLOWED_VERDICTS = ("approve", "reject")
+_VERDICT_RECORDED = "verdict_recorded"
 
 _REQUIRED_EVIDENCE: dict[str, frozenset[str]] = {
     "RequestReview": frozenset(
@@ -58,7 +67,6 @@ _REQUIRED_EVIDENCE: dict[str, frozenset[str]] = {
             "required_evidence_refs",
             "required_lanes",
             "reviewer_capability",
-            "allowed_verdicts",
             "deadline",
             "escalation_rule",
         }
@@ -146,8 +154,6 @@ def _locate(effect: str, ids: dict[str, str], events: list[dict], after_position
             continue
         if effect == "AcceptTask" and ids["review_id"] not in tuple(payload.get("satisfied_review_ids", ())):
             continue
-        if effect == "RecordReviewVerdict" and payload.get("verdict") != _APPROVE_VERDICT:
-            continue
         return event
     return None
 
@@ -171,6 +177,7 @@ def evaluate(
         One state record with the ordered completed effects and the next effect.
 
     Raises:
+        ConflictError: If located evidence contradicts closure through this action.
         IntegrityError: If located evidence binds another subject, another actor
             relation or another exact subject hash than this action requires.
     """
@@ -249,6 +256,9 @@ def _validate_binding(
         if payload.get("satisfaction_authority") != _SATISFACTION_AUTHORITY:
             raise IntegrityError("close_task review request does not reserve satisfaction to the owner")
 
+    # The next three checks restate boundaries CommandService also enforces, so the
+    # route refuses before submitting anything. test_spec_task.py exercises those
+    # inherited refusals directly, so neither layer is trusted on the other's behalf.
     assigned = by_effect.get("AssignReview")
     reviewer = assigned["payload"].get("reviewer_actor_id") if assigned is not None else None
     if assigned is not None and reviewer == submitted["actor_id"]:
@@ -256,6 +266,11 @@ def _validate_binding(
 
     verdict = by_effect.get("RecordReviewVerdict")
     if verdict is not None:
+        recorded = verdict["payload"].get("verdict")
+        if recorded != _APPROVE_VERDICT:
+            # The inherited path can satisfy and accept a non-approving verdict, so
+            # reporting "prepared" here would under-report an already decided Task.
+            raise ConflictError(f"close_task review verdict does not approve the subject: {recorded}")
         if verdict["actor_id"] == submitted["actor_id"]:
             raise IntegrityError("close_task review verdict lacks an independent actor")
         if reviewer is not None and verdict["actor_id"] != reviewer:
@@ -304,7 +319,10 @@ def effect_command(
     """
     ids = subject_ids(intent)
     required = _REQUIRED_EVIDENCE.get(effect)
-    if required is not None:
+    if required is None:
+        if evidence is not None:
+            raise IntegrityError(f"close_task {effect} takes no independent evidence")
+    else:
         if not isinstance(evidence, dict):
             raise ArsError(f"{effect} requires independent evidence in --input")
         if set(evidence) != set(required):
@@ -326,6 +344,7 @@ def effect_command(
             "required_independence_grade": _INDEPENDENCE_GRADE,
             "visibility_policy": _VISIBILITY_POLICY,
             "satisfaction_authority": _SATISFACTION_AUTHORITY,
+            "allowed_verdicts": list(_ALLOWED_VERDICTS),
             **evidence,
         }
     if effect == "AssignReview":
@@ -333,7 +352,7 @@ def effect_command(
             raise IntegrityError("close_task cannot assign the producing actor as its own reviewer")
         return ids["review_id"], {
             "review_id": ids["review_id"],
-            "computed_independence_grade": _COMPUTED_INDEPENDENCE_GRADE,
+            "computed_independence_grade": _INDEPENDENCE_GRADE,
             **evidence,
         }
 
@@ -350,6 +369,9 @@ def effect_command(
             "visibility_policy": _VISIBILITY_POLICY,
         }
     if effect == "RecordReviewVerdict":
+        requested = _request_event(ids, events)
+        if _APPROVE_VERDICT not in tuple(requested["payload"].get("allowed_verdicts", ())):
+            raise IntegrityError("close_task review request does not permit an approving verdict")
         return ids["review_id"], {
             "review_id": ids["review_id"],
             "verdict": _APPROVE_VERDICT,
@@ -359,16 +381,29 @@ def effect_command(
             "conditions": [],
             "unchanged_subject_sha256": subject_sha256,
             "producing_attempt_id": ids["attempt_id"],
-            "computed_independence_grade": _COMPUTED_INDEPENDENCE_GRADE,
+            "computed_independence_grade": _INDEPENDENCE_GRADE,
             **evidence,
         }
     if effect == "SatisfyReview":
+        review = streams.get(ids["review_id"])
+        prior = review.get("status") if isinstance(review, dict) else None
+        if prior != _VERDICT_RECORDED:
+            raise IntegrityError(f"close_task cannot satisfy a review in state {prior}")
         return ids["review_id"], {
             "review_id": ids["review_id"],
-            "prior_review_state": "verdict_recorded",
+            "prior_review_state": _VERDICT_RECORDED,
             **evidence,
         }
     raise ArsError(f"unsupported close_task effect: {effect}")
+
+
+def _request_event(ids: dict[str, str], events: list[dict]) -> dict:
+    requested = [
+        event for event in events if event["event_type"] == "ReviewRequested" and event["stream_id"] == ids["review_id"]
+    ]
+    if not requested:
+        raise IntegrityError("close_task has no review request to answer")
+    return requested[0]
 
 
 def _assigned_reviewer(ids: dict[str, str], events: list[dict]) -> str:
@@ -377,7 +412,7 @@ def _assigned_reviewer(ids: dict[str, str], events: list[dict]) -> str:
     ]
     if not assigned:
         raise IntegrityError("close_task review has no assigned reviewer")
-    return assigned[-1]["payload"]["reviewer_actor_id"]
+    return assigned[0]["payload"]["reviewer_actor_id"]
 
 
 def _submit_payload(ids: dict[str, str], streams: dict[str, Any], events: list[dict]) -> dict[str, Any]:
@@ -422,16 +457,19 @@ def enumerated_intents(events: list[dict]) -> list[dict[str, Any]]:
         if event["event_type"] != "TaskSubmittedForReview":
             continue
         payload = event["payload"]
-        requested = tuple(payload.get("requested_review_ids", ()))
-        if not requested or not payload.get("attempt_id"):
-            continue
-        intents.append(
-            {
-                "action": ACTION,
-                "task_id": event["stream_id"],
-                "attempt_id": payload["attempt_id"],
-                "review_id": requested[0],
-                "reason": event.get("reason") or "recorded Task review submission",
-            }
-        )
+        for review_id in tuple(payload.get("requested_review_ids", ())):
+            # requested_review_ids is an unconstrained string list on the governed
+            # command, so another flow's submission can name a non-review value.
+            # Such a Task is not a close_task subject and must not fail the listing.
+            if not str(review_id).startswith("rev_"):
+                continue
+            intents.append(
+                {
+                    "action": ACTION,
+                    "task_id": event["stream_id"],
+                    "attempt_id": payload["attempt_id"],
+                    "review_id": review_id,
+                    "reason": "recorded Task review submission",
+                }
+            )
     return intents

@@ -33,11 +33,11 @@ from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
-SOURCE_ACTION_EFFECTS = {
+ACTION_EFFECTS = {
     "observe_source": ("RegisterArtefact", "IngestScoutObservationBatch"),
     "correct_spec_01_source": ("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
+    spec_task.ACTION: spec_task.EFFECTS,
 }
-ACTION_EFFECTS = {**SOURCE_ACTION_EFFECTS, spec_task.ACTION: spec_task.EFFECTS}
 
 
 class _SourceRegistrationService(CommandService):

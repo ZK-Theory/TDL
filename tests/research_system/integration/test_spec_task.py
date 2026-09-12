@@ -13,7 +13,7 @@ from research_system import cli
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery import spec_task
 from research_system.discovery.spec import SpecCoordinator
-from research_system.errors import IdempotencyConflictError, SchemaError
+from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, SchemaError
 from research_system.methods.registration import _stable_command_id
 from research_system.projection.replay import replay
 from tests.research_system.factories import (
@@ -21,7 +21,7 @@ from tests.research_system.factories import (
     GovernedTestCommandService,
     activate_lifecycle_grant,
 )
-from tests.research_system.integration.test_spec_source import bound_source, invoke_cli  # noqa: F401
+from tests.research_system.integration.test_spec_source import bound_source  # noqa: F401
 from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     ATTEMPT_ID,
     C1_NOW,
@@ -62,7 +62,6 @@ REQUEST_EVIDENCE = {
     "required_evidence_refs": ["evidence:spec-task-subject"],
     "required_lanes": ["software"],
     "reviewer_capability": ["python"],
-    "allowed_verdicts": ["accept_exact_subject", "rework_required"],
     "deadline": "2026-12-31T12:00:00Z",
     "escalation_rule": "return rework_required on any material mismatch",
 }
@@ -101,7 +100,18 @@ EFFECT_EVIDENCE = {
 
 @pytest.fixture
 def bound_task(bound_source):  # noqa: F811
-    """Supply Task and terminal Attempt evidence through existing governed contracts.
+    """A Task with terminal Attempt evidence, ready for the public closure route."""
+    return _seed_bound_task(bound_source, complete_attempt=True)
+
+
+@pytest.fixture
+def bound_running_task(bound_source):  # noqa: F811
+    """The same route subject while its Attempt is still running."""
+    return _seed_bound_task(bound_source, complete_attempt=False)
+
+
+def _seed_bound_task(bound_source, *, complete_attempt: bool):  # noqa: F811
+    """Supply Task and Attempt evidence through existing governed contracts.
 
     The seeding service is the established governed test adapter on the same scratch
     control store. The SPEC route keeps the coordinator's plain CommandService, so
@@ -125,19 +135,20 @@ def bound_task(bound_source):  # noqa: F811
     # request must bind. Activate it first; admission then reuses it without an append.
     activate_lifecycle_grant(bound_source.harness, subject_kind="resource", subject_id=RESOURCE_GRANT_ID)
     _seed_running_attempt(seed_harness)
-    completed = _c1_command(
-        _command_id(9001),
-        "CompleteAttempt",
-        ATTEMPT_ID,
-        coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
-        {
-            "attempt_id": ATTEMPT_ID,
-            "candidate_artefact_ids": [],
-            "end_evidence_refs": ["evidence:spec-task-attempt"],
-            "output_disposition": "no_candidate_output",
-        },
-    )
-    assert seeding.submit(completed).status == "accepted"
+    if complete_attempt:
+        completed = _c1_command(
+            _command_id(9001),
+            "CompleteAttempt",
+            ATTEMPT_ID,
+            coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
+            {
+                "attempt_id": ATTEMPT_ID,
+                "candidate_artefact_ids": [],
+                "end_evidence_refs": ["evidence:spec-task-attempt"],
+                "output_disposition": "no_candidate_output",
+            },
+        )
+        assert seeding.submit(completed).status == "accepted"
 
     grants = {
         "task": activate_lifecycle_grant(
@@ -371,7 +382,9 @@ def test_non_owner_acceptance_is_rejected_and_appends_no_authoritative_effect(bo
         command_types=("AcceptTask",),
         grant_id="agr_01978abc-9205-7000-8000-000000009205",
     )
-    _refuse(bound_task, "AcceptTask", tmp_path, capsys, actor=REVIEWER, grant=non_owner_grant)
+    message = _refuse(bound_task, "AcceptTask", tmp_path, capsys, actor=REVIEWER, grant=non_owner_grant)
+    # The refusal must come from inherited authority, not an incidental precondition.
+    assert "lifecycle_authority_unauthorized" in message, message
     state = bound_task.coordinator.status(close_task_intent())
     assert state["state"] == "prepared" and state["next_effect"] == "AcceptTask"
     assert _streams(bound_task.coordinator)[TASK_ID]["status"] == "review_pending"
@@ -387,7 +400,8 @@ def test_non_owner_producer_cannot_submit_for_review(bound_task, tmp_path, capsy
         command_types=("SubmitForReview",),
         grant_id="agr_01978abc-9206-7000-8000-000000009206",
     )
-    _refuse(bound_task, "SubmitForReview", tmp_path, capsys, actor=REVIEWER, grant=non_owner_grant)
+    message = _refuse(bound_task, "SubmitForReview", tmp_path, capsys, actor=REVIEWER, grant=non_owner_grant)
+    assert "lifecycle_authority_unauthorized" in message, message
     assert bound_task.coordinator.status(close_task_intent())["state"] == "not_started"
 
 
@@ -453,7 +467,7 @@ def test_expired_actor_cannot_create_a_new_effect_while_completed_state_stays_re
     # A new effect for a fresh review subject under the same expired grant is refused.
     fresh = close_task_intent(OTHER_REVIEW_ID)
     assert late.status(fresh)["state"] == "not_started"
-    with pytest.raises(Exception, match="expired"):
+    with pytest.raises(ArsError, match="expired"):
         late.advance(fresh, None)
     assert _tail(coordinator) == tail
 
@@ -547,6 +561,126 @@ def test_verdict_bound_to_another_subject_is_not_completion(bound_task, tmp_path
         actor_id=REVIEWER,
         authority_grant_id=bound_task.grants["reviewer"],
     )
-    assert coordinator.service.submit(command).status == "rejected"
+    receipt = coordinator.service.submit(command)
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "review_verdict_precondition_failed"
     assert _tail(coordinator) == before
     assert coordinator.status(intent)["next_effect"] == "RecordReviewVerdict"
+
+
+def test_inherited_enforcement_refuses_self_review_independently_of_the_route(bound_task, tmp_path, capsys):
+    """The governed boundary refuses self-review even with the route check bypassed.
+
+    The route refuses these before submitting, so each command is built and submitted
+    directly to prove the inherited rule is what holds, not only the fail-fast check.
+    """
+    for effect in ("SubmitForReview", "RequestReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    before = _tail(coordinator)
+
+    # AssignReview naming the requester as reviewer.
+    assign = _c1_command(
+        _command_id(9005),
+        "AssignReview",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        {
+            "review_id": REVIEW_ID,
+            "reviewer_actor_id": OWNER,
+            "computed_independence_grade": "independent_exact_subject",
+            "independence_evidence_refs": ["evidence:self-review-attempt"],
+        },
+        actor_id=OWNER,
+        authority_grant_id=bound_task.grants["review_owner"],
+    )
+    receipt = coordinator.service.submit(assign)
+    assert receipt.status == "rejected"
+    assert receipt.reason_code == "review_assignment_precondition_failed"
+    assert _tail(coordinator) == before
+
+    # With an independent reviewer assigned, the producer still cannot start the
+    # review, under a grant that does permit the command for that actor.
+    _advance(bound_task, "AssignReview", tmp_path, capsys)
+    owner_start_grant = activate_lifecycle_grant(
+        bound_task.bound.harness,
+        subject_kind="review",
+        subject_id=REVIEW_ID,
+        actor_id=OWNER,
+        command_types=("StartReview",),
+        grant_id="agr_01978abc-9208-7000-8000-000000009208",
+    )
+    assigned_tail = _tail(coordinator)
+    state = coordinator.status(close_task_intent())
+    start = _c1_command(
+        _command_id(9006),
+        "StartReview",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        {
+            "review_id": REVIEW_ID,
+            "unchanged_subject_sha256": state["subject_sha256"],
+            "visibility_policy": "owner_and_reviewer",
+        },
+        actor_id=OWNER,
+        authority_grant_id=owner_start_grant,
+    )
+    started = coordinator.service.submit(start)
+    assert started.status == "rejected"
+    assert started.reason_code == "review_start_subject_mismatch"
+    assert _tail(coordinator) == assigned_tail
+
+
+def test_submit_for_review_requires_terminal_attempt_evidence(bound_running_task, tmp_path, capsys):
+    """A running Attempt is not review-ready, and the refusal leaves no effect."""
+    coordinator = bound_running_task.coordinator
+    assert _streams(coordinator)[ATTEMPT_ID]["status"] == "running"
+    message = _refuse(bound_running_task, "SubmitForReview", tmp_path, capsys)
+    assert "c2_dependency_not_terminal" in message, message
+    assert coordinator.status(close_task_intent())["state"] == "not_started"
+
+
+def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task, tmp_path, capsys):
+    """A satisfied non-approving verdict is conflicting evidence, not "prepared"."""
+    for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+    state = coordinator.status(intent)
+    _, approving = _effect_command(
+        coordinator, "RecordReviewVerdict", intent, state, actor_id=REVIEWER, evidence=VERDICT_EVIDENCE
+    )
+    refusing = {**approving, "verdict": "reject", "findings": ["the exact subject does not satisfy its contract"]}
+    command = _c1_command(
+        _command_id(9007),
+        "RecordReviewVerdict",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        refusing,
+        actor_id=REVIEWER,
+        authority_grant_id=bound_task.grants["reviewer"],
+    )
+    assert coordinator.service.submit(command).status == "accepted"
+    with pytest.raises(ConflictError, match="does not approve"):
+        coordinator.status(intent)
+
+
+def test_effects_that_take_no_evidence_reject_supplied_evidence(bound_task, tmp_path, capsys):
+    message = _refuse(bound_task, "SubmitForReview", tmp_path, capsys, evidence=SATISFY_EVIDENCE)
+    assert "takes no independent evidence" in message, message
+    assert bound_task.coordinator.status(close_task_intent())["state"] == "not_started"
+
+
+def test_status_listing_survives_an_unrelated_task_review_submission(bound_task):
+    """One governed submission naming a non-review id must not fail the listing."""
+    unrelated = spec_task.enumerated_intents(
+        [
+            {
+                "event_type": "TaskSubmittedForReview",
+                "stream_id": "tsk_01978abc-9300-7000-8000-000000009300",
+                "payload": {"attempt_id": ATTEMPT_ID, "requested_review_ids": ["pending-review", REVIEW_ID]},
+            }
+        ]
+    )
+    assert [intent["review_id"] for intent in unrelated] == [REVIEW_ID]
+    assert bound_task.coordinator.status()["actions"] == []
