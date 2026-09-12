@@ -13,7 +13,13 @@ from research_system import cli
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery import spec_task
 from research_system.discovery.spec import SpecCoordinator
-from research_system.errors import ArsError, ConflictError, IdempotencyConflictError, SchemaError
+from research_system.errors import (
+    ArsError,
+    ConflictError,
+    IdempotencyConflictError,
+    IntegrityError,
+    SchemaError,
+)
 from research_system.methods.registration import _stable_command_id
 from research_system.projection.replay import replay
 from tests.research_system.factories import (
@@ -27,6 +33,7 @@ from tests.research_system.integration.test_wp6_1_c1_readiness_lease import (
     C1_NOW,
     C1_TRUSTED_RUNTIME_AUTHORITY,
     LEASE_ID,
+    OTHER_ATTEMPT_ID,
     RESOURCE_GRANT_ID,
     TASK_ID,
     _c1_command,
@@ -39,6 +46,7 @@ OWNER = ACTORS["actor-a"]
 REVIEWER = ACTORS["actor-b"]
 REVIEW_ID = "rev_01978abc-9100-7000-8000-000000009100"
 OTHER_REVIEW_ID = "rev_01978abc-9101-7000-8000-000000009101"
+SECOND_REVIEW_ID = "rev_01978abc-9102-7000-8000-000000009102"
 
 TASK_GRANT_ID = "agr_01978abc-9201-7000-8000-000000009201"
 REVIEW_OWNER_GRANT_ID = "agr_01978abc-9202-7000-8000-000000009202"
@@ -702,3 +710,152 @@ def test_status_listing_survives_an_unrelated_task_review_submission(bound_task)
     )
     assert [intent["review_id"] for intent in unrelated] == [REVIEW_ID]
     assert bound_task.coordinator.status()["actions"] == []
+
+
+def test_verdict_naming_another_attempt_is_not_completion(bound_task, tmp_path, capsys):
+    """Review admission ignores producing_attempt_id, so the route must bind it."""
+    for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+    state = coordinator.status(intent)
+    _, payload = _effect_command(
+        coordinator, "RecordReviewVerdict", intent, state, actor_id=REVIEWER, evidence=VERDICT_EVIDENCE
+    )
+    foreign = {**payload, "producing_attempt_id": OTHER_ATTEMPT_ID}
+    command = _c1_command(
+        _command_id(9008),
+        "RecordReviewVerdict",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        foreign,
+        actor_id=REVIEWER,
+        authority_grant_id=bound_task.grants["reviewer"],
+    )
+    # Admission accepts it: no review precondition validates that field.
+    assert coordinator.service.submit(command).status == "accepted"
+    with pytest.raises(IntegrityError, match="another producing Attempt"):
+        coordinator.status(intent)
+
+
+def test_review_request_binds_the_task_state_current_at_request(bound_task, tmp_path, capsys):
+    """A Task validly paused and resumed at review_pending must not strand the route."""
+    coordinator = bound_task.coordinator
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    after_submit = coordinator.status(close_task_intent())["subject_sha256"]
+
+    paused = _c1_command(
+        _command_id(9009),
+        "PauseTask",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "pause_reason": "owner paused the Task while it awaited review",
+            "prior_active_status": "review_pending",
+            "resumable_state_ref": "evidence:resumable-review-pending",
+            "process_disposition": {
+                "process_state": "quiesced",
+                "children_closed": True,
+                "writers_closed": True,
+                "evidence_refs": ["evidence:pause-process"],
+            },
+        },
+    )
+    assert bound_task.seeding.submit(paused).status == "accepted"
+    resumed = _c1_command(
+        _command_id(9010),
+        "ResumeTask",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "suspended_status": "paused",
+            "prior_active_status": "review_pending",
+            "resolution_evidence_refs": ["evidence:pause-resolved"],
+            "authority_evidence_refs": ["evidence:pause-authority"],
+        },
+    )
+    assert bound_task.seeding.submit(resumed).status == "accepted"
+
+    # The reviewed subject moved, so the route must re-derive it or RequestReview
+    # is refused with stale_subject_hash and review_pending cannot be re-entered.
+    after_resume = coordinator.status(close_task_intent())["subject_sha256"]
+    assert after_resume != after_submit
+    result = _advance(bound_task, "RequestReview", tmp_path, capsys)
+    assert result["receipt"]["status"] == "accepted"
+    assert result["next_effect"] == "AssignReview"
+    assert result["subject_sha256"] == after_resume
+
+
+def test_acceptance_names_every_requested_review(bound_task, tmp_path, capsys):
+    """One satisfied review must not terminally accept a multi-review submission."""
+    coordinator = bound_task.coordinator
+    submitted = _c1_command(
+        _command_id(9011),
+        "SubmitForReview",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "attempt_id": ATTEMPT_ID,
+            "candidate_artefact_ids": [],
+            "attempt_outcome": "completed",
+            "candidate_artefact_hashes": [],
+            "requested_review_ids": [REVIEW_ID, SECOND_REVIEW_ID],
+        },
+    )
+    assert bound_task.seeding.submit(submitted).status == "accepted"
+
+    for effect in ("RequestReview", "AssignReview", "StartReview", "RecordReviewVerdict", "SatisfyReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    intent = close_task_intent()
+    state = coordinator.status(intent)
+    assert state["next_effect"] == "AcceptTask"
+
+    _, payload = _effect_command(coordinator, "AcceptTask", intent, state, actor_id=OWNER)
+    assert payload["satisfied_review_ids"] == [REVIEW_ID, SECOND_REVIEW_ID]
+
+    # The second requested review is unsatisfied, so acceptance must be refused.
+    message = _refuse(bound_task, "AcceptTask", tmp_path, capsys)
+    assert "task_acceptance_precondition_failed" in message, message
+    assert _streams(coordinator)[TASK_ID]["status"] == "review_pending"
+
+
+def test_a_withdrawn_review_conflicts_instead_of_advertising_progress(bound_task, tmp_path, capsys):
+    for effect in ("SubmitForReview", "RequestReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    withdraw_grant = activate_lifecycle_grant(
+        bound_task.bound.harness,
+        subject_kind="review",
+        subject_id=REVIEW_ID,
+        actor_id=OWNER,
+        command_types=("WithdrawReview",),
+        grant_id="agr_01978abc-9209-7000-8000-000000009209",
+    )
+    withdrawn = _c1_command(
+        _command_id(9012),
+        "WithdrawReview",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        {"review_id": REVIEW_ID, "withdrawal_reason": "the requested review is no longer required"},
+        actor_id=OWNER,
+        authority_grant_id=withdraw_grant,
+    )
+    assert coordinator.service.submit(withdrawn).status == "accepted"
+    with pytest.raises(ConflictError, match="ReviewWithdrawn"):
+        coordinator.status(close_task_intent())
+    # The listing still renders, carrying the conflict rather than denying the route.
+    closures = [a for a in coordinator.status()["actions"] if a.get("action") == spec_task.ACTION]
+    assert len(closures) == 1 and "ReviewWithdrawn" in closures[0]["unreadable"]
+
+
+def test_absent_or_unbound_governed_subjects_are_not_runnable_actions(bound_task):
+    coordinator = bound_task.coordinator
+    missing_task = {**close_task_intent(), "task_id": "tsk_01978abc-9400-7000-8000-000000009400"}
+    with pytest.raises(IntegrityError, match="no existing Task"):
+        coordinator.status(missing_task)
+    unbound_attempt = {**close_task_intent(), "attempt_id": OTHER_ATTEMPT_ID}
+    with pytest.raises(IntegrityError, match="not bound to this Task"):
+        coordinator.status(unbound_attempt)
