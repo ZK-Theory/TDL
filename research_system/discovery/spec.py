@@ -138,7 +138,17 @@ class SpecCoordinator:
                     )
                     actions.append(self.status(document["intent"]))
             for task_intent in spec_task.enumerated_intents(self.ledger.snapshot().events):
-                actions.append(self.status(task_intent))
+                try:
+                    actions.append(self.status(task_intent))
+                except (ConflictError, IntegrityError) as exc:
+                    # An explicit status(intent) call must raise on conflicting or
+                    # misbound evidence, but the enumerating listing is not a question
+                    # about this subject: one decided Task must not deny the whole
+                    # route. The entry carries no "state" key, so nothing can read it
+                    # as one of the three route states.
+                    actions.append(
+                        {"action": spec_task.ACTION, **spec_task.subject_ids(task_intent), "unreadable": str(exc)}
+                    )
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
         if intent.get("action") == spec_task.ACTION:
             self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)

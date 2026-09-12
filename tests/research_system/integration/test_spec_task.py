@@ -596,7 +596,11 @@ def test_inherited_enforcement_refuses_self_review_independently_of_the_route(bo
     )
     receipt = coordinator.service.submit(assign)
     assert receipt.status == "rejected"
+    # That code covers a four-way condition. The other three clauses are excluded by
+    # construction: the review is in "requested", the actor IS the requester, and the
+    # independence refs are non-empty. Only reviewer == requester can fire.
     assert receipt.reason_code == "review_assignment_precondition_failed"
+    assert "distinct from the requester" in receipt.explanation
     assert _tail(coordinator) == before
 
     # With an independent reviewer assigned, the producer still cannot start the
@@ -627,7 +631,12 @@ def test_inherited_enforcement_refuses_self_review_independently_of_the_route(bo
     )
     started = coordinator.service.submit(start)
     assert started.status == "rejected"
+    # Authority is deliberately satisfied by owner_start_grant, the review is in
+    # "assigned", the assignment exists, and the bound subject hash is the exact one
+    # the request carries. Only actor != assigned reviewer can fire, despite the
+    # inherited code naming this reason after the subject clause.
     assert started.reason_code == "review_start_subject_mismatch"
+    assert "requires the assigned reviewer" in started.explanation
     assert _tail(coordinator) == assigned_tail
 
 
@@ -663,6 +672,15 @@ def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task
     assert coordinator.service.submit(command).status == "accepted"
     with pytest.raises(ConflictError, match="does not approve"):
         coordinator.status(intent)
+
+    # The enumerating listing must survive it: one decided Task cannot deny the route.
+    listed = coordinator.status()
+    closures = [action for action in listed["actions"] if action.get("action") == spec_task.ACTION]
+    assert len(closures) == 1
+    assert "does not approve" in closures[0]["unreadable"]
+    assert "state" not in closures[0], "a conflict entry must not read as a route state"
+    assert listed["route_id"] == coordinator.operator.route_id
+    assert spec_task.ACTION in listed["available_actions"]
 
 
 def test_effects_that_take_no_evidence_reject_supplied_evidence(bound_task, tmp_path, capsys):
