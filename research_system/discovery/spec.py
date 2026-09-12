@@ -23,6 +23,7 @@ from research_system.discovery.spec_source import (
     source_ref,
     validate_source_refs,
 )
+from research_system.discovery import spec_task
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
@@ -32,10 +33,11 @@ from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
-ACTION_EFFECTS = {
+SOURCE_ACTION_EFFECTS = {
     "observe_source": ("RegisterArtefact", "IngestScoutObservationBatch"),
     "correct_spec_01_source": ("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
 }
+ACTION_EFFECTS = {**SOURCE_ACTION_EFFECTS, spec_task.ACTION: spec_task.EFFECTS}
 
 
 class _SourceRegistrationService(CommandService):
@@ -135,7 +137,17 @@ class SpecCoordinator:
                         event["stream_id"], objects=self.objects, schemas=self.schemas, ledger=self.ledger
                     )
                     actions.append(self.status(document["intent"]))
+            for task_intent in spec_task.enumerated_intents(self.ledger.snapshot().events):
+                actions.append(self.status(task_intent))
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
+        if intent.get("action") == spec_task.ACTION:
+            self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
+            return spec_task.evaluate(
+                intent,
+                self.ledger.snapshot().events,
+                schemas=self.schemas,
+                authority_state_validator=self.resolver.validate_replayed_administration_state,
+            )
         self.schemas.validate("ars://portfolio/spec-source-intent", intent)
         parse_locator(intent["requested_locator"])
         ids = source_ids(self.binding.project_id, intent)
@@ -278,6 +290,18 @@ class SpecCoordinator:
             return state
         now = self.clock().isoformat().replace("+00:00", "Z")
         actor = self.operator.operator_actor_id
+        if intent.get("action") == spec_task.ACTION:
+            target, payload = spec_task.effect_command(
+                effect,
+                intent,
+                state,
+                self.ledger.snapshot().events,
+                actor_id=actor,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=self.resolver.validate_replayed_administration_state,
+            )
+            return self._submit_effect(intent, effect, target, payload, actor, now, intent["reason"])
         artefact_id = state["artefact_id"]
         target = artefact_id
         if effect == "RegisterArtefact":
@@ -355,6 +379,30 @@ class SpecCoordinator:
                     "use_authority": "accepted_for_scope",
                     **evidence,
                 }
+        return self._submit_effect(
+            intent,
+            effect,
+            target,
+            payload,
+            actor,
+            now,
+            intent.get("correction_reason", intent["title"]),
+            source_document=document if effect == "RegisterArtefact" else None,
+        )
+
+    def _submit_effect(
+        self,
+        intent: dict,
+        effect: str,
+        target: str,
+        payload: dict,
+        actor: str,
+        now: str,
+        reason: str,
+        *,
+        source_document: dict | None = None,
+    ) -> dict:
+        """Submit one effect through the shared retry key, envelope and admission."""
         retry = "spec:" + sha256_hex(
             canonical_bytes([intent, effect, actor, self.operator.authority_grant_id, payload])
         )
@@ -376,15 +424,15 @@ class SpecCoordinator:
                 on_behalf_of_actor_id=None,
                 correlation_id=retry,
                 causation_id=None,
-                reason=intent.get("correction_reason", intent["title"]),
+                reason=reason,
                 evidence_refs=[],
                 project_id=self.binding.project_id,
             )
         self.binding.revalidate()
         service = self._discovery() if effect == "IngestScoutObservationBatch" else self.service
-        if effect == "RegisterArtefact":
-            service = self._command_service(document)
+        if source_document is not None:
+            service = self._command_service(source_document)
         receipt = service.submit(command)
         if receipt.status not in {"accepted", "replayed"}:
-            raise ArsError(f"SOURCE effect rejected: {asdict(receipt)}")
+            raise ArsError(f"SPEC effect rejected: {asdict(receipt)}")
         return {**self.status(intent), "receipt": asdict(receipt)}
