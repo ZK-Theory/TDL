@@ -47,6 +47,7 @@ REVIEWER = ACTORS["actor-b"]
 REVIEW_ID = "rev_01978abc-9100-7000-8000-000000009100"
 OTHER_REVIEW_ID = "rev_01978abc-9101-7000-8000-000000009101"
 SECOND_REVIEW_ID = "rev_01978abc-9102-7000-8000-000000009102"
+CANDIDATE_ARTEFACT_ID = "art_01978abc-9500-7000-8000-000000009500"
 
 TASK_GRANT_ID = "agr_01978abc-9201-7000-8000-000000009201"
 REVIEW_OWNER_GRANT_ID = "agr_01978abc-9202-7000-8000-000000009202"
@@ -118,7 +119,13 @@ def bound_running_task(bound_source):  # noqa: F811
     return _seed_bound_task(bound_source, complete_attempt=False)
 
 
-def _seed_bound_task(bound_source, *, complete_attempt: bool):  # noqa: F811
+@pytest.fixture
+def bound_candidate_task(bound_source):  # noqa: F811
+    """A terminal Attempt whose outcome names a candidate artefact."""
+    return _seed_bound_task(bound_source, complete_attempt=True, candidates=(CANDIDATE_ARTEFACT_ID,))
+
+
+def _seed_bound_task(bound_source, *, complete_attempt: bool, candidates: tuple = ()):  # noqa: F811
     """Supply Task and Attempt evidence through existing governed contracts.
 
     The seeding service is the established governed test adapter on the same scratch
@@ -151,9 +158,9 @@ def _seed_bound_task(bound_source, *, complete_attempt: bool):  # noqa: F811
             coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
             {
                 "attempt_id": ATTEMPT_ID,
-                "candidate_artefact_ids": [],
+                "candidate_artefact_ids": list(candidates),
                 "end_evidence_refs": ["evidence:spec-task-attempt"],
-                "output_disposition": "no_candidate_output",
+                "output_disposition": "candidate_output_recorded" if candidates else "no_candidate_output",
             },
         )
         assert seeding.submit(completed).status == "accepted"
@@ -859,3 +866,206 @@ def test_absent_or_unbound_governed_subjects_are_not_runnable_actions(bound_task
     unbound_attempt = {**close_task_intent(), "attempt_id": OTHER_ATTEMPT_ID}
     with pytest.raises(IntegrityError, match="not bound to this Task"):
         coordinator.status(unbound_attempt)
+
+
+def _external_request(subject_sha256, *, number, allowed_verdicts, review_id=REVIEW_ID):
+    """A RequestReview raised outside the route, valid except where stated."""
+    return _c1_command(
+        _command_id(number),
+        "RequestReview",
+        review_id,
+        0,
+        {
+            "new_review_id": review_id,
+            "review_type": "software",
+            "subject_ids": [TASK_ID],
+            "subject_hashes": [subject_sha256],
+            "governing_refs": ["plan:06s"],
+            "review_questions": ["Does the exact Task subject satisfy its bounded contract?"],
+            "required_evidence_refs": ["evidence:spec-task-subject"],
+            "required_lanes": ["software"],
+            "reviewer_capability": ["python"],
+            "required_independence_grade": "independent_exact_subject",
+            "visibility_policy": "owner_and_reviewer",
+            "allowed_verdicts": list(allowed_verdicts),
+            "satisfaction_authority": "owner",
+            "deadline": "2026-12-31T12:00:00Z",
+            "escalation_rule": "return rework_required on any material mismatch",
+        },
+        actor_id=OWNER,
+        authority_grant_id=REVIEW_OWNER_GRANT_ID,
+    )
+
+
+def test_a_foreign_request_forbidding_approval_is_not_answerable(bound_task, tmp_path, capsys):
+    """Admission permits an approving verdict the recorded request never allowed."""
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+    subject = coordinator.status(intent)["subject_sha256"]
+    request = _external_request(subject, number=9013, allowed_verdicts=("reject",))
+    assert coordinator.service.submit(request).status == "accepted"
+    with pytest.raises(IntegrityError, match="does not permit an approving verdict"):
+        coordinator.status(intent)
+
+
+def test_a_foreign_assignment_with_a_weaker_grade_is_not_completion(bound_task, tmp_path, capsys):
+    """AssignReview admits any non-empty grade, so the route must verify it."""
+    for effect in ("SubmitForReview", "RequestReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    assign = _c1_command(
+        _command_id(9014),
+        "AssignReview",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        {
+            "review_id": REVIEW_ID,
+            "reviewer_actor_id": REVIEWER,
+            "computed_independence_grade": "I0",
+            "independence_evidence_refs": ["evidence:weaker-grade"],
+        },
+        actor_id=OWNER,
+        authority_grant_id=bound_task.grants["review_owner"],
+    )
+    assert coordinator.service.submit(assign).status == "accepted"
+    with pytest.raises(IntegrityError, match="does not establish exact-subject independence"):
+        coordinator.status(close_task_intent())
+
+
+def test_task_subject_drift_after_the_review_request_conflicts(bound_task, tmp_path, capsys):
+    """Acceptance hashes the current Task, so post-request drift dooms the review."""
+    for effect in ("SubmitForReview", "RequestReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    paused = _c1_command(
+        _command_id(9015),
+        "PauseTask",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "pause_reason": "owner paused the Task after its review was requested",
+            "prior_active_status": "review_pending",
+            "resumable_state_ref": "evidence:resumable-after-request",
+            "process_disposition": {
+                "process_state": "quiesced",
+                "children_closed": True,
+                "writers_closed": True,
+                "evidence_refs": ["evidence:pause-process"],
+            },
+        },
+    )
+    assert bound_task.seeding.submit(paused).status == "accepted"
+    with pytest.raises(ConflictError, match="changed after its review request"):
+        coordinator.status(close_task_intent())
+
+
+def test_a_reused_review_identity_is_refused_before_submitting(bound_task, tmp_path, capsys):
+    """Starting on an existing Review stream would strand the Task at review_pending."""
+    coordinator = bound_task.coordinator
+    subject = coordinator.status(close_task_intent())["subject_sha256"]
+    existing = _external_request(
+        subject, number=9016, allowed_verdicts=("approve", "reject"), review_id=SECOND_REVIEW_ID
+    )
+    existing["authority_grant_id"] = activate_lifecycle_grant(
+        bound_task.bound.harness,
+        subject_kind="review",
+        subject_id=SECOND_REVIEW_ID,
+        actor_id=OWNER,
+        command_types=("RequestReview",),
+        grant_id="agr_01978abc-9210-7000-8000-000000009210",
+    )
+    assert coordinator.service.submit(existing).status == "accepted"
+    with pytest.raises(IntegrityError, match="already in use"):
+        coordinator.status(close_task_intent(SECOND_REVIEW_ID))
+
+
+def test_a_foreign_acceptance_omitting_requested_reviews_is_not_completion(bound_task, tmp_path, capsys):
+    """Admission validates only the ids supplied, so the route must check the set."""
+    coordinator = bound_task.coordinator
+    submitted = _c1_command(
+        _command_id(9017),
+        "SubmitForReview",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "attempt_id": ATTEMPT_ID,
+            "candidate_artefact_ids": [],
+            "attempt_outcome": "completed",
+            "candidate_artefact_hashes": [],
+            "requested_review_ids": [REVIEW_ID, SECOND_REVIEW_ID],
+        },
+    )
+    assert bound_task.seeding.submit(submitted).status == "accepted"
+    for effect in ("RequestReview", "AssignReview", "StartReview", "RecordReviewVerdict", "SatisfyReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    intent = close_task_intent()
+    task = _streams(coordinator)[TASK_ID]
+    narrow = _c1_command(
+        _command_id(9018),
+        "AcceptTask",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "task_revision": task["current_revision"],
+            "satisfied_review_ids": [REVIEW_ID],
+            "satisfied_acceptance_criteria": list(task["definition"]["acceptance_criteria"]),
+            "selected_artefact_ids": [],
+        },
+        actor_id=OWNER,
+        authority_grant_id=bound_task.grants["task"],
+    )
+    assert coordinator.service.submit(narrow).status == "accepted"
+    with pytest.raises(IntegrityError, match="omits reviews the submission requested"):
+        coordinator.status(intent)
+
+
+def test_a_submission_claiming_an_unregistered_candidate_hash_is_refused(bound_candidate_task, tmp_path, capsys):
+    """SubmitForReview admission counts candidate hashes but never checks their values."""
+    coordinator = bound_candidate_task.coordinator
+    submitted = _c1_command(
+        _command_id(9019),
+        "SubmitForReview",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "attempt_id": ATTEMPT_ID,
+            "candidate_artefact_ids": [CANDIDATE_ARTEFACT_ID],
+            "attempt_outcome": "completed",
+            "candidate_artefact_hashes": [sha256_hex(b"fabricated candidate content")],
+            "requested_review_ids": [REVIEW_ID],
+        },
+    )
+    assert bound_candidate_task.seeding.submit(submitted).status == "accepted"
+    with pytest.raises(IntegrityError, match="candidate"):
+        coordinator.status(close_task_intent())
+
+
+def test_acceptance_refuses_an_empty_criterion_set_and_undeclared_candidates(bound_task):
+    """Two payloads the governed reducer or this route cannot honour."""
+    ids = spec_task.subject_ids(close_task_intent())
+    submitted = {"payload": {"requested_review_ids": [REVIEW_ID], "candidate_artefact_ids": []}}
+
+    # reduce_task rejects an empty satisfied criterion set, while AcceptTask admission
+    # compares sets and therefore accepts it: never build that event.
+    empty_criteria = {TASK_ID: {"current_revision": 1, "definition": {"acceptance_criteria": []}}}
+    with pytest.raises(IntegrityError, match="no acceptance criteria"):
+        spec_task._accept_payload(ids, empty_criteria, submitted)
+
+    # The route cannot express an artefact selection, so it must not silently accept
+    # a Task whose submission carried candidate deliverables.
+    real = {TASK_ID: {"current_revision": 1, "definition": {"acceptance_criteria": ["bounded contract satisfied"]}}}
+    with_candidates = {
+        "payload": {"requested_review_ids": [REVIEW_ID], "candidate_artefact_ids": [CANDIDATE_ARTEFACT_ID]}
+    }
+    with pytest.raises(IntegrityError, match="cannot select accepted artefacts"):
+        spec_task._accept_payload(ids, real, with_candidates)
+
+    # The unchanged positive shape still builds.
+    payload = spec_task._accept_payload(ids, real, submitted)
+    assert payload["satisfied_review_ids"] == [REVIEW_ID]
+    assert payload["satisfied_acceptance_criteria"] == ["bounded contract satisfied"]

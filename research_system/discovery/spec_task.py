@@ -159,9 +159,13 @@ def _subject_hash(
     return sha256_hex(canonical_bytes(task))
 
 
-def _artefact_content_hash(events: list[dict], artefact_id: str) -> str:
+def _artefact_content_hash(events: list[dict], artefact_id: str, *, before_position: int | None = None) -> str:
     matches = [
-        event for event in events if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
+        event
+        for event in events
+        if event["event_type"] == "ArtefactRegistered"
+        and event["stream_id"] == artefact_id
+        and (before_position is None or event["global_position"] < before_position)
     ]
     if len(matches) != 1:
         raise IntegrityError(f"close_task cannot bind an exact candidate artefact hash: {artefact_id}")
@@ -244,6 +248,10 @@ def evaluate(
             raise IntegrityError(f"close_task names no existing Task: {ids['task_id']}")
         if not isinstance(attempt, dict) or attempt.get("task_id") != ids["task_id"]:
             raise IntegrityError(f"close_task Attempt is not bound to this Task: {ids['attempt_id']}")
+        if any(event["stream_id"] == ids["review_id"] for event in events):
+            # RequestReview requires an empty Review stream and SubmitForReview cannot
+            # be repeated from review_pending, so starting here would strand the Task.
+            raise IntegrityError(f"close_task review identity is already in use: {ids['review_id']}")
         state["subject_sha256"] = _reviewed_subject_hash(ids, events, schemas, None, authority_state_validator)
     state["effects"] = [
         {
@@ -286,6 +294,17 @@ def _validate_binding(
     if terminal:
         raise ConflictError(f"close_task review reached {terminal[-1]['event_type']} and cannot be answered")
 
+    # N7: inherited SubmitForReview admission checks candidate identities against the
+    # Attempt but only the COUNT of supplied hashes, so verify the values here.
+    submitted_payload = submitted["payload"]
+    candidates = tuple(submitted_payload.get("candidate_artefact_ids", ()))
+    hashes = tuple(submitted_payload.get("candidate_artefact_hashes", ()))
+    if len(candidates) != len(hashes):
+        raise IntegrityError("close_task submission candidate identities and hashes are not paired")
+    for candidate, claimed in zip(candidates, hashes, strict=True):
+        if claimed != _artefact_content_hash(events, candidate, before_position=submitted["global_position"]):
+            raise IntegrityError(f"close_task submission claims an unregistered candidate hash: {candidate}")
+
     if request is not None:
         payload = request["payload"]
         pairs = tuple(zip(payload.get("subject_ids", ()), payload.get("subject_hashes", ()), strict=False))
@@ -295,14 +314,29 @@ def _validate_binding(
             raise IntegrityError("close_task review request does not require exact-subject independence")
         if payload.get("satisfaction_authority") != _SATISFACTION_AUTHORITY:
             raise IntegrityError("close_task review request does not reserve satisfaction to the owner")
+        # N1: a Review raised elsewhere may permit verdicts this route cannot answer
+        # with, and admission does not compare the recorded verdict to this set.
+        if _APPROVE_VERDICT not in tuple(payload.get("allowed_verdicts", ())):
+            raise IntegrityError("close_task review request does not permit an approving verdict")
+        # N4: the reviewed subject is pinned at the request, but acceptance hashes the
+        # Task as it stands. If it drifted, every remaining effect is already doomed.
+        if "AcceptTask" not in by_effect:
+            current = _subject_hash(
+                events, ids["task_id"], schemas, authority_state_validator=authority_state_validator
+            )
+            if current != subject_sha256:
+                raise ConflictError("close_task reviewed Task subject changed after its review request")
 
     # The next three checks restate boundaries CommandService also enforces, so the
     # route refuses before submitting anything. test_spec_task.py exercises those
     # inherited refusals directly, so neither layer is trusted on the other's behalf.
     assigned = by_effect.get("AssignReview")
     reviewer = assigned["payload"].get("reviewer_actor_id") if assigned is not None else None
-    if assigned is not None and reviewer == submitted["actor_id"]:
-        raise IntegrityError("close_task cannot assign the producing actor as its own reviewer")
+    if assigned is not None:
+        if reviewer == submitted["actor_id"]:
+            raise IntegrityError("close_task cannot assign the producing actor as its own reviewer")
+        if assigned["payload"].get("computed_independence_grade") != _INDEPENDENCE_GRADE:
+            raise IntegrityError("close_task review assignment does not establish exact-subject independence")
 
     verdict = by_effect.get("RecordReviewVerdict")
     if verdict is not None:
@@ -321,6 +355,15 @@ def _validate_binding(
             # Review admission does not validate this field, and AcceptTask ignores it,
             # so a verdict naming another Attempt would otherwise complete the action.
             raise IntegrityError("close_task review verdict names another producing Attempt")
+
+    accepted = by_effect.get("AcceptTask")
+    if accepted is not None:
+        requested = set(str(value) for value in submitted_payload.get("requested_review_ids", ()))
+        satisfied = set(str(value) for value in accepted["payload"].get("satisfied_review_ids", ()))
+        if not requested.issubset(satisfied):
+            # Admission validates only the ids the payload supplies, so an acceptance
+            # raised elsewhere can close the Task with other requested gates open.
+            raise IntegrityError("close_task acceptance omits reviews the submission requested")
         if verdict["authority_grant_id"] == submitted["authority_grant_id"]:
             raise IntegrityError("close_task review verdict reuses the producing authority grant")
 
@@ -486,6 +529,16 @@ def _accept_payload(ids: dict[str, str], streams: dict[str, Any], submitted: dic
     requested = [str(value) for value in submitted["payload"].get("requested_review_ids", ())]
     if ids["review_id"] not in requested:
         raise IntegrityError("close_task review is not among the submitted requested reviews")
+    # N5: acceptance admission compares criterion SETS, so an empty set passes, but
+    # reduce_task rejects an empty satisfied set. Never build an event whose own
+    # reducer refuses it; that would leave the ledger unreplayable.
+    if not tuple(task.get("definition", {}).get("acceptance_criteria", ())):
+        raise IntegrityError("close_task cannot accept a Task with no acceptance criteria")
+    # N8: the governed contract supports selecting a bounded subset of the submitted
+    # candidates, and this route has no way for an owner to express that choice.
+    # Refuse rather than accept the Task with its deliverables silently discarded.
+    if tuple(submitted["payload"].get("candidate_artefact_ids", ())):
+        raise IntegrityError("close_task cannot select accepted artefacts; the submission carried candidates")
     return {
         "task_id": ids["task_id"],
         "task_revision": task.get("current_revision"),
