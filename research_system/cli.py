@@ -1906,7 +1906,10 @@ def _parser() -> argparse.ArgumentParser:
         if verb == "advance":
             action.add_argument("--action", choices=tuple(ACTION_EFFECTS), required=True)
             action.add_argument(
-                "--input", type=Path, required=True, help="semantic SOURCE intent and optional independent evidence"
+                "--input",
+                type=Path,
+                required=True,
+                help="semantic SPEC action intent and optional independent evidence",
             )
         action.set_defaults(handler=_spec)
 

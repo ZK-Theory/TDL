@@ -127,7 +127,7 @@ def test_source_registration_holds_writer_lock_through_rejection(bound_source, s
     monkeypatch.setattr(coordinator.objects, "write", write)
     monkeypatch.setattr(coordinator.objects, "rollback_new_revision", rollback)
     before = coordinator.ledger.snapshot()
-    with pytest.raises(ArsError, match="SOURCE effect rejected"):
+    with pytest.raises(ArsError, match="SPEC effect rejected"):
         coordinator.advance(intent)
     assert coordinator.ledger.snapshot() == before
     assert stages == ["publish", "rollback"]
@@ -591,6 +591,15 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
     assert ACTION_EFFECTS == {
         "observe_source": ("RegisterArtefact", "IngestScoutObservationBatch"),
         "correct_spec_01_source": ("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
+        "close_task": (
+            "SubmitForReview",
+            "RequestReview",
+            "AssignReview",
+            "StartReview",
+            "RecordReviewVerdict",
+            "SatisfyReview",
+            "AcceptTask",
+        ),
     }
 
     def timed_out(*args, **kwargs):

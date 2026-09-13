@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-task-intent",
+  "type": "object", "additionalProperties": false,
+  "required": ["action", "task_id", "attempt_id", "review_id", "reason"],
+  "properties": {
+    "action": {"enum": ["close_task"]},
+    "task_id": {"type": "string", "pattern": "^tsk_"},
+    "attempt_id": {"type": "string", "pattern": "^att_"},
+    "review_id": {"type": "string", "pattern": "^rev_"},
+    "reason": {"type": "string", "minLength": 1}
+  }
+}
