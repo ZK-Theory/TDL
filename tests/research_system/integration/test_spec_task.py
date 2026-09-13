@@ -75,7 +75,6 @@ REQUEST_EVIDENCE = {
     "escalation_rule": "return rework_required on any material mismatch",
 }
 VERDICT_EVIDENCE = {
-    "required_evidence_refs": ["evidence:spec-task-verdict"],
     "reviewer_profile": "independent-reviewer",
     "reviewer_session": "session:spec-task-review",
     "reviewer_model_metadata": "model:independent",
@@ -337,6 +336,13 @@ def test_public_close_task_positive_path_status_and_replay(bound_task, tmp_path,
     assert verdict["actor_id"] == REVIEWER and producer["actor_id"] == OWNER
     assert verdict["authority_grant_id"] != producer["authority_grant_id"]
     assert _streams(bound_task.coordinator)[TASK_ID]["status"] == "accepted"
+    # The verdict answers exactly the evidence its request required.
+    recorded_verdict = next(
+        event
+        for event in bound_task.coordinator.ledger.snapshot().events
+        if event["event_type"] == "ReviewVerdictRecorded" and event["stream_id"] == REVIEW_ID
+    )
+    assert recorded_verdict["payload"]["required_evidence_refs"] == REQUEST_EVIDENCE["required_evidence_refs"]
 
     # The enumerating status recovers the same action from ledger evidence alone.
     listed = bound_task.coordinator.status()
@@ -1331,4 +1337,87 @@ def test_an_exact_retry_after_the_grant_expires_reads_its_receipt(bound_task, tm
     repeated = after_expiry.advance(intent, None)
     assert repeated["receipt"] == submitted["receipt"]
     assert repeated["next_effect"] == "RequestReview"
+    assert _tail(coordinator) == tail
+
+
+def test_a_verdict_with_unrequested_evidence_is_refused(bound_task, tmp_path, capsys):
+    """Verdict admission checks only that its evidence is non-empty.
+
+    The caller can no longer supply the verdict's required evidence, and a route-keyed
+    verdict answering different evidence fails the content layer.
+    """
+    for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+
+    supplied = {**VERDICT_EVIDENCE, "required_evidence_refs": ["evidence:unrelated"]}
+    message = _refuse(bound_task, "RecordReviewVerdict", tmp_path, capsys, evidence=supplied)
+    assert "evidence fields are not exact" in message, message
+
+    state = coordinator.status(intent)
+    _, payload = _effect_command(
+        coordinator, "RecordReviewVerdict", intent, state, actor_id=REVIEWER, evidence=VERDICT_EVIDENCE
+    )
+    assert payload["required_evidence_refs"] == REQUEST_EVIDENCE["required_evidence_refs"]
+    unrelated = {**payload, "required_evidence_refs": ["evidence:unrelated"]}
+    key = spec_task.retry_key(intent, "RecordReviewVerdict", REVIEWER, REVIEWER_GRANT_ID, unrelated)
+    command = _c1_command(
+        _stable_command_id(key),
+        "RecordReviewVerdict",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        unrelated,
+        actor_id=REVIEWER,
+        authority_grant_id=REVIEWER_GRANT_ID,
+    )
+    command.update(idempotency_key=key, correlation_id=key)
+    # Admission accepts it, so only the route's content layer can refuse it.
+    assert coordinator.service.submit(command).status == "accepted"
+    with pytest.raises(IntegrityError, match="RecordReviewVerdict does not carry the payload this route derives"):
+        coordinator.status(intent)
+
+
+def test_an_empty_criterion_task_is_refused_before_submission():
+    """A Task that can never be accepted is refused before the first durable mutation.
+
+    The shared fixture seeds a Task with acceptance criteria, so the refusal is
+    exercised directly, alongside the unchanged positive shape.
+    """
+    ids = spec_task.subject_ids(close_task_intent())
+    attempt = {"task_id": TASK_ID, "status": "completed", "outcome": {"candidate_artefact_ids": []}}
+    empty = {TASK_ID: {"definition": {"acceptance_criteria": []}}, ATTEMPT_ID: attempt}
+    with pytest.raises(IntegrityError, match="no acceptance criteria"):
+        spec_task._submit_payload(ids, empty)
+    with pytest.raises(IntegrityError, match="no acceptance criteria"):
+        spec_task._check_closable(ids, empty)
+    real = {TASK_ID: {"definition": {"acceptance_criteria": ["bounded contract satisfied"]}}, ATTEMPT_ID: attempt}
+    assert spec_task._submit_payload(ids, real)["attempt_outcome"] == "completed"
+
+
+def test_a_retry_after_another_operator_committed_the_next_effect_reads_its_receipt(bound_task, tmp_path, capsys):
+    """A lost response is recognised even when later effects have committed since."""
+    coordinator = bound_task.coordinator
+    for effect in ("SubmitForReview", "RequestReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    assigned = _advance(bound_task, "AssignReview", tmp_path, capsys)
+    # The owner's AssignReview response is lost; meanwhile the reviewer starts the review.
+    _advance(bound_task, "StartReview", tmp_path, capsys)
+    tail = _tail(coordinator)
+
+    repeated = _advance(bound_task, "AssignReview", tmp_path, capsys)
+    assert repeated["receipt"]["command_id"] == assigned["receipt"]["command_id"]
+    assert repeated["next_effect"] == "RecordReviewVerdict"
+    assert _tail(coordinator) == tail
+
+    # The owner's SubmitForReview invocation cannot build RecordReviewVerdict, so it
+    # reads its own receipt too. The same invocation shape builds AcceptTask at the end
+    # of the chain; the positive path proves that is advanced rather than replayed.
+    submitted = next(
+        entry
+        for entry in coordinator.status(close_task_intent())["effects"]
+        if entry["authority_grant_id"] == TASK_GRANT_ID
+    )
+    resubmitted = _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    assert resubmitted["receipt"]["command_id"] == submitted["command_id"]
     assert _tail(coordinator) == tail

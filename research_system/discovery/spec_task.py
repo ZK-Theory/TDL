@@ -84,7 +84,6 @@ _REQUIRED_EVIDENCE: dict[str, frozenset[str]] = {
     "AssignReview": frozenset({"reviewer_actor_id", "independence_evidence_refs"}),
     "RecordReviewVerdict": frozenset(
         {
-            "required_evidence_refs",
             "reviewer_profile",
             "reviewer_session",
             "reviewer_model_metadata",
@@ -206,13 +205,18 @@ def _reviewed_subject_hash(
     )
 
 
-def _check_closable_attempt(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
-    """Refuse an Attempt this route could submit but never honestly close.
+def _check_closable(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
+    """Refuse a subject this route could submit but never honestly close.
 
-    Both refusals must come before SubmitForReview, the first durable mutation: once a
-    Task is review_pending it cannot be submitted again, so a refusal at any later
-    effect strands it.
+    Every refusal of a closing precondition must come before SubmitForReview, the
+    first durable mutation: once a Task is review_pending it cannot be submitted
+    again, so a refusal at any later effect strands it.
     """
+    task = streams.get(ids["task_id"])
+    # AcceptTask admission compares criterion SETS, so an empty set passes, but
+    # reduce_task rejects an empty satisfied set; such a Task can never be accepted.
+    if isinstance(task, dict) and not tuple(task.get("definition", {}).get("acceptance_criteria", ())):
+        raise IntegrityError("close_task cannot accept a Task with no acceptance criteria")
     attempt = streams.get(ids["attempt_id"])
     if not isinstance(attempt, dict) or attempt.get("task_id") != ids["task_id"]:
         raise IntegrityError(f"close_task Attempt is not bound to this Task: {ids['attempt_id']}")
@@ -373,6 +377,10 @@ def _derived(
             "unchanged_subject_sha256": reviewed,
             "producing_attempt_id": ids["attempt_id"],
             "computed_independence_grade": _INDEPENDENCE_GRADE,
+            # Verdict admission checks only that this list is non-empty, so a caller
+            # could answer the request with unrelated evidence. The verdict answers
+            # exactly the evidence the recorded request required.
+            "required_evidence_refs": list(request["payload"]["required_evidence_refs"]),
         }
     if effect == "SatisfyReview":
         review = streams.get(ids["review_id"])
@@ -436,7 +444,7 @@ def evaluate(
         streams = _streams(events, schemas, authority_state_validator=authority_state_validator)
         if not isinstance(streams.get(ids["task_id"]), dict):
             raise IntegrityError(f"close_task names no existing Task: {ids['task_id']}")
-        _check_closable_attempt(ids, streams)
+        _check_closable(ids, streams)
         if any(event["stream_id"] == ids["review_id"] for event in events):
             # RequestReview requires an empty Review stream and SubmitForReview cannot
             # be repeated from review_pending, so starting here would strand the Task.
@@ -572,16 +580,22 @@ def exact_retry(
     evidence: dict[str, Any] | None,
     schemas: SchemaRegistry,
     authority_state_validator: _Validator = None,
+    latest_only: bool = True,
 ) -> dict[str, Any] | None:
-    """Recognise a repeated public invocation of the most recent committed effect.
+    """Recognise a repeated public invocation of a committed effect.
 
     A caller who loses the response to an effect repeats the identical invocation.
-    By then the state has moved on, so deriving the next effect would build a
-    different command with the wrong evidence or grant. Instead, rebuild what this
-    invocation would have submitted for the last committed effect, as of that effect's
-    own position; if its retry key matches the recorded one, the invocation is that
-    retry. Adjacent effects never share actor, grant and evidence shape, so a new
-    invocation of the next effect cannot collide with the previous effect's key.
+    By then the state has moved on, possibly by several effects committed by other
+    operators, so deriving the next effect would build a different command with the
+    wrong evidence or grant. Instead, rebuild what this invocation would have
+    submitted for a committed effect, as of that effect's own position; if its retry
+    key matches the recorded one, the invocation is that retry.
+
+    An invocation does not name its effect. SubmitForReview and AcceptTask share
+    actor, grant and evidence shape, so the owner's genuine AcceptTask invocation
+    also matches the committed SubmitForReview. Callers must therefore consult
+    earlier effects (``latest_only=False``) only when the invocation cannot build
+    the next effect: an invocation valid for the next effect is that effect.
 
     A recognised retry is answered from the committed record and never resubmitted:
     resubmission resolves current authority first, so a grant that expired after the
@@ -596,39 +610,40 @@ def exact_retry(
         evidence: Evidence of the repeated invocation.
         schemas: Runtime schema registry used for projection.
         authority_state_validator: Inherited validator for authority projections.
+        latest_only: Consider only the most recent committed effect.
 
     Returns:
-        The committed event this invocation repeats, or None when it is not a retry
-        of the last effect.
+        The committed event this invocation repeats, or None when it repeats none of
+        the effects considered.
     """
-    if not state["effects"]:
-        return None
-    recorded = state["effects"][-1]
-    event = next((candidate for candidate in events if candidate["event_id"] == recorded["event_id"]), None)
-    if event is None:
-        return None
-    effect = EFFECTS[len(state["effects"]) - 1]
-    try:
-        supplied = _check_evidence(effect, evidence)
-        derived = _derived(
-            effect,
-            subject_ids(intent),
-            _prefix(events, event["global_position"]),
-            actor_id=actor_id,
-            schemas=schemas,
-            authority_state_validator=authority_state_validator,
-        )
-    except ArsError:
-        # This invocation cannot have produced that effect, so it is not its retry.
-        return None
-    payload = {**derived, **supplied}
-    if retry_key(intent, effect, actor_id, authority_grant_id, payload) != event.get("idempotency_key"):
-        return None
-    return event
+    by_id = {event["event_id"]: event for event in events}
+    completed = len(state["effects"])
+    for index in reversed(range(max(completed - 1, 0) if latest_only else 0, completed)):
+        event = by_id.get(state["effects"][index]["event_id"])
+        if event is None:
+            continue
+        effect = EFFECTS[index]
+        try:
+            supplied = _check_evidence(effect, evidence)
+            derived = _derived(
+                effect,
+                subject_ids(intent),
+                _prefix(events, event["global_position"]),
+                actor_id=actor_id,
+                schemas=schemas,
+                authority_state_validator=authority_state_validator,
+            )
+        except ArsError:
+            # This invocation cannot have produced that effect, so it is not its retry.
+            continue
+        payload = {**derived, **supplied}
+        if retry_key(intent, effect, actor_id, authority_grant_id, payload) == event.get("idempotency_key"):
+            return event
+    return None
 
 
 def _submit_payload(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
-    attempt = _check_closable_attempt(ids, streams)
+    attempt = _check_closable(ids, streams)
     return {
         "task_id": ids["task_id"],
         "attempt_id": ids["attempt_id"],

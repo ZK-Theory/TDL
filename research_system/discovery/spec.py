@@ -397,6 +397,13 @@ class SpecCoordinator:
         snapshot. If another process commits the identical effect first, this command
         binds the version that commit bound and admission replays it; any other commit
         fails the version check instead of pairing stale state with newer evidence.
+
+        Known limit: admission binds only the target stream's version. A Task-stream
+        commit by another process between this snapshot and a Review-stream effect
+        does not stop that effect appending. Closure stays safe, because the next
+        evaluation reads the Task event as conflicting evidence and the action cannot
+        complete. Binding both versions atomically would need new CommandService
+        machinery, which is out of scope for this route.
         """
         self.binding.revalidate()
         self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
@@ -404,37 +411,55 @@ class SpecCoordinator:
         validator = self.resolver.validate_replayed_administration_state
         state = spec_task.evaluate(intent, snapshot.events, schemas=self.schemas, authority_state_validator=validator)
         actor = self.operator.operator_actor_id
+
         # A caller who lost the response repeats the identical invocation after the
         # state has moved on. Answer it from the committed receipt, never by
         # resubmitting: admission resolves current authority before its receipt check,
         # so an exact retry after grant expiry would be refused despite its effect.
-        retry = spec_task.exact_retry(
-            intent,
-            state,
-            snapshot.events,
-            actor_id=actor,
-            authority_grant_id=self.operator.authority_grant_id,
-            evidence=evidence,
-            schemas=self.schemas,
-            authority_state_validator=validator,
-        )
-        if retry is not None:
+        def replay_receipt(latest_only: bool) -> dict | None:
+            retry = spec_task.exact_retry(
+                intent,
+                state,
+                snapshot.events,
+                actor_id=actor,
+                authority_grant_id=self.operator.authority_grant_id,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=validator,
+                latest_only=latest_only,
+            )
+            if retry is None:
+                return None
             receipt = self.service.receipts.load(retry["command_id"])
             if receipt is None or receipt.status != "accepted" or receipt.payload_hash != retry["command_payload_hash"]:
                 raise IntegrityError(f"close_task retry has no matching committed receipt: {retry['command_id']}")
             return {**state, "receipt": asdict(receipt)}
+
+        replayed = replay_receipt(latest_only=True)
+        if replayed is not None:
+            return replayed
         effect = state["next_effect"]
         if effect is None:
-            return state
-        target, payload = spec_task.effect_command(
-            effect,
-            intent,
-            snapshot.events,
-            actor_id=actor,
-            evidence=evidence,
-            schemas=self.schemas,
-            authority_state_validator=validator,
-        )
+            return replay_receipt(latest_only=False) or state
+        try:
+            target, payload = spec_task.effect_command(
+                effect,
+                intent,
+                snapshot.events,
+                actor_id=actor,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=validator,
+            )
+        except ArsError:
+            # An invocation does not name its effect, and SubmitForReview and AcceptTask
+            # share actor, grant and evidence shape. So earlier effects are consulted only
+            # when this invocation cannot build the next one: an invocation valid for the
+            # next effect is that effect, never a retry of an earlier one.
+            replayed = replay_receipt(latest_only=False)
+            if replayed is not None:
+                return replayed
+            raise
         return self._submit_effect(
             intent,
             effect,
