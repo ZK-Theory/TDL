@@ -294,53 +294,11 @@ class SpecCoordinator:
         return state
 
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
+        if intent.get("action") == spec_task.ACTION:
+            return self._advance_task(intent, evidence)
         state = self.status(intent)
         now = self.clock().isoformat().replace("+00:00", "Z")
         actor = self.operator.operator_actor_id
-        if intent.get("action") == spec_task.ACTION:
-            events = self.ledger.snapshot().events
-            validator = self.resolver.validate_replayed_administration_state
-            # A caller who lost the response repeats the identical invocation after the
-            # state has moved on. Replay that committed effect's receipt instead of
-            # deriving a different next command from mismatched evidence or authority.
-            retry = spec_task.exact_retry(
-                intent,
-                state,
-                events,
-                actor_id=actor,
-                authority_grant_id=self.operator.authority_grant_id,
-                evidence=evidence,
-                schemas=self.schemas,
-                authority_state_validator=validator,
-            )
-            if retry is not None:
-                effect, target, payload, expected_version = retry
-                return self._submit_effect(
-                    intent,
-                    effect,
-                    target,
-                    payload,
-                    actor,
-                    now,
-                    intent["reason"],
-                    expected_stream_version=expected_version,
-                    retry_intent=spec_task.key_intent(intent),
-                )
-            effect = state["next_effect"]
-            if effect is None:
-                return state
-            target, payload = spec_task.effect_command(
-                effect,
-                intent,
-                events,
-                actor_id=actor,
-                evidence=evidence,
-                schemas=self.schemas,
-                authority_state_validator=validator,
-            )
-            return self._submit_effect(
-                intent, effect, target, payload, actor, now, intent["reason"], retry_intent=spec_task.key_intent(intent)
-            )
         effect = state["next_effect"]
         if effect is None:
             return state
@@ -430,6 +388,63 @@ class SpecCoordinator:
             now,
             intent.get("correction_reason", intent["title"]),
             source_document=document if effect == "RegisterArtefact" else None,
+        )
+
+    def _advance_task(self, intent: dict, evidence: dict | None) -> dict:
+        """Advance close_task from one ledger snapshot.
+
+        State, the next command and its expected stream version all come from the same
+        snapshot. If another process commits the identical effect first, this command
+        binds the version that commit bound and admission replays it; any other commit
+        fails the version check instead of pairing stale state with newer evidence.
+        """
+        self.binding.revalidate()
+        self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
+        snapshot = self.ledger.snapshot()
+        validator = self.resolver.validate_replayed_administration_state
+        state = spec_task.evaluate(intent, snapshot.events, schemas=self.schemas, authority_state_validator=validator)
+        actor = self.operator.operator_actor_id
+        # A caller who lost the response repeats the identical invocation after the
+        # state has moved on. Answer it from the committed receipt, never by
+        # resubmitting: admission resolves current authority before its receipt check,
+        # so an exact retry after grant expiry would be refused despite its effect.
+        retry = spec_task.exact_retry(
+            intent,
+            state,
+            snapshot.events,
+            actor_id=actor,
+            authority_grant_id=self.operator.authority_grant_id,
+            evidence=evidence,
+            schemas=self.schemas,
+            authority_state_validator=validator,
+        )
+        if retry is not None:
+            receipt = self.service.receipts.load(retry["command_id"])
+            if receipt is None or receipt.status != "accepted" or receipt.payload_hash != retry["command_payload_hash"]:
+                raise IntegrityError(f"close_task retry has no matching committed receipt: {retry['command_id']}")
+            return {**state, "receipt": asdict(receipt)}
+        effect = state["next_effect"]
+        if effect is None:
+            return state
+        target, payload = spec_task.effect_command(
+            effect,
+            intent,
+            snapshot.events,
+            actor_id=actor,
+            evidence=evidence,
+            schemas=self.schemas,
+            authority_state_validator=validator,
+        )
+        return self._submit_effect(
+            intent,
+            effect,
+            target,
+            payload,
+            actor,
+            self.clock().isoformat().replace("+00:00", "Z"),
+            intent["reason"],
+            expected_stream_version=snapshot.stream_versions.get(target, 0),
+            retry_intent=spec_task.key_intent(intent),
         )
 
     def _submit_effect(

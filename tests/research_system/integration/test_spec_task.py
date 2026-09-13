@@ -110,22 +110,60 @@ EFFECT_EVIDENCE = {
 @pytest.fixture
 def bound_task(bound_source):  # noqa: F811
     """A Task with terminal Attempt evidence, ready for the public closure route."""
-    return _seed_bound_task(bound_source, complete_attempt=True)
+    return _seed_bound_task(bound_source, outcome="completed")
 
 
 @pytest.fixture
 def bound_running_task(bound_source):  # noqa: F811
     """The same route subject while its Attempt is still running."""
-    return _seed_bound_task(bound_source, complete_attempt=False)
+    return _seed_bound_task(bound_source, outcome=None)
 
 
 @pytest.fixture
 def bound_candidate_task(bound_source):  # noqa: F811
     """A terminal Attempt whose outcome names a candidate artefact."""
-    return _seed_bound_task(bound_source, complete_attempt=True, candidates=(CANDIDATE_ARTEFACT_ID,))
+    return _seed_bound_task(bound_source, outcome="completed", candidates=(CANDIDATE_ARTEFACT_ID,))
 
 
-def _seed_bound_task(bound_source, *, complete_attempt: bool, candidates: tuple = ()):  # noqa: F811
+@pytest.fixture(params=["failed", "partial"])
+def bound_unfinished_task(bound_source, request):  # noqa: F811
+    """A terminal Attempt that admission would submit for review but did not finish."""
+    return _seed_bound_task(bound_source, outcome=request.param)
+
+
+_OUTCOME_COMMANDS = {
+    "completed": "CompleteAttempt",
+    "failed": "FailAttempt",
+    "partial": "RecordAttemptPartial",
+}
+
+
+def _outcome_payload(outcome: str, candidates: tuple) -> dict:
+    if outcome == "failed":
+        return {
+            "attempt_id": ATTEMPT_ID,
+            "end_evidence_refs": ["evidence:spec-task-attempt"],
+            "failure_kind": "bounded contract not met",
+            "output_disposition": "no_candidate_output",
+        }
+    if outcome == "partial":
+        return {
+            "attempt_id": ATTEMPT_ID,
+            "completed_obligations": ["obligation:first"],
+            "unmet_obligations": ["obligation:second"],
+            "candidate_artefact_ids": list(candidates),
+            "stop_cause": "budget exhausted",
+            "restrictions": ["no claim beyond the completed obligation"],
+        }
+    return {
+        "attempt_id": ATTEMPT_ID,
+        "candidate_artefact_ids": list(candidates),
+        "end_evidence_refs": ["evidence:spec-task-attempt"],
+        "output_disposition": "candidate_output_recorded" if candidates else "no_candidate_output",
+    }
+
+
+def _seed_bound_task(bound_source, *, outcome: str | None, candidates: tuple = ()):  # noqa: F811
     """Supply Task and Attempt evidence through existing governed contracts.
 
     The seeding service is the established governed test adapter on the same scratch
@@ -150,20 +188,16 @@ def _seed_bound_task(bound_source, *, complete_attempt: bool, candidates: tuple 
     # request must bind. Activate it first; admission then reuses it without an append.
     activate_lifecycle_grant(bound_source.harness, subject_kind="resource", subject_id=RESOURCE_GRANT_ID)
     _seed_running_attempt(seed_harness)
-    if complete_attempt:
-        completed = _c1_command(
+    if outcome is not None:
+        ended = _c1_command(
             _command_id(9001),
-            "CompleteAttempt",
+            _OUTCOME_COMMANDS[outcome],
             ATTEMPT_ID,
             coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
-            {
-                "attempt_id": ATTEMPT_ID,
-                "candidate_artefact_ids": list(candidates),
-                "end_evidence_refs": ["evidence:spec-task-attempt"],
-                "output_disposition": "candidate_output_recorded" if candidates else "no_candidate_output",
-            },
+            _outcome_payload(outcome, candidates),
         )
-        assert seeding.submit(completed).status == "accepted"
+        receipt = seeding.submit(ended)
+        assert receipt.status == "accepted", receipt
 
     grants = {
         "task": activate_lifecycle_grant(
@@ -1177,3 +1211,124 @@ def test_the_producer_is_derived_from_the_attempt_and_its_lease(bound_task):
         )
     with pytest.raises(IntegrityError, match="independent of the producer"):
         spec_task._check_actor_relation("StartReview", ids, held_by_reviewer, actor_id=REVIEWER)
+
+
+def test_failed_or_partial_attempt_work_remains_open(bound_unfinished_task, tmp_path, capsys):
+    """Admission would submit this work for review; the route refuses before any mutation."""
+    coordinator = bound_unfinished_task.coordinator
+    outcome = _streams(coordinator)[ATTEMPT_ID]["status"]
+    assert outcome in {"failed", "partial"}
+    task_before = _streams(coordinator)[TASK_ID]["status"]
+
+    message = _refuse(bound_unfinished_task, "SubmitForReview", tmp_path, capsys)
+    assert f"{outcome} work remains open" in message, message
+    with pytest.raises(IntegrityError, match="remains open"):
+        coordinator.status(close_task_intent())
+    assert _streams(coordinator)[TASK_ID]["status"] == task_before
+
+    # Decisive control: inherited admission accepts the same submission, so the route's
+    # refusal is what keeps this work open. Once raised elsewhere, it is foreign evidence.
+    submitted = _c1_command(
+        _command_id(9022),
+        "SubmitForReview",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "attempt_id": ATTEMPT_ID,
+            "candidate_artefact_ids": [],
+            "attempt_outcome": outcome,
+            "candidate_artefact_hashes": [],
+            "requested_review_ids": [REVIEW_ID],
+        },
+    )
+    assert bound_unfinished_task.seeding.submit(submitted).status == "accepted"
+    with pytest.raises(ConflictError, match="TaskSubmittedForReview was not issued by this route"):
+        coordinator.status(close_task_intent())
+    assert _streams(coordinator)[TASK_ID]["status"] != "accepted"
+
+
+def test_a_candidate_bearing_attempt_is_refused_before_any_task_mutation(bound_candidate_task, tmp_path, capsys):
+    """A refusal at AcceptTask would strand the Task at review_pending; refuse at the start."""
+    coordinator = bound_candidate_task.coordinator
+    task_before = _streams(coordinator)[TASK_ID]["status"]
+    message = _refuse(bound_candidate_task, "SubmitForReview", tmp_path, capsys)
+    assert "candidate artefacts" in message, message
+    with pytest.raises(IntegrityError, match="candidate artefacts"):
+        coordinator.status(close_task_intent())
+    assert _streams(coordinator)[TASK_ID]["status"] == task_before != "review_pending"
+
+
+def _operator_coordinator(bound_task, tmp_path, name, *, actor, grant, clock):
+    """A second route process with its own operator config and clock."""
+    config_path = tmp_path / f"{name}-operator.json"
+    config_path.write_bytes(
+        canonical_bytes({**bound_task.bound.config, "authority_grant_id": grant, "operator_actor_id": actor})
+    )
+    return SpecCoordinator(
+        cli._load_gate6_binding_context(config_path),
+        replace(bound_task.coordinator.operator, authority_grant_id=grant, operator_actor_id=actor),
+        clock=clock,
+    )
+
+
+def test_a_concurrent_commit_of_the_same_effect_replays_instead_of_conflicting(
+    bound_task, tmp_path, capsys, monkeypatch
+):
+    """State, command and expected version must come from one snapshot.
+
+    The racing process reads the ledger before another process commits the identical
+    RequestReview; every later read sees the commit. Mixing the two reads rebuilds the
+    command at the newer stream version, which conflicts with the original receipt.
+    """
+    coordinator = bound_task.coordinator
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    racer = _operator_coordinator(
+        bound_task, tmp_path, "racer", actor=OWNER, grant=REVIEW_OWNER_GRANT_ID, clock=coordinator.clock
+    )
+    stale = racer.ledger.snapshot()
+    committed = _advance(bound_task, "RequestReview", tmp_path, capsys)
+    tail = _tail(coordinator)
+
+    real_snapshot = racer.ledger.snapshot
+    reads = []
+
+    def first_read_is_stale():
+        reads.append(None)
+        return stale if len(reads) == 1 else real_snapshot()
+
+    monkeypatch.setattr(racer.ledger, "snapshot", first_read_is_stale)
+    raced = racer.advance(close_task_intent(), REQUEST_EVIDENCE)
+    assert raced["receipt"]["command_id"] == committed["receipt"]["command_id"]
+    assert raced["next_effect"] == "AssignReview"
+    assert _tail(coordinator) == tail
+
+
+def test_an_exact_retry_after_the_grant_expires_reads_its_receipt(bound_task, tmp_path, capsys):
+    """A committed effect is read back, not re-authorized, after its grant expires."""
+    coordinator = bound_task.coordinator
+    expiring = activate_lifecycle_grant(
+        bound_task.bound.harness,
+        subject_kind="task",
+        subject_id=TASK_ID,
+        actor_id=OWNER,
+        command_types=("SubmitForReview", "AcceptTask"),
+        grant_id="agr_01978abc-9211-7000-8000-000000009211",
+        effective_at="2026-01-01T00:00:00Z",
+        expires_at="2026-12-01T00:00:00Z",
+    )
+    intent = close_task_intent()
+    before_expiry = _operator_coordinator(
+        bound_task, tmp_path, "before", actor=OWNER, grant=expiring, clock=coordinator.clock
+    )
+    submitted = before_expiry.advance(intent, None)
+    assert submitted["receipt"]["status"] == "accepted"
+    tail = _tail(coordinator)
+
+    after_expiry = _operator_coordinator(
+        bound_task, tmp_path, "after", actor=OWNER, grant=expiring, clock=lambda: datetime(2027, 1, 1, tzinfo=UTC)
+    )
+    repeated = after_expiry.advance(intent, None)
+    assert repeated["receipt"] == submitted["receipt"]
+    assert repeated["next_effect"] == "RequestReview"
+    assert _tail(coordinator) == tail

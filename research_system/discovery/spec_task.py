@@ -206,13 +206,28 @@ def _reviewed_subject_hash(
     )
 
 
-def _artefact_content_hash(events: list[dict], artefact_id: str) -> str:
-    matches = [
-        event for event in events if event["event_type"] == "ArtefactRegistered" and event["stream_id"] == artefact_id
-    ]
-    if len(matches) != 1:
-        raise IntegrityError(f"close_task cannot bind an exact candidate artefact hash: {artefact_id}")
-    return matches[0]["payload"]["manifest"]["content_sha256"]
+def _check_closable_attempt(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
+    """Refuse an Attempt this route could submit but never honestly close.
+
+    Both refusals must come before SubmitForReview, the first durable mutation: once a
+    Task is review_pending it cannot be submitted again, so a refusal at any later
+    effect strands it.
+    """
+    attempt = streams.get(ids["attempt_id"])
+    if not isinstance(attempt, dict) or attempt.get("task_id") != ids["task_id"]:
+        raise IntegrityError(f"close_task Attempt is not bound to this Task: {ids['attempt_id']}")
+    status = attempt.get("status")
+    # SubmitForReview admission accepts failed and partial outcomes, and no later
+    # review or acceptance effect checks the outcome, so an approving review would
+    # accept that work. It remains open (06q Step 4). Non-terminal Attempts are left
+    # to the inherited terminality refusal, which a decisive control exercises.
+    if status in {"failed", "partial"}:
+        raise IntegrityError(f"close_task closes only a completed Attempt; {status} work remains open")
+    # The governed contract lets acceptance select a bounded subset of the submitted
+    # candidates, and this route has no way for an owner to express that choice.
+    if tuple((attempt.get("outcome") or {}).get("candidate_artefact_ids") or ()):
+        raise IntegrityError("close_task cannot close an Attempt with candidate artefacts; it cannot select them")
+    return attempt
 
 
 def _producing_actors(ids: dict[str, str], events: list[dict]) -> frozenset[str]:
@@ -315,7 +330,7 @@ def _derived(
     """
     streams = _streams(events, schemas, authority_state_validator=authority_state_validator)
     if effect == "SubmitForReview":
-        return _submit_payload(ids, streams, events)
+        return _submit_payload(ids, streams)
     if effect == "AcceptTask":
         return _accept_payload(ids, streams, _locate("SubmitForReview", ids, events, 0))
     if effect == "RequestReview":
@@ -419,11 +434,9 @@ def evaluate(
         # Terminality is deliberately not checked here: the inherited SubmitForReview
         # precondition owns it, and a decisive negative control covers that refusal.
         streams = _streams(events, schemas, authority_state_validator=authority_state_validator)
-        attempt = streams.get(ids["attempt_id"])
         if not isinstance(streams.get(ids["task_id"]), dict):
             raise IntegrityError(f"close_task names no existing Task: {ids['task_id']}")
-        if not isinstance(attempt, dict) or attempt.get("task_id") != ids["task_id"]:
-            raise IntegrityError(f"close_task Attempt is not bound to this Task: {ids['attempt_id']}")
+        _check_closable_attempt(ids, streams)
         if any(event["stream_id"] == ids["review_id"] for event in events):
             # RequestReview requires an empty Review stream and SubmitForReview cannot
             # be repeated from review_pending, so starting here would strand the Task.
@@ -559,7 +572,7 @@ def exact_retry(
     evidence: dict[str, Any] | None,
     schemas: SchemaRegistry,
     authority_state_validator: _Validator = None,
-) -> tuple[str, str, dict[str, Any], int] | None:
+) -> dict[str, Any] | None:
     """Recognise a repeated public invocation of the most recent committed effect.
 
     A caller who loses the response to an effect repeats the identical invocation.
@@ -569,6 +582,10 @@ def exact_retry(
     own position; if its retry key matches the recorded one, the invocation is that
     retry. Adjacent effects never share actor, grant and evidence shape, so a new
     invocation of the next effect cannot collide with the previous effect's key.
+
+    A recognised retry is answered from the committed record and never resubmitted:
+    resubmission resolves current authority first, so a grant that expired after the
+    commit would refuse a retry whose effect already exists.
 
     Args:
         intent: Validated semantic close_task intent.
@@ -581,8 +598,8 @@ def exact_retry(
         authority_state_validator: Inherited validator for authority projections.
 
     Returns:
-        The effect, target stream, payload and original expected stream version to
-        resubmit, or None when this invocation is not a retry of the last effect.
+        The committed event this invocation repeats, or None when it is not a retry
+        of the last effect.
     """
     if not state["effects"]:
         return None
@@ -607,22 +624,18 @@ def exact_retry(
     payload = {**derived, **supplied}
     if retry_key(intent, effect, actor_id, authority_grant_id, payload) != event.get("idempotency_key"):
         return None
-    return effect, event["stream_id"], payload, int(event["stream_version"]) - 1
+    return event
 
 
-def _submit_payload(ids: dict[str, str], streams: dict[str, Any], events: list[dict]) -> dict[str, Any]:
-    attempt = streams.get(ids["attempt_id"])
-    if not isinstance(attempt, dict) or attempt.get("task_id") != ids["task_id"]:
-        raise IntegrityError("close_task requires a terminal Attempt bound to this Task")
-    candidates = list((attempt.get("outcome") or {}).get("candidate_artefact_ids") or [])
+def _submit_payload(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
+    attempt = _check_closable_attempt(ids, streams)
     return {
         "task_id": ids["task_id"],
         "attempt_id": ids["attempt_id"],
-        "candidate_artefact_ids": candidates,
+        # A closable Attempt carries no candidates, so there is no hash to bind.
+        "candidate_artefact_ids": [],
         "attempt_outcome": attempt.get("status"),
-        # Built from the evidence before the submission, so a later or fabricated
-        # registration can never back a claimed candidate hash.
-        "candidate_artefact_hashes": [_artefact_content_hash(events, value) for value in candidates],
+        "candidate_artefact_hashes": [],
         "requested_review_ids": [ids["review_id"]],
     }
 
