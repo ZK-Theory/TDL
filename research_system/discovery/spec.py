@@ -295,23 +295,55 @@ class SpecCoordinator:
 
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
         state = self.status(intent)
-        effect = state["next_effect"]
-        if effect is None:
-            return state
         now = self.clock().isoformat().replace("+00:00", "Z")
         actor = self.operator.operator_actor_id
         if intent.get("action") == spec_task.ACTION:
+            events = self.ledger.snapshot().events
+            validator = self.resolver.validate_replayed_administration_state
+            # A caller who lost the response repeats the identical invocation after the
+            # state has moved on. Replay that committed effect's receipt instead of
+            # deriving a different next command from mismatched evidence or authority.
+            retry = spec_task.exact_retry(
+                intent,
+                state,
+                events,
+                actor_id=actor,
+                authority_grant_id=self.operator.authority_grant_id,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=validator,
+            )
+            if retry is not None:
+                effect, target, payload, expected_version = retry
+                return self._submit_effect(
+                    intent,
+                    effect,
+                    target,
+                    payload,
+                    actor,
+                    now,
+                    intent["reason"],
+                    expected_stream_version=expected_version,
+                    retry_intent=spec_task.key_intent(intent),
+                )
+            effect = state["next_effect"]
+            if effect is None:
+                return state
             target, payload = spec_task.effect_command(
                 effect,
                 intent,
-                state,
-                self.ledger.snapshot().events,
+                events,
                 actor_id=actor,
                 evidence=evidence,
                 schemas=self.schemas,
-                authority_state_validator=self.resolver.validate_replayed_administration_state,
+                authority_state_validator=validator,
             )
-            return self._submit_effect(intent, effect, target, payload, actor, now, intent["reason"])
+            return self._submit_effect(
+                intent, effect, target, payload, actor, now, intent["reason"], retry_intent=spec_task.key_intent(intent)
+            )
+        effect = state["next_effect"]
+        if effect is None:
+            return state
         artefact_id = state["artefact_id"]
         target = artefact_id
         if effect == "RegisterArtefact":
@@ -411,10 +443,20 @@ class SpecCoordinator:
         reason: str,
         *,
         source_document: dict | None = None,
+        expected_stream_version: int | None = None,
+        retry_intent: dict | None = None,
     ) -> dict:
         """Submit one effect through the shared retry key, envelope and admission."""
         retry = "spec:" + sha256_hex(
-            canonical_bytes([intent, effect, actor, self.operator.authority_grant_id, payload])
+            canonical_bytes(
+                [
+                    intent if retry_intent is None else retry_intent,
+                    effect,
+                    actor,
+                    self.operator.authority_grant_id,
+                    payload,
+                ]
+            )
         )
         command = {
             "command_id": _stable_command_id(retry),
@@ -423,7 +465,12 @@ class SpecCoordinator:
             "authority_grant_id": self.operator.authority_grant_id,
             "idempotency_key": retry,
             "target_stream_id": target,
-            "expected_stream_version": self.ledger.snapshot().stream_versions.get(target, 0),
+            # An exact retry must bind the version its original submission bound.
+            "expected_stream_version": (
+                self.ledger.snapshot().stream_versions.get(target, 0)
+                if expected_stream_version is None
+                else expected_stream_version
+            ),
             "payload": payload,
         }
         if effect != "IngestScoutObservationBatch":

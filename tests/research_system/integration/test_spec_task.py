@@ -211,10 +211,10 @@ def _tail(coordinator) -> tuple[int, str]:
 
 
 def _effect_command(coordinator, effect, intent, state, *, actor_id, evidence=None):
+    """Build a route payload. ``state`` is accepted for call-site readability only."""
     return spec_task.effect_command(
         effect,
         intent,
-        state,
         coordinator.ledger.snapshot().events,
         actor_id=actor_id,
         evidence=evidence,
@@ -489,57 +489,52 @@ def test_expired_actor_cannot_create_a_new_effect_while_completed_state_stays_re
 
 def test_exact_retry_reads_the_existing_receipt_without_new_effects(bound_task, tmp_path, capsys):
     for effect in spec_task.EFFECTS:
-        _advance(bound_task, effect, tmp_path, capsys)
+        committed = _advance(bound_task, effect, tmp_path, capsys)
     coordinator = bound_task.coordinator
     completed = coordinator.status(close_task_intent())
     tail = _tail(coordinator)
 
+    # The identical public invocation of the final effect reads its committed receipt.
     repeated = _advance(bound_task, "AcceptTask", tmp_path, capsys)
-    assert repeated == completed
-    assert "receipt" not in repeated
+    assert repeated["receipt"]["command_id"] == committed["receipt"]["command_id"]
+    assert {key: value for key, value in repeated.items() if key != "receipt"} == completed
     assert _tail(coordinator) == tail
 
-    # Rebuild the exact original command: the shared retry key is derived from the
-    # semantic intent, effect, actor, grant and payload alone.
+    # The shared retry key is derived from the semantic intent, effect, actor, grant and
+    # payload alone, and it is what every located route effect must carry.
     intent = close_task_intent()
     events = coordinator.ledger.snapshot().events
     accepted_event = next(
         event for event in events if event["event_type"] == "TaskAccepted" and event["stream_id"] == TASK_ID
     )
-    _, payload = _effect_command(coordinator, "AcceptTask", intent, completed, actor_id=OWNER)
-    assert payload == dict(accepted_event["payload"])
-    retry = "spec:" + sha256_hex(canonical_bytes([intent, "AcceptTask", OWNER, bound_task.grants["task"], payload]))
+    retry = spec_task.retry_key(intent, "AcceptTask", OWNER, bound_task.grants["task"], dict(accepted_event["payload"]))
+    assert accepted_event["idempotency_key"] == retry
+    # Free-text reason is not recorded on events, so it must not change the key; the
+    # enumerating listing rebuilds intents from events and relies on this.
+    assert (
+        spec_task.retry_key(
+            {**intent, "reason": "any other wording"},
+            "AcceptTask",
+            OWNER,
+            bound_task.grants["task"],
+            dict(accepted_event["payload"]),
+        )
+        == retry
+    )
     assert _stable_command_id(retry) == accepted_event["command_id"]
 
     def accept_command(expected_stream_version: int) -> dict:
-        return {
-            "command_id": _stable_command_id(retry),
-            "command_type": "AcceptTask",
-            "schema_id": "ars://core/command/AcceptTask",
-            "schema_version": "1.0.0",
-            "submitted_at": "2026-09-10T00:00:00Z",
-            "actor_id": OWNER,
-            "on_behalf_of_actor_id": None,
-            "authority_grant_id": bound_task.grants["task"],
-            "target_stream_id": TASK_ID,
-            "expected_stream_version": expected_stream_version,
-            "idempotency_key": retry,
-            "correlation_id": retry,
-            "causation_id": None,
-            "reason": intent["reason"],
-            "evidence_refs": [],
-            "project_id": coordinator.binding.project_id,
-            "payload": payload,
-        }
-
-    # The exact retry reads its existing receipt verbatim and appends nothing.
-    original_version = accepted_event["stream_version"] - 1
-    retried = coordinator.service.submit(accept_command(original_version))
-    assert _tail(coordinator) == tail, "an exact retry appended a duplicate authoritative effect"
-    assert retried.command_id == accepted_event["command_id"]
-    assert retried.status in {"accepted", "replayed"}
-    assert coordinator.service.submit(accept_command(original_version)) == retried
-    assert _tail(coordinator) == tail
+        command = _c1_command(
+            _stable_command_id(retry),
+            "AcceptTask",
+            TASK_ID,
+            expected_stream_version,
+            dict(accepted_event["payload"]),
+            actor_id=OWNER,
+            authority_grant_id=bound_task.grants["task"],
+        )
+        command.update(idempotency_key=retry, correlation_id=retry, reason=intent["reason"])
+        return command
 
     # The same key rebound to a later version is refused rather than duplicated.
     with pytest.raises(IdempotencyConflictError):
@@ -665,7 +660,7 @@ def test_submit_for_review_requires_terminal_attempt_evidence(bound_running_task
 
 
 def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task, tmp_path, capsys):
-    """A satisfied non-approving verdict is conflicting evidence, not "prepared"."""
+    """A foreign refusing verdict is conflicting evidence, not "prepared"."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
         _advance(bound_task, effect, tmp_path, capsys)
     coordinator = bound_task.coordinator
@@ -685,14 +680,14 @@ def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task
         authority_grant_id=bound_task.grants["reviewer"],
     )
     assert coordinator.service.submit(command).status == "accepted"
-    with pytest.raises(ConflictError, match="does not approve"):
+    with pytest.raises(ConflictError, match="ReviewVerdictRecorded was not issued by this route"):
         coordinator.status(intent)
 
     # The enumerating listing must survive it: one decided Task cannot deny the route.
     listed = coordinator.status()
     closures = [action for action in listed["actions"] if action.get("action") == spec_task.ACTION]
     assert len(closures) == 1
-    assert "does not approve" in closures[0]["unreadable"]
+    assert "ReviewVerdictRecorded" in closures[0]["unreadable"]
     assert "state" not in closures[0], "a conflict entry must not read as a route state"
     assert listed["route_id"] == coordinator.operator.route_id
     assert spec_task.ACTION in listed["available_actions"]
@@ -720,7 +715,7 @@ def test_status_listing_survives_an_unrelated_task_review_submission(bound_task)
 
 
 def test_verdict_naming_another_attempt_is_not_completion(bound_task, tmp_path, capsys):
-    """Review admission ignores producing_attempt_id, so the route must bind it."""
+    """Review admission ignores producing_attempt_id; the route refuses foreign verdicts."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
         _advance(bound_task, effect, tmp_path, capsys)
     coordinator = bound_task.coordinator
@@ -741,7 +736,7 @@ def test_verdict_naming_another_attempt_is_not_completion(bound_task, tmp_path, 
     )
     # Admission accepts it: no review precondition validates that field.
     assert coordinator.service.submit(command).status == "accepted"
-    with pytest.raises(IntegrityError, match="another producing Attempt"):
+    with pytest.raises(ConflictError, match="ReviewVerdictRecorded was not issued by this route"):
         coordinator.status(intent)
 
 
@@ -795,8 +790,8 @@ def test_review_request_binds_the_task_state_current_at_request(bound_task, tmp_
     assert result["subject_sha256"] == after_resume
 
 
-def test_acceptance_names_every_requested_review(bound_task, tmp_path, capsys):
-    """One satisfied review must not terminally accept a multi-review submission."""
+def test_a_foreign_multi_review_submission_cannot_be_closed_by_the_route(bound_task, tmp_path, capsys):
+    """The route issues single-review submissions; it will not close one raised elsewhere."""
     coordinator = bound_task.coordinator
     submitted = _c1_command(
         _command_id(9011),
@@ -813,20 +808,10 @@ def test_acceptance_names_every_requested_review(bound_task, tmp_path, capsys):
         },
     )
     assert bound_task.seeding.submit(submitted).status == "accepted"
-
-    for effect in ("RequestReview", "AssignReview", "StartReview", "RecordReviewVerdict", "SatisfyReview"):
-        _advance(bound_task, effect, tmp_path, capsys)
-    intent = close_task_intent()
-    state = coordinator.status(intent)
-    assert state["next_effect"] == "AcceptTask"
-
-    _, payload = _effect_command(coordinator, "AcceptTask", intent, state, actor_id=OWNER)
-    assert payload["satisfied_review_ids"] == [REVIEW_ID, SECOND_REVIEW_ID]
-
-    # The second requested review is unsatisfied, so acceptance must be refused.
-    message = _refuse(bound_task, "AcceptTask", tmp_path, capsys)
-    assert "task_acceptance_precondition_failed" in message, message
-    assert _streams(coordinator)[TASK_ID]["status"] == "review_pending"
+    with pytest.raises(ConflictError, match="TaskSubmittedForReview was not issued by this route"):
+        coordinator.status(close_task_intent())
+    message = _refuse(bound_task, "RequestReview", tmp_path, capsys)
+    assert "TaskSubmittedForReview was not issued by this route" in message, message
 
 
 def test_a_withdrawn_review_conflicts_instead_of_advertising_progress(bound_task, tmp_path, capsys):
@@ -905,12 +890,12 @@ def test_a_foreign_request_forbidding_approval_is_not_answerable(bound_task, tmp
     subject = coordinator.status(intent)["subject_sha256"]
     request = _external_request(subject, number=9013, allowed_verdicts=("reject",))
     assert coordinator.service.submit(request).status == "accepted"
-    with pytest.raises(IntegrityError, match="does not permit an approving verdict"):
+    with pytest.raises(ConflictError, match="ReviewRequested was not issued by this route"):
         coordinator.status(intent)
 
 
 def test_a_foreign_assignment_with_a_weaker_grade_is_not_completion(bound_task, tmp_path, capsys):
-    """AssignReview admits any non-empty grade, so the route must verify it."""
+    """AssignReview admits any non-empty grade; the route refuses assignments it did not make."""
     for effect in ("SubmitForReview", "RequestReview"):
         _advance(bound_task, effect, tmp_path, capsys)
     coordinator = bound_task.coordinator
@@ -929,7 +914,7 @@ def test_a_foreign_assignment_with_a_weaker_grade_is_not_completion(bound_task, 
         authority_grant_id=bound_task.grants["review_owner"],
     )
     assert coordinator.service.submit(assign).status == "accepted"
-    with pytest.raises(IntegrityError, match="does not establish exact-subject independence"):
+    with pytest.raises(ConflictError, match="ReviewAssigned was not issued by this route"):
         coordinator.status(close_task_intent())
 
 
@@ -957,7 +942,7 @@ def test_task_subject_drift_after_the_review_request_conflicts(bound_task, tmp_p
         },
     )
     assert bound_task.seeding.submit(paused).status == "accepted"
-    with pytest.raises(ConflictError, match="changed after its review request"):
+    with pytest.raises(ConflictError, match="TaskPaused on its Task stream after the review request"):
         coordinator.status(close_task_intent())
 
 
@@ -981,45 +966,29 @@ def test_a_reused_review_identity_is_refused_before_submitting(bound_task, tmp_p
         coordinator.status(close_task_intent(SECOND_REVIEW_ID))
 
 
-def test_a_foreign_acceptance_omitting_requested_reviews_is_not_completion(bound_task, tmp_path, capsys):
-    """Admission validates only the ids supplied, so the route must check the set."""
-    coordinator = bound_task.coordinator
-    submitted = _c1_command(
-        _command_id(9017),
-        "SubmitForReview",
-        TASK_ID,
-        coordinator.ledger.snapshot().stream_versions[TASK_ID],
-        {
-            "task_id": TASK_ID,
-            "attempt_id": ATTEMPT_ID,
-            "candidate_artefact_ids": [],
-            "attempt_outcome": "completed",
-            "candidate_artefact_hashes": [],
-            "requested_review_ids": [REVIEW_ID, SECOND_REVIEW_ID],
-        },
-    )
-    assert bound_task.seeding.submit(submitted).status == "accepted"
-    for effect in ("RequestReview", "AssignReview", "StartReview", "RecordReviewVerdict", "SatisfyReview"):
+def test_a_foreign_acceptance_is_not_completion(bound_task, tmp_path, capsys):
+    """Admission validates only the ids supplied; the route refuses acceptance it did not issue.
+
+    The foreign payload is exactly the one the route would derive, so the refusal can
+    only come from identity, not from a content difference.
+    """
+    for effect in spec_task.EFFECTS[:-1]:
         _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
     intent = close_task_intent()
-    task = _streams(coordinator)[TASK_ID]
-    narrow = _c1_command(
+    state = coordinator.status(intent)
+    _, payload = _effect_command(coordinator, "AcceptTask", intent, state, actor_id=OWNER)
+    foreign = _c1_command(
         _command_id(9018),
         "AcceptTask",
         TASK_ID,
         coordinator.ledger.snapshot().stream_versions[TASK_ID],
-        {
-            "task_id": TASK_ID,
-            "task_revision": task["current_revision"],
-            "satisfied_review_ids": [REVIEW_ID],
-            "satisfied_acceptance_criteria": list(task["definition"]["acceptance_criteria"]),
-            "selected_artefact_ids": [],
-        },
+        payload,
         actor_id=OWNER,
         authority_grant_id=bound_task.grants["task"],
     )
-    assert coordinator.service.submit(narrow).status == "accepted"
-    with pytest.raises(IntegrityError, match="omits reviews the submission requested"):
+    assert coordinator.service.submit(foreign).status == "accepted"
+    with pytest.raises(ConflictError, match="TaskAccepted was not issued by this route"):
         coordinator.status(intent)
 
 
@@ -1041,7 +1010,7 @@ def test_a_submission_claiming_an_unregistered_candidate_hash_is_refused(bound_c
         },
     )
     assert bound_candidate_task.seeding.submit(submitted).status == "accepted"
-    with pytest.raises(IntegrityError, match="candidate"):
+    with pytest.raises(ConflictError, match="TaskSubmittedForReview was not issued by this route"):
         coordinator.status(close_task_intent())
 
 
@@ -1069,3 +1038,142 @@ def test_acceptance_refuses_an_empty_criterion_set_and_undeclared_candidates(bou
     payload = spec_task._accept_payload(ids, real, submitted)
     assert payload["satisfied_review_ids"] == [REVIEW_ID]
     assert payload["satisfied_acceptance_criteria"] == ["bounded contract satisfied"]
+
+    # Acceptance names every review the submission requested, not only this action's.
+    two = {"payload": {"requested_review_ids": [REVIEW_ID, SECOND_REVIEW_ID], "candidate_artefact_ids": []}}
+    assert spec_task._accept_payload(ids, real, two)["satisfied_review_ids"] == [REVIEW_ID, SECOND_REVIEW_ID]
+
+
+def test_a_repeated_public_advance_after_a_lost_response_reads_its_receipt(bound_task, tmp_path, capsys):
+    """An identical repeated invocation replays the committed effect, even mid-chain."""
+    coordinator = bound_task.coordinator
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    requested = _advance(bound_task, "RequestReview", tmp_path, capsys)
+    tail = _tail(coordinator)
+
+    # The response to RequestReview is "lost"; the caller repeats the same invocation.
+    repeated = _advance(bound_task, "RequestReview", tmp_path, capsys)
+    assert repeated["receipt"]["command_id"] == requested["receipt"]["command_id"]
+    assert repeated["next_effect"] == "AssignReview"
+    assert _tail(coordinator) == tail
+
+    # The same holds for an effect by a different actor that takes no evidence.
+    _advance(bound_task, "AssignReview", tmp_path, capsys)
+    started = _advance(bound_task, "StartReview", tmp_path, capsys)
+    tail = _tail(coordinator)
+    again = _advance(bound_task, "StartReview", tmp_path, capsys)
+    assert again["receipt"]["command_id"] == started["receipt"]["command_id"]
+    assert again["next_effect"] == "RecordReviewVerdict"
+    assert _tail(coordinator) == tail
+
+    # A genuinely new invocation of the next effect still advances.
+    verdict = _advance(bound_task, "RecordReviewVerdict", tmp_path, capsys)
+    assert verdict["receipt"]["command_id"] != started["receipt"]["command_id"]
+    assert verdict["next_effect"] == "SatisfyReview"
+
+
+def test_review_is_not_requested_while_the_task_is_paused(bound_task, tmp_path, capsys):
+    """Admission allows a request against a paused Task that could never be accepted."""
+    coordinator = bound_task.coordinator
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    paused = _c1_command(
+        _command_id(9020),
+        "PauseTask",
+        TASK_ID,
+        coordinator.ledger.snapshot().stream_versions[TASK_ID],
+        {
+            "task_id": TASK_ID,
+            "pause_reason": "owner paused the Task before its review was requested",
+            "prior_active_status": "review_pending",
+            "resumable_state_ref": "evidence:resumable-before-request",
+            "process_disposition": {
+                "process_state": "quiesced",
+                "children_closed": True,
+                "writers_closed": True,
+                "evidence_refs": ["evidence:pause-process"],
+            },
+        },
+    )
+    assert bound_task.seeding.submit(paused).status == "accepted"
+    message = _refuse(bound_task, "RequestReview", tmp_path, capsys)
+    assert "only while the Task is review_pending" in message, message
+    assert coordinator.status(close_task_intent())["next_effect"] == "RequestReview"
+
+
+def test_a_foreign_review_start_is_not_completion(bound_task, tmp_path, capsys):
+    """A start the route did not issue is refused, even with the exact derived payload."""
+    for effect in ("SubmitForReview", "RequestReview", "AssignReview"):
+        _advance(bound_task, effect, tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+    state = coordinator.status(intent)
+    _, payload = _effect_command(coordinator, "StartReview", intent, state, actor_id=REVIEWER)
+    start = _c1_command(
+        _command_id(9021),
+        "StartReview",
+        REVIEW_ID,
+        coordinator.ledger.snapshot().stream_versions[REVIEW_ID],
+        payload,
+        actor_id=REVIEWER,
+        authority_grant_id=bound_task.grants["reviewer"],
+    )
+    assert coordinator.service.submit(start).status == "accepted"
+    with pytest.raises(ConflictError, match="ReviewStarted was not issued by this route"):
+        coordinator.status(intent)
+
+
+def test_a_route_keyed_request_with_an_altered_policy_is_refused(bound_task, tmp_path, capsys):
+    """Identity alone is not trusted: the route-derived payload is regenerated as well.
+
+    The command carries a correctly derived route retry key over its altered payload,
+    so the identity layer passes and only the content layer can refuse it.
+    """
+    _advance(bound_task, "SubmitForReview", tmp_path, capsys)
+    coordinator = bound_task.coordinator
+    intent = close_task_intent()
+    state = coordinator.status(intent)
+    _, payload = _effect_command(coordinator, "RequestReview", intent, state, actor_id=OWNER, evidence=REQUEST_EVIDENCE)
+    altered = {**payload, "allowed_verdicts": ["approve"], "visibility_policy": "owner_reviewer_and_implementer"}
+    key = spec_task.retry_key(intent, "RequestReview", OWNER, REVIEW_OWNER_GRANT_ID, altered)
+    command = _c1_command(
+        _stable_command_id(key),
+        "RequestReview",
+        REVIEW_ID,
+        0,
+        altered,
+        actor_id=OWNER,
+        authority_grant_id=REVIEW_OWNER_GRANT_ID,
+    )
+    command.update(idempotency_key=key, correlation_id=key)
+    assert coordinator.service.submit(command).status == "accepted"
+    with pytest.raises(IntegrityError, match="RequestReview does not carry the payload this route derives"):
+        coordinator.status(intent)
+
+
+def test_the_producer_is_derived_from_the_attempt_and_its_lease(bound_task):
+    """Independence is measured against who produced the Attempt, not who submitted it.
+
+    Under current inherited authority Attempt and lease commands are owner-only, so a
+    non-owner producer cannot be seeded end to end on this fixture; the derivation and
+    the refusal are exercised directly instead.
+    """
+    coordinator = bound_task.coordinator
+    ids = spec_task.subject_ids(close_task_intent())
+    assert spec_task._producing_actors(ids, list(coordinator.ledger.snapshot().events)) == {OWNER}
+
+    held_by_reviewer = [
+        {
+            "event_type": "LeaseGranted",
+            "global_position": 1,
+            "stream_id": LEASE_ID,
+            "actor_id": OWNER,
+            "payload": {"attempt_id": ATTEMPT_ID, "holder_actor_id": REVIEWER},
+        }
+    ]
+    assert REVIEWER in spec_task._producing_actors(ids, held_by_reviewer)
+    with pytest.raises(IntegrityError, match="own reviewer"):
+        spec_task._check_actor_relation(
+            "AssignReview", ids, held_by_reviewer, actor_id=OWNER, reviewer_actor_id=REVIEWER
+        )
+    with pytest.raises(IntegrityError, match="independent of the producer"):
+        spec_task._check_actor_relation("StartReview", ids, held_by_reviewer, actor_id=REVIEWER)
