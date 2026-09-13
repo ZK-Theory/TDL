@@ -23,6 +23,7 @@ from research_system.discovery.spec_source import (
     source_ref,
     validate_source_refs,
 )
+from research_system.discovery import spec_task
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
@@ -35,6 +36,7 @@ from research_system.store.receipts import ReceiptStore
 ACTION_EFFECTS = {
     "observe_source": ("RegisterArtefact", "IngestScoutObservationBatch"),
     "correct_spec_01_source": ("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
+    spec_task.ACTION: spec_task.EFFECTS,
 }
 
 
@@ -135,7 +137,27 @@ class SpecCoordinator:
                         event["stream_id"], objects=self.objects, schemas=self.schemas, ledger=self.ledger
                     )
                     actions.append(self.status(document["intent"]))
+            for task_intent in spec_task.enumerated_intents(self.ledger.snapshot().events):
+                try:
+                    actions.append(self.status(task_intent))
+                except (ConflictError, IntegrityError) as exc:
+                    # An explicit status(intent) call must raise on conflicting or
+                    # misbound evidence, but the enumerating listing is not a question
+                    # about this subject: one decided Task must not deny the whole
+                    # route. The entry carries no "state" key, so nothing can read it
+                    # as one of the three route states.
+                    actions.append(
+                        {"action": spec_task.ACTION, **spec_task.subject_ids(task_intent), "unreadable": str(exc)}
+                    )
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
+        if intent.get("action") == spec_task.ACTION:
+            self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
+            return spec_task.evaluate(
+                intent,
+                self.ledger.snapshot().events,
+                schemas=self.schemas,
+                authority_state_validator=self.resolver.validate_replayed_administration_state,
+            )
         self.schemas.validate("ars://portfolio/spec-source-intent", intent)
         parse_locator(intent["requested_locator"])
         ids = source_ids(self.binding.project_id, intent)
@@ -273,11 +295,55 @@ class SpecCoordinator:
 
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
         state = self.status(intent)
+        now = self.clock().isoformat().replace("+00:00", "Z")
+        actor = self.operator.operator_actor_id
+        if intent.get("action") == spec_task.ACTION:
+            events = self.ledger.snapshot().events
+            validator = self.resolver.validate_replayed_administration_state
+            # A caller who lost the response repeats the identical invocation after the
+            # state has moved on. Replay that committed effect's receipt instead of
+            # deriving a different next command from mismatched evidence or authority.
+            retry = spec_task.exact_retry(
+                intent,
+                state,
+                events,
+                actor_id=actor,
+                authority_grant_id=self.operator.authority_grant_id,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=validator,
+            )
+            if retry is not None:
+                effect, target, payload, expected_version = retry
+                return self._submit_effect(
+                    intent,
+                    effect,
+                    target,
+                    payload,
+                    actor,
+                    now,
+                    intent["reason"],
+                    expected_stream_version=expected_version,
+                    retry_intent=spec_task.key_intent(intent),
+                )
+            effect = state["next_effect"]
+            if effect is None:
+                return state
+            target, payload = spec_task.effect_command(
+                effect,
+                intent,
+                events,
+                actor_id=actor,
+                evidence=evidence,
+                schemas=self.schemas,
+                authority_state_validator=validator,
+            )
+            return self._submit_effect(
+                intent, effect, target, payload, actor, now, intent["reason"], retry_intent=spec_task.key_intent(intent)
+            )
         effect = state["next_effect"]
         if effect is None:
             return state
-        now = self.clock().isoformat().replace("+00:00", "Z")
-        actor = self.operator.operator_actor_id
         artefact_id = state["artefact_id"]
         target = artefact_id
         if effect == "RegisterArtefact":
@@ -355,8 +421,42 @@ class SpecCoordinator:
                     "use_authority": "accepted_for_scope",
                     **evidence,
                 }
+        return self._submit_effect(
+            intent,
+            effect,
+            target,
+            payload,
+            actor,
+            now,
+            intent.get("correction_reason", intent["title"]),
+            source_document=document if effect == "RegisterArtefact" else None,
+        )
+
+    def _submit_effect(
+        self,
+        intent: dict,
+        effect: str,
+        target: str,
+        payload: dict,
+        actor: str,
+        now: str,
+        reason: str,
+        *,
+        source_document: dict | None = None,
+        expected_stream_version: int | None = None,
+        retry_intent: dict | None = None,
+    ) -> dict:
+        """Submit one effect through the shared retry key, envelope and admission."""
         retry = "spec:" + sha256_hex(
-            canonical_bytes([intent, effect, actor, self.operator.authority_grant_id, payload])
+            canonical_bytes(
+                [
+                    intent if retry_intent is None else retry_intent,
+                    effect,
+                    actor,
+                    self.operator.authority_grant_id,
+                    payload,
+                ]
+            )
         )
         command = {
             "command_id": _stable_command_id(retry),
@@ -365,7 +465,12 @@ class SpecCoordinator:
             "authority_grant_id": self.operator.authority_grant_id,
             "idempotency_key": retry,
             "target_stream_id": target,
-            "expected_stream_version": self.ledger.snapshot().stream_versions.get(target, 0),
+            # An exact retry must bind the version its original submission bound.
+            "expected_stream_version": (
+                self.ledger.snapshot().stream_versions.get(target, 0)
+                if expected_stream_version is None
+                else expected_stream_version
+            ),
             "payload": payload,
         }
         if effect != "IngestScoutObservationBatch":
@@ -376,15 +481,15 @@ class SpecCoordinator:
                 on_behalf_of_actor_id=None,
                 correlation_id=retry,
                 causation_id=None,
-                reason=intent.get("correction_reason", intent["title"]),
+                reason=reason,
                 evidence_refs=[],
                 project_id=self.binding.project_id,
             )
         self.binding.revalidate()
         service = self._discovery() if effect == "IngestScoutObservationBatch" else self.service
-        if effect == "RegisterArtefact":
-            service = self._command_service(document)
+        if source_document is not None:
+            service = self._command_service(source_document)
         receipt = service.submit(command)
         if receipt.status not in {"accepted", "replayed"}:
-            raise ArsError(f"SOURCE effect rejected: {asdict(receipt)}")
+            raise ArsError(f"SPEC effect rejected: {asdict(receipt)}")
         return {**self.status(intent), "receipt": asdict(receipt)}
