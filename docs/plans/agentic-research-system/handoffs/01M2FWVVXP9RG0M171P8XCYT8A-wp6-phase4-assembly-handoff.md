@@ -49,7 +49,9 @@ Preserve unrelated dirty files in the primary checkout.
    action composition. 06s D1 removes its registry, seals, blob-hash bindings and
    frozen-catalogue ceremony.
 3. `docs/plans/agentic-research-system/03-decisions-and-open-questions.md`:
-   **P-050** and **P-051–P-057**.
+   **P-050**, **P-051–P-057** and **P-058** (Phase 4 scope). P-058 is recorded
+   on PR #290's branch `codex/gate6-06s-phase4-assembly-20260914` and enters
+   `main` when that PR merges.
 4. The production surface you extend rather than duplicate:
    - `research_system/discovery/spec.py`:
      - `ACTION_EFFECTS`;
@@ -135,9 +137,13 @@ Bring the table and the split to Stephen and let him decide inclusion and
 sequencing. **Do not decide scope yourself.** Phase 3 had to stop and re-scope
 mid-design because a conflict in its brief only surfaced during binding design.
 
-**Outcome (2026-09-14):** Stephen decided this scope and its split as P-058, on
-PR #290. That decision, not this section, now governs Phase 4 scope, including
-how the §5.0 checkpoint applies to sub-phases.
+**Outcome (2026-09-14):** Stephen decided this scope and its split as P-058. That
+decision, not this section, governs Phase 4 scope, including how the §5.0
+checkpoint applies to sub-phases.
+
+P-058 is recorded in `03-decisions-and-open-questions.md` on PR #290 (branch
+`codex/gate6-06s-phase4-assembly-20260914`), which was still open when this was
+written. It enters `main` when #290 merges. Until then, read P-058 on that branch.
 
 ### Measure before you build
 
@@ -298,9 +304,17 @@ as a known limit, no push).
    no review-thread Actions trigger (`.github/workflows/merge-admission.yml`). The
    run a reply starts can fail at "Gate on review-thread finality at the candidate"
    while that thread is still open. The failure then stays after you resolve the
-   thread. After resolving the last thread, rerun the check with
-   `gh workflow run merge-admission.yml -f pull_request_number=<PR>` and read that
-   run's job steps before reporting. Superseded runs show as cancelled.
+   thread.
+
+   After resolving the last thread, rerun the check on the PR head:
+   `gh workflow run merge-admission.yml --ref <PR head branch> -f pull_request_number=<PR>`.
+   - **Without `--ref`,** the run attaches to `main` and is refused. Runs share a
+     per-PR concurrency group, so it also cancels the PR's own runs.
+   - **The gate also blocks while a review producer such as Codex is still
+     reviewing the head.** That review's own event reruns the check.
+
+   Read the latest run's job steps before reporting. Superseded runs show as
+   cancelled.
 8. **Reply in each thread with** what was confirmed, the change by SHA, the
    isolating control, and any limit stated plainly.
 
