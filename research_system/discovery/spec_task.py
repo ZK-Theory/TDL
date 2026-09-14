@@ -205,7 +205,37 @@ def _reviewed_subject_hash(
     )
 
 
-def _check_closable(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
+def registered_candidates(attempt: dict[str, Any], events: list[dict]) -> list[dict]:
+    """Return the registration of every candidate artefact the Attempt outcome names.
+
+    SubmitForReview admission counts candidate hashes but never checks their values,
+    so the route derives each hash from the artefact's own registration.
+
+    Args:
+        attempt: Replayed Attempt stream state.
+        events: Ledger events visible at the derivation position.
+
+    Returns:
+        The ArtefactRegistered events, in outcome order.
+
+    Raises:
+        IntegrityError: If any named candidate has no registration, or two share content.
+    """
+    registrations = {event["stream_id"]: event for event in events if event["event_type"] == "ArtefactRegistered"}
+    found = []
+    for artefact_id in tuple((attempt.get("outcome") or {}).get("candidate_artefact_ids") or ()):
+        registration = registrations.get(artefact_id)
+        if registration is None:
+            raise IntegrityError(f"close_task candidate artefact is not registered: {artefact_id}")
+        found.append(registration)
+    hashes = [event["payload"]["manifest"]["content_sha256"] for event in found]
+    # SubmitForReview declares candidate hashes unique, so identical content cannot be submitted.
+    if len(set(hashes)) != len(hashes):
+        raise IntegrityError("close_task candidate artefacts must have distinct content to be submitted")
+    return found
+
+
+def _check_closable(ids: dict[str, str], streams: dict[str, Any], events: list[dict]) -> dict[str, Any]:
     """Refuse a subject this route could submit but never honestly close.
 
     Every refusal of a closing precondition must come before SubmitForReview, the
@@ -227,10 +257,10 @@ def _check_closable(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, A
     # to the inherited terminality refusal, which a decisive control exercises.
     if status in {"failed", "partial"}:
         raise IntegrityError(f"close_task closes only a completed Attempt; {status} work remains open")
-    # The governed contract lets acceptance select a bounded subset of the submitted
-    # candidates, and this route has no way for an owner to express that choice.
-    if tuple((attempt.get("outcome") or {}).get("candidate_artefact_ids") or ()):
-        raise IntegrityError("close_task cannot close an Attempt with candidate artefacts; it cannot select them")
+    # Acceptance selects exactly the submitted candidates (P-057 accept-all), so every
+    # candidate must be a registered artefact, with distinct content, whose hash the
+    # submission can bind.
+    registered_candidates(attempt, events)
     return attempt
 
 
@@ -334,7 +364,7 @@ def _derived(
     """
     streams = _streams(events, schemas, authority_state_validator=authority_state_validator)
     if effect == "SubmitForReview":
-        return _submit_payload(ids, streams)
+        return _submit_payload(ids, streams, events)
     if effect == "AcceptTask":
         return _accept_payload(ids, streams, _locate("SubmitForReview", ids, events, 0))
     if effect == "RequestReview":
@@ -444,7 +474,7 @@ def evaluate(
         streams = _streams(events, schemas, authority_state_validator=authority_state_validator)
         if not isinstance(streams.get(ids["task_id"]), dict):
             raise IntegrityError(f"close_task names no existing Task: {ids['task_id']}")
-        _check_closable(ids, streams)
+        _check_closable(ids, streams, events)
         if any(event["stream_id"] == ids["review_id"] for event in events):
             # RequestReview requires an empty Review stream and SubmitForReview cannot
             # be repeated from review_pending, so starting here would strand the Task.
@@ -642,15 +672,16 @@ def exact_retry(
     return None
 
 
-def _submit_payload(ids: dict[str, str], streams: dict[str, Any]) -> dict[str, Any]:
-    attempt = _check_closable(ids, streams)
+def _submit_payload(ids: dict[str, str], streams: dict[str, Any], events: list[dict]) -> dict[str, Any]:
+    attempt = _check_closable(ids, streams, events)
+    candidates = registered_candidates(attempt, events)
     return {
         "task_id": ids["task_id"],
         "attempt_id": ids["attempt_id"],
-        # A closable Attempt carries no candidates, so there is no hash to bind.
-        "candidate_artefact_ids": [],
+        "candidate_artefact_ids": [event["stream_id"] for event in candidates],
         "attempt_outcome": attempt.get("status"),
-        "candidate_artefact_hashes": [],
+        # Admission only counts these; each is the candidate's registered content hash.
+        "candidate_artefact_hashes": [event["payload"]["manifest"]["content_sha256"] for event in candidates],
         "requested_review_ids": [ids["review_id"]],
     }
 
@@ -672,17 +703,13 @@ def _accept_payload(ids: dict[str, str], streams: dict[str, Any], submitted: dic
     # reducer refuses it; that would leave the ledger unreplayable.
     if not tuple(task.get("definition", {}).get("acceptance_criteria", ())):
         raise IntegrityError("close_task cannot accept a Task with no acceptance criteria")
-    # The governed contract supports selecting a bounded subset of the submitted
-    # candidates, and this route has no way for an owner to express that choice.
-    # Refuse rather than accept the Task with its deliverables silently discarded.
-    if tuple(submitted["payload"].get("candidate_artefact_ids", ())):
-        raise IntegrityError("close_task cannot select accepted artefacts; the submission carried candidates")
     return {
         "task_id": ids["task_id"],
         "task_revision": task.get("current_revision"),
         "satisfied_review_ids": requested,
         "satisfied_acceptance_criteria": list(task.get("definition", {}).get("acceptance_criteria", ())),
-        "selected_artefact_ids": [],
+        # P-057 accept-all: acceptance selects exactly the submitted candidates, never a subset.
+        "selected_artefact_ids": [str(value) for value in submitted["payload"].get("candidate_artefact_ids", ())],
     }
 
 
