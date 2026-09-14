@@ -355,10 +355,38 @@ the Phase 1–4 packets and the Phase 0 packet. Obtain one independent exact-mai
 boundary review from a fresh context before proposing the live successor binding.
 This is assembly evidence, not Gate 6 closure.
 
+**Amended by P-058 (2026-09-14).** Stephen decided the scope from the Phase 4 scope
+table:
+- **Fresh store.** The fresh run uses a fresh control store, because the live ledger
+  fails replay and `DiscoveryRuntime` refuses preparation on it.
+  `bootstrap_genesis` and `bootstrap_assay_authority` are therefore required.
+- **4a:** the two bootstrap actions plus `request_spec_01`, `prepare_spec_01`,
+  `return_spec_01_complete`, `review_spec_01_complete` and `decide_spec_01`, with the
+  PR #288 known limit 9 fix.
+- **4a′:** the Partial return and review pair.
+- **4b (scratch):** revisit, retry and the SPEC-02 sequence. The revisit proof starts
+  from a Partial Assay. A scored-Assay PARK revisit is reproduced first and, if
+  refused, recorded as a known limit without a runtime change. `start_spec_02` seeds
+  its operational attempt, lease and resource grant through the existing fixture.
+- **4c:** the assembled selection and review.
+- **Removed:** `bootstrap_dossier_authority`, `bootstrap_path_authority`,
+  `admit_dossier` and the three brief-input actions.
+- **Records kept:** the operator brief package, the operator return and the SPEC-02
+  approval.
+
 ### Phase 5 — Owner-gated live proof and closure
 
 For each step, prepare the exact action, obtain Stephen's explicit authorization,
 perform only that action and verify its durable result.
+
+**Amended by P-058 (2026-09-14).** The fresh bounded run uses a fresh control store,
+and the live store stays historical evidence and is not appended to.
+- Step 1 binds the reviewed main SHA to that fresh store through the merged
+  binding-service path.
+- Step 3 runs on it.
+- Step 5 backs it up and restores it.
+- The exact store-creation command and roots are prepared at Phase 5 and are
+  authorized separately.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
