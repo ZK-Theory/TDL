@@ -1485,7 +1485,47 @@ actions, four are delivered: `observe_source`, `correct_spec_01_source`,
 **Migration consequence:** None. No historical bytes, events or schemas change, and the
 live store is not read or mutated.<br>
 **Supersedes:** 06s Phase 4's implied use of the complete 06q inventory, and its
-unqualified "after PARK" revisit path for the scratch proof. No successor decision.
+unqualified "after PARK" revisit path for the scratch proof. No successor decision.<br>
+**Amendment (2026-09-14, measured admission):** paired scratch-store probes at
+`3f3de7b5` changed only the actor at an identical state.
+- **Inherited admission enforces:**
+  - author versus observer (OR-103/104);
+  - reviewer versus author, requester and producer (OR-105/106, OR-006);
+  - proposer versus reviewer (OR-107);
+  - recorder equals producer (OR-004);
+  - owner-only decisions (OR-108, OR-013).
+- **It accepts:**
+  - OR-140 genesis from any grant holder;
+  - an OR-105 review requested by the rubric author;
+  - an OR-003 Assay requested by the prospective producer, a non-owner human or the
+    owner;
+  - an OR-034 review requested by the producer or the future reviewer;
+  - an OR-006 review recorded by the owner or a non-owner human;
+  - an OR-012 proposal from the producer, the reviewer or the owner.
+
+Stephen decided:
+- **Route bindings.** The route refuses each of those through relations derived from
+  the ledger, with no declared role, and `SpecOperatorConfig@1.0.0` is unchanged:
+  - the genesis actor is the authority owner;
+  - the OR-105 requester is not a content author;
+  - the OR-003 requester is neither the prospective producer nor the owner;
+  - the OR-034 requester is neither the producer nor the owner;
+  - the OR-006 reviewer is not the owner;
+  - the OR-012 proposer is not the producer, the reviewer or the owner;
+  - the OR-013 selected option comes from the owner's own invocation.
+
+  Each refusal ships a decisive control showing that admission would accept the
+  input.
+- **Pinned author identity.** Both committed Assay authority content files pin
+  `created_by_actor_id` to the W11 test identity
+  `act_019fed25-b33e-7740-b280-000000000205`, and admission requires it as the
+  submitter. Which identity signs that content on the fresh store is decided at
+  Phase 5 prep.
+- **Known limits, with no change under D5:**
+  - the OR-106 review context is fixed runtime literals
+    (`research_system/discovery/runtime.py:1126-1166`);
+  - the OR-006 context-manifest hash, trace refs and independence grade are
+    unchecked caller strings.
 
 ## Decision protocol
 

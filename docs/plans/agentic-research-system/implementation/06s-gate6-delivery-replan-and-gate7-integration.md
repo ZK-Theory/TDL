@@ -373,6 +373,17 @@ table:
   `admit_dossier` and the three brief-input actions.
 - **Records kept:** the operator brief package, the operator return and the SPEC-02
   approval.
+- **Route bindings (measured; P-058 amendment).** The route refuses the role
+  collapses that inherited admission accepts:
+  - genesis by a non-owner;
+  - the rubric author requesting its own review;
+  - the producer or the owner requesting an Assay or its review;
+  - the owner recording the independent review;
+  - the producer, the reviewer or the owner proposing the decision.
+
+  The owner's own invocation supplies the selected option. The pinned
+  authority-content identity is decided at Phase 5 prep. The fixed OR-106 review
+  context and the OR-006 caller strings are known limits.
 
 ### Phase 5 — Owner-gated live proof and closure
 
