@@ -97,16 +97,20 @@ Preserve unrelated dirty files in the primary checkout.
 
 ### First deliverable: a scope decision for Stephen (before construction)
 
-06q Step 5 names 30 actions, and 5 are delivered. The remaining 25 include:
+06q Step 5 names 30 actions. Four are delivered: `observe_source`,
+`correct_spec_01_source`, `register_project_use_decision` and
+`accept_project_use_decision`. `close_task` is the Phase 2 action from 06q Step 4
+and is not one of the 30. The remaining 26 include:
 - four `bootstrap_*` authority actions and `admit_dossier`;
-- three `*_spec_01_brief_inputs` actions and `prepare_spec_01`;
+- `request_spec_01`, the three `*_spec_01_brief_inputs` actions and
+  `prepare_spec_01`;
 - the complete and partial return and review pairs, and `decide_spec_01`;
 - revisit, retry and PROMOTE;
 - `approve_`, `prepare_`, `start_`, `return_`, `review_` and `decide_spec_02`.
 
 06s D1 requires completing "the required list" by Phase 4. D6 makes a legitimate
 PARK/no_spike sufficient and fresh SPEC-02 optional. P-057 removed historical
-closure. Nothing records which of the 25 the Phase 5 fresh run needs, which only
+closure. Nothing records which of the 26 the Phase 5 fresh run needs, which only
 the scratch revisit/retry/PROMOTE/SPEC-02 proof needs, and which are covered by
 existing bootstrap helpers. A literal reading almost certainly exceeds the §5.0
 checkpoint of 20 files and 2,500 added lines in one PR.
@@ -130,6 +134,10 @@ Propose a delivery split, for example:
 Bring the table and the split to Stephen and let him decide inclusion and
 sequencing. **Do not decide scope yourself.** Phase 3 had to stop and re-scope
 mid-design because a conflict in its brief only surfaced during binding design.
+
+**Outcome (2026-09-14):** Stephen decided this scope and its split as P-058, on
+PR #290. That decision, not this section, now governs Phase 4 scope, including
+how the §5.0 checkpoint applies to sub-phases.
 
 ### Measure before you build
 
@@ -286,10 +294,13 @@ as a known limit, no push).
 6. **Document known limits** in the code docstring, the PR's Known limits
    section, Jira, and the resolving thread reply. Prefer not to push a code change
    only to document a limit.
-7. **Replies and resolves retrigger Merge Admission.** Its step "Gate on
-   review-thread finality at the candidate" fails while any thread is open, and
-   superseded runs show as cancelled. Read the latest run's job steps before
-   reporting a failure.
+7. **A reply retriggers Merge Admission; resolving a thread does not.** GitHub has
+   no review-thread Actions trigger (`.github/workflows/merge-admission.yml`). The
+   run a reply starts can fail at "Gate on review-thread finality at the candidate"
+   while that thread is still open. The failure then stays after you resolve the
+   thread. After resolving the last thread, rerun the check with
+   `gh workflow run merge-admission.yml -f pull_request_number=<PR>` and read that
+   run's job steps before reporting. Superseded runs show as cancelled.
 8. **Reply in each thread with** what was confirmed, the change by SHA, the
    isolating control, and any limit stated plainly.
 
