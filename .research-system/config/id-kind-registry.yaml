@@ -6,6 +6,7 @@ kinds:
   task: tsk
   artefact: art
   spec_source_document: art
+  project_use_decision_document: art
   review: rev
   decision: dec
   command: cmd

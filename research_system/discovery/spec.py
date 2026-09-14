@@ -23,7 +23,8 @@ from research_system.discovery.spec_source import (
     source_ref,
     validate_source_refs,
 )
-from research_system.discovery import spec_task
+from research_system.discovery import spec_result, spec_task
+from research_system.discovery.spec_source import DOCUMENT_KIND as SOURCE_DOCUMENT_KIND
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
@@ -37,32 +38,33 @@ ACTION_EFFECTS = {
     "observe_source": ("RegisterArtefact", "IngestScoutObservationBatch"),
     "correct_spec_01_source": ("RegisterArtefact", "RecordScientificReview", "SetArtefactUseAuthority"),
     spec_task.ACTION: spec_task.EFFECTS,
+    spec_result.REGISTER: spec_result.REGISTER_EFFECTS,
+    spec_result.ACCEPT: spec_result.ACCEPT_EFFECTS,
 }
 
 
-class _SourceRegistrationService(CommandService):
-    """Publish SOURCE bytes inside the existing command admission lock."""
+class _DocumentRegistrationService(CommandService):
+    """Publish a registered document's bytes inside the existing command admission lock."""
 
-    def __init__(self, *args, source_document: dict, **kwargs):
+    def __init__(self, *args, document_kind: str, document: dict, **kwargs):
         super().__init__(*args, **kwargs)
-        self.source_document = source_document
+        self.document_kind = document_kind
+        self.document = document
 
     @contextmanager
     def _submission_lock(self, command):
         with super()._submission_lock(command) as submission:
             artefact_id = command.target_stream_id
-            document = self.source_document
-            existed_before = self.objects.revision_exists("spec_source_document", artefact_id, 1)
-            self.objects.write("spec_source_document", artefact_id, 1, document)
+            kind, document = self.document_kind, self.document
+            existed_before = self.objects.revision_exists(kind, artefact_id, 1)
+            self.objects.write(kind, artefact_id, 1, document)
             try:
                 yield submission
             finally:
                 # This comparison and deletion share admission's writer lock.
                 # Preserve bytes if admission appended, even if later work raised.
                 if self.ledger.snapshot() == submission.snapshot:
-                    self.objects.rollback_new_revision(
-                        "spec_source_document", artefact_id, 1, document, existed_before=existed_before
-                    )
+                    self.objects.rollback_new_revision(kind, artefact_id, 1, document, existed_before=existed_before)
 
 
 class SpecCoordinator:
@@ -90,8 +92,8 @@ class SpecCoordinator:
         )
         self.service = self._command_service()
 
-    def _command_service(self, source_document: dict | None = None) -> CommandService:
-        service_type = CommandService if source_document is None else _SourceRegistrationService
+    def _command_service(self, document: tuple[str, dict] | None = None) -> CommandService:
+        service_type = CommandService if document is None else _DocumentRegistrationService
         return service_type(
             self.binding.control_root,
             self.ledger,
@@ -101,8 +103,38 @@ class SpecCoordinator:
             authority_resolver=self.resolver,
             governing_evidence_resolver=GoverningScientificReviewStore(self.objects, self.schemas),
             clock=self.clock,
-            **({} if source_document is None else {"source_document": source_document}),
+            **({} if document is None else {"document_kind": document[0], "document": document[1]}),
         )
+
+    def _result_context(self) -> spec_result.RouteContext:
+        return spec_result.RouteContext(
+            project_id=self.binding.project_id,
+            objects=self.objects,
+            schemas=self.schemas,
+            validator=self.resolver.validate_replayed_administration_state,
+            raw_prefix_sha256=self.ledger.raw_prefix_sha256,
+            read_source_document=lambda artefact_id: read_document(
+                artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
+            ),
+        )
+
+    def result(self, task_id: str, output_format: str) -> dict | str:
+        """Return the Task-specific project-use result.
+
+        Args:
+            task_id: The Task whose result is rendered; isolates it from every other Task.
+            output_format: ``json`` for the result record or ``markdown`` for human text.
+
+        Returns:
+            The result record, or its Markdown rendering.
+        """
+        self.binding.revalidate()
+        if not isinstance(task_id, str) or not task_id.startswith("tsk_"):
+            raise ArsError("--task-id must name a Task")
+        output = spec_result.result(
+            task_id, self.ledger.snapshot().events, self._result_context(), route_id=self.operator.route_id
+        )
+        return output if output_format == "json" else spec_result.render_markdown(output)
 
     def _discovery(self) -> DiscoveryRuntime:
         binding = self.binding
@@ -149,6 +181,15 @@ class SpecCoordinator:
                     actions.append(
                         {"action": spec_task.ACTION, **spec_task.subject_ids(task_intent), "unreadable": str(exc)}
                     )
+            events = self.ledger.snapshot().events
+            context = self._result_context()
+            for task_id in spec_result.enumerated_tasks(events):
+                for action in (spec_result.REGISTER, spec_result.ACCEPT):
+                    try:
+                        actions.append(spec_result.evaluate(action, task_id, events, context))
+                    except (ConflictError, IntegrityError) as exc:
+                        # As for close_task, the listing must not deny the whole route.
+                        actions.append({"action": action, "task_id": task_id, "unreadable": str(exc)})
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
         if intent.get("action") == spec_task.ACTION:
             self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
@@ -157,6 +198,15 @@ class SpecCoordinator:
                 self.ledger.snapshot().events,
                 schemas=self.schemas,
                 authority_state_validator=self.resolver.validate_replayed_administration_state,
+            )
+        if intent.get("action") in {spec_result.REGISTER, spec_result.ACCEPT}:
+            self.schemas.validate(spec_result.INTENT_SCHEMA_ID, intent)
+            return spec_result.evaluate(
+                intent["action"],
+                intent["task_id"],
+                self.ledger.snapshot().events,
+                self._result_context(),
+                intent=intent if intent["action"] == spec_result.REGISTER else None,
             )
         self.schemas.validate("ars://portfolio/spec-source-intent", intent)
         parse_locator(intent["requested_locator"])
@@ -296,6 +346,8 @@ class SpecCoordinator:
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
         if intent.get("action") == spec_task.ACTION:
             return self._advance_task(intent, evidence)
+        if intent.get("action") in {spec_result.REGISTER, spec_result.ACCEPT}:
+            return self._advance_project_use(intent, evidence)
         state = self.status(intent)
         now = self.clock().isoformat().replace("+00:00", "Z")
         actor = self.operator.operator_actor_id
@@ -387,7 +439,7 @@ class SpecCoordinator:
             actor,
             now,
             intent.get("correction_reason", intent["title"]),
-            source_document=document if effect == "RegisterArtefact" else None,
+            document=(SOURCE_DOCUMENT_KIND, document) if effect == "RegisterArtefact" else None,
         )
 
     def _advance_task(self, intent: dict, evidence: dict | None) -> dict:
@@ -472,6 +524,51 @@ class SpecCoordinator:
             retry_intent=spec_task.key_intent(intent),
         )
 
+    def _advance_project_use(self, intent: dict, evidence: dict | None) -> dict:
+        """Advance a project-use action from one ledger snapshot.
+
+        State, the next command and its expected stream version all come from the same
+        snapshot. A repeated invocation of a committed effect is answered from its
+        receipt and never resubmitted, so it stays readable after its grant expires.
+        """
+        self.binding.revalidate()
+        self.schemas.validate(spec_result.INTENT_SCHEMA_ID, intent)
+        snapshot = self.ledger.snapshot()
+        context = self._result_context()
+        action = intent["action"]
+        state = spec_result.evaluate(
+            action,
+            intent["task_id"],
+            snapshot.events,
+            context,
+            intent=intent if action == spec_result.REGISTER else None,
+        )
+        actor, grant = self.operator.operator_actor_id, self.operator.authority_grant_id
+        retry = spec_result.exact_retry(intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant)
+        if retry is not None:
+            receipt = self.service.receipts.load(retry["command_id"])
+            if receipt is None or receipt.status != "accepted" or receipt.payload_hash != retry["command_payload_hash"]:
+                raise IntegrityError(f"{action} retry has no matching committed receipt: {retry['command_id']}")
+            return {**state, "receipt": asdict(receipt)}
+        if state["next_effect"] is None:
+            return state
+        now = self.clock().isoformat().replace("+00:00", "Z")
+        effect, target, payload, document = spec_result.next_command(
+            intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant, now=now
+        )
+        return self._submit_effect(
+            intent,
+            effect,
+            target,
+            payload,
+            actor,
+            now,
+            intent["reason"],
+            document=None if document is None else (spec_result.DOCUMENT_KIND, document),
+            expected_stream_version=snapshot.stream_versions.get(target, 0),
+            retry_intent=spec_result.key_intent(intent),
+        )
+
     def _submit_effect(
         self,
         intent: dict,
@@ -482,7 +579,7 @@ class SpecCoordinator:
         now: str,
         reason: str,
         *,
-        source_document: dict | None = None,
+        document: tuple[str, dict] | None = None,
         expected_stream_version: int | None = None,
         retry_intent: dict | None = None,
     ) -> dict:
@@ -527,8 +624,8 @@ class SpecCoordinator:
             )
         self.binding.revalidate()
         service = self._discovery() if effect == "IngestScoutObservationBatch" else self.service
-        if source_document is not None:
-            service = self._command_service(source_document)
+        if document is not None:
+            service = self._command_service(document)
         receipt = service.submit(command)
         if receipt.status not in {"accepted", "replayed"}:
             raise ArsError(f"SPEC effect rejected: {asdict(receipt)}")

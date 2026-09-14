@@ -146,6 +146,11 @@ def _spec(args: argparse.Namespace) -> int:
             raise ConfigurationError("SPEC input action disagrees with --action")
         intent["action"] = args.action
         result = coordinator.advance(intent, evidence)
+    elif args.spec_command == "result":
+        result = coordinator.result(args.task_id, args.format)
+        if args.format == "markdown":
+            print(result, end="")
+            return 0
     else:
         result = coordinator.status()
     _print_json(result)
@@ -1912,6 +1917,11 @@ def _parser() -> argparse.ArgumentParser:
                 help="semantic SPEC action intent and optional independent evidence",
             )
         action.set_defaults(handler=_spec)
+    result_parser = spec_commands.add_parser("result")
+    result_parser.add_argument("--operator-config", type=Path, required=True)
+    result_parser.add_argument("--task-id", required=True)
+    result_parser.add_argument("--format", choices=("json", "markdown"), required=True)
+    result_parser.set_defaults(handler=_spec)
 
     store = groups.add_parser("store")
     store_commands = store.add_subparsers(dest="store_command", required=True)

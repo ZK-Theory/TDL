@@ -169,10 +169,16 @@ def test_git_rejects_invalid_components_and_archive_transformations(source_repo)
 
 @pytest.fixture
 def bound_source(tmp_path, monkeypatch):
+    return bind_scratch_route(tmp_path, monkeypatch)
+
+
+def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=()):
+    """Bind a scratch SPEC store; extra repository files are committed with the fixture repository."""
     scratch = tmp_path / "bound"
     for relative in (
         ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
         ".research-system/contracts/w11/w11-materialization-bootstrap-contract.yaml",
+        *extra_repository_files,
     ):
         target = scratch / "repo" / relative
         target.parent.mkdir(parents=True, exist_ok=True)

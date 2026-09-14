@@ -1054,8 +1054,8 @@ def test_a_submission_claiming_an_unregistered_candidate_hash_is_refused(bound_c
         coordinator.status(close_task_intent())
 
 
-def test_acceptance_refuses_an_empty_criterion_set_and_undeclared_candidates(bound_task):
-    """Two payloads the governed reducer or this route cannot honour."""
+def test_acceptance_refuses_an_empty_criterion_set_and_selects_every_submitted_candidate(bound_task):
+    """The empty-criterion payload the reducer cannot honour, and P-057 accept-all selection."""
     ids = spec_task.subject_ids(close_task_intent())
     submitted = {"payload": {"requested_review_ids": [REVIEW_ID], "candidate_artefact_ids": []}}
 
@@ -1065,14 +1065,12 @@ def test_acceptance_refuses_an_empty_criterion_set_and_undeclared_candidates(bou
     with pytest.raises(IntegrityError, match="no acceptance criteria"):
         spec_task._accept_payload(ids, empty_criteria, submitted)
 
-    # The route cannot express an artefact selection, so it must not silently accept
-    # a Task whose submission carried candidate deliverables.
+    # P-057 accept-all: acceptance selects exactly the submitted candidates, never a subset.
     real = {TASK_ID: {"current_revision": 1, "definition": {"acceptance_criteria": ["bounded contract satisfied"]}}}
     with_candidates = {
         "payload": {"requested_review_ids": [REVIEW_ID], "candidate_artefact_ids": [CANDIDATE_ARTEFACT_ID]}
     }
-    with pytest.raises(IntegrityError, match="cannot select accepted artefacts"):
-        spec_task._accept_payload(ids, real, with_candidates)
+    assert spec_task._accept_payload(ids, real, with_candidates)["selected_artefact_ids"] == [CANDIDATE_ARTEFACT_ID]
 
     # The unchanged positive shape still builds.
     payload = spec_task._accept_payload(ids, real, submitted)
@@ -1254,13 +1252,13 @@ def test_failed_or_partial_attempt_work_remains_open(bound_unfinished_task, tmp_
     assert _streams(coordinator)[TASK_ID]["status"] != "accepted"
 
 
-def test_a_candidate_bearing_attempt_is_refused_before_any_task_mutation(bound_candidate_task, tmp_path, capsys):
-    """A refusal at AcceptTask would strand the Task at review_pending; refuse at the start."""
+def test_an_unregistered_candidate_is_refused_before_any_task_mutation(bound_candidate_task, tmp_path, capsys):
+    """Accept-all (P-057) binds each candidate's registered hash; refuse an unregistered one at the start."""
     coordinator = bound_candidate_task.coordinator
     task_before = _streams(coordinator)[TASK_ID]["status"]
     message = _refuse(bound_candidate_task, "SubmitForReview", tmp_path, capsys)
-    assert "candidate artefacts" in message, message
-    with pytest.raises(IntegrityError, match="candidate artefacts"):
+    assert "candidate artefact is not registered" in message, message
+    with pytest.raises(IntegrityError, match="candidate artefact is not registered"):
         coordinator.status(close_task_intent())
     assert _streams(coordinator)[TASK_ID]["status"] == task_before != "review_pending"
 
