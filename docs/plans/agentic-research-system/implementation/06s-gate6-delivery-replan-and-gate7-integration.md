@@ -254,6 +254,23 @@ one replay positive and one governed backup-admission positive with the new fami
 
 ### Phase 2 — AUTHORITY and TASK on the same route — KAN-106 and KAN-107
 
+**Status (2026-09-14): COMPLETE / INTEGRATED.** PR #286
+(`ac3db9a75fe20ef7a15684ef35603e7a347cc5a1`) is merged to `main` at
+`bed57bf8960046462e654d24bec7eedea3a516c7`. The public `close_task` action
+drives SubmitForReview → RequestReview → AssignReview → StartReview →
+RecordReviewVerdict → SatisfyReview → AcceptTask through inherited authority,
+with owner-only decisions, an independent reviewer, route-issued evidence only
+(identity, derived content and stream exclusivity), failed/partial work held
+open, and exact retries answered read-only from committed receipts. The focused
+packet passed 63 tests with 1 documented skip; mandatory hooks and CI passed;
+one independent exact-head review and six Codex review rounds (5, 8, 6, 4, 4
+and 1 findings) were resolved, with all 28 threads closed. Known limits are
+recorded on PR #286 and KAN-106/KAN-107, notably the late SubmitForReview
+retry collision with AcceptTask and the cross-stream race. This closes KAN-106
+and KAN-107 as typed milestones only; Gate 6 remains INCOMPLETE pending Phases
+3–5 and final owner closure. The Phase 3 handoff is
+`handoffs/01M2EJ8RGJ66MZYYD3RCWM08QG-wp6-phase3-result-handoff.md`.
+
 **Exit:** extend Phase 1's CLI path through the required inherited authority checks
 and SubmitForReview → AcceptTask. One PR may deliver both jobs; a split is optional
 when a real dependency or review boundary warrants it.
@@ -480,10 +497,12 @@ From the named worktree, with PYTHONDONTWRITEBYTECODE=1, the exact command was:
 C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p no:cacheprovider -v --tb=short --junitxml=C:/Users/steph/.codex/tmp/gate6-06s-phase0-20260905/store-packet-repair-20260908.xml tests/research_system/unit/test_spec_operator_config.py tests/research_system/integration/test_store_binding_cli.py tests/research_system/integration/test_store_binding_public_contract.py tests/research_system/integration/test_store_binding_service.py tests/research_system/integration/test_current_binding.py tests/research_system/integration/test_wp64_create_backup.py::test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic_submit tests/research_system/integration/test_wp64_create_backup.py::test_store_verify_restore_appends_evidence_without_cutover_and_replays
 ```
 
-**Capability status:** INCOMPLETE — the inherited STORE path and Phase 1 SOURCE
-path are integrated and verified; Phases 2–5 and final Gate 6 closure remain.
-PR #282 is merged at `3ce730d94402781767e7602660506e4b06cf8d68`; this does not
-open Gate 7 or authorize live/provider/paid work.
+**Capability status:** INCOMPLETE — the inherited STORE path, Phase 1 SOURCE
+and Phase 2 AUTHORITY/TASK are integrated and verified; Phases 3–5 and final
+Gate 6 closure remain. PR #282 is merged at
+`3ce730d94402781767e7602660506e4b06cf8d68` and PR #286 at
+`bed57bf8960046462e654d24bec7eedea3a516c7`; this does not open Gate 7 or
+authorize live/provider/paid work.
 
 **Documentation checks:** the initial Phase 0 documentation PR contains the
 three required records: this 06s plan, P-051–P-056 in
@@ -497,3 +516,10 @@ verified MILESTONE and Done after PR #282; KAN-103 and KAN-12 remain open for
 the assembled capability. Phase 2 AUTHORITY/TASK is the next dispatchable
 production action, while live backup/restore remains required in Phase 5.
 All dependency-link sets remain unchanged.
+
+**Phase 2 reconciliation (2026-09-14):** after PR #286 merged, KAN-106 and
+KAN-107 were updated to verified MILESTONEs and moved to Done, with their known
+limits recorded; KAN-108 now names the Phase 3 handoff as its next production
+action; KAN-103 and KAN-12 record Phase 2 as integrated and remain open. Each
+changed issue was read back. Dependency-link sets remain unchanged. Phase 3
+RESULT (KAN-108) is the next dispatchable production action.
