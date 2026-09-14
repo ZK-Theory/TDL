@@ -606,6 +606,8 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
             "SatisfyReview",
             "AcceptTask",
         ),
+        "register_project_use_decision": ("RegisterArtefact",),
+        "accept_project_use_decision": ("RecordScientificReview", "SetArtefactUseAuthority"),
     }
 
     def timed_out(*args, **kwargs):
