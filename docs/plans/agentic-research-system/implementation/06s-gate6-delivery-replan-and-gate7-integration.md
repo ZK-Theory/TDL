@@ -320,8 +320,8 @@ The caller supplies only the disposition, rationale, limitations, next gates, th
 subset qualification and, when no Spike exists, a no_spike reason.
 
 Phase 3 also delivers accept-all Task artefact selection. `close_task` accepts a
-candidate-bearing Attempt only when every candidate is a registered artefact, and
-AcceptTask selects exactly the submitted candidates. Historical and fresh isolation
+candidate-bearing Attempt only when every candidate is a registered artefact and no
+two share content, and AcceptTask selects exactly the submitted candidates. Historical and fresh isolation
 is tested as two-Task isolation on scratch stores.
 
 ars discovery spec result --operator-config … --task-id … --format json|markdown

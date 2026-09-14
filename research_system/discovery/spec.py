@@ -11,6 +11,7 @@ from research_system.store.binding_service import VerifiedBindingContext
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.artefacts.runtime import GoverningScientificReviewStore
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.runtime import DiscoveryRuntime
@@ -44,27 +45,64 @@ ACTION_EFFECTS = {
 
 
 class _DocumentRegistrationService(CommandService):
-    """Publish a registered document's bytes inside the existing command admission lock."""
+    """Publish a registered document's bytes inside the existing command admission lock.
 
-    def __init__(self, *args, document_kind: str, document: dict, **kwargs):
+    Each subclass names its object kind as a literal at every store call, so the 06i
+    storage-boundary contract can classify each direct object-store kind statically.
+    """
+
+    def __init__(self, *args, document: dict, **kwargs):
         super().__init__(*args, **kwargs)
-        self.document_kind = document_kind
         self.document = document
+
+    def _publish(self, artefact_id: str) -> bool:
+        raise NotImplementedError
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        raise NotImplementedError
 
     @contextmanager
     def _submission_lock(self, command):
         with super()._submission_lock(command) as submission:
             artefact_id = command.target_stream_id
-            kind, document = self.document_kind, self.document
-            existed_before = self.objects.revision_exists(kind, artefact_id, 1)
-            self.objects.write(kind, artefact_id, 1, document)
+            existed_before = self._publish(artefact_id)
             try:
                 yield submission
             finally:
                 # This comparison and deletion share admission's writer lock.
                 # Preserve bytes if admission appended, even if later work raised.
                 if self.ledger.snapshot() == submission.snapshot:
-                    self.objects.rollback_new_revision(kind, artefact_id, 1, document, existed_before=existed_before)
+                    self._withdraw(artefact_id, existed_before)
+
+
+class _SourceRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_source_document", artefact_id, 1)
+        self.objects.write("spec_source_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_source_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
+class _ProjectUseRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("project_use_decision_document", artefact_id, 1)
+        self.objects.write("project_use_decision_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "project_use_decision_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
+_REGISTRATION_SERVICES = {
+    SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
+    spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
+}
 
 
 class SpecCoordinator:
@@ -93,7 +131,7 @@ class SpecCoordinator:
         self.service = self._command_service()
 
     def _command_service(self, document: tuple[str, dict] | None = None) -> CommandService:
-        service_type = CommandService if document is None else _DocumentRegistrationService
+        service_type = CommandService if document is None else _REGISTRATION_SERVICES[document[0]]
         return service_type(
             self.binding.control_root,
             self.ledger,
@@ -103,7 +141,7 @@ class SpecCoordinator:
             authority_resolver=self.resolver,
             governing_evidence_resolver=GoverningScientificReviewStore(self.objects, self.schemas),
             clock=self.clock,
-            **({} if document is None else {"document_kind": document[0], "document": document[1]}),
+            **({} if document is None else {"document": document[1]}),
         )
 
     def _result_context(self) -> spec_result.RouteContext:
@@ -116,7 +154,40 @@ class SpecCoordinator:
             read_source_document=lambda artefact_id: read_document(
                 artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
             ),
+            check_review_evidence=self._check_review_evidence,
         )
+
+    def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
+        """Refuse review evidence that inherited use-authority admission would later reject.
+
+        RecordScientificReview admission records any evidence refs, but only exactly
+        governing evidence lets SetArtefactUseAuthority accept the artefact, and the
+        route allows one review per decision. So the inherited governing-review rule
+        runs over the prospective review before it becomes durable.
+        """
+        artefact_id = registration["stream_id"]
+        prospective = {
+            "event_type": "ScientificReviewRecorded",
+            "payload": review,
+            "actor_id": actor_id,
+            "stream_version": registration["stream_version"] + 1,
+            "event_id": None,
+            "event_hash": None,
+            "recorded_at": now,
+        }
+        command = Command(
+            {
+                "command_type": "SetArtefactUseAuthority",
+                "target_stream_id": artefact_id,
+                "submitted_at": now,
+                "payload": use,
+            }
+        )
+        outcome = self.service._validate_governing_review_evidence(
+            command, [registration, prospective], registration["payload"]["manifest"]
+        )
+        if isinstance(outcome, tuple):
+            raise IntegrityError(f"{spec_result.ACCEPT} review evidence would not govern use authority: {outcome[0]}")
 
     def result(self, task_id: str, output_format: str) -> dict | str:
         """Return the Task-specific project-use result.

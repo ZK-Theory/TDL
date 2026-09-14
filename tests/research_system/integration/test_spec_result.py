@@ -14,7 +14,7 @@ from research_system import cli
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery import spec_result, spec_task
 from research_system.discovery.runtime import DiscoveryRuntime, replay_discovery
-from research_system.discovery.spec import ACTION_EFFECTS
+from research_system.discovery.spec import _REGISTRATION_SERVICES, ACTION_EFFECTS
 from research_system.discovery.spec_source import source_ids
 from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.ids import new_id
@@ -393,6 +393,33 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
     }
 
 
+def test_each_document_service_publishes_only_its_route_kind():
+    """Each service names its kind literally (06i storage boundary); the literal must be its route's kind."""
+
+    class Recorder:
+        def __init__(self):
+            self.kinds = set()
+
+        def revision_exists(self, kind, artefact_id, revision):
+            self.kinds.add(kind)
+            return False
+
+        def write(self, kind, artefact_id, revision, value):
+            self.kinds.add(kind)
+
+        def rollback_new_revision(self, kind, artefact_id, revision, value, *, existed_before):
+            self.kinds.add(kind)
+
+    assert set(_REGISTRATION_SERVICES) == {"spec_source_document", spec_result.DOCUMENT_KIND}
+    for kind, service_type in _REGISTRATION_SERVICES.items():
+        service = object.__new__(service_type)
+        service.objects, service.document = Recorder(), {"document": kind}
+        service._withdraw(
+            "art_01978abc-9605-7000-8000-000000009605", service._publish("art_01978abc-9605-7000-8000-000000009605")
+        )
+        assert service.objects.kinds == {kind}
+
+
 def _document() -> dict:
     ref = {"event_id": "evt_01978abc-9700-7000-8000-000000009700", "event_hash": "a" * 64, "global_position": 5}
     registration = {"artefact_id": EVIDENCE_IDS[0], "content_sha256": "b" * 64, **ref}
@@ -492,7 +519,8 @@ def test_route_wording_never_promotes_adopts_or_claims_replication_for_park():
 
 
 def test_sources_are_the_candidate_cited_registrations_plus_accepted_corrections():
-    """Sources follow the ledger only: cited SOURCE registrations, then accepted 2.0.0 corrections, transitively."""
+    """Sources follow the ledger only: cited SOURCE registrations whose bytes verify, then 2.0.0 corrections
+    whose current replayed use authority is accepted, transitively."""
     from research_system.discovery.spec_source import CORRECTION_SCHEMA, OBSERVATION_SCHEMA, source_ref
 
     def registered(artefact_id, position, schema_id, version):
@@ -510,38 +538,46 @@ def test_sources_are_the_candidate_cited_registrations_plus_accepted_corrections
             "payload": {"manifest": manifest},
         }
 
-    def accepted(artefact_id, position):
-        return {
-            "event_type": "ArtefactUseAuthoritySet",
-            "stream_id": artefact_id,
-            "global_position": position,
-            "payload": {"use_authority": "accepted_for_scope"},
-        }
-
-    source, chained, correction, unaccepted, legacy = (f"art_source_{name}" for name in "abcde")
+    source, chained, correction, unaccepted, legacy, withdrawn = (f"art_source_{name}" for name in "abcdef")
     events = [
         registered(source, 1, OBSERVATION_SCHEMA, "1.0.0"),
         # A correction of a correction, registered first, so inclusion needs a second pass.
         registered(chained, 2, CORRECTION_SCHEMA, "2.0.0"),
         registered(correction, 3, CORRECTION_SCHEMA, "2.0.0"),
-        accepted(correction, 4),
-        accepted(chained, 5),
         registered(unaccepted, 6, CORRECTION_SCHEMA, "2.0.0"),
         registered(legacy, 7, CORRECTION_SCHEMA, "1.0.0"),
-        accepted(legacy, 8),
+        registered(withdrawn, 9, CORRECTION_SCHEMA, "2.0.0"),
     ]
+    accepted = {"use_authority": "accepted_for_scope"}
+    # Replayed current use authority. The withdrawn correction was accepted once, then superseded.
+    streams = {
+        correction: accepted,
+        chained: accepted,
+        unaccepted: {"use_authority": "candidate"},
+        legacy: accepted,
+        withdrawn: {"use_authority": "superseded"},
+    }
     documents = {
+        source: {},
         chained: {"prior_evidence": {"artefact_id": correction}},
         correction: {"prior_evidence": {"artefact_id": source}},
         unaccepted: {"prior_evidence": {"artefact_id": source}},
+        withdrawn: {"prior_evidence": {"artefact_id": source}},
     }
+    read = []
+
+    def read_source_document(artefact_id):
+        read.append(artefact_id)
+        return documents[artefact_id], {}
+
     context = spec_result.RouteContext(
         project_id=PROJECT_ID,
         objects=None,
         schemas=None,
         validator=None,
         raw_prefix_sha256=lambda position: "0" * 64,
-        read_source_document=lambda artefact_id: (documents[artefact_id], {}),
+        read_source_document=read_source_document,
+        check_review_evidence=lambda *args: None,
     )
     candidate = {"source_observation_refs": ["obj_observation"]}
     projection = {
@@ -549,14 +585,26 @@ def test_sources_are_the_candidate_cited_registrations_plus_accepted_corrections
             "obj_observation": {"global_position": 10, "batch": {"raw_source_refs": [source_ref(events[0])]}}
         }
     }
-    sources = spec_result._sources(candidate, projection, events, context)
-    # The unaccepted correction and the historical 1.0.0 correction are not sources.
+    sources = spec_result._sources(candidate, projection, events, streams, context)
+    # Unaccepted, withdrawn and historical 1.0.0 corrections are not sources.
     assert [ref["artefact_id"] for ref in sources] == [source, chained, correction]
+    assert source in read, "the cited SOURCE document itself must be read and verified"
+
+    # A cited SOURCE whose bytes do not verify is refused, although its ledger reference is exact.
+    def unverifiable(artefact_id):
+        if artefact_id == source:
+            raise IntegrityError("SOURCE registered manifest and immutable document disagree")
+        return documents[artefact_id], {}
+
+    with pytest.raises(IntegrityError, match="immutable document disagree"):
+        spec_result._sources(
+            candidate, projection, events, streams, replace(context, read_source_document=unverifiable)
+        )
 
     external = {"ref_kind": "external", "locator": "https://example.invalid/paper.pdf", "content_hash": "9" * 64}
     projection["source_observations"]["obj_observation"]["batch"]["raw_source_refs"] = [external]
     with pytest.raises(IntegrityError, match="SOURCE route registration"):
-        spec_result._sources(candidate, projection, events, context)
+        spec_result._sources(candidate, projection, events, streams, context)
 
 
 def test_public_project_use_result_is_pending_until_independently_accepted(bound_result, tmp_path, capsys):
@@ -711,7 +759,27 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
         accept_intent(), actor=REVIEWER, grant=grants["review"], evidence=placeholder
     )
 
-    _project_use(fixture, tmp_path, capsys, register_intent(), **owner_register)
+    # A process that stopped after publishing the decision bytes, before appending the
+    # registration, left them behind. Another decision is refused; the same one reuses them.
+    orphaned_at = "2026-01-02T03:04:05Z"
+    *_, orphan = spec_result.next_command(
+        register_intent(),
+        None,
+        coordinator.ledger.snapshot().events,
+        context,
+        actor_id=OWNER,
+        grant_id=grants["register"],
+        now=orphaned_at,
+    )
+    coordinator.objects.write(spec_result.DOCUMENT_KIND, fixture.decision_id, 1, orphan)
+    assert "already binds a different decision" in refuse(
+        register_intent(rationale="A different rationale."), **owner_register
+    )
+    registered = _project_use(fixture, tmp_path, capsys, register_intent(), **owner_register)
+    assert registered["state"] == "completed" and registered["receipt"]["status"] == "accepted"
+    registration = next(e for e in coordinator.ledger.snapshot().events if e["stream_id"] == fixture.decision_id)
+    assert registration["payload"]["manifest"]["created_at"] == orphaned_at
+
     # The producer cannot review its own decision, and review evidence must be exact.
     self_review = _review_evidence(fixture, reviewer=OWNER)
     assert "independent of the registering producer" in refuse(
@@ -720,6 +788,16 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
     assert "fields are not exact" in refuse(
         accept_intent(), actor=REVIEWER, grant=grants["review"], evidence={"review_id": new_id("review")}
     )
+    # Evidence that could never govern use authority is refused before the one review is recorded.
+    ungoverning = (
+        {"review_id": new_id("review"), "evidence_refs": [new_id("assurance_record")]},
+        {**_review_evidence(fixture), "review_id": new_id("review")},
+        {"review_id": new_id("review"), "evidence_refs": []},
+    )
+    for evidence in ungoverning:
+        assert "would not govern use authority" in refuse(
+            accept_intent(), actor=REVIEWER, grant=grants["review"], evidence=evidence
+        )
     _project_use(
         fixture,
         tmp_path,
@@ -736,8 +814,12 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
     )
     assert coordinator.status(accept_intent())["state"] == "prepared"
 
-    # Decisive controls: on a throwaway artefact, inherited admission accepts both inputs refused above.
-    for subject in ("art_01978abc-9603-7000-8000-000000009603", "art_01978abc-9604-7000-8000-000000009604"):
+    # Decisive controls: on a throwaway artefact, inherited admission accepts the inputs refused above.
+    for subject in (
+        "art_01978abc-9603-7000-8000-000000009603",
+        "art_01978abc-9604-7000-8000-000000009604",
+        "art_01978abc-9606-7000-8000-000000009606",
+    ):
         shared = fixture.grant(OWNER, ("RegisterArtefact", "SetArtefactUseAuthority"), subject=subject)
         body = {**artefact_manifest(), "artefact_id": subject, "producer_actor_id": OWNER}
         assert coordinator.service.submit(
@@ -761,6 +843,21 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
                                  target_stream_id=subject)
             )  # fmt: skip
             assert receipt.status == "accepted", "admission is expected to accept a producer self-review"
+        elif subject.endswith("9606"):
+            reviewer = fixture.grant(REVIEWER, ("RecordScientificReview",), agent=True, subject=subject)
+            payload = {
+                "artefact_id": subject,
+                "subject_sha256": subject_hash,
+                "scientific_review": "approved",
+                "review_id": new_id("review"),
+                "evidence_refs": [new_id("assurance_record")],
+            }
+            receipt = coordinator.service.submit(
+                artefact_command(command_id=new_id("command"), command_type="RecordScientificReview",
+                                 actor_id=REVIEWER, authority_grant_id=reviewer, expected_stream_version=1,
+                                 payload=payload, target_stream_id=subject)
+            )  # fmt: skip
+            assert receipt.status == "accepted", "admission is expected to record evidence that cannot govern use"
         else:
             evidence = _review_evidence(fixture, subject=subject)
             reviewer = fixture.grant(REVIEWER, ("RecordScientificReview",), agent=True, subject=subject)

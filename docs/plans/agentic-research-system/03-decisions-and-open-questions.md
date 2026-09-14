@@ -1411,7 +1411,8 @@ Evidence is exactly the artefacts the accepted Task selected. The governed-code
 subject is the latest store-binding event. The caller supplies only the disposition,
 rationale, limitations, next gates and D6 subset qualification.<br>
 Phase 3 also delivers accept-all Task artefact selection. `close_task` accepts a
-candidate-bearing Attempt when every candidate is a registered artefact. Submission
+candidate-bearing Attempt when every candidate is a registered artefact and no two
+share content (inherited SubmitForReview requires distinct hashes). Submission
 hashes derive from those registrations, and AcceptTask selects exactly all
 submitted candidates. There is no subset choice and no intent change.<br>
 **Rationale/evidence:** Stephen authorised a read-only extraction on 2026-09-14.

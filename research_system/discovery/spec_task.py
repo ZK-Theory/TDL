@@ -219,7 +219,7 @@ def registered_candidates(attempt: dict[str, Any], events: list[dict]) -> list[d
         The ArtefactRegistered events, in outcome order.
 
     Raises:
-        IntegrityError: If any named candidate has no registration.
+        IntegrityError: If any named candidate has no registration, or two share content.
     """
     registrations = {event["stream_id"]: event for event in events if event["event_type"] == "ArtefactRegistered"}
     found = []
@@ -228,6 +228,10 @@ def registered_candidates(attempt: dict[str, Any], events: list[dict]) -> list[d
         if registration is None:
             raise IntegrityError(f"close_task candidate artefact is not registered: {artefact_id}")
         found.append(registration)
+    hashes = [event["payload"]["manifest"]["content_sha256"] for event in found]
+    # SubmitForReview declares candidate hashes unique, so identical content cannot be submitted.
+    if len(set(hashes)) != len(hashes):
+        raise IntegrityError("close_task candidate artefacts must have distinct content to be submitted")
     return found
 
 
@@ -254,7 +258,8 @@ def _check_closable(ids: dict[str, str], streams: dict[str, Any], events: list[d
     if status in {"failed", "partial"}:
         raise IntegrityError(f"close_task closes only a completed Attempt; {status} work remains open")
     # Acceptance selects exactly the submitted candidates (P-057 accept-all), so every
-    # candidate must be a registered artefact whose hash the submission can bind.
+    # candidate must be a registered artefact, with distinct content, whose hash the
+    # submission can bind.
     registered_candidates(attempt, events)
     return attempt
 

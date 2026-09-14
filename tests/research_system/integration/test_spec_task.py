@@ -1394,6 +1394,29 @@ def test_an_empty_criterion_task_is_refused_before_submission():
     assert spec_task._submit_payload(ids, real, [])["attempt_outcome"] == "completed"
 
 
+def test_candidates_with_identical_content_are_refused_before_submission():
+    """SubmitForReview declares candidate hashes unique, so the route refuses identical content before it."""
+    ids = spec_task.subject_ids(close_task_intent())
+    first, second = "art_01978abc-9607-7000-8000-000000009607", "art_01978abc-9608-7000-8000-000000009608"
+    attempt = {"task_id": TASK_ID, "status": "completed", "outcome": {"candidate_artefact_ids": [first, second]}}
+    streams = {TASK_ID: {"definition": {"acceptance_criteria": ["bounded contract satisfied"]}}, ATTEMPT_ID: attempt}
+
+    def registered(artefact_id, digest):
+        return {
+            "event_type": "ArtefactRegistered",
+            "stream_id": artefact_id,
+            "payload": {"manifest": {"content_sha256": digest}},
+        }
+
+    identical = [registered(first, "a" * 64), registered(second, "a" * 64)]
+    with pytest.raises(IntegrityError, match="distinct content"):
+        spec_task._check_closable(ids, streams, identical)
+    with pytest.raises(IntegrityError, match="distinct content"):
+        spec_task._submit_payload(ids, streams, identical)
+    distinct = [registered(first, "a" * 64), registered(second, "b" * 64)]
+    assert spec_task._submit_payload(ids, streams, distinct)["candidate_artefact_hashes"] == ["a" * 64, "b" * 64]
+
+
 def test_a_retry_after_another_operator_committed_the_next_effect_reads_its_receipt(bound_task, tmp_path, capsys):
     """A lost response is recognised even when later effects have committed since."""
     coordinator = bound_task.coordinator

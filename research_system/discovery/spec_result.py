@@ -92,6 +92,9 @@ class RouteContext:
         validator: Inherited authority-state validator for replay.
         raw_prefix_sha256: Ledger raw-prefix digest at a global position.
         read_source_document: Validated SOURCE document reader by artefact identity.
+        check_review_evidence: Inherited governing-review rule over a prospective review
+            (registration, review payload, use payload, reviewer, time); raises if the
+            evidence could never govern use authority.
     """
 
     project_id: str
@@ -100,6 +103,7 @@ class RouteContext:
     validator: _Validator
     raw_prefix_sha256: Callable[[int], str]
     read_source_document: Callable[[str], tuple[dict, dict]]
+    check_review_evidence: Callable[[dict, dict, dict, str, str], None]
 
 
 def subject_id(project_id: str, task_id: str) -> str:
@@ -208,7 +212,9 @@ def spike_record(intent: dict[str, Any], candidate: dict[str, Any], projection: 
     return None
 
 
-def _sources(candidate: dict, projection: dict, events: list[dict], ctx: RouteContext) -> list[dict]:
+def _sources(
+    candidate: dict, projection: dict, events: list[dict], streams: dict[str, Any], ctx: RouteContext
+) -> list[dict]:
     registrations: dict[str, dict] = {}
     for observation_id in candidate.get("source_observation_refs", ()):
         observation = projection["source_observations"].get(observation_id)
@@ -220,6 +226,8 @@ def _sources(candidate: dict, projection: dict, events: list[dict], ctx: RouteCo
         validate_source_refs(observation["batch"], events, before_position=observation["global_position"])
         for ref in refs:
             identity = ref["locator"][len(SOURCE_REF_PREFIX) :].partition(":")[0]
+            # A ledger reference alone is hash-only; the SOURCE bytes themselves must verify.
+            ctx.read_source_document(identity)
             registrations[identity] = _registration(events, identity)
     # Accepted corrections of a cited source are sources too, transitively.
     corrections = [
@@ -229,11 +237,12 @@ def _sources(candidate: dict, projection: dict, events: list[dict], ctx: RouteCo
         and event["payload"]["manifest"].get("artefact_schema_id") == CORRECTION_SCHEMA
         and event["payload"]["manifest"].get("artefact_schema_version") == "2.0.0"
     ]
+    # Inclusion follows the replayed current use authority, so a correction later
+    # superseded or otherwise withdrawn is not a source of any decision derived after that.
     accepted = {
-        event["stream_id"]
-        for event in events
-        if event["event_type"] == "ArtefactUseAuthoritySet"
-        and event["payload"].get("use_authority") == "accepted_for_scope"
+        stream_id
+        for stream_id, stream in streams.items()
+        if isinstance(stream, dict) and stream.get("use_authority") == "accepted_for_scope"
     }
     changed = True
     while changed:
@@ -343,7 +352,7 @@ def derive(
             "deciding_actor_id": resolutions[0]["actor_id"],
             "resolution_event": _event_ref(resolutions[0]),
         },
-        "sources": _sources(candidate, projection, events, ctx),
+        "sources": _sources(candidate, projection, events, streams, ctx),
         "evidence": [registration_ref(_registration(events, selected_id)) for selected_id in selected],
         "governed_code_subject": {
             "binding_event": _event_ref(binding),
@@ -464,20 +473,28 @@ def _verify_registration(task_id: str, artefact_id: str, event: dict, events: li
         )
     document = _read_document(artefact_id, event, ctx)
     ctx.schemas.validate(DOCUMENT_SCHEMA_ID, document, schema_version="1.0.0")
-    position = document["causal_prefix"]["global_position"]
-    if position >= event["global_position"]:
+    if document["causal_prefix"]["global_position"] >= event["global_position"]:
         raise IntegrityError(f"{REGISTER} document cannot cite its own or a later registration")
+    manifest = _rederive(document, events, ctx, artefact_id=artefact_id, actor_id=event["actor_id"])
+    if event["payload"] != {"new_artefact_id": artefact_id, "manifest": manifest}:
+        raise IntegrityError(f"{REGISTER} does not carry the decision this route derives")
+    return document
+
+
+def _rederive(document: dict, events: list[dict], ctx: RouteContext, *, artefact_id: str, actor_id: str) -> dict:
+    """Re-derive a schema-valid decision at its recorded causal prefix and return its manifest."""
+    position = document["causal_prefix"]["global_position"]
     expected, manifest = derive(
         document["intent"],
         [e for e in events if e["global_position"] <= position],
         ctx,
         artefact_id=artefact_id,
-        actor_id=event["actor_id"],
+        actor_id=actor_id,
         recorded_at=document["recorded_at"],
     )
-    if document != expected or event["payload"] != {"new_artefact_id": artefact_id, "manifest": manifest}:
+    if document != expected:
         raise IntegrityError(f"{REGISTER} does not carry the decision this route derives")
-    return document
+    return manifest
 
 
 def _verify_review(task_id: str, artefact_id: str, event: dict, registration: dict) -> None:
@@ -600,6 +617,7 @@ def next_command(
 
     Raises:
         IntegrityError: If the effect cannot be honestly built for this actor.
+        ConflictError: If unregistered decision bytes left for this Task bind another intent.
     """
     task_id = intent["task_id"]
     artefact_id = subject_id(ctx.project_id, task_id)
@@ -607,7 +625,20 @@ def next_command(
     if intent["action"] == REGISTER:
         if evidence is not None:
             raise IntegrityError(f"{REGISTER} takes no independent evidence")
-        document, manifest = derive(intent, events, ctx, artefact_id=artefact_id, actor_id=actor_id, recorded_at=now)
+        if ctx.objects.revision_exists(DOCUMENT_KIND, artefact_id, 1):
+            # A process that stopped after publishing the bytes, before appending the
+            # registration, left them behind. Immutable bytes cannot be replaced, so they
+            # are reused, but only if they are exactly the decision this route derives at
+            # their own causal prefix for this intent and producer.
+            document = ctx.objects.read(DOCUMENT_KIND, artefact_id, 1)
+            ctx.schemas.validate(DOCUMENT_SCHEMA_ID, document, schema_version="1.0.0")
+            if document["intent"] != intent or document["producer_actor_id"] != actor_id:
+                raise ConflictError(f"{REGISTER} already binds a different decision for Task {task_id}")
+            manifest = _rederive(document, events, ctx, artefact_id=artefact_id, actor_id=actor_id)
+        else:
+            document, manifest = derive(
+                intent, events, ctx, artefact_id=artefact_id, actor_id=actor_id, recorded_at=now
+            )
         return "RegisterArtefact", artefact_id, {"new_artefact_id": artefact_id, "manifest": manifest}, document
     registration = states["registration"]
     if registration is None:
@@ -618,7 +649,13 @@ def next_command(
             raise IntegrityError(f"{ACCEPT} review evidence fields are not exact")
         if actor_id == registration["actor_id"] or grant_id == registration["authority_grant_id"]:
             raise IntegrityError(f"{ACCEPT} requires a reviewer independent of the registering producer")
-        return "RecordScientificReview", artefact_id, _review_payload(artefact_id, digest, evidence), None
+        payload = _review_payload(artefact_id, digest, evidence)
+        # The decision's stream admits one review, so evidence that could never govern use
+        # authority must be refused before the review is recorded, not at use authority.
+        ctx.check_review_evidence(
+            registration, payload, _use_payload(artefact_id, digest, {"payload": payload}), actor_id, now
+        )
+        return "RecordScientificReview", artefact_id, payload, None
     if evidence is not None:
         raise IntegrityError(f"{ACCEPT} use authority takes no independent evidence")
     review = states["review"]
