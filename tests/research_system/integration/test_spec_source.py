@@ -172,8 +172,11 @@ def bound_source(tmp_path, monkeypatch):
     return bind_scratch_route(tmp_path, monkeypatch)
 
 
-def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=()):
-    """Bind a scratch SPEC store; extra repository files are committed with the fixture repository."""
+def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis=True):
+    """Bind a scratch SPEC store; extra repository files are committed with the fixture repository.
+
+    With ``genesis=False`` the W11 catalogue genesis is left for the public route to import.
+    """
     scratch = tmp_path / "bound"
     for relative in (
         ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
@@ -219,15 +222,16 @@ def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=()):
         coordinator.resolver,
         service,
     )
-    genesis_grant = activate_lifecycle_grant(
-        harness,
-        subject_kind="scope_definition",
-        subject_id=CATALOGUE_STREAM_ID,
-        command_types=("ImportAcceptedW11CatalogueGenesis",),
-    )
-    genesis = _genesis()
-    genesis["authority_grant_id"] = genesis_grant
-    assert coordinator._discovery().submit(genesis).status == "accepted"
+    if genesis:
+        genesis_grant = activate_lifecycle_grant(
+            harness,
+            subject_kind="scope_definition",
+            subject_id=CATALOGUE_STREAM_ID,
+            command_types=("ImportAcceptedW11CatalogueGenesis",),
+        )
+        command = _genesis()
+        command["authority_grant_id"] = genesis_grant
+        assert coordinator._discovery().submit(command).status == "accepted"
     return SimpleNamespace(fixture=fixture, coordinator=coordinator, harness=harness, config=config)
 
 
@@ -608,6 +612,18 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
         ),
         "register_project_use_decision": ("RegisterArtefact",),
         "accept_project_use_decision": ("RecordScientificReview", "SetArtefactUseAuthority"),
+        "bootstrap_genesis": ("ImportAcceptedW11CatalogueGenesis",),
+        "bootstrap_assay_authority": (
+            "RegisterAssayRubricContent",
+            "RegisterAssayEvidenceScopeContent",
+            "ObserveW11AuthorityFile",
+            "ObserveW11AuthorityFile",
+            "RequestW11AuthorityReview",
+            "RecordW11AuthorityReview",
+            "ProposeW11AuthorityDecision",
+            "ResolveDecision",
+        ),
+        "request_spec_01": ("RequestAssay",),
     }
 
     def timed_out(*args, **kwargs):

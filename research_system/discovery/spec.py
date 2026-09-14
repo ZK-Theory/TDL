@@ -13,6 +13,7 @@ from research_system.artefacts.runtime import GoverningScientificReviewStore
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.service import CommandService
+from research_system.discovery.commands import DISCOVERY_COMMAND_TYPES
 from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.discovery.spec_source import (
@@ -24,7 +25,7 @@ from research_system.discovery.spec_source import (
     source_ref,
     validate_source_refs,
 )
-from research_system.discovery import spec_result, spec_task
+from research_system.discovery import spec_assay, spec_result, spec_task
 from research_system.discovery.spec_source import DOCUMENT_KIND as SOURCE_DOCUMENT_KIND
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -41,6 +42,7 @@ ACTION_EFFECTS = {
     spec_task.ACTION: spec_task.EFFECTS,
     spec_result.REGISTER: spec_result.REGISTER_EFFECTS,
     spec_result.ACCEPT: spec_result.ACCEPT_EFFECTS,
+    **spec_assay.ACTIONS,
 }
 
 
@@ -157,6 +159,14 @@ class SpecCoordinator:
             check_review_evidence=self._check_review_evidence,
         )
 
+    def _assay_context(self) -> spec_assay.AssayContext:
+        return spec_assay.AssayContext(
+            project_id=self.binding.project_id,
+            schemas=self.schemas,
+            validator=self.resolver.validate_replayed_administration_state,
+            repository_root=self.binding.repository_root,
+        )
+
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
         """Refuse review evidence that inherited use-authority admission would later reject.
 
@@ -261,7 +271,17 @@ class SpecCoordinator:
                     except (ConflictError, IntegrityError) as exc:
                         # As for close_task, the listing must not deny the whole route.
                         actions.append({"action": action, "task_id": task_id, "unreadable": str(exc)})
+            assay_context = self._assay_context()
+            for assay_intent in spec_assay.enumerated_intents(events, assay_context):
+                try:
+                    actions.append(spec_assay.evaluate(assay_intent, events, assay_context))
+                except (ConflictError, IntegrityError) as exc:
+                    # As for close_task, the listing must not deny the whole route.
+                    actions.append({"action": assay_intent["action"], "unreadable": str(exc)})
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
+        if intent.get("action") in spec_assay.ACTIONS:
+            self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
+            return spec_assay.evaluate(intent, self.ledger.snapshot().events, self._assay_context())
         if intent.get("action") == spec_task.ACTION:
             self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
             return spec_task.evaluate(
@@ -415,6 +435,8 @@ class SpecCoordinator:
         return state
 
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
+        if intent.get("action") in spec_assay.ACTIONS:
+            return self._advance_assay(intent, evidence)
         if intent.get("action") == spec_task.ACTION:
             return self._advance_task(intent, evidence)
         if intent.get("action") in {spec_result.REGISTER, spec_result.ACCEPT}:
@@ -595,6 +617,44 @@ class SpecCoordinator:
             retry_intent=spec_task.key_intent(intent),
         )
 
+    def _advance_assay(self, intent: dict, evidence: dict | None) -> dict:
+        """Advance a W11 bootstrap or Assay action from one ledger snapshot.
+
+        State, the next command and its expected stream version all come from the same
+        snapshot. A repeated invocation of a committed effect is answered from its
+        receipt and never resubmitted, so it stays readable after its grant expires.
+        """
+        self.binding.revalidate()
+        self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
+        if evidence is not None:
+            raise IntegrityError(f"{intent['action']} takes no independent evidence")
+        snapshot = self.ledger.snapshot()
+        context = self._assay_context()
+        state = spec_assay.evaluate(intent, snapshot.events, context)
+        actor, grant = self.operator.operator_actor_id, self.operator.authority_grant_id
+        retry = spec_assay.exact_retry(intent, snapshot.events, context, actor_id=actor, grant_id=grant)
+        if retry is not None:
+            receipt = self.service.receipts.load(retry["command_id"])
+            if receipt is None or receipt.status != "accepted" or receipt.payload_hash != retry["command_payload_hash"]:
+                raise IntegrityError(
+                    f"{intent['action']} retry has no matching committed receipt: {retry['command_id']}"
+                )
+            return {**state, "receipt": asdict(receipt)}
+        if state["next_effect"] is None:
+            return state
+        effect, target, payload = spec_assay.next_command(intent, snapshot.events, context, actor_id=actor)
+        return self._submit_effect(
+            intent,
+            effect,
+            target,
+            payload,
+            actor,
+            self.clock().isoformat().replace("+00:00", "Z"),
+            intent["reason"],
+            expected_stream_version=snapshot.stream_versions.get(target, 0),
+            retry_intent=spec_assay.key_intent(intent),
+        )
+
     def _advance_project_use(self, intent: dict, evidence: dict | None) -> dict:
         """Advance a project-use action from one ledger snapshot.
 
@@ -681,7 +741,7 @@ class SpecCoordinator:
             ),
             "payload": payload,
         }
-        if effect != "IngestScoutObservationBatch":
+        if effect not in DISCOVERY_COMMAND_TYPES:
             command.update(
                 schema_id=f"ars://core/command/{effect}",
                 schema_version="1.0.0",
@@ -694,7 +754,7 @@ class SpecCoordinator:
                 project_id=self.binding.project_id,
             )
         self.binding.revalidate()
-        service = self._discovery() if effect == "IngestScoutObservationBatch" else self.service
+        service = self._discovery() if effect in DISCOVERY_COMMAND_TYPES else self.service
         if document is not None:
             service = self._command_service(document)
         receipt = service.submit(command)

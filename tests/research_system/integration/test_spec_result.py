@@ -390,6 +390,18 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
         ),
         "register_project_use_decision": ("RegisterArtefact",),
         "accept_project_use_decision": ("RecordScientificReview", "SetArtefactUseAuthority"),
+        "bootstrap_genesis": ("ImportAcceptedW11CatalogueGenesis",),
+        "bootstrap_assay_authority": (
+            "RegisterAssayRubricContent",
+            "RegisterAssayEvidenceScopeContent",
+            "ObserveW11AuthorityFile",
+            "ObserveW11AuthorityFile",
+            "RequestW11AuthorityReview",
+            "RecordW11AuthorityReview",
+            "ProposeW11AuthorityDecision",
+            "ResolveDecision",
+        ),
+        "request_spec_01": ("RequestAssay",),
     }
 
 
@@ -462,6 +474,26 @@ def _document() -> dict:
             "git_tree": "2" * 40,
         },  # fmt: skip
     }
+
+
+def test_the_decision_manifest_lists_its_sources_and_evidence_as_inputs():
+    """PR #288 known limit 9: manifest-only provenance names every input the decision cites."""
+    document = _document()
+    source = {
+        **document["sources"][0],
+        "artefact_id": "art_01978abc-9701-7000-8000-000000009701",
+        "content_sha256": "c" * 64,
+    }
+    document["sources"] = [source]
+    attempt = {
+        "dispatch_id": "dsp_01978abc-9703-7000-8000-000000009703",
+        "start": {"context_packet_id": "ctx_01978abc-9704-7000-8000-000000009704"},
+    }
+    manifest = spec_result._manifest(document, spec_result.subject_id(PROJECT_ID, c1.TASK_ID), attempt)
+    assert manifest["input_dependencies"] == [
+        {"input_artefact_id": source["artefact_id"], "input_content_sha256": "c" * 64, "dependency_role": "source"},
+        {"input_artefact_id": EVIDENCE_IDS[0], "input_content_sha256": "b" * 64, "dependency_role": "evidence"},
+    ]
 
 
 def test_project_use_intent_and_document_are_closed_records():

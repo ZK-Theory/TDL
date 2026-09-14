@@ -364,6 +364,19 @@ def derive(
     return document, _manifest(document, artefact_id, attempt)
 
 
+def _input_dependencies(document: dict[str, Any]) -> list[dict[str, str]]:
+    """Name every cited source and evidence artefact as a manifest input (PR #288 known limit 9)."""
+    return [
+        {
+            "input_artefact_id": ref["artefact_id"],
+            "input_content_sha256": ref["content_sha256"],
+            "dependency_role": role,
+        }
+        for role, refs in (("source", document["sources"]), ("evidence", document["evidence"]))
+        for ref in refs
+    ]
+
+
 def _manifest(document: dict[str, Any], artefact_id: str, attempt: dict[str, Any]) -> dict[str, Any]:
     raw = canonical_bytes(document)
     digest = sha256_hex(raw)
@@ -392,7 +405,7 @@ def _manifest(document: dict[str, Any], artefact_id: str, attempt: dict[str, Any
         "media_type": "application/json",
         "content_sha256": digest,
         "availability_check_evidence_refs": [],
-        "input_dependencies": [],
+        "input_dependencies": _input_dependencies(document),
         "research_provenance": {
             key: []
             for key in (
