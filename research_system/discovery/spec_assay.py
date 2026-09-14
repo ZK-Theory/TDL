@@ -406,15 +406,18 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
     """
     projection = _projection(events, ctx)
     bar = projection["assay_bar_authority"]
-    candidates = [
-        {"action": GENESIS, "reason": "recorded route genesis"},
-        {
-            "action": BAR,
-            "reason": "recorded route Assay bar",
-            "reviewer_actor_id": bar.get("reviewer_actor_id"),
-            "producer_actor_id": (bar.get("prospective_producer_ref") or {}).get("id"),
-        },
-    ]
+    candidates: list[dict[str, Any]] = [{"action": GENESIS, "reason": "recorded route genesis"}]
+    # A bar subject exists only once its content is registered. Until then the listing
+    # must not read the committed authority files, which a bound store need not carry.
+    if isinstance((bar.get("contents") or {}).get("rubric"), dict):
+        candidates.append(
+            {
+                "action": BAR,
+                "reason": "recorded route Assay bar",
+                "reviewer_actor_id": bar.get("reviewer_actor_id"),
+                "producer_actor_id": (bar.get("prospective_producer_ref") or {}).get("id"),
+            }
+        )
     for assay in projection["assays"].values():
         candidate_id = assay.get("candidate_id")
         if isinstance(candidate_id, str) and assay.get("assay_id") == subject_ids(
@@ -425,14 +428,17 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
             )
     intents = []
     for intent in candidates:
-        located = _located(intent, events, ctx)
-        if not located:
-            continue
-        row, transaction = located[0]
-        ids = subject_ids(ctx.project_id, intent)
         try:
-            payload = _payload(row, intent, ids, _prefix(events, transaction[0]["global_position"]), ctx)
+            located = _located(intent, events, ctx)
+            if not located:
+                continue
+            row, transaction = located[0]
+            prefix = _prefix(events, transaction[0]["global_position"])
+            payload = _payload(row, intent, subject_ids(ctx.project_id, intent), prefix, ctx)
         except ArsError:
+            # Report the subject rather than hide it or deny the whole listing: evaluating
+            # it lists the error as unreadable.
+            intents.append(intent)
             continue
         if _issued(transaction[0], intent, DISCOVERY_ROW_ROUTES[row].command_type, payload):
             intents.append(intent)
