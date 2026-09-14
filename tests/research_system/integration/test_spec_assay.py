@@ -356,3 +356,22 @@ def test_admission_accepts_the_bootstrap_role_collapses_the_route_refuses(tmp_pa
     assert _direct(bound, "RequestW11AuthorityReview", steps[4][1], request, PINNED_AUTHOR) == "accepted"
     with pytest.raises(ConflictError):
         coordinator.status(BAR_INTENT)
+
+
+def test_route_refuses_a_foreign_effect_on_a_partial_bar_before_appending(tmp_path, monkeypatch, capsys):
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=ASSAY_FILES, genesis=False)
+    coordinator = bound.coordinator
+    _advance(bound, tmp_path, capsys, GENESIS_INTENT, "ImportAcceptedW11CatalogueGenesis", CATALOGUE_STREAM_ID,
+             OWNER, human=True)  # fmt: skip
+    register_rubric, register_scope = _bar_steps()[:2]
+    _advance(bound, tmp_path, capsys, BAR_INTENT, *register_rubric)
+
+    # Admission observes the rubric before the scope is registered. Appending the scope would leave the
+    # route's own observation permanently inadmissible, so the foreign effect must conflict first.
+    observation = {"row_id": "OR-103", "authority_kind": "assay_bar"}
+    assert _direct(bound, "ObserveW11AuthorityFile", register_rubric[1], observation, RUBRIC_OBSERVER) == "accepted"
+    with pytest.raises(ConflictError, match="did not issue"):
+        coordinator.status(BAR_INTENT)
+    command_type, subject, actor, human = register_scope
+    grant = _grant(bound, command_type, subject, actor, human=human)
+    assert "did not issue" in _refuse(bound, tmp_path, capsys, BAR_INTENT, grant, actor)

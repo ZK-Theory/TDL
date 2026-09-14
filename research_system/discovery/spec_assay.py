@@ -307,7 +307,9 @@ def evaluate(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> d
         if not _issued(first, intent, effect, _payload(row, intent, ids, prefix, ctx)):
             raise ConflictError(f"{action} found {first['event_type']} on its stream that this route did not issue")
         _check_relation(row, prefix, ctx, actor_id=first["actor_id"])
-    if action in _EXCLUSIVE_ACTIONS and len(located) == len(ROWS[action]):
+    # Scan even while the action is partial: an effect this route did not issue can land on a stream
+    # before the route reaches it, and appending past it can leave a later route effect inadmissible.
+    if action in _EXCLUSIVE_ACTIONS:
         owned = {_stream(row, ids, ctx) for row in ROWS[action]}
         issued = {event["event_id"] for _, transaction in located for event in transaction}
         for event in events:
