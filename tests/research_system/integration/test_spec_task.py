@@ -1385,12 +1385,13 @@ def test_an_empty_criterion_task_is_refused_before_submission():
     ids = spec_task.subject_ids(close_task_intent())
     attempt = {"task_id": TASK_ID, "status": "completed", "outcome": {"candidate_artefact_ids": []}}
     empty = {TASK_ID: {"definition": {"acceptance_criteria": []}}, ATTEMPT_ID: attempt}
+    # The Attempt names no candidates, so no registration events are needed.
     with pytest.raises(IntegrityError, match="no acceptance criteria"):
-        spec_task._submit_payload(ids, empty)
+        spec_task._submit_payload(ids, empty, [])
     with pytest.raises(IntegrityError, match="no acceptance criteria"):
-        spec_task._check_closable(ids, empty)
+        spec_task._check_closable(ids, empty, [])
     real = {TASK_ID: {"definition": {"acceptance_criteria": ["bounded contract satisfied"]}}, ATTEMPT_ID: attempt}
-    assert spec_task._submit_payload(ids, real)["attempt_outcome"] == "completed"
+    assert spec_task._submit_payload(ids, real, [])["attempt_outcome"] == "completed"
 
 
 def test_a_retry_after_another_operator_committed_the_next_effect_reads_its_receipt(bound_task, tmp_path, capsys):
