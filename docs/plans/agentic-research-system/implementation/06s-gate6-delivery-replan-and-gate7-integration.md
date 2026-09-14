@@ -384,6 +384,14 @@ table:
   The owner's own invocation supplies the selected option. The pinned
   authority-content identity is decided at Phase 5 prep. The fixed OR-106 review
   context and the OR-006 caller strings are known limits.
+- **Delivery (design accepted; P-058).** 4a ships as two PRs.
+  - **4a-1:** genesis, the Assay bar and the Assay request, plus the intent record
+    and the PR #288 known limit 9 fix.
+  - **4a-2:** the brief, the return, the review and the decision, through to an
+    accepted project-use result.
+
+  The operator return binds its content inline. The prospective producer relation is
+  actor-only, a known limit.
 
 ### Phase 5 — Owner-gated live proof and closure
 

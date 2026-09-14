@@ -1527,6 +1527,22 @@ Stephen decided:
   - the OR-006 context-manifest hash, trace refs and independence grade are
     unchecked caller strings.
 
+**Design acceptance (2026-09-14):** Stephen accepted the Phase 4a design
+recommendations.
+- **Inline operator return.** The operator return record carries the operator's
+  scorecard and closed string lists inline, not separately registered artefacts. The
+  accepted Task's evidence stays bound at result time through the ProjectUseDecision.
+- **Two PRs for 4a.**
+  - 4a-1: `bootstrap_genesis`, `bootstrap_assay_authority` and `request_spec_01`,
+    with the closed `spec-assay-intent` record and the PR #288 known limit 9 fix.
+  - 4a-2: `prepare_spec_01`, `return_spec_01_complete`, `review_spec_01_complete`
+    and `decide_spec_01`, with both operator records and the positive path to an
+    accepted project-use result.
+- **Producer relation, a known limit (D5).** The route derives the prospective
+  producer relation's hash from the producer actor and the route identity. W11
+  §4.3's profile, context and grant references are not modelled by the inherited
+  runtime.
+
 ## Decision protocol
 
 Each future decision entry must record:
