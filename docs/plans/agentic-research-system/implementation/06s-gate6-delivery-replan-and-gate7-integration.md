@@ -293,6 +293,46 @@ and closure inferred only from attempt completion, lease release or result prese
 
 ### Phase 3 — Accepted project-use result on the same route — KAN-108
 
+**Status (2026-09-14): COMPLETE / INTEGRATED.** PR #288
+(`e3abd5075043ca3d8dcf4110a8606be604d1854e`) is merged to `main` at
+`3f3de7b5cf9a743b1fe920324e2d73a91479eae7`, under decision P-057.
+
+What is now integrated:
+- **Actions.** `register_project_use_decision` (RegisterArtefact) and
+  `accept_project_use_decision` (RecordScientificReview →
+  SetArtefactUseAuthority) extend the action table.
+- **Result.** `ars discovery spec result` renders the Task-specific JSON and
+  Markdown result, and it stays pending until registration and independent
+  acceptance both exist.
+- **ProjectUseDecision 1.0.0** is derived from the ledger and verified by
+  re-deriving it at its causal prefix. Only route-issued evidence counts.
+- **Inputs.** Cited SOURCE bytes are verified. A correction counts only while
+  its current use authority is accepted. Review evidence must satisfy the
+  inherited governing-review rule before the review is recorded.
+- **Accept-all Task selection** refuses candidates that are unregistered or
+  share identical content.
+
+The focused packet passed:
+- Phase 3 `test_spec_result.py`: 9/9.
+- The CI currency pytest list: 46/46.
+- Phase 1 SOURCE and operator config: 22 passed, 1 documented skip.
+- Phase 2 `test_spec_task.py`: 42/42.
+
+Five mutation controls proved decisive, and mandatory hooks and CI passed.
+There were two review rounds. Round 1 had 1 CodeRabbit and 5 Codex findings,
+all fixed in `e3abd507`. Round 2 had 2 Codex findings: Stephen declined one
+and recorded the other as a known limit, with no push. All 8 threads are
+resolved. Known limits 1–9 are recorded on PR #288 and KAN-108. The notable
+ones are:
+- the re-derivation cost;
+- identical-content candidates cannot be submitted;
+- the Spike and correction branches are tested at function level only;
+- manifest `input_dependencies` is empty.
+
+This closes KAN-108 as a typed milestone only. Gate 6 remains INCOMPLETE
+pending Phases 4–5 and final owner closure. The Phase 4 handoff is
+`handoffs/01M2FWVVXP9RG0M171P8XCYT8A-wp6-phase4-assembly-handoff.md`.
+
 **Exit:** registration and independent acceptance produce the Task-specific
 JSON/Markdown result through the CLI. Extend the same table/evaluator, not a
 parallel model.
@@ -519,11 +559,12 @@ From the named worktree, with PYTHONDONTWRITEBYTECODE=1, the exact command was:
 C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p no:cacheprovider -v --tb=short --junitxml=C:/Users/steph/.codex/tmp/gate6-06s-phase0-20260905/store-packet-repair-20260908.xml tests/research_system/unit/test_spec_operator_config.py tests/research_system/integration/test_store_binding_cli.py tests/research_system/integration/test_store_binding_public_contract.py tests/research_system/integration/test_store_binding_service.py tests/research_system/integration/test_current_binding.py tests/research_system/integration/test_wp64_create_backup.py::test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic_submit tests/research_system/integration/test_wp64_create_backup.py::test_store_verify_restore_appends_evidence_without_cutover_and_replays
 ```
 
-**Capability status:** INCOMPLETE — the inherited STORE path, Phase 1 SOURCE
-and Phase 2 AUTHORITY/TASK are integrated and verified; Phases 3–5 and final
-Gate 6 closure remain. PR #282 is merged at
-`3ce730d94402781767e7602660506e4b06cf8d68` and PR #286 at
-`bed57bf8960046462e654d24bec7eedea3a516c7`; this does not open Gate 7 or
+**Capability status:** INCOMPLETE — the inherited STORE path, Phase 1 SOURCE,
+Phase 2 AUTHORITY/TASK and Phase 3 RESULT are integrated and verified; Phases
+4–5 and final Gate 6 closure remain. PR #282 is merged at
+`3ce730d94402781767e7602660506e4b06cf8d68`, PR #286 at
+`bed57bf8960046462e654d24bec7eedea3a516c7` and PR #288 at
+`3f3de7b5cf9a743b1fe920324e2d73a91479eae7`; this does not open Gate 7 or
 authorize live/provider/paid work.
 
 **Documentation checks:** the initial Phase 0 documentation PR contains the
@@ -545,3 +586,13 @@ limits recorded; KAN-108 now names the Phase 3 handoff as its next production
 action; KAN-103 and KAN-12 record Phase 2 as integrated and remain open. Each
 changed issue was read back. Dependency-link sets remain unchanged. Phase 3
 RESULT (KAN-108) is the next dispatchable production action.
+
+**Phase 3 reconciliation (2026-09-14):** PR #288 merged at `3f3de7b5`.
+- **KAN-108** is now a verified MILESTONE and is Done. Its known limits 1–9 are
+  recorded.
+- **KAN-109** names the Phase 4 handoff as its next production action. The first
+  step of that handoff is an owner scope decision on the remaining action list.
+- **KAN-103 and KAN-12** record Phase 3 as integrated and remain open.
+
+Each changed issue was read back, and dependency-link sets remain unchanged.
+Phase 4 (KAN-109) is the next dispatchable production action.
