@@ -1393,6 +1393,43 @@ requirements back to Gate 6.<br>
 **Supersedes:** Mandatory fresh full 126/42 computation and mandatory fresh live
 SPEC-02 for Gate 6 closure; no successor decision.
 
+### P-057 — [DECISION] 06s C2: the historical SPEC run stays historical; Gate 6 closes on the fresh route
+
+**Date/status:** 2026-09-14; accepted by Stephen.<br>
+**Decision:** Historical run 01M0454KCTYV0E8PB016CP3F6J remains historical evidence
+under P-050: its PARK disposition, the tracked hash-verified evidence manifest and
+anchors 432/433/444. Gate 6 no longer requires closing historical Task
+tsk_60c5549e-d11f-7d17-8145-d80e144aa537, registering a historical
+ProjectUseDecision, or replaying the historical control-store ledger under
+integrated code. Gate 6 closes on the fresh owner-approved bounded run (D6), whose
+Task, ProjectUseDecision, replay and governed restore all use the integrated route.<br>
+ProjectUseDecision references are derived from the ledger only. The Candidate is
+the one the accepted Task's definition names in `portfolio_refs`. The Assay, Spike
+and terminal owner Decision come from that Candidate. Sources are the Phase 1 SOURCE
+registrations its observation batch cites, plus accepted corrections of them.
+Evidence is exactly the artefacts the accepted Task selected. The governed-code
+subject is the latest store-binding event. The caller supplies only the disposition,
+rationale, limitations, next gates and D6 subset qualification.<br>
+Phase 3 also delivers accept-all Task artefact selection. `close_task` accepts a
+candidate-bearing Attempt when every candidate is a registered artefact. Submission
+hashes derive from those registrations, and AcceptTask selects exactly all
+submitted candidates. There is no subset choice and no intent change.<br>
+**Rationale/evidence:** Stephen authorised a read-only extraction on 2026-09-14.
+The store fingerprint was unchanged, and the identity manifest, anchors and all
+seven artefact hashes were verified. The historical ledger fails bed57bf8 replay at
+position 147: 91 events use six command schemas that existed only on the unmerged
+PR #258 branch and are absent from the current catalogue. Schema-identity history
+cannot alias a schema with no active successor. The historical Task stopped at
+TaskClaimStarted with a five-candidate Attempt. The Candidate cites only external
+URLs. Making that history replayable and closable means porting the retired
+machinery 06s excludes.<br>
+**Affected specifications:** 06s §1, §4 items 4–6, Phase 3 and Phase 5; KAN-103, KAN-108.<br>
+**Migration consequence:** None. No historical bytes, events or schemas change, and
+P-050 stands.<br>
+**Supersedes:** 06s §4's historical Task/ProjectUseDecision closure and
+historical-replay requirements. PR #286 known limit 5 is superseded once Phase 3
+delivers accept-all selection. No successor decision.
+
 ## Decision protocol
 
 Each future decision entry must record:

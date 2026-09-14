@@ -33,9 +33,10 @@ Current Jira descriptions must be reconciled from live reads, not this snapshot.
 
 Historical evidence records 126 configurations, 42 deterministic reruns, terminal
 PROVEN/spec_02_owner_decided and research-use disposition PARK. Position 444 is the
-historical ResourcesReleased anchor, not the current ledger tail. Historical Task
-tsk_60c5549e-d11f-7d17-8145-d80e144aa537 still requires governed append-only closure
-and an accepted ProjectUseDecision. Phase 0 does not read or mutate the live store.
+historical ResourcesReleased anchor, not the current ledger tail. Under P-057
+(2026-09-14), historical Task tsk_60c5549e-d11f-7d17-8145-d80e144aa537 and its evidence
+stay historical. Gate 6 requires no historical closure, historical ProjectUseDecision
+or historical-ledger replay. Phase 0 does not read or mutate the live store.
 
 ## 2. Delivery correction
 
@@ -113,13 +114,18 @@ bounded real run:
    registered append-only; correction follows D4.
 3. Effects retain actor/authority provenance; independent review and owner-only
    decisions cannot be supplied by the wrong actor.
-4. Historical and fresh Tasks close only through SubmitForReview then AcceptTask.
-5. Both Tasks have registered, independently accepted ProjectUseDecision records
-   and JSON/Markdown results isolated by --task-id. A legitimate PARK/no_spike
+4. The fresh Task closes only through SubmitForReview then AcceptTask.
+5. The fresh Task has a registered, independently accepted ProjectUseDecision and
+   JSON/Markdown results isolated by --task-id. A legitimate PARK/no_spike
    fresh result is admissible under D6 and cannot imply empirical adoption.
-6. Both histories replay from a fresh process. Governed backup restores to a fresh
+6. The fresh history replays from a fresh process. Governed backup restores to a fresh
    root with matching identity, ledger, artefacts and bytes/hashes. This is
    same-disk logical recovery, not machine-loss resilience.
+
+**Amended by P-057 (2026-09-14).** The historical run 01M0454KCTYV0E8PB016CP3F6J
+stays historical evidence under P-050, backed by its tracked hash-verified manifest.
+Its Task, a historical ProjectUseDecision and replay of the historical ledger are
+not closure requirements.
 7. Independent final evidence review, Stephen's recorded closure, final
    documentation/Jira reconciliation and replay after the final docs PR merges.
 
@@ -285,6 +291,22 @@ Task, governed-code subject, disposition retain_experimental_benchmark/adopt_def
 reject, rationale, limitations and next gates. Include D6's subset qualification.
 Preserve the historical PARK restriction.
 
+**Amended by P-057 (2026-09-14).** Every reference is derived from the ledger:
+- The Candidate is the one named in the accepted Task's definition `portfolio_refs`.
+- The Assay, Spike and terminal owner Decision come from that Candidate.
+- The sources are the Phase 1 SOURCE registrations cited by the Candidate's
+  observation batch, plus accepted corrections of them.
+- The evidence is exactly the artefacts the accepted Task selected.
+- The governed-code subject is the latest store-binding event.
+
+The caller supplies only the disposition, rationale, limitations, next gates, the D6
+subset qualification and, when no Spike exists, a no_spike reason.
+
+Phase 3 also delivers accept-all Task artefact selection. `close_task` accepts a
+candidate-bearing Attempt only when every candidate is a registered artefact, and
+AcceptTask selects exactly the submitted candidates. Historical and fresh isolation
+is tested as two-Task isolation on scratch stores.
+
 ars discovery spec result --operator-config … --task-id … --format json|markdown
 remains pending until registration and independent acceptance both exist.
 
@@ -325,17 +347,17 @@ perform only that action and verify its durable result.
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
    Use the inherited reviewed-divergence successor for the legacy predecessor;
    do not redesign admission.
-2. **Historical closure:** append SubmitForReview → AcceptTask for
-   tsk_60c5549e-d11f-7d17-8145-d80e144aa537; register its P-050 ProjectUseDecision
-   and obtain independent exact-subject acceptance. Preserve historical provenance.
+2. **Historical record (amended by P-057):** there is no historical Task closure,
+   no historical ProjectUseDecision and no historical-ledger replay. Preserve the
+   P-050 record and its tracked hash-verified evidence manifest unchanged.
 3. **Fresh bounded run:** owner-approved exact subset and cost ceiling; real
    Damrich–Berens–Kobak source at neurips2024, new IDs, distinct recorded actors.
    A legitimate terminal PARK/no_spike is sufficient under D6. Fresh SPEC-02
    runs only if justified by valid promotion and separately approved. A production
    defect stops the paid run; no automatic rerun.
 4. **Fresh closure and readback:** accept the Task and ProjectUseDecision; render
-   historical/fresh JSON and Markdown after replay from a fresh process; verify
-   position-444 historical anchor, Task isolation and PARK limitation language.
+   fresh JSON and Markdown after replay from a fresh process; verify Task isolation
+   and PARK limitation language (historical readback removed by P-057).
 5. **Governed recovery:** backup under C:/Users/steph/TDL-ARS-WP64-Backups and
    restore to a fresh root under
    C:/Users/steph/TDL-ARS-WP64-Restore-Verification. Compare identity, ledger,
