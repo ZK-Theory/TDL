@@ -674,6 +674,11 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     scorecard = spec_assay._scorecard(subjects, projection, projection["candidates"][other],
                                       projection["assays"][other_assay], RETURN_EVIDENCE,
                                       coordinator._assay_context())  # fmt: skip
+    # The mechanical recommendation is the one the inherited scorecard rule admits: a failed gate is KILL.
+    failing = {**RETURN_EVIDENCE, "axis_results": [{**RETURN_EVIDENCE["axis_results"][0], "value": False}]}
+    killed = spec_assay._scorecard(subjects, projection, projection["candidates"][other],
+                                   projection["assays"][other_assay], failing, coordinator._assay_context())  # fmt: skip
+    assert (scorecard["mechanical_recommendation"], killed["mechanical_recommendation"]) == ("PROMOTE", "KILL")
     digest = sha256_hex(canonical_bytes(scorecard))
     score = {**subjects, "row_id": "OR-004", "scorecard_sha256": digest, "scorecard_artifact": scorecard,
              "producer_relation_sha256": bar["producer_relation_sha256"]}  # fmt: skip
