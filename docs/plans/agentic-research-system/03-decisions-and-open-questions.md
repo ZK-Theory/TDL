@@ -1572,6 +1572,28 @@ the 4a-2 design pass at `52c2ce42`, after PR #290 merged.
   - **Phase 5 prep now decides both** the replacement Assay authority content, which
     must express SPEC-01's axes, and the identity that signs it.
 
+**4a-2 review decisions (2026-09-15):** Codex reviewed PR #291 at `3d1bf07b`. Stephen
+chose the recommended option for two of its findings.
+- **The Assay producer re-supplies the operator return.**
+  - **The problem:** 06q assigns `return_spec_01_complete` to the Assay producer.
+    Inherited admission, however, keeps `RegisterArtefact` owner-only
+    (`tests/research_system/integration/test_spec_result.py:794-797`). So the owner's
+    invocation supplied the return's content, while the scorecard is attributed to
+    the producer.
+  - **The decision:** the owner still registers the bytes. The producer's own OR-004
+    invocation must carry the exact operator return that was registered, or it is
+    refused before anything is appended.
+  - **Known limit:** four of the return's fields are not in the scorecard: direct
+    sources, findings, validation and unresolved findings. They are checked at the
+    producer's submission, but the OR-004 event does not record them.
+- **No non-approving outcome review.**
+  - **The basis:** 06q defines `review_spec_01_complete` as recording a satisfying
+    verdict, and D1's list has no action for any other verdict. The route keeps
+    `approve` fixed.
+  - **Consequence:** a reviewer who does not approve does not invoke the action. The
+    review stays pending and `decide_spec_01` stays refused.
+  - **Known limit:** nothing durably records a negative review.
+
 ## Decision protocol
 
 Each future decision entry must record:

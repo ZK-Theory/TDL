@@ -437,6 +437,9 @@ table:
     the ledger: the Task naming the Candidate and its started Attempt.
   - The scorecard is derived from the accepted bar. The committed bar is W11 fixture
     content, a known limit until Phase 5 prep replaces it.
+  - From the PR #291 review: the Assay producer's own OR-004 invocation must carry
+    the exact registered operator return. The route records only an approving outcome
+    review; a non-approving review cannot be recorded, a known limit.
 
 ### Phase 5 — Owner-gated live proof and closure
 
