@@ -650,8 +650,10 @@ class SpecCoordinator:
 
         State, the next command and its expected stream version all come from the same
         snapshot. A repeated invocation of a committed effect is answered from its
-        receipt and never resubmitted, so it stays readable after its grant expires. The
-        operator records publish their bytes inside the registration's admission lock.
+        receipt and never resubmitted, so it stays readable after its grant expires. Any
+        other invocation of a completed action conflicts without publication, including
+        one that carries changed evidence. The operator records publish their bytes inside
+        the registration's admission lock.
         """
         self.binding.revalidate()
         self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
@@ -668,7 +670,7 @@ class SpecCoordinator:
                 )
             return {**state, "receipt": asdict(receipt)}
         if state["next_effect"] is None:
-            return state
+            raise ConflictError(f"{intent['action']} is already completed; this invocation repeats no committed effect")
         now = self.clock().isoformat().replace("+00:00", "Z")
         effect, target, payload, document = spec_assay.next_command(
             intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant, now=now

@@ -519,7 +519,8 @@ def test_public_spec_01_path_reaches_an_accepted_project_use_result(tmp_path, mo
     tail = _tail(coordinator)
     retried = _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=RETURN_EVIDENCE)
     assert retried["receipt"] == registered["receipt"] and _tail(coordinator) == tail
-    scored = _run(bound, tmp_path, capsys, return_intent, "RecordAssayScore", candidate_id, PRODUCER)
+    scored = _run(bound, tmp_path, capsys, return_intent, "RecordAssayScore", candidate_id, PRODUCER,
+                  evidence=RETURN_EVIDENCE)  # fmt: skip
     assert scored["state"] == "completed"
     returned = coordinator.objects.read(spec_assay.RETURN_KIND, ids["return_id"], 1)
     assert returned["brief"]["artefact_id"] == ids["brief_id"] and returned["task"] == brief["task"]
@@ -630,7 +631,16 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
         assert reason in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=evidence,
                                  refused=True)  # fmt: skip
     _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=RETURN_EVIDENCE)
-    _run(bound, tmp_path, capsys, return_intent, "RecordAssayScore", candidate_id, PRODUCER)
+    # The Assay producer's own invocation must carry the exact return it scores; the owner registered the bytes.
+    other_return = {**RETURN_EVIDENCE, "findings": ["A finding the operator did not return."]}
+    score_grant = _grant(bound, "RecordAssayScore", candidate_id, PRODUCER)
+    for evidence, reason in ((None, "evidence fields are not exact"), (other_return, "exact operator return")):
+        assert reason in _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER, evidence=evidence,
+                                 refused=True)  # fmt: skip
+    _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER, evidence=RETURN_EVIDENCE)
+    # A completed action conflicts on any invocation that repeats no committed effect, such as changed evidence.
+    assert "already completed" in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER,
+                                          evidence=other_return, refused=True)  # fmt: skip
 
     review_intent = spec_01_intent(spec_assay.REVIEW, candidate_id)
     for actor, human in ((PRODUCER, False), (OWNER, True)):
@@ -682,6 +692,7 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     digest = sha256_hex(canonical_bytes(scorecard))
     score = {**subjects, "row_id": "OR-004", "scorecard_sha256": digest, "scorecard_artifact": scorecard,
              "producer_relation_sha256": bar["producer_relation_sha256"]}  # fmt: skip
+    # Admission records the producer's score, which carries no operator return.
     assert _direct(bound, "RecordAssayScore", other_assay, score, PRODUCER) == "accepted"
     contract = {
         "review_type": "provenance",
@@ -820,3 +831,34 @@ def test_operator_record_bytes_are_reused_only_when_they_rederive(tmp_path, monk
     assert task.seeding.submit(command).status == "accepted"
     with pytest.raises(ConflictError, match="did not issue"):
         coordinator.status(spec_01_intent(spec_assay.PREPARE, foreign_candidate))
+
+
+def test_orphaned_record_bytes_are_refused_once_their_prerequisites_lapse(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    context = coordinator._assay_context()
+
+    # A process published the brief's exact bytes while the Assay was collecting evidence, then stopped.
+    orphan = spec_assay._build(spec_assay._BRIEF, ids, coordinator.ledger.snapshot().events, context, actor_id=OWNER,
+                               recorded_at="2026-09-10T00:00:00Z", evidence=None)  # fmt: skip
+    coordinator.objects.write(spec_assay.BRIEF_KIND, ids["brief_id"], 1, orphan)
+
+    # The Assay is then scored through inherited admission, so no brief may be issued for it any more.
+    projection = _replay(coordinator)
+    subjects = {"candidate_id": candidate_id, "assay_id": ids["assay_id"]}
+    scorecard = spec_assay._scorecard(subjects, projection, projection["candidates"][candidate_id],
+                                      projection["assays"][ids["assay_id"]], RETURN_EVIDENCE, context)  # fmt: skip
+    score = {**subjects, "row_id": "OR-004", "scorecard_sha256": sha256_hex(canonical_bytes(scorecard)),
+             "scorecard_artifact": scorecard,
+             "producer_relation_sha256": projection["assay_bar_authority"]["producer_relation_sha256"]}  # fmt: skip
+    assert _direct(bound, "RecordAssayScore", ids["assay_id"], score, PRODUCER) == "accepted"
+
+    # The orphan still re-derives at its own causal prefix, but it is not registered out of order.
+    prepare_intent = spec_01_intent(spec_assay.PREPARE, candidate_id)
+    brief_grant = _grant(bound, "RegisterArtefact", ids["brief_id"], OWNER, human=True)
+    assert "still collecting evidence" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER,
+                                                  refused=True)  # fmt: skip
+    assert coordinator.status(prepare_intent)["state"] == "not_started"

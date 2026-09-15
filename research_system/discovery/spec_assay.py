@@ -9,6 +9,7 @@ mutation:
 - genesis is imported by the authority owner;
 - the Assay-bar review requester is not an author of the committed content;
 - the Assay requester is neither the prospective producer nor the owner;
+- the Assay producer's own invocation carries the operator return it scores;
 - the outcome-review requester is neither the producer nor the owner;
 - the outcome reviewer is not the owner;
 - the promotion proposer is not the producer, the reviewer or the owner;
@@ -113,20 +114,25 @@ _OWNED_ROWS = {
     DECIDE: ("OR-012",),
 }
 _SPEC_01_ACTIONS = frozenset({REQUEST, PREPARE, RETURN, REVIEW, DECIDE})
+_OPERATOR_RETURN = frozenset(
+    {
+        "axis_results",
+        "prohibited_inferences",
+        "review_requirements",
+        "direct_sources",
+        "findings",
+        "validation",
+        "unresolved_findings",
+        "limitations",
+    }
+)
 # The evidence each effect takes from its caller; every other field is derived.
 _EVIDENCE = {
-    _RETURN: frozenset(
-        {
-            "axis_results",
-            "prohibited_inferences",
-            "review_requirements",
-            "direct_sources",
-            "findings",
-            "validation",
-            "unresolved_findings",
-            "limitations",
-        }
-    ),
+    _RETURN: _OPERATOR_RETURN,
+    # Admission keeps registration owner-only, so the Assay producer's own invocation re-supplies the
+    # return it scores (PR #291 review). Known limit: the fields the scorecard does not carry are
+    # checked at that submission but not recorded in the OR-004 event.
+    "OR-004": _OPERATOR_RETURN,
     "OR-006": frozenset(
         {
             "reviewer_profile",
@@ -759,6 +765,8 @@ def _payload(
     subject = {"candidate_id": ids["candidate_id"], "assay_id": ids["assay_id"]}
     if row == "OR-004":
         document = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
+        if evidence != document["operator_return"]:
+            raise IntegrityError(f"{RETURN} Assay producer must supply the exact operator return that was registered")
         _, _, assay = _subjects(ids, events, ctx)
         return {
             "row_id": "OR-004",
@@ -969,8 +977,12 @@ def _check_evidence(row: str, evidence: dict | None) -> None:
         raise IntegrityError(f"{_command_type(row)} evidence fields are not exact: expected {sorted(required)}")
 
 
-def _recorded_evidence(row: str, event: dict) -> dict | None:
-    """Recover the caller evidence an OR row recorded, from the event that records it."""
+def _recorded_evidence(
+    row: str, event: dict, ids: dict[str, str], prefix: list[dict], ctx: AssayContext
+) -> dict | None:
+    """Recover the caller evidence an OR row carried, from its event or, for OR-004, the registered return."""
+    if row == "OR-004":
+        return _read_document(_RETURN, _one(prefix, ids["return_id"], "ArtefactRegistered"), ctx)["operator_return"]
     if row not in {"OR-006", "OR-013"}:
         return None
     payload = event.get("payload") or {}
@@ -1054,7 +1066,7 @@ def _verify_effect(
             ctx,
             actor_id=first["actor_id"],
             grant_id=first["authority_grant_id"],
-            evidence=_recorded_evidence(row, first),
+            evidence=_recorded_evidence(row, first, ids, prefix, ctx),
         )
         if not _issued(first, intent, _command_type(row), payload):
             raise foreign
@@ -1155,7 +1167,9 @@ def next_command(
     else:
         # A process that stopped after publishing the bytes, before appending the registration,
         # left them behind. Immutable bytes cannot be replaced, so they are reused only if they are
-        # exactly the record this route derives at their own causal prefix for this invocation.
+        # exactly the record this route derives at their own causal prefix for this invocation, and
+        # only while the record's prerequisites still hold on the current ledger.
+        _build(row, ids, events, ctx, actor_id=actor_id, recorded_at=now, evidence=evidence)
         position = orphan["causal_prefix"]["global_position"]
         expected = _build(
             row,
@@ -1281,15 +1295,16 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
             if row in _ARTEFACT_ROWS:
                 issued = _issued_registration(first, intent)
             else:
+                ids, prefix = subject_ids(ctx.project_id, intent), _prefix(events, first["global_position"])
                 payload = _payload(
                     row,
                     intent,
-                    subject_ids(ctx.project_id, intent),
-                    _prefix(events, first["global_position"]),
+                    ids,
+                    prefix,
                     ctx,
                     actor_id=first["actor_id"],
                     grant_id=first["authority_grant_id"],
-                    evidence=_recorded_evidence(row, first),
+                    evidence=_recorded_evidence(row, first, ids, prefix, ctx),
                 )
                 issued = _issued(first, intent, _command_type(row), payload)
         except (ArsError, KeyError, TypeError):
