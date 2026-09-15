@@ -1431,6 +1431,118 @@ P-050 stands.<br>
 historical-replay requirements. PR #286 known limit 5 is superseded once Phase 3
 delivers accept-all selection. No successor decision.
 
+### P-058 — [DECISION] 06s Phase 4 scope: a fresh store, the required action subset and its delivery split
+
+**Date/status:** 2026-09-14; accepted by Stephen.<br>
+**Decision:** This records D1's required list for Phase 4. Of 06q §4 Step 5's 30
+actions, four are delivered: `observe_source`, `correct_spec_01_source`,
+`register_project_use_decision` and `accept_project_use_decision`. Phase 2's
+`close_task` is not one of the 30, so 26 remain.
+- **Fresh store.** The Phase 5 fresh bounded run uses a fresh control store. The live
+  store `C:/Users/steph/TDL-ARS-WP64-Control` is not appended to, and it stays
+  historical evidence under P-050 and P-057. Because of this, `bootstrap_genesis`
+  (OR-140) and `bootstrap_assay_authority` (OR-101–108) are required route actions.
+- **4a** covers the minimum the Phase 5 PARK/no_spike run needs:
+  `bootstrap_genesis`, `bootstrap_assay_authority`, `request_spec_01`,
+  `prepare_spec_01`, `return_spec_01_complete`, `review_spec_01_complete` and
+  `decide_spec_01`. It also carries the fix for PR #288 known limit 9.
+- **4a′** covers `return_spec_01_partial` and `review_spec_01_partial`, so a real
+  Partial outcome is not a dead end. It may be folded into 4a.
+- **4b** is scratch only: `request_spec_01_revisit`, `authorize_spec_01_retry`,
+  `request_spec_01_retry`, `approve_spec_02`, `prepare_spec_02`, `start_spec_02`,
+  `return_spec_02_complete`/`_partial`, `review_spec_02_complete`/`_partial` and
+  `decide_spec_02`.
+- **4c** is the assembled exact-main selection and independent boundary review.
+- **Removed from the required list:**
+  - `bootstrap_dossier_authority`, `bootstrap_path_authority` and `admit_dossier`;
+  - `register_`, `review_` and `accept_spec_01_brief_inputs`, with the
+    `spec_01_brief_input_set` record.
+- **Records kept** (closed under D3): `spec-operator-brief-package`,
+  `spec-operator-return` (the `return_*` actions register operator-supplied bytes)
+  and `spec-02-live-run-approval`.
+- **Scratch revisit proof** starts from a Partial Assay, with no runtime change (D5).
+  4b first runs a scratch reproducer of revisit after a scored-Assay PARK; if the
+  refusal is confirmed, it is recorded as a known limit.
+- **SPEC-02 on scratch.** `start_spec_02` first tries to seed the running attempt,
+  lease and resource grant that OR-017 requires through the existing operational
+  fixture, as Phases 2–3 seed Tasks. If that is insufficient, the executor returns to
+  Stephen before adding anything.
+- **Scope checkpoint.** The §5.0 checkpoint applies to each sub-phase.<br>
+**Rationale/evidence:** This comes from the Phase 4 scope table, read statically at
+`3f3de7b5` before construction.
+- `DiscoveryRuntime` refuses to prepare a command when the persisted ledger fails
+  replay (`research_system/discovery/runtime.py:476-484`). P-057's extraction found
+  the live ledger fails replay at position 147.
+- No SPEC-01/02 row reads dossier expected-set or path-registration authority; only
+  dossier admission does (`runtime.py:1361-1362`). No W11 row consumes the
+  brief-input set.
+- The revisit relation requires non-empty `revisit_requirements`
+  (`rules.py:307-310`). Replay sets that field only for Partial and cancelled Assays
+  and for Spikes (`replay/assay.py:211,281`, `replay/spike.py:376`), so a scored-Assay
+  PARK appears unrevisitable. The existing revisit test uses a Partial Assay.<br>
+**Affected specifications:** 06s D1 (its required list), Phase 4, and Phase 5 steps 1,
+3 and 5; 06q §4 Step 5 (inventory only); KAN-109.<br>
+**Migration consequence:** None. No historical bytes, events or schemas change, and the
+live store is not read or mutated.<br>
+**Supersedes:** 06s Phase 4's implied use of the complete 06q inventory, and its
+unqualified "after PARK" revisit path for the scratch proof. No successor decision.<br>
+**Amendment (2026-09-14, measured admission):** paired scratch-store probes at
+`3f3de7b5` changed only the actor at an identical state.
+- **Inherited admission enforces:**
+  - author versus observer (OR-103/104);
+  - reviewer versus author, requester and producer (OR-105/106, OR-006);
+  - proposer versus reviewer (OR-107);
+  - recorder equals producer (OR-004);
+  - owner-only decisions (OR-108, OR-013).
+- **It accepts:**
+  - OR-140 genesis from any grant holder;
+  - an OR-105 review requested by the rubric author;
+  - an OR-003 Assay requested by the prospective producer, a non-owner human or the
+    owner;
+  - an OR-034 review requested by the producer or the future reviewer;
+  - an OR-006 review recorded by the owner or a non-owner human;
+  - an OR-012 proposal from the producer, the reviewer or the owner.
+
+Stephen decided:
+- **Route bindings.** The route refuses each of those through relations derived from
+  the ledger, with no declared role, and `SpecOperatorConfig@1.0.0` is unchanged:
+  - the genesis actor is the authority owner;
+  - the OR-105 requester is not a content author;
+  - the OR-003 requester is neither the prospective producer nor the owner;
+  - the OR-034 requester is neither the producer nor the owner;
+  - the OR-006 reviewer is not the owner;
+  - the OR-012 proposer is not the producer, the reviewer or the owner;
+  - the OR-013 selected option comes from the owner's own invocation.
+
+  Each refusal ships a decisive control showing that admission would accept the
+  input.
+- **Pinned author identity.** Both committed Assay authority content files pin
+  `created_by_actor_id` to the W11 test identity
+  `act_019fed25-b33e-7740-b280-000000000205`, and admission requires it as the
+  submitter. Which identity signs that content on the fresh store is decided at
+  Phase 5 prep.
+- **Known limits, with no change under D5:**
+  - the OR-106 review context is fixed runtime literals
+    (`research_system/discovery/runtime.py:1126-1166`);
+  - the OR-006 context-manifest hash, trace refs and independence grade are
+    unchecked caller strings.
+
+**Design acceptance (2026-09-14):** Stephen accepted the Phase 4a design
+recommendations.
+- **Inline operator return.** The operator return record carries the operator's
+  scorecard and closed string lists inline, not separately registered artefacts. The
+  accepted Task's evidence stays bound at result time through the ProjectUseDecision.
+- **Two PRs for 4a.**
+  - 4a-1: `bootstrap_genesis`, `bootstrap_assay_authority` and `request_spec_01`,
+    with the closed `spec-assay-intent` record and the PR #288 known limit 9 fix.
+  - 4a-2: `prepare_spec_01`, `return_spec_01_complete`, `review_spec_01_complete`
+    and `decide_spec_01`, with both operator records and the positive path to an
+    accepted project-use result.
+- **Producer relation, a known limit (D5).** The route derives the prospective
+  producer relation's hash from the producer actor and the route identity. W11
+  §4.3's profile, context and grant references are not modelled by the inherited
+  runtime.
+
 ## Decision protocol
 
 Each future decision entry must record:
