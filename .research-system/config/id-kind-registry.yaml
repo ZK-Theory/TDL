@@ -7,6 +7,8 @@ kinds:
   artefact: art
   spec_source_document: art
   project_use_decision_document: art
+  spec_operator_brief_document: art
+  spec_operator_return_document: art
   review: rev
   decision: dec
   command: cmd

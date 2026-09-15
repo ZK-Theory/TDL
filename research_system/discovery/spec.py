@@ -101,9 +101,35 @@ class _ProjectUseRegistrationService(_DocumentRegistrationService):
         )
 
 
+class _BriefRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_operator_brief_document", artefact_id, 1)
+        self.objects.write("spec_operator_brief_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_operator_brief_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
+class _ReturnRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_operator_return_document", artefact_id, 1)
+        self.objects.write("spec_operator_return_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_operator_return_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
 _REGISTRATION_SERVICES = {
     SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
     spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
+    spec_assay.BRIEF_KIND: _BriefRegistrationService,
+    spec_assay.RETURN_KIND: _ReturnRegistrationService,
 }
 
 
@@ -165,6 +191,8 @@ class SpecCoordinator:
             schemas=self.schemas,
             validator=self.resolver.validate_replayed_administration_state,
             repository_root=self.binding.repository_root,
+            objects=self.objects,
+            raw_prefix_sha256=self.ledger.raw_prefix_sha256,
         )
 
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
@@ -618,21 +646,20 @@ class SpecCoordinator:
         )
 
     def _advance_assay(self, intent: dict, evidence: dict | None) -> dict:
-        """Advance a W11 bootstrap or Assay action from one ledger snapshot.
+        """Advance a W11 bootstrap or SPEC-01 Assay action from one ledger snapshot.
 
         State, the next command and its expected stream version all come from the same
         snapshot. A repeated invocation of a committed effect is answered from its
-        receipt and never resubmitted, so it stays readable after its grant expires.
+        receipt and never resubmitted, so it stays readable after its grant expires. The
+        operator records publish their bytes inside the registration's admission lock.
         """
         self.binding.revalidate()
         self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
-        if evidence is not None:
-            raise IntegrityError(f"{intent['action']} takes no independent evidence")
         snapshot = self.ledger.snapshot()
         context = self._assay_context()
         state = spec_assay.evaluate(intent, snapshot.events, context)
         actor, grant = self.operator.operator_actor_id, self.operator.authority_grant_id
-        retry = spec_assay.exact_retry(intent, snapshot.events, context, actor_id=actor, grant_id=grant)
+        retry = spec_assay.exact_retry(intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant)
         if retry is not None:
             receipt = self.service.receipts.load(retry["command_id"])
             if receipt is None or receipt.status != "accepted" or receipt.payload_hash != retry["command_payload_hash"]:
@@ -642,15 +669,19 @@ class SpecCoordinator:
             return {**state, "receipt": asdict(receipt)}
         if state["next_effect"] is None:
             return state
-        effect, target, payload = spec_assay.next_command(intent, snapshot.events, context, actor_id=actor)
+        now = self.clock().isoformat().replace("+00:00", "Z")
+        effect, target, payload, document = spec_assay.next_command(
+            intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant, now=now
+        )
         return self._submit_effect(
             intent,
             effect,
             target,
             payload,
             actor,
-            self.clock().isoformat().replace("+00:00", "Z"),
+            now,
             intent["reason"],
+            document=document,
             expected_stream_version=snapshot.stream_versions.get(target, 0),
             retry_intent=spec_assay.key_intent(intent),
         )
