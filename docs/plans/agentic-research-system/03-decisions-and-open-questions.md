@@ -1543,6 +1543,35 @@ recommendations.
   §4.3's profile, context and grant references are not modelled by the inherited
   runtime.
 
+**4a-2 design decisions (2026-09-15):** Stephen accepted both recommendations from
+the 4a-2 design pass at `52c2ce42`, after PR #290 merged.
+- **Operational provenance of the operator records.**
+  - **The problem:** every `RegisterArtefact` manifest names a Task, dispatch,
+    attempt and context packet, and admission checks none of them (Phase 3
+    measurement). The merged `spec-assay-intent` 1.0.0 carries no production
+    fields, and IDs invented by the route would be fabricated.
+  - **The decision:** the brief package and the operator return derive them from
+    the ledger. The source is the one Task whose definition names the Candidate, and
+    that Task's started Attempt: an Attempt carries `dispatch_id` from creation and
+    `start` from `AttemptStarted` (`research_system/command/reducers.py:777,815`).
+    The intent schema is unchanged.
+  - **Consequence for Phase 5:** that Task is created and its Attempt started before
+    `prepare_spec_01`. The same Task is later closed and cited by the
+    ProjectUseDecision.
+- **The accepted Assay bar is fixture content.**
+  - **What the committed content is:** W11 test-fixture authority, with one boolean
+    `identity` gate axis, placeholder `1111…` hashes and a pinned test author.
+  - **What admission allows:** it binds every axis result to those files, and
+    derives the mechanical recommendation as PROMOTE or KILL only
+    (`research_system/discovery/rules.py:466-540`).
+  - **The decision:** 4a-2 derives the scorecard from whichever bar is accepted.
+    The operator supplies each rubric axis's value, rationale and unmet condition
+    codes. The route derives every other field, and runs the inherited scorecard
+    rule over the result before the return is registered. Tests use the fixture
+    bar, and this is a known limit.
+  - **Phase 5 prep now decides both** the replacement Assay authority content, which
+    must express SPEC-01's axes, and the identity that signs it.
+
 ## Decision protocol
 
 Each future decision entry must record:

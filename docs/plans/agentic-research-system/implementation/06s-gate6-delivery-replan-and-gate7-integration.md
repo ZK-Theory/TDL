@@ -432,6 +432,11 @@ table:
 
   The operator return binds its content inline. The prospective producer relation is
   actor-only, a known limit.
+- **4a-2 decisions (P-058, 2026-09-15).**
+  - The brief package and the operator return take their operational provenance from
+    the ledger: the Task naming the Candidate and its started Attempt.
+  - The scorecard is derived from the accepted bar. The committed bar is W11 fixture
+    content, a known limit until Phase 5 prep replaces it.
 
 ### Phase 5 — Owner-gated live proof and closure
 
@@ -446,6 +451,12 @@ and the live store stays historical evidence and is not appended to.
 - Step 5 backs it up and restores it.
 - The exact store-creation command and roots are prepared at Phase 5 and are
   authorized separately.
+
+**Amended by P-058 (2026-09-15).**
+- **Phase 5 prep** replaces the fixture Assay authority content with content that
+  expresses SPEC-01's axes, and decides which identity signs it.
+- **In step 3,** the operational Task naming the Candidate is created and its
+  Attempt started before `prepare_spec_01`.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
