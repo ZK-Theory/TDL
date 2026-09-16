@@ -13,7 +13,9 @@ mutation:
 - the outcome-review requester is neither the producer nor the owner;
 - the outcome reviewer is not the owner;
 - the promotion proposer is not the producer, the reviewer or the owner;
-- the selected option comes from the owner's own invocation.
+- the selected option comes from the owner's own invocation;
+- PROMOTE is neither proposed nor selected while the accepted bar has an axis the
+  inherited scorecard rule does not evaluate, or while the return lists unresolved findings.
 
 Only evidence this route issued counts. A located effect must carry the route's own
 retry key for this intent and the command payload the route derives at that ledger
@@ -21,10 +23,11 @@ position, and nothing else may sit on a stream the action owns.
 
 The operator brief package and the operator return take their operational provenance
 from the ledger (P-058, 2026-09-15): the one Task whose definition names the Candidate,
-and that Task's started Attempt. The scorecard is derived from whichever Assay bar is
-accepted; the operator supplies only each rubric axis's value, rationale and unmet
-condition codes. Known limit: the committed bar is W11 fixture content, which Phase 5
-prep replaces.
+still at the revision its started Attempt was dispatched on, and that Attempt, whose
+own start record supplies the manifests' code and environment identities. The scorecard
+is derived from whichever Assay bar is accepted; the operator supplies only each rubric
+axis's value, rationale and unmet condition codes. Known limit: the committed bar is W11
+fixture content, which Phase 5 prep replaces.
 """
 
 from __future__ import annotations
@@ -366,12 +369,14 @@ def _governed_code_subject(events: list[dict]) -> dict[str, Any]:
     }
 
 
-def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -> dict[str, str]:
+def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -> dict[str, Any]:
     """Return the operational provenance of the operator records (P-058, 2026-09-15).
 
-    Admission never checks a manifest's Task, dispatch, attempt or context packet, and the
-    caller cannot supply them, so they come from the one Task naming the Candidate and
-    that Task's started Attempt.
+    Admission never checks a manifest's Task, dispatch, attempt, context packet, code
+    commit or environment fingerprint, and the caller cannot supply them, so they come
+    from the one Task naming the Candidate and that Task's started Attempt. The Task must
+    still be at the revision the Attempt was dispatched on (PR #291 review): an amendment
+    after dispatch would otherwise lend the Attempt a definition it never ran.
     """
     streams = replay(tuple(events), schema_registry=ctx.schemas, authority_state_validator=ctx.validator)["streams"]
     tasks = [
@@ -394,11 +399,17 @@ def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -
     if len(attempts) != 1:
         raise IntegrityError(f"SPEC-01 operator records require exactly one started Attempt of Task {tasks[0]}")
     attempt = streams[attempts[0]]
+    if attempt.get("task_revision") != streams[tasks[0]].get("current_revision"):
+        raise IntegrityError(f"SPEC-01 operator records require Task {tasks[0]} unamended since its Attempt's dispatch")
+    start = attempt["start"]
     return {
         "task_id": tasks[0],
+        "task_revision": attempt["task_revision"],
         "attempt_id": attempts[0],
         "dispatch_id": attempt["dispatch_id"],
-        "context_packet_id": attempt["start"]["context_packet_id"],
+        "context_packet_id": start["context_packet_id"],
+        "code_identity": start["code_identity"],
+        "environment_fingerprint": start["environment_fingerprint"],
     }
 
 
@@ -628,7 +639,7 @@ def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str,
     )
     raw = canonical_bytes(document)
     digest = sha256_hex(raw)
-    task, subject = document["task"], document["governed_code_subject"]
+    task = document["task"]
     inputs = (
         []
         if row == _BRIEF
@@ -646,10 +657,11 @@ def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str,
         "attempt_id": task["attempt_id"],
         "context_packet_id": task["context_packet_id"],
         "producer_profile": f"{_ROUTE_IDENTITY}:{document_type}",
-        "code_commit": "git:sha1:" + subject["git_head"],
+        # The producing Attempt's own identities (PR #291 review), not the store binding's.
+        "code_commit": task["code_identity"],
         "branch_identity": _ROUTE_IDENTITY,
         "worktree_identity": _ROUTE_IDENTITY,
-        "environment_fingerprint": subject["recovery_binding_sha256"],
+        "environment_fingerprint": task["environment_fingerprint"],
         "artefact_id": artefact_id,
         "aliases": [],
         "artefact_type": document_type,
@@ -694,6 +706,27 @@ def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str,
             "external_data_constraints": [],
         },
     }
+
+
+def _refuse_blocked_promote(ids: dict[str, str], events: list[dict], ctx: AssayContext) -> None:
+    """Refuse a PROMOTE the SPEC-01 brief forbids but admission would accept (PR #291 review).
+
+    Admission derives a mechanical PROMOTE from the required gate axes alone, so an axis it
+    does not evaluate, such as SPEC-01's integer data and novelty scores, cannot stop one.
+    While the accepted bar has such an axis, PROMOTE stays refused until its rule is
+    evaluated (Phase 5 prep). The brief makes an unresolved primary-paper/code discrepancy
+    blocking, and the return cannot mark which findings block, so any unresolved finding
+    refuses PROMOTE.
+    """
+    rubric = _projection(events, ctx)["assay_bar_authority"]["contents"]["rubric"]["content"]
+    required = set(rubric["required_axis_ids"])
+    if any(axis["axis_kind"] != "gate" or axis["axis_id"] not in required for axis in rubric["axis_definitions"]):
+        raise IntegrityError(
+            f"{DECIDE} cannot PROMOTE: the accepted bar has an axis the scorecard rule does not evaluate"
+        )
+    returned = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
+    if returned["operator_return"]["unresolved_findings"]:
+        raise IntegrityError(f"{DECIDE} cannot PROMOTE while the operator return lists unresolved findings")
 
 
 def _payload(
@@ -859,6 +892,8 @@ def _payload(
             raise IntegrityError(f"{DECIDE} requires a satisfied outcome review")
         if recommendation == "PROMOTE" and assay.get("mechanical_recommendation") != "PROMOTE":
             raise IntegrityError(f"{DECIDE} cannot propose PROMOTE without a mechanical PROMOTE scorecard")
+        if recommendation == "PROMOTE":
+            _refuse_blocked_promote(ids, events, ctx)
         reviewed = _one(events, ids["review_id"], "ReviewVerdictRecorded")
         aggregate = _record_ref(ids["assay_id"], assay.get("version"), _aggregate_content_hash(assay))
         return {
@@ -912,6 +947,9 @@ def _payload(
         _strings(triggers, f"{DECIDE} revisit_triggers")
         if selected == "PARK" and not triggers:
             raise IntegrityError(f"{DECIDE} PARK requires the owner's revisit triggers")
+        # Admission lets the owner select PROMOTE on any mechanical PROMOTE, whatever was proposed.
+        if selected == "PROMOTE":
+            _refuse_blocked_promote(ids, events, ctx)
         proposal = _one(events, ids["decision_id"], "DecisionProposed")
         return {
             "row_id": "OR-013",

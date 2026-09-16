@@ -9,7 +9,8 @@ from research_system import cli
 from research_system.canonical import canonical_bytes
 from research_system.discovery import spec_assay, spec_result, spec_task
 from research_system.discovery.accepted_w11 import ACCEPTED, CATALOGUE_STREAM_ID
-from research_system.discovery.rules import _aggregate_content_hash, _record_ref, _review_ref
+from research_system.discovery.assay_authority import content_sha256 as assay_content_sha256
+from research_system.discovery.rules import _aggregate_content_hash, _axis_set_hash, _record_ref, _review_ref
 from research_system.discovery.runtime import replay_discovery
 from research_system.discovery.spec import ACTION_EFFECTS
 from research_system.discovery.spec_source import source_ids
@@ -506,9 +507,12 @@ def test_public_spec_01_path_reaches_an_accepted_project_use_result(tmp_path, mo
     assert brief["brief_source"]["sha256"] == next(s for s in package["sources"] if s["alias"] == "SPEC-01")["sha256"]
     assert brief["task"] == {
         "task_id": c1.TASK_ID,
+        "task_revision": attempt["task_revision"],
         "attempt_id": c1.ATTEMPT_ID,
         "dispatch_id": attempt["dispatch_id"],
         "context_packet_id": attempt["start"]["context_packet_id"],
+        "code_identity": attempt["start"]["code_identity"],
+        "environment_fingerprint": attempt["start"]["environment_fingerprint"],
     }
 
     return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
@@ -627,7 +631,10 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
     untyped = {**RETURN_EVIDENCE, "axis_results": [{**RETURN_EVIDENCE["axis_results"][0], "value": 1}]}
     inexact = {key: value for key, value in RETURN_EVIDENCE.items() if key != "findings"}
-    for evidence, reason in ((untyped, "scorecard"), (inexact, "evidence fields are not exact")):
+    # The brief requires a direct-source table, findings and focused validation; an empty section is refused.
+    sections = ("direct_sources", "findings", "validation")
+    empty = tuple(({**RETURN_EVIDENCE, section: []}, "not schema-valid") for section in sections)
+    for evidence, reason in ((untyped, "scorecard"), (inexact, "evidence fields are not exact"), *empty):
         assert reason in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=evidence,
                                  refused=True)  # fmt: skip
     _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=RETURN_EVIDENCE)
@@ -657,10 +664,18 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     for actor, human in ((PRODUCER, False), (OUTCOME_REVIEWER, False), (OWNER, True)):
         grant = _grant(bound, "ProposePromotionDecision", candidate_id, actor, human=human)
         assert "proposer" in _invoke(bound, tmp_path, capsys, decide_intent, grant, actor, refused=True)
+    # The scorecard is a mechanical PROMOTE, but the return lists an unresolved finding: PROMOTE is neither
+    # proposed nor, whatever was proposed, selected.
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert "unresolved findings" in _invoke(bound, tmp_path, capsys, promote_intent, grant, PROPOSER, refused=True)
     _run(bound, tmp_path, capsys, decide_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
     resolve_grant = _grant(bound, "ResolveDecision", ids["decision_id"], OWNER, human=True)
     assert "revisit triggers" in _invoke(bound, tmp_path, capsys, decide_intent, resolve_grant, OWNER,
                                          evidence={**PARK_EVIDENCE, "revisit_triggers": []}, refused=True)  # fmt: skip
+    promote = {"selected_option": "PROMOTE", "revisit_triggers": []}
+    assert "unresolved findings" in _invoke(bound, tmp_path, capsys, decide_intent, resolve_grant, OWNER,
+                                            evidence=promote, refused=True)  # fmt: skip
 
     # Decisive controls on a second Candidate: inherited admission accepts each collapse the route refused.
     other = _ingest_direct(bound, 0)
@@ -862,3 +877,113 @@ def test_orphaned_record_bytes_are_refused_once_their_prerequisites_lapse(tmp_pa
     assert "still collecting evidence" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER,
                                                   refused=True)  # fmt: skip
     assert coordinator.status(prepare_intent)["state"] == "not_started"
+
+
+def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    task = _seed_task_naming(bound, candidate_id, monkeypatch)
+    start = _streams(coordinator)[c1.ATTEMPT_ID]["start"]
+    prepared = _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+                    ids["brief_id"], OWNER, human=True)  # fmt: skip
+    assert prepared["state"] == "completed"
+
+    # The manifest names the producing Attempt, so it carries that Attempt's own code and environment
+    # identities. Here they differ from the store binding's.
+    brief = coordinator.objects.read(spec_assay.BRIEF_KIND, ids["brief_id"], 1)
+    events = list(coordinator.ledger.snapshot().events)
+    manifest = spec_assay._one(events, ids["brief_id"], "ArtefactRegistered")["payload"]["manifest"]
+    subject = brief["governed_code_subject"]
+    assert manifest["code_commit"] == start["code_identity"]
+    assert manifest["environment_fingerprint"] == start["environment_fingerprint"]
+    assert start["code_identity"] != "git:sha1:" + subject["git_head"]
+    assert start["environment_fingerprint"] != subject["recovery_binding_sha256"]
+    # A code identity that is not a commit a manifest can record does not make a valid record.
+    uncommitted = {**brief, "task": {**brief["task"], "code_identity": "session:c1-luna"}}
+    with pytest.raises(SchemaError):
+        coordinator.schemas.validate(spec_assay.BRIEF_SCHEMA_ID, uncommitted, schema_version="1.0.0")
+
+    # The Task is amended after its Attempt was dispatched, so the Attempt never ran the Task's current
+    # definition, and the return may not cite it.
+    version = coordinator.ledger.snapshot().stream_versions[c1.TASK_ID]
+    assert task.seeding.submit(c1._task_amendment_command(number=9101, expected_stream_version=version)).status == (
+        "accepted"
+    )
+    streams = _streams(coordinator)
+    assert (streams[c1.TASK_ID]["current_revision"], streams[c1.ATTEMPT_ID]["task_revision"]) == (2, 1)
+    return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
+    assert "unamended since" in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER,
+                                        evidence=RETURN_EVIDENCE, refused=True)  # fmt: skip
+    assert coordinator.status(return_intent)["state"] == "not_started"
+
+
+def _unevaluated_axis_bar() -> dict[str, bytes]:
+    """The committed fixture bar plus one required integer axis, which admission only bounds-checks."""
+    rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / spec_assay.ASSAY_SCOPE_PATH).read_bytes())
+    axis = {key: value for key, value in rubric["axis_definitions"][0].items() if key != "allowed_set"}
+    axis.update(
+        axis_id="data_feasibility",
+        axis_kind="integer_score",
+        bounds={"minimum": 0, "maximum": 3},
+        failure_codes=["data_infeasible"],
+        value_schema="integer",
+        value_type="integer",
+    )
+    rubric["axis_definitions"].append(axis)
+    for field in ("required_axis_ids", "evaluation_order"):
+        rubric[field].append("data_feasibility")
+    rubric["required_axis_set_hash"] = _axis_set_hash(rubric["required_axis_ids"])
+    rubric["content_hash"] = assay_content_sha256(rubric)
+    row = {**scope["evidence_rows"][0], "evidence_key": "data-feasibility", "validator_id": "data-feasibility"}
+    scope["evidence_rows"].append(row)
+    scope["rubric_ref"]["content_hash"] = rubric["content_hash"]
+    scope["content_hash"] = assay_content_sha256(scope)
+    return {
+        spec_assay.ASSAY_RUBRIC_PATH: canonical_bytes(rubric) + b"\n",
+        spec_assay.ASSAY_SCOPE_PATH: canonical_bytes(scope) + b"\n",
+    }
+
+
+def test_promote_is_refused_while_the_bar_has_an_unevaluated_axis(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False,
+                               repository_overrides=_unevaluated_axis_bar())  # fmt: skip
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+
+    # The gate passes and the integer axis scores zero, which SPEC-01 forbids for PROMOTE, yet admission
+    # derives a mechanical PROMOTE. Nothing is unresolved, so only the unevaluated axis can block.
+    zero = {
+        "axis_id": "data_feasibility",
+        "value": 0,
+        "rationale": "No governed data can support the estimand.",
+        "unmet_condition_codes": ["data_infeasible"],
+    }
+    evidence = {**RETURN_EVIDENCE, "axis_results": [RETURN_EVIDENCE["axis_results"][0], zero],
+                "unresolved_findings": []}  # fmt: skip
+    return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    _run(bound, tmp_path, capsys, return_intent, "RegisterArtefact", ids["return_id"], OWNER, human=True,
+         evidence=evidence)  # fmt: skip
+    _run(bound, tmp_path, capsys, return_intent, "RecordAssayScore", candidate_id, PRODUCER, evidence=evidence)
+    assert _replay(coordinator)["assays"][ids["assay_id"]]["mechanical_recommendation"] == "PROMOTE"
+    review_intent = spec_01_intent(spec_assay.REVIEW, candidate_id)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER,
+         evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert "does not evaluate" in _invoke(bound, tmp_path, capsys, promote_intent, grant, PROPOSER, refused=True)
+    decide_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PARK")
+    _run(bound, tmp_path, capsys, decide_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
+    resolve_grant = _grant(bound, "ResolveDecision", ids["decision_id"], OWNER, human=True)
+    promote = {"selected_option": "PROMOTE", "revisit_triggers": []}
+    assert "does not evaluate" in _invoke(bound, tmp_path, capsys, decide_intent, resolve_grant, OWNER,
+                                          evidence=promote, refused=True)  # fmt: skip

@@ -88,12 +88,23 @@
     "task": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["task_id", "attempt_id", "dispatch_id", "context_packet_id"],
+      "required": [
+        "task_id",
+        "task_revision",
+        "attempt_id",
+        "dispatch_id",
+        "context_packet_id",
+        "code_identity",
+        "environment_fingerprint"
+      ],
       "properties": {
         "task_id": {"type": "string", "pattern": "^tsk_"},
+        "task_revision": {"type": "integer", "minimum": 1},
         "attempt_id": {"type": "string", "pattern": "^att_"},
         "dispatch_id": {"type": "string", "pattern": "^dsp_"},
-        "context_packet_id": {"type": "string", "pattern": "^ctx_"}
+        "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "code_identity": {"type": "string", "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"},
+        "environment_fingerprint": {"$ref": "#/$defs/sha256"}
       }
     },
     "candidate": {
