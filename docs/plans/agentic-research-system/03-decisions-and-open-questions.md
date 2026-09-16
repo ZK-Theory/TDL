@@ -1643,6 +1643,54 @@ every recommendation.
   derives its manifest identities and Task match the same way as the first two
   findings. That fix is a post-merge follow-up.
 
+**4a-2 review decisions, round 3 (2026-09-16):** Codex reviewed PR #291 at `4822f41f`
+and raised five findings, each confirmed against the code. Stephen chose option 1 of
+the convergence assessment: a final fix round, one known limit, and a stopping rule.
+- **The convergence finding.**
+  - **Flat on count and severity:** the three rounds returned 5, 5 and 5 findings,
+    with four rated P1 each time.
+  - **Families saturated:** round 3 opened no new finding family.
+  - **Origin:** four of its findings were latent since `7cc883cc`, and one sat in code
+    the round-2 fix added.
+  - **Reachability:** none can occur on the planned Phase 5 path.
+  - **Why the count will not reach zero:** each route guard over inherited admission
+    has its own edge cases.
+- **Fixed in this round.**
+  - A record requires its Attempt to be running. A finished Attempt keeps its start
+    record, so it could otherwise be cited as producing a record created after it
+    ended.
+  - The Task must name no other registered Candidate. The project-use result requires
+    exactly one (`research_system/discovery/spec_result.py:302-304`), so the records
+    would otherwise be registered for a lineage that could never close.
+  - An exact retry requires the exact evidence field set. OR-006 and OR-013 payloads
+    read only the known fields, so a padded repeat was answered from the receipt
+    although it would have been refused before the effect.
+  - The PROMOTE refusal reads the Assay's bar from the registered return's scorecard,
+    which admission bound to that bar when it scored. It no longer reads the currently
+    accepted bar, which W11 allows to be succeeded while an opened Assay keeps its
+    frozen bar (`design/11-portfolio-and-discovery-lifecycle.md:717-720`).
+- **Known limit: derivation before the registration lock.**
+  - **The gap:** a record is derived from a ledger snapshot before the writer lock is
+    taken. A concurrent writer that scores or cancels the Assay, or amends the Task,
+    in between would leave a registered record whose prerequisites held only at its
+    stated causal prefix.
+  - **Why not fixed here:** this is the same shape as PR #290 known limit 7, and Phase
+    5's single operator does not create the race.
+  - **Follow-up:** the shared document registration service already runs inside
+    admission's writer lock, and could refuse when the ledger tail has moved. That fix
+    belongs in one follow-up covering the SOURCE, project-use and operator-record
+    registrations together.
+- **Stopping rule for PR #291 from round 4.** A review finding gets code in this PR
+  only if it is either:
+  - a defect in code that round 3 added; or
+  - a false durable claim reachable on the planned Phase 5 path as amended.
+
+  Every other finding is recorded as a known limit or a follow-up, and the PR proceeds
+  to Stephen's review and merge.
+- **§5.0 continuation.** 4a-2 has passed the "one session plus one follow-up"
+  checkpoint. Stephen's acceptance of option 1 is the owner decision to continue for
+  this final round, within the 2,500-line checkpoint.
+
 ## Decision protocol
 
 Each future decision entry must record:

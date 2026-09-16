@@ -447,6 +447,14 @@ table:
     - PROMOTE is neither proposed nor selected while the return lists unresolved
       findings, or while the accepted bar has an axis the inherited scorecard rule does
       not evaluate.
+  - From the PR #291 review, round 3 (P-058, 2026-09-16):
+    - the records require a running Attempt and a Task that names no other registered
+      Candidate;
+    - an exact retry requires the exact evidence field set;
+    - the PROMOTE refusal reads the Assay's frozen bar from the return's scorecard;
+    - derivation before the registration lock is a known limit, with a shared follow-up;
+    - a stopping rule applies from round 4: code only for a defect in round-3 code or a
+      false durable claim reachable on the Phase 5 path.
 
 ### Phase 5 — Owner-gated live proof and closure
 
@@ -475,7 +483,9 @@ and the live store stays historical evidence and is not appended to.
   PROMOTE on any bar with another axis. Phase 5 prep decides where the rule is
   evaluated, in the route or in W11 admission, before `decide_spec_01` runs live.
 - **In step 3,** the Task is not amended while its Attempt runs, and the Attempt starts
-  with the code and environment identities its manifests will record.
+  with the code and environment identities its manifests will record. Amended again on
+  2026-09-16 (round 3): the Task names only the SPEC-01 Candidate, and its Attempt stays
+  running until the operator return is registered.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
