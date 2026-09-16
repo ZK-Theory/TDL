@@ -955,6 +955,38 @@ def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, mo
     assert coordinator.status(prepare_intent)["state"] == "not_started"
 
 
+def test_the_producer_return_is_compared_as_canonical_json(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+    return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
+    _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=RETURN_EVIDENCE)
+    returned = coordinator.objects.read(spec_assay.RETURN_KIND, ids["return_id"], 1)
+    assert returned["operator_return"]["axis_results"][0]["value"] is True
+
+    # The integer 1 equals the registered boolean in Python, but it is not the registered return.
+    substituted = {**RETURN_EVIDENCE, "axis_results": [{**RETURN_EVIDENCE["axis_results"][0], "value": 1}]}
+    assert substituted == RETURN_EVIDENCE and canonical_bytes(substituted) != canonical_bytes(RETURN_EVIDENCE)
+    score_grant = _grant(bound, "RecordAssayScore", candidate_id, PRODUCER)
+    assert "exact operator return" in _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER,
+                                              evidence=substituted, refused=True)  # fmt: skip
+    _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER, evidence=RETURN_EVIDENCE)
+
+    # On the completed return, each exact repeat is answered from its receipt; the substitution is not.
+    for grant, actor in ((return_grant, OWNER), (score_grant, PRODUCER)):
+        tail = _tail(coordinator)
+        retried = _invoke(bound, tmp_path, capsys, return_intent, grant, actor, evidence=RETURN_EVIDENCE)
+        assert retried["state"] == "completed" and retried["receipt"]["status"] == "accepted", actor
+        assert _tail(coordinator) == tail
+        assert "already completed" in _invoke(bound, tmp_path, capsys, return_intent, grant, actor,
+                                              evidence=substituted, refused=True), actor  # fmt: skip
+
+
 def _unevaluated_axis_bar() -> dict[str, bytes]:
     """The committed fixture bar plus one required integer axis, which admission only bounds-checks."""
     rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())

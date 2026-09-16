@@ -293,6 +293,14 @@ def _validate(schema_id: str, document: dict[str, Any], ctx: AssayContext) -> No
         raise IntegrityError(f"{schema_id} record is not schema-valid: {exc}") from exc
 
 
+def _same_record(supplied: Any, registered: Any) -> bool:
+    """Compare as canonical JSON bytes: Python equality treats ``1`` and ``true`` as equal (PR #291 known limit 17)."""
+    try:
+        return canonical_bytes(supplied) == canonical_bytes(registered)
+    except (TypeError, ValueError):
+        return False
+
+
 def _strings(value: Any, label: str) -> None:
     if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
         raise IntegrityError(f"{label} must be a list of non-empty strings")
@@ -811,7 +819,7 @@ def _payload(
     subject = {"candidate_id": ids["candidate_id"], "assay_id": ids["assay_id"]}
     if row == "OR-004":
         document = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
-        if evidence != document["operator_return"]:
+        if not _same_record(evidence, document["operator_return"]):
             raise IntegrityError(f"{RETURN} Assay producer must supply the exact operator return that was registered")
         _, _, assay = _subjects(ids, events, ctx)
         return {
@@ -1276,8 +1284,10 @@ def exact_retry(
         try:
             if row in _ARTEFACT_ROWS:
                 payload = first.get("payload") or {}
-                if row == _RETURN and _read_document(_RETURN, first, ctx).get("operator_return") != evidence:
-                    continue
+                if row == _RETURN:
+                    registered = _read_document(_RETURN, first, ctx).get("operator_return")
+                    if not _same_record(evidence, registered):
+                        continue
             else:
                 prefix = _prefix(events, first["global_position"])
                 payload = _payload(
