@@ -219,6 +219,16 @@ def _park_candidate(bound, candidate_id: str, monkeypatch) -> None:
 @pytest.fixture
 def bound_result(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     """A Task accepted through close_task whose named Candidate the owner parked; no decision yet."""
+    return _bound_result(tmp_path, monkeypatch, capsys, source_repo)
+
+
+@pytest.fixture
+def bound_amended_result(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """As ``bound_result``, but the Task is amended after its Attempt ran and before closure."""
+    return _bound_result(tmp_path, monkeypatch, capsys, source_repo, amend_after_dispatch=True)
+
+
+def _bound_result(tmp_path, monkeypatch, capsys, source_repo, *, amend_after_dispatch=False):  # noqa: F811
     bound = bind_scratch_route(
         tmp_path, monkeypatch, extra_repository_files=(w11.ASSAY_RUBRIC_PATH, w11.ASSAY_SCOPE_PATH)
     )
@@ -250,6 +260,12 @@ def bound_result(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
 
     monkeypatch.setattr(c1, "create_task_command", naming_candidate)
     task = _seed_bound_task(bound, outcome="completed", candidates=EVIDENCE_IDS)
+    if amend_after_dispatch:
+        # The Attempt was dispatched on revision 1. Both revisions name the Candidate, so only the dispatched
+        # revision distinguishes them.
+        version = bound.coordinator.ledger.snapshot().stream_versions[c1.TASK_ID]
+        amendment = c1._task_amendment_command(number=9101, expected_stream_version=version)
+        assert task.seeding.submit(amendment).status == "accepted"
     for artefact_id in EVIDENCE_IDS:
         grant = activate_lifecycle_grant(
             bound.harness, subject_kind="artefact", subject_id=artefact_id, command_types=("RegisterArtefact",)
@@ -485,6 +501,19 @@ def _document() -> dict:
     }
 
 
+def _attempt() -> dict:
+    """A replayed closure Attempt whose start identities differ from the document's store binding."""
+    return {
+        "dispatch_id": "dsp_01978abc-9703-7000-8000-000000009703",
+        "task_revision": 1,
+        "start": {
+            "context_packet_id": "ctx_01978abc-9704-7000-8000-000000009704",
+            "code_identity": "git:sha1:" + "3" * 40,
+            "environment_fingerprint": "4" * 64,
+        },
+    }
+
+
 def test_the_decision_manifest_lists_its_sources_and_evidence_as_inputs():
     """PR #288 known limit 9: manifest-only provenance names every input the decision cites."""
     document = _document()
@@ -494,15 +523,22 @@ def test_the_decision_manifest_lists_its_sources_and_evidence_as_inputs():
         "content_sha256": "c" * 64,
     }
     document["sources"] = [source]
-    attempt = {
-        "dispatch_id": "dsp_01978abc-9703-7000-8000-000000009703",
-        "start": {"context_packet_id": "ctx_01978abc-9704-7000-8000-000000009704"},
-    }
-    manifest = spec_result._manifest(document, spec_result.subject_id(PROJECT_ID, c1.TASK_ID), attempt)
+    manifest = spec_result._manifest(document, spec_result.subject_id(PROJECT_ID, c1.TASK_ID), _attempt())
     assert manifest["input_dependencies"] == [
         {"input_artefact_id": source["artefact_id"], "input_content_sha256": "c" * 64, "dependency_role": "source"},
         {"input_artefact_id": EVIDENCE_IDS[0], "input_content_sha256": "b" * 64, "dependency_role": "evidence"},
     ]
+
+
+def test_the_decision_manifest_carries_its_closure_attempts_own_identities():
+    """The manifest names the closure Attempt, so its code and environment identities are that Attempt's."""
+    document, attempt = _document(), _attempt()
+    manifest = spec_result._manifest(document, spec_result.subject_id(PROJECT_ID, c1.TASK_ID), attempt)
+    start, subject = attempt["start"], document["governed_code_subject"]
+    assert manifest["attempt_id"] == document["task"]["attempt_id"]
+    assert manifest["dispatch_id"] == attempt["dispatch_id"]
+    assert manifest["code_commit"] == start["code_identity"] != "git:sha1:" + subject["git_head"]
+    assert manifest["environment_fingerprint"] == start["environment_fingerprint"] != subject["recovery_binding_sha256"]
 
 
 def test_project_use_intent_and_document_are_closed_records():
@@ -697,6 +733,18 @@ def test_public_project_use_result_is_pending_until_independently_accepted(bound
     assert [ref["artefact_id"] for ref in document["evidence"]] == list(EVIDENCE_IDS)
     assert document["task"]["selected_artefact_ids"] == list(EVIDENCE_IDS)
     assert document["governed_code_subject"]["git_head"] == coordinator.binding.binding["git_head"]
+    # The manifest names the closure Attempt, so it carries that Attempt's own code and environment identities,
+    # which here differ from the store binding the document records.
+    streams = _streams(coordinator)
+    start = streams[c1.ATTEMPT_ID]["start"]
+    manifest = next(e for e in coordinator.ledger.snapshot().events if e["stream_id"] == fixture.decision_id)[
+        "payload"
+    ]["manifest"]
+    assert manifest["attempt_id"] == document["task"]["attempt_id"] == c1.ATTEMPT_ID
+    subject = document["governed_code_subject"]
+    assert manifest["code_commit"] == start["code_identity"] != "git:sha1:" + subject["git_head"]
+    assert manifest["environment_fingerprint"] == start["environment_fingerprint"] != subject["recovery_binding_sha256"]
+    assert streams[c1.TASK_ID]["current_revision"] == streams[c1.ATTEMPT_ID]["task_revision"]
     assert output["acceptance"]["scientific_review"]["reviewer_actor_id"] == REVIEWER
     assert output["acceptance"]["use_authority"]["actor_id"] == OWNER
 
@@ -960,6 +1008,24 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
                                  payload=use, target_stream_id=subject)
             )  # fmt: skip
             assert receipt.status == "accepted", "admission is expected to accept use authority under the same grant"
+
+
+def test_a_decision_is_refused_for_a_task_amended_after_its_attempts_dispatch(bound_amended_result, tmp_path, capsys):
+    """The closure Attempt ran the revision it was dispatched on, so an amended Task cannot lend it another."""
+    fixture = bound_amended_result
+    coordinator, grants = fixture.coordinator, fixture.grants_project_use
+    streams = _streams(coordinator)
+    task, attempt = streams[c1.TASK_ID], streams[c1.ATTEMPT_ID]
+    assert (task["status"], task["current_revision"], attempt["task_revision"]) == ("accepted", 2, 1)
+    # The accepted Task's current definition still names the Candidate, so the Candidate match cannot refuse.
+    assert fixture.candidate_id in task["definition"]["portfolio_refs"]
+
+    message = _project_use(
+        fixture, tmp_path, capsys, register_intent(), actor=OWNER, grant=grants["register"], refused=True
+    )
+    assert "unamended since its Attempt's dispatch" in message, message
+    assert not coordinator.objects.revision_exists(spec_result.DOCUMENT_KIND, fixture.decision_id, 1)
+    assert coordinator.status(register_intent())["state"] == "not_started"
 
 
 class _Documents:

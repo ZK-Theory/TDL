@@ -455,6 +455,15 @@ table:
     - derivation before the registration lock is a known limit, with a shared follow-up;
     - a stopping rule applies from round 4: code only for a defect in round-3 code or a
       false durable claim reachable on the Phase 5 path.
+  - PR #291 follow-ups (P-058, 2026-09-16):
+    - a completed `close_task` or project-use action conflicts on any invocation that
+      repeats no committed effect;
+    - the Assay producer's operator return is compared as canonical JSON;
+    - the project-use decision's manifest carries its closure Attempt's code and
+      environment identities, and the Task must be unamended since that Attempt's
+      dispatch;
+    - orphan reuse on the project-use route does not re-check prerequisites on the
+      current ledger, a known limit.
 
 ### Phase 5 — Owner-gated live proof and closure
 

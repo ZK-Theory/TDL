@@ -1691,6 +1691,35 @@ the convergence assessment: a final fix round, one known limit, and a stopping r
   checkpoint. Stephen's acceptance of option 1 is the owner decision to continue for
   this final round, within the 2,500-line checkpoint.
 
+**4a-2 follow-up decisions (2026-09-16):** after PR #291 merged at `9fbab7ec`, the
+follow-up design pass put three questions to Stephen, who chose the recommended
+option for each.
+- **The project-use decision cites its closure Attempt.**
+  - **The problem (PR #291 known limit 10):** the merged route (`spec_result.py`,
+    PR #288) paired the closure Attempt's ID in the ProjectUseDecision manifest with
+    the store binding's git head and recovery digest. It also matched the Candidate
+    against the Task's current definition, although admission accepts `AmendTask`
+    after the Attempt has run. A scratch-store fixture showed the second gap is
+    reachable: the Task was amended after its Attempt completed, `close_task`
+    accepted it, and the decision was registered.
+  - **The decision:** the manifest's `code_commit` and `environment_fingerprint` are
+    the closure Attempt's start identities. They are re-derived from the ledger, like
+    its dispatch, Attempt and context packet. The registration refuses unless the
+    accepted Task is still at the revision the Attempt was dispatched on, which also
+    settles the Candidate match. The round-3 running-Attempt rule cannot apply, because
+    the decision is registered after closure.
+  - **No schema change:** `project-use-decision` stays 1.0.0, and its
+    `governed_code_subject` still records the store binding at decision time. A
+    non-git Attempt code identity is refused by the inherited `RegisterArtefact`
+    command schema before anything is published.
+  - **Migration consequence:** registrations made under the earlier derivation no
+    longer re-verify. Only scratch stores hold them.
+- **Known limit: orphan reuse on the project-use route.** Orphaned decision bytes are
+  re-derived only at their own causal prefix. Unlike the operator records since PR #291
+  round 1, the route does not re-check their prerequisites on the current ledger. The
+  gap needs a crash between publication and registration followed by a lapse, such as
+  a later revisit or a superseded correction. It is a follow-up.
+
 ## Decision protocol
 
 Each future decision entry must record:
