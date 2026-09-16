@@ -1594,6 +1594,55 @@ chose the recommended option for two of its findings.
     review stays pending and `decide_spec_01` stays refused.
   - **Known limit:** nothing durably records a negative review.
 
+**4a-2 review decisions, round 2 (2026-09-16):** Codex reviewed PR #291 at `1cb6053a`
+and raised five findings. Each was confirmed against the code, and Stephen accepted
+every recommendation.
+- **The manifests carry the producing Attempt's identities.**
+  - **The problem:** each operator record's manifest paired its Attempt ID with the
+    store binding's git head and recovery digest. The Attempt's own `code_identity`
+    and `environment_fingerprint` (`AttemptStarted`) went unused, and admission checks
+    neither manifest field. The test fixture already showed the mismatch.
+  - **The decision:** both records carry the Attempt's start identities, and the
+    manifests take them from there. A code identity that is not a git commit makes an
+    invalid record.
+- **The Task must be unamended since dispatch.**
+  - **The problem:** admission accepts `AmendTask` while an Attempt runs, and the
+    Attempt keeps its dispatched `task_revision`. The route matched the Candidate
+    against the Task's latest definition.
+  - **The decision:** the records refuse unless the Task's current revision is the
+    Attempt's. Both records carry that revision. Phase 5 must not amend the Task
+    mid-Attempt.
+- **SPEC-01's numeric PROMOTE rule is never evaluated.**
+  - **The problem:** admission derives a mechanical PROMOTE from the required gate
+    axes alone (`research_system/discovery/rules.py:506-513`). Integer axes are only
+    type- and bounds-checked, and the rubric's `rule_evaluation_algorithm_id` is bound
+    by hash but never run. SPEC-01 requires Axis 1 pass, Axes 2+3 at least 4 and
+    neither zero, so a topology pass with both integer axes at zero would still be
+    admitted as mechanical PROMOTE. The 2026-09-15 Phase 5 prep decision assumed that
+    replacing the content would carry the rule. It cannot.
+  - **The decision:** the route refuses to propose (OR-012) or select (OR-013)
+    PROMOTE while the accepted bar has any axis the inherited rule does not evaluate:
+    a non-gate axis, or one outside the required set. The fixture bar has none, so
+    scratch PROMOTE is unaffected. Real SPEC-01 content cannot reach PROMOTE until its
+    rule is evaluated, which becomes a Phase 5 prep prerequisite. Implementing the rule
+    now would bind to axis IDs that Phase 5 has not authored, and evaluating it in
+    admission is a runtime change (D5).
+- **The complete return's evidence sections must be non-empty.** The brief requires
+  a direct-source table, findings and focused validation. `direct_sources`,
+  `findings` and `validation` each require at least one item. The operator return
+  schema is not yet on main, so its version is unchanged.
+- **PROMOTE is refused while the return lists unresolved findings.**
+  - **The basis:** the brief makes an unresolved primary-paper/code discrepancy
+    blocking, and says any gate the scorecard cannot express makes the outcome PARK.
+  - **The decision:** OR-012 and OR-013 both refuse PROMOTE while the registered
+    return lists any unresolved finding. Both are needed, because admission lets the
+    owner select PROMOTE on any mechanical PROMOTE, whatever was proposed.
+  - **Known limit:** the return cannot mark which findings block, so every unresolved
+    finding blocks. Non-blocking items belong under limitations.
+- **Outside this PR:** the merged project-use route (`spec_result.py`, PR #288)
+  derives its manifest identities and Task match the same way as the first two
+  findings. That fix is a post-merge follow-up.
+
 ## Decision protocol
 
 Each future decision entry must record:

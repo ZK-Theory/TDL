@@ -440,6 +440,13 @@ table:
   - From the PR #291 review: the Assay producer's own OR-004 invocation must carry
     the exact registered operator return. The route records only an approving outcome
     review; a non-approving review cannot be recorded, a known limit.
+  - From the PR #291 review, round 2 (P-058, 2026-09-16):
+    - the manifests carry the producing Attempt's code and environment identities;
+    - the Task must be unamended since the Attempt's dispatch;
+    - the complete return's direct sources, findings and validation are non-empty;
+    - PROMOTE is neither proposed nor selected while the return lists unresolved
+      findings, or while the accepted bar has an axis the inherited scorecard rule does
+      not evaluate.
 
 ### Phase 5 — Owner-gated live proof and closure
 
@@ -460,6 +467,15 @@ and the live store stays historical evidence and is not appended to.
   expresses SPEC-01's axes, and decides which identity signs it.
 - **In step 3,** the operational Task naming the Candidate is created and its
   Attempt started before `prepare_spec_01`.
+
+**Amended by P-058 (2026-09-16).**
+- **Phase 5 prep also evaluates SPEC-01's rule.** Replacing the content cannot enforce
+  SPEC-01's rule (Axis 1 pass, Axes 2+3 at least 4, neither zero), because admission
+  evaluates only required gate axes. Until the rule is evaluated, the route refuses
+  PROMOTE on any bar with another axis. Phase 5 prep decides where the rule is
+  evaluated, in the route or in W11 admission, before `decide_spec_01` runs live.
+- **In step 3,** the Task is not amended while its Attempt runs, and the Attempt starts
+  with the code and environment identities its manifests will record.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
