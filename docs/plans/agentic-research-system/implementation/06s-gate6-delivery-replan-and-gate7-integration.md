@@ -463,7 +463,9 @@ table:
       environment identities, and the Task must be unamended since that Attempt's
       dispatch;
     - orphan reuse on the project-use route does not re-check prerequisites on the
-      current ledger, a known limit.
+      current ledger, a known limit;
+    - a SOURCE, project-use or operator-record registration refuses, before
+      publishing, when the ledger has moved past the snapshot it was derived from.
 
 ### Phase 5 — Owner-gated live proof and closure
 

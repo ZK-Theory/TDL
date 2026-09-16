@@ -1028,6 +1028,44 @@ def test_a_decision_is_refused_for_a_task_amended_after_its_attempts_dispatch(bo
     assert coordinator.status(register_intent())["state"] == "not_started"
 
 
+def test_project_use_registration_refuses_a_ledger_that_moved_after_derivation(
+    bound_result, tmp_path, capsys, monkeypatch
+):
+    """The decision is derived before admission's writer lock; inside the lock a moved ledger refuses it."""
+    fixture = bound_result
+    coordinator, grants = fixture.coordinator, fixture.grants_project_use
+    derive, moved = spec_result.next_command, []
+
+    def derive_then_foreign_append(*args, **kwargs):
+        built = derive(*args, **kwargs)
+        # Another writer appends to an unrelated stream after the decision is derived, before the lock.
+        fixture.grant(REVIEWER, ("RecordScientificReview",), agent=True, subject=new_id("artefact"))
+        moved.append(coordinator.ledger.snapshot())
+        return built
+
+    intent_path = tmp_path / "moved-intent.json"
+    intent_path.write_bytes(canonical_bytes(register_intent()))
+    config = _config(fixture, tmp_path, actor=OWNER, grant=grants["register"])
+    args = ["discovery", "spec", "advance", "--operator-config", str(config)]
+    before = coordinator.ledger.snapshot()
+    with monkeypatch.context() as patched:
+        patched.setattr(spec_result, "next_command", derive_then_foreign_append)
+        code = cli.main([*args, "--action", spec_result.REGISTER, "--input", str(intent_path)])
+    captured = capsys.readouterr()
+    assert code == 1, captured.out
+    assert "moved past" in captured.err and "nothing was published" in captured.err, captured.err
+    [appended] = moved
+    after = coordinator.ledger.snapshot()
+    assert after.global_position > before.global_position
+    assert (after.global_position, after.event_hash) == (appended.global_position, appended.event_hash)
+    assert not coordinator.objects.revision_exists(spec_result.DOCUMENT_KIND, fixture.decision_id, 1)
+    assert coordinator.status(register_intent())["state"] == "not_started"
+
+    # Derived again from the moved ledger, the same invocation registers.
+    registered = _project_use(fixture, tmp_path, capsys, register_intent(), actor=OWNER, grant=grants["register"])
+    assert registered["state"] == "completed" and registered["receipt"]["status"] == "accepted"
+
+
 class _Documents:
     """Object store that serves chosen decision documents and delegates everything else."""
 

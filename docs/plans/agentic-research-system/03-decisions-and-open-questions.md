@@ -1719,6 +1719,24 @@ option for each.
   round 1, the route does not re-check their prerequisites on the current ledger. The
   gap needs a crash between publication and registration followed by a lapse, such as
   a later revisit or a superseded correction. It is a follow-up.
+- **Document registrations refuse a moved ledger.**
+  - **The problem (PR #291 known limit 14):** every SPEC document registration derives
+    its document and prerequisites from a ledger snapshot before admission takes its
+    writer lock. A concurrent writer in that window could leave a registered record
+    whose prerequisites held only at an earlier prefix.
+  - **The measurement:** nothing in a route invocation appends in that window. Binding
+    revalidation only reads. Admission appends only the command's own events, after
+    the bytes are published. Grant auto-activation exists only in the
+    `GovernedTestCommandService` test adapter.
+  - **The decision:** inside the lock and before publishing, the shared document
+    registration service compares the ledger tail's position and hash with the
+    snapshot the effect was derived from, and refuses if they differ. This covers
+    SOURCE, project-use and both SPEC-01 operator records. The SOURCE path takes its
+    snapshot when `advance` starts. Re-deriving under the lock was rejected, because
+    it would hold the writer lock through several replays.
+  - **Consequence:** an unrelated writer appending in the window also refuses the
+    registration, and the caller retries. A concurrent identical registration
+    conflicts instead of replaying, and a later retry reads its receipt.
 
 ## Decision protocol
 
