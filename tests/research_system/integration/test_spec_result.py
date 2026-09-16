@@ -402,6 +402,10 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
             "ResolveDecision",
         ),
         "request_spec_01": ("RequestAssay",),
+        "prepare_spec_01": ("RegisterArtefact",),
+        "return_spec_01_complete": ("RegisterArtefact", "RecordAssayScore"),
+        "review_spec_01_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "decide_spec_01": ("ProposePromotionDecision", "ResolveDecision"),
     }
 
 
@@ -422,7 +426,12 @@ def test_each_document_service_publishes_only_its_route_kind():
         def rollback_new_revision(self, kind, artefact_id, revision, value, *, existed_before):
             self.kinds.add(kind)
 
-    assert set(_REGISTRATION_SERVICES) == {"spec_source_document", spec_result.DOCUMENT_KIND}
+    assert set(_REGISTRATION_SERVICES) == {
+        "spec_source_document",
+        spec_result.DOCUMENT_KIND,
+        "spec_operator_brief_document",
+        "spec_operator_return_document",
+    }
     for kind, service_type in _REGISTRATION_SERVICES.items():
         service = object.__new__(service_type)
         service.objects, service.document = Recorder(), {"document": kind}

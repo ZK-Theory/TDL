@@ -432,6 +432,29 @@ table:
 
   The operator return binds its content inline. The prospective producer relation is
   actor-only, a known limit.
+- **4a-2 decisions (P-058, 2026-09-15).**
+  - The brief package and the operator return take their operational provenance from
+    the ledger: the Task naming the Candidate and its started Attempt.
+  - The scorecard is derived from the accepted bar. The committed bar is W11 fixture
+    content, a known limit until Phase 5 prep replaces it.
+  - From the PR #291 review: the Assay producer's own OR-004 invocation must carry
+    the exact registered operator return. The route records only an approving outcome
+    review; a non-approving review cannot be recorded, a known limit.
+  - From the PR #291 review, round 2 (P-058, 2026-09-16):
+    - the manifests carry the producing Attempt's code and environment identities;
+    - the Task must be unamended since the Attempt's dispatch;
+    - the complete return's direct sources, findings and validation are non-empty;
+    - PROMOTE is neither proposed nor selected while the return lists unresolved
+      findings, or while the accepted bar has an axis the inherited scorecard rule does
+      not evaluate.
+  - From the PR #291 review, round 3 (P-058, 2026-09-16):
+    - the records require a running Attempt and a Task that names no other registered
+      Candidate;
+    - an exact retry requires the exact evidence field set;
+    - the PROMOTE refusal reads the Assay's frozen bar from the return's scorecard;
+    - derivation before the registration lock is a known limit, with a shared follow-up;
+    - a stopping rule applies from round 4: code only for a defect in round-3 code or a
+      false durable claim reachable on the Phase 5 path.
 
 ### Phase 5 — Owner-gated live proof and closure
 
@@ -446,6 +469,23 @@ and the live store stays historical evidence and is not appended to.
 - Step 5 backs it up and restores it.
 - The exact store-creation command and roots are prepared at Phase 5 and are
   authorized separately.
+
+**Amended by P-058 (2026-09-15).**
+- **Phase 5 prep** replaces the fixture Assay authority content with content that
+  expresses SPEC-01's axes, and decides which identity signs it.
+- **In step 3,** the operational Task naming the Candidate is created and its
+  Attempt started before `prepare_spec_01`.
+
+**Amended by P-058 (2026-09-16).**
+- **Phase 5 prep also evaluates SPEC-01's rule.** Replacing the content cannot enforce
+  SPEC-01's rule (Axis 1 pass, Axes 2+3 at least 4, neither zero), because admission
+  evaluates only required gate axes. Until the rule is evaluated, the route refuses
+  PROMOTE on any bar with another axis. Phase 5 prep decides where the rule is
+  evaluated, in the route or in W11 admission, before `decide_spec_01` runs live.
+- **In step 3,** the Task is not amended while its Attempt runs, and the Attempt starts
+  with the code and environment identities its manifests will record. Amended again on
+  2026-09-16 (round 3): the Task names only the SPEC-01 Candidate, and its Attempt stays
+  running until the operator return is registered.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.

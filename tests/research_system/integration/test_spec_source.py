@@ -172,10 +172,11 @@ def bound_source(tmp_path, monkeypatch):
     return bind_scratch_route(tmp_path, monkeypatch)
 
 
-def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis=True):
+def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis=True, repository_overrides=None):
     """Bind a scratch SPEC store; extra repository files are committed with the fixture repository.
 
     With ``genesis=False`` the W11 catalogue genesis is left for the public route to import.
+    ``repository_overrides`` maps a copied file to replacement bytes committed in its place.
     """
     scratch = tmp_path / "bound"
     for relative in (
@@ -186,6 +187,8 @@ def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis
         target = scratch / "repo" / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / relative, target)
+    for relative, content in (repository_overrides or {}).items():
+        (scratch / "repo" / relative).write_bytes(content)
     fixture = _bound_fixture(scratch)
     monkeypatch.setattr(cli, "canonical_foundation_path", lambda: fixture.foundation_path)
     context = load_verified_binding_context(
@@ -624,6 +627,10 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
             "ResolveDecision",
         ),
         "request_spec_01": ("RequestAssay",),
+        "prepare_spec_01": ("RegisterArtefact",),
+        "return_spec_01_complete": ("RegisterArtefact", "RecordAssayScore"),
+        "review_spec_01_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "decide_spec_01": ("ProposePromotionDecision", "ResolveDecision"),
     }
 
     def timed_out(*args, **kwargs):
