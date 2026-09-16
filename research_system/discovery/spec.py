@@ -569,7 +569,9 @@ class SpecCoordinator:
         State, the next command and its expected stream version all come from the same
         snapshot. If another process commits the identical effect first, this command
         binds the version that commit bound and admission replays it; any other commit
-        fails the version check instead of pairing stale state with newer evidence.
+        fails the version check instead of pairing stale state with newer evidence. A
+        repeated invocation of a committed effect is answered from its receipt; any other
+        invocation of a completed action conflicts without publication.
 
         Known limit: admission binds only the target stream's version. A Task-stream
         commit by another process between this snapshot and a Review-stream effect
@@ -613,7 +615,10 @@ class SpecCoordinator:
             return replayed
         effect = state["next_effect"]
         if effect is None:
-            return replay_receipt(latest_only=False) or state
+            replayed = replay_receipt(latest_only=False)
+            if replayed is not None:
+                return replayed
+            raise ConflictError(f"{spec_task.ACTION} is already completed; this invocation repeats no committed effect")
         try:
             target, payload = spec_task.effect_command(
                 effect,
@@ -693,7 +698,8 @@ class SpecCoordinator:
 
         State, the next command and its expected stream version all come from the same
         snapshot. A repeated invocation of a committed effect is answered from its
-        receipt and never resubmitted, so it stays readable after its grant expires.
+        receipt and never resubmitted, so it stays readable after its grant expires. Any
+        other invocation of a completed action conflicts without publication.
         """
         self.binding.revalidate()
         self.schemas.validate(spec_result.INTENT_SCHEMA_ID, intent)
@@ -715,7 +721,7 @@ class SpecCoordinator:
                 raise IntegrityError(f"{action} retry has no matching committed receipt: {retry['command_id']}")
             return {**state, "receipt": asdict(receipt)}
         if state["next_effect"] is None:
-            return state
+            raise ConflictError(f"{action} is already completed; this invocation repeats no committed effect")
         now = self.clock().isoformat().replace("+00:00", "Z")
         effect, target, payload, document = spec_result.next_command(
             intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant, now=now

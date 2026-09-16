@@ -766,6 +766,40 @@ def test_public_project_use_result_is_pending_until_independently_accepted(bound
     assert json.loads(replayed.stdout) == output
 
 
+def test_completed_project_use_actions_conflict_unless_the_invocation_repeats_a_committed_effect(
+    bound_result, tmp_path, capsys
+):
+    """A completed action answers only a repeat of a committed effect; anything else conflicts.
+
+    This is the route package's ``changed_command_outcome: conflict_without_publication``.
+    """
+    fixture = bound_result
+    coordinator, grants = fixture.coordinator, fixture.grants_project_use
+    evidence = _accept_decision(fixture, tmp_path, capsys)
+    tail = _tail(coordinator)
+
+    # The same decision under another grant, and a different review, repeat no committed effect.
+    changed = (
+        (register_intent(), OWNER, grants["use"], None),
+        (accept_intent(), REVIEWER, grants["review"], _review_evidence(fixture)),
+    )
+    for intent, actor, grant, supplied in changed:
+        message = _project_use(
+            fixture, tmp_path, capsys, intent, actor=actor, grant=grant, evidence=supplied, refused=True
+        )
+        assert "already completed" in message, intent["action"]
+
+    # Exact retries of every committed effect are still answered from their receipts.
+    for intent, actor, grant, supplied in (
+        (register_intent(), OWNER, grants["register"], None),
+        (accept_intent(), REVIEWER, grants["review"], evidence),
+        (accept_intent(), OWNER, grants["use"], None),
+    ):
+        retried = _project_use(fixture, tmp_path, capsys, intent, actor=actor, grant=grant, evidence=supplied)
+        assert retried["receipt"]["status"] == "accepted" and retried["state"] == "completed"
+    assert _tail(coordinator) == tail
+
+
 def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_path, capsys):
     fixture = bound_result
     coordinator, grants = fixture.coordinator, fixture.grants_project_use

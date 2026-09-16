@@ -515,8 +515,11 @@ def test_expired_actor_cannot_create_a_new_effect_while_completed_state_stays_re
         clock=lambda: datetime(2027, 1, 1, tzinfo=UTC),
     )
 
-    # The completed action reads its recorded effects without requiring new authority.
-    assert late.advance(close_task_intent(), None) == completed
+    # The completed action reads its recorded effects without requiring new authority. An advance under
+    # the expired grant repeats no committed effect, so it conflicts rather than reporting success.
+    assert late.status(close_task_intent()) == completed
+    with pytest.raises(ConflictError, match="already completed"):
+        late.advance(close_task_intent(), None)
     assert _tail(coordinator) == tail
 
     # A new effect for a fresh review subject under the same expired grant is refused.
@@ -579,6 +582,30 @@ def test_exact_retry_reads_the_existing_receipt_without_new_effects(bound_task, 
     # The same key rebound to a later version is refused rather than duplicated.
     with pytest.raises(IdempotencyConflictError):
         coordinator.service.submit(accept_command(accepted_event["stream_version"]))
+    assert _tail(coordinator) == tail
+
+
+def test_a_completed_closure_conflicts_unless_the_invocation_repeats_a_committed_effect(bound_task, tmp_path, capsys):
+    """A completed action answers only a repeat of a committed effect; anything else conflicts.
+
+    This is the route package's ``changed_command_outcome: conflict_without_publication``.
+    """
+    receipts = {effect: _advance(bound_task, effect, tmp_path, capsys)["receipt"] for effect in spec_task.EFFECTS}
+    coordinator = bound_task.coordinator
+    completed = coordinator.status(close_task_intent())
+    tail = _tail(coordinator)
+
+    # Changed evidence for a committed effect, and the final effect under another grant, repeat nothing.
+    changed = {**SATISFY_EVIDENCE, "satisfaction_gate": "another-acceptance-gate"}
+    assert "already completed" in _refuse(bound_task, "SatisfyReview", tmp_path, capsys, evidence=changed)
+    other_grant = bound_task.grants["review_owner"]
+    assert "already completed" in _refuse(bound_task, "AcceptTask", tmp_path, capsys, grant=other_grant)
+    assert coordinator.status(close_task_intent()) == completed
+
+    # Exact retries of the final effect and of an earlier one are still answered from their receipts.
+    for effect in ("AcceptTask", "SatisfyReview"):
+        repeated = _advance(bound_task, effect, tmp_path, capsys)
+        assert repeated["receipt"]["command_id"] == receipts[effect]["command_id"], effect
     assert _tail(coordinator) == tail
 
 
