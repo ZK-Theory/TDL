@@ -14,7 +14,7 @@ mutation:
 - the outcome reviewer is not the owner;
 - the promotion proposer is not the producer, the reviewer or the owner;
 - the selected option comes from the owner's own invocation;
-- PROMOTE is neither proposed nor selected while the accepted bar has an axis the
+- PROMOTE is neither proposed nor selected while the Assay's bar has an axis the
   inherited scorecard rule does not evaluate, or while the return lists unresolved findings.
 
 Only evidence this route issued counts. A located effect must carry the route's own
@@ -22,12 +22,13 @@ retry key for this intent and the command payload the route derives at that ledg
 position, and nothing else may sit on a stream the action owns.
 
 The operator brief package and the operator return take their operational provenance
-from the ledger (P-058, 2026-09-15): the one Task whose definition names the Candidate,
-still at the revision its started Attempt was dispatched on, and that Attempt, whose
-own start record supplies the manifests' code and environment identities. The scorecard
-is derived from whichever Assay bar is accepted; the operator supplies only each rubric
-axis's value, rationale and unmet condition codes. Known limit: the committed bar is W11
-fixture content, which Phase 5 prep replaces.
+from the ledger (P-058, 2026-09-15): the one Task whose definition names the Candidate
+and no other registered Candidate, still at the revision its Attempt was dispatched on,
+and that Attempt while it is running, whose own start record supplies the manifests'
+code and environment identities. The scorecard is derived from whichever Assay bar is
+accepted; the operator supplies only each rubric axis's value, rationale and unmet
+condition codes. Known limit: the committed bar is W11 fixture content, which Phase 5
+prep replaces.
 """
 
 from __future__ import annotations
@@ -374,9 +375,12 @@ def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -
 
     Admission never checks a manifest's Task, dispatch, attempt, context packet, code
     commit or environment fingerprint, and the caller cannot supply them, so they come
-    from the one Task naming the Candidate and that Task's started Attempt. The Task must
-    still be at the revision the Attempt was dispatched on (PR #291 review): an amendment
-    after dispatch would otherwise lend the Attempt a definition it never ran.
+    from the one Task naming the Candidate and that Task's started Attempt (PR #291 review):
+    - the Task names no other registered Candidate, as the project-use result requires;
+    - the Task is still at the revision the Attempt was dispatched on, so an amendment
+      after dispatch cannot lend the Attempt a definition it never ran;
+    - the Attempt is still running, so a finished Attempt is never cited as producing a
+      record created after it ended.
     """
     streams = replay(tuple(events), schema_registry=ctx.schemas, authority_state_validator=ctx.validator)["streams"]
     tasks = [
@@ -388,6 +392,10 @@ def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -
     ]
     if len(tasks) != 1:
         raise IntegrityError(f"SPEC-01 operator records require exactly one Task naming Candidate {candidate_id}")
+    registered = _projection(events, ctx)["candidates"]
+    named = [ref for ref in streams[tasks[0]]["definition"]["portfolio_refs"] if ref in registered]
+    if named != [candidate_id]:
+        raise IntegrityError(f"SPEC-01 operator records require Task {tasks[0]} to name no other registered Candidate")
     attempts = [
         stream_id
         for stream_id, stream in streams.items()
@@ -401,6 +409,8 @@ def _task_provenance(candidate_id: str, events: list[dict], ctx: AssayContext) -
     attempt = streams[attempts[0]]
     if attempt.get("task_revision") != streams[tasks[0]].get("current_revision"):
         raise IntegrityError(f"SPEC-01 operator records require Task {tasks[0]} unamended since its Attempt's dispatch")
+    if attempt.get("status") != "running":
+        raise IntegrityError(f"SPEC-01 operator records require Attempt {attempts[0]} to be running")
     start = attempt["start"]
     return {
         "task_id": tasks[0],
@@ -713,18 +723,21 @@ def _refuse_blocked_promote(ids: dict[str, str], events: list[dict], ctx: AssayC
 
     Admission derives a mechanical PROMOTE from the required gate axes alone, so an axis it
     does not evaluate, such as SPEC-01's integer data and novelty scores, cannot stop one.
-    While the accepted bar has such an axis, PROMOTE stays refused until its rule is
-    evaluated (Phase 5 prep). The brief makes an unresolved primary-paper/code discrepancy
-    blocking, and the return cannot mark which findings block, so any unresolved finding
-    refuses PROMOTE.
+    While the Assay's bar has such an axis, PROMOTE stays refused until its rule is
+    evaluated (Phase 5 prep). The bar is read from the registered return's scorecard, which
+    admission bound to the Assay's frozen bar when it scored, never from a later accepted
+    bar. The brief makes an unresolved primary-paper/code discrepancy blocking, and the
+    return cannot mark which findings block, so any unresolved finding refuses PROMOTE.
     """
-    rubric = _projection(events, ctx)["assay_bar_authority"]["contents"]["rubric"]["content"]
-    required = set(rubric["required_axis_ids"])
-    if any(axis["axis_kind"] != "gate" or axis["axis_id"] not in required for axis in rubric["axis_definitions"]):
-        raise IntegrityError(
-            f"{DECIDE} cannot PROMOTE: the accepted bar has an axis the scorecard rule does not evaluate"
-        )
     returned = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
+    scorecard = returned["scorecard"]
+    # Equal axis-set hashes mean every axis is required; a non-gate axis is only bounds-checked.
+    if scorecard["required_axis_set_hash"] != scorecard["observed_axis_set_hash"] or any(
+        result["axis_kind"] != "gate" for result in scorecard["axis_results"]
+    ):
+        raise IntegrityError(
+            f"{DECIDE} cannot PROMOTE: the Assay's bar has an axis the scorecard rule does not evaluate"
+        )
     if returned["operator_return"]["unresolved_findings"]:
         raise IntegrityError(f"{DECIDE} cannot PROMOTE while the operator return lists unresolved findings")
 
@@ -1256,6 +1269,9 @@ def exact_retry(
     for row, transaction in _located(intent, events, ctx):
         first = transaction[0]
         if (row in _EVIDENCE) != (evidence is not None):
+            continue
+        # Payloads read only the known evidence fields, so an inexact field set must not match a retry.
+        if evidence is not None and (not isinstance(evidence, dict) or set(evidence) != _EVIDENCE[row]):
             continue
         try:
             if row in _ARTEFACT_ROWS:

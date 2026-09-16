@@ -475,20 +475,23 @@ def _requested(bound, tmp_path, capsys, source_repo) -> str:  # noqa: F811
     return candidate_id
 
 
-def _seed_task_naming(bound, candidate_id: str, monkeypatch):
-    """Seed the operational Task that names the Candidate, with its Attempt started (P-058, 2026-09-15)."""
+def _seed_task_naming(bound, candidate_id: str, monkeypatch, *, also_naming=(), outcome=None):
+    """Seed the operational Task that names the Candidate, with its Attempt started (P-058, 2026-09-15).
+
+    ``also_naming`` adds further portfolio references; ``outcome`` ends the Attempt after it starts.
+    """
     original = c1.create_task_command
 
     def naming_candidate(*args, **kwargs):
         command = original(*args, **kwargs)
         definition = command["payload"]["definition"]
-        definition["portfolio_refs"] = [candidate_id]
+        definition["portfolio_refs"] = [candidate_id, *also_naming]
         definition.pop("content_sha256")
         definition["content_sha256"] = sha256_hex(canonical_bytes(definition))
         return command
 
     monkeypatch.setattr(c1, "create_task_command", naming_candidate)
-    return _seed_bound_task(bound, outcome=None)
+    return _seed_bound_task(bound, outcome=outcome)
 
 
 def test_public_spec_01_path_reaches_an_accepted_project_use_result(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
@@ -657,8 +660,17 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     owner_review = _grant(bound, "ReviewDiscoveryOutcome", ids["review_id"], OWNER, human=True)
     assert "must not be the owner" in _invoke(bound, tmp_path, capsys, review_intent, owner_review, OWNER,
                                               evidence=OUTCOME_VERDICT_EVIDENCE, refused=True)  # fmt: skip
-    _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER,
-         evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    review_grant = _grant(bound, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER)
+    reviewed = _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                       evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    # The reviewer's exact repeat is answered from its receipt; the same evidence with an extra field is not a
+    # repeat, so it conflicts as it would have been refused before the review was recorded.
+    retried = _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                      evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    assert retried["receipt"] == reviewed["receipt"]
+    padded = {**OUTCOME_VERDICT_EVIDENCE, "unrecognised": True}
+    assert "already completed" in _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                                          evidence=padded, refused=True)  # fmt: skip
 
     decide_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PARK")
     for actor, human in ((PRODUCER, False), (OUTCOME_REVIEWER, False), (OWNER, True)):
@@ -918,6 +930,29 @@ def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypa
     assert "unamended since" in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER,
                                         evidence=RETURN_EVIDENCE, refused=True)  # fmt: skip
     assert coordinator.status(return_intent)["state"] == "not_started"
+
+
+def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    # The Task also names a reference that is not yet a registered Candidate, and its only Attempt has failed.
+    other = "obj_019fed25-b33e-7740-b280-000000000901"
+    _seed_task_naming(bound, candidate_id, monkeypatch, also_naming=(other,), outcome="failed")
+    assert _streams(coordinator)[c1.ATTEMPT_ID]["status"] == "failed"
+
+    # A finished Attempt cannot be cited as producing a record created after it ended.
+    prepare_intent = spec_01_intent(spec_assay.PREPARE, candidate_id)
+    brief_grant = _grant(bound, "RegisterArtefact", ids["brief_id"], OWNER, human=True)
+    assert "to be running" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER, refused=True)
+
+    # Once the other reference is a registered Candidate, the Task names two, and the project-use result it
+    # would close could never be reached.
+    assert _ingest_direct(bound, 1) == other
+    assert "no other registered Candidate" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER,
+                                                      refused=True)  # fmt: skip
+    assert coordinator.status(prepare_intent)["state"] == "not_started"
 
 
 def _unevaluated_axis_bar() -> dict[str, bytes]:
