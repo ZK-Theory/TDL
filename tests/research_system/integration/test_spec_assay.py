@@ -61,13 +61,20 @@ SUBJECT_KIND = {
     "RequestAssay": "scope_definition",
     "RegisterArtefact": "artefact",
     "RecordAssayScore": "scope_definition",
+    "RecordAssayPartial": "scope_definition",
     "RequestDiscoveryOutcomeReview": "scope_definition",
     "ReviewDiscoveryOutcome": "review",
     "ProposePromotionDecision": "scope_definition",
 }
 # These W11 commands' grants name the Candidate rather than their target stream.
 CANDIDATE_SCOPED = frozenset(
-    {"RequestAssay", "RecordAssayScore", "RequestDiscoveryOutcomeReview", "ProposePromotionDecision"}
+    {
+        "RequestAssay",
+        "RecordAssayScore",
+        "RecordAssayPartial",
+        "RequestDiscoveryOutcomeReview",
+        "ProposePromotionDecision",
+    }
 )
 
 GENESIS_INTENT = {"action": spec_assay.GENESIS, "reason": "import the accepted W11 catalogue"}
@@ -232,13 +239,20 @@ def test_the_action_table_adds_the_bootstrap_and_assay_request_actions():
     assert ACTION_EFFECTS[spec_assay.RETURN] == ("RegisterArtefact", "RecordAssayScore")
     assert ACTION_EFFECTS[spec_assay.REVIEW] == ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome")
     assert ACTION_EFFECTS[spec_assay.DECIDE] == ("ProposePromotionDecision", "ResolveDecision")
+    # 06s Phase 4a′ (P-058, 2026-09-17): the Partial alternatives.
+    assert ACTION_EFFECTS[spec_assay.RETURN_PARTIAL] == ("RegisterArtefact", "RecordAssayPartial")
+    assert ACTION_EFFECTS[spec_assay.REVIEW_PARTIAL] == ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome")
 
 
 def test_assay_intent_is_a_closed_record():
     schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
     candidate = "obj_019fed25-b33e-7740-b280-000000000501"
-    for intent in (GENESIS_INTENT, BAR_INTENT, request_intent(candidate)):
-        schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
+    partial_actions = (spec_assay.RETURN_PARTIAL, spec_assay.REVIEW_PARTIAL)
+    partial_intents = tuple(
+        {"action": action, "reason": "advance", "candidate_id": candidate} for action in partial_actions
+    )
+    for intent in (GENESIS_INTENT, BAR_INTENT, request_intent(candidate), *partial_intents):
+        schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
     for invalid in (
         {**GENESIS_INTENT, "unrecognised": True},
         {**GENESIS_INTENT, "candidate_id": candidate},
@@ -246,9 +260,13 @@ def test_assay_intent_is_a_closed_record():
         {**BAR_INTENT, "candidate_id": candidate},
         {"action": spec_assay.REQUEST, "reason": "no candidate"},
         {**request_intent(candidate), "reviewer_actor_id": BAR_REVIEWER},
+        *({"action": action, "reason": "no candidate"} for action in partial_actions),
+        *({**intent, "recommendation": "PARK"} for intent in partial_intents),
+        # The version identifies the catalogue entry; an intent never carries it.
+        {**request_intent(candidate), "schema_version": spec_assay.INTENT_SCHEMA_VERSION},
     ):
         with pytest.raises(SchemaError):
-            schemas.validate(spec_assay.INTENT_SCHEMA_ID, invalid)
+            schemas.validate(spec_assay.INTENT_SCHEMA_ID, invalid, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
 
 
 def test_route_identities_are_deterministic_uuidv7_and_subject_bound():
@@ -260,6 +278,10 @@ def test_route_identities_are_deterministic_uuidv7_and_subject_bound():
     assert spec_assay.subject_ids(PROJECT_ID, other)["assay_id"] != assay_id
     bar = spec_assay.subject_ids(PROJECT_ID, BAR_INTENT)
     assert re.fullmatch(f"rev_{UUIDV7}", bar["review_id"]) and re.fullmatch(f"dec_{UUIDV7}", bar["decision_id"])
+    # Each Partial alternative shares the identities of the complete action it excludes (P-058, 2026-09-17).
+    complete = spec_assay.subject_ids(PROJECT_ID, {**first, "action": spec_assay.RETURN})
+    for action in (spec_assay.RETURN_PARTIAL, spec_assay.REVIEW, spec_assay.REVIEW_PARTIAL):
+        assert spec_assay.subject_ids(PROJECT_ID, {**first, "action": action}) == complete, action
 
 
 def test_public_bootstrap_and_assay_request_positive_path(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
@@ -434,6 +456,23 @@ OUTCOME_VERDICT_EVIDENCE = {
 PARK_EVIDENCE = {
     "selected_option": "PARK",
     "revisit_triggers": ["governed Assay authority content that expresses SPEC-01's axes"],
+}
+# 06s Phase 4a′ (P-058, 2026-09-17): collection stopped before any source or validation was reached, which a
+# Partial return may state with empty direct sources and validation; its findings must still say why.
+PARTIAL_EVIDENCE = {
+    "completed_axes": [],
+    "completed_evidence": [],
+    "unmet_axes": ["identity"],
+    "unmet_evidence": ["The issued brief's sources were not reached before collection stopped."],
+    "reason_codes": ["collection_stopped"],
+    "limitations": ["scratch store with the W11 fixture Assay bar"],
+    "revisit_requirements": ["SPEC-01 source access restored"],
+    "mechanical_recommendation": "UNABLE_TO_SCORE",
+    "direct_sources": [],
+    "findings": ["Collection stopped before the identity gate could be answered."],
+    "validation": [],
+    "unresolved_findings": [],
+    "prohibited_inferences": ["A Partial Assay is not a PROMOTE."],
 }
 
 
@@ -1100,3 +1139,257 @@ def test_promote_is_refused_while_the_bar_has_an_unevaluated_axis(tmp_path, monk
     promote = {"selected_option": "PROMOTE", "revisit_triggers": []}
     assert "does not evaluate" in _invoke(bound, tmp_path, capsys, decide_intent, resolve_grant, OWNER,
                                           evidence=promote, refused=True)  # fmt: skip
+
+
+# 06s Phase 4a′ (P-058, 2026-09-17): the Partial return and its outcome review.
+PARTIAL_ARTEFACT_FIELDS = (
+    "completed_axes",
+    "completed_evidence",
+    "unmet_axes",
+    "unmet_evidence",
+    "reason_codes",
+    "limitations",
+    "revisit_requirements",
+    "mechanical_recommendation",
+)
+
+
+def test_public_spec_01_partial_path_ends_at_a_reviewed_partial_assay(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    start = _streams(coordinator)[c1.ATTEMPT_ID]["start"]
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+
+    # The owner registers the operator's Partial return; a lost response is answered from its receipt.
+    return_intent = spec_01_intent(spec_assay.RETURN_PARTIAL, candidate_id)
+    return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
+    registered = _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=PARTIAL_EVIDENCE)
+    assert registered["state"] == "prepared" and registered["next_effect"] == "RecordAssayPartial"
+    tail = _tail(coordinator)
+    retried = _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=PARTIAL_EVIDENCE)
+    assert retried["receipt"] == registered["receipt"] and _tail(coordinator) == tail
+    # The Assay producer's own invocation records the Partial it carries.
+    recorded = _run(bound, tmp_path, capsys, return_intent, "RecordAssayPartial", candidate_id, PRODUCER,
+                    evidence=PARTIAL_EVIDENCE)  # fmt: skip
+    assert recorded["state"] == "completed"
+
+    returned = coordinator.objects.read(spec_assay.PARTIAL_RETURN_KIND, ids["return_id"], 1)
+    brief = coordinator.objects.read(spec_assay.BRIEF_KIND, ids["brief_id"], 1)
+    assert returned["brief"]["artefact_id"] == ids["brief_id"] and returned["task"] == brief["task"]
+    assert returned["operator_partial_return"] == PARTIAL_EVIDENCE
+    projection = _replay(coordinator)
+    bar, candidate = projection["assay_bar_authority"], projection["candidates"][candidate_id]
+    # Every reference in the Partial is derived; only the operator's judgements come from the caller.
+    assert returned["partial_artifact"] == {
+        "schema_id": "ars://portfolio/assay-partial",
+        "schema_version": "1.0.0",
+        "assay_id": ids["assay_id"],
+        "candidate_ref": _record_ref(candidate_id, candidate["revision"], candidate["content_sha256"]),
+        "rubric_ref": bar["acceptance"]["rubric_ref"],
+        "scope_ref": bar["acceptance"]["scope_ref"],
+        "assay_bar_acceptance_ref": _record_ref(bar["acceptance"]["decision_id"], 1, bar["acceptance_sha256"]),
+        "assay_relation_hash": bar["producer_relation_sha256"],
+        **{key: PARTIAL_EVIDENCE[key] for key in PARTIAL_ARTEFACT_FIELDS},
+    }
+    assert returned["partial_sha256"] == sha256_hex(canonical_bytes(returned["partial_artifact"]))
+    assay = projection["assays"][ids["assay_id"]]
+    assert (assay["status"], assay["outcome_sha256"]) == ("partial_recorded", returned["partial_sha256"])
+    manifest = spec_assay._one(list(coordinator.ledger.snapshot().events), ids["return_id"], "ArtefactRegistered")[
+        "payload"
+    ]["manifest"]
+    assert manifest["artefact_schema_id"] == spec_assay.PARTIAL_RETURN_SCHEMA_ID
+    assert (manifest["code_commit"], manifest["environment_fingerprint"]) == (
+        start["code_identity"],
+        start["environment_fingerprint"],
+    )
+    assert [dependency["input_artefact_id"] for dependency in manifest["input_dependencies"]] == [ids["brief_id"]]
+    with pytest.raises(SchemaError):
+        coordinator.schemas.validate(spec_assay.PARTIAL_RETURN_SCHEMA_ID, {**returned, "unrecognised": True},
+                                     schema_version="1.0.0")  # fmt: skip
+
+    review_intent = spec_01_intent(spec_assay.REVIEW_PARTIAL, candidate_id)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    reviewed = _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["review_id"],
+                    OUTCOME_REVIEWER, evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    assert reviewed["state"] == "completed"
+
+    # 4a′ ends here: a reviewed Partial Assay whose Candidate may be revisited, with no Decision.
+    projection = _replay(coordinator)
+    assay, candidate = projection["assays"][ids["assay_id"]], projection["candidates"][candidate_id]
+    assert projection["reviews"][ids["review_id"]]["status"] == "satisfied"
+    assert assay["status"] == "partial_reviewed"
+    assert assay["revisit_requirements"] == PARTIAL_EVIDENCE["revisit_requirements"]
+    assert candidate["status"] == "assay_revisit_eligible" and candidate.get("decision_id") is None
+
+    # The listing re-derives only the alternative taken; the complete ones are neither listed nor unreadable.
+    listing = coordinator.status()["actions"]
+    assert not [entry for entry in listing if "unreadable" in entry and entry["action"] in spec_assay.ACTIONS]
+    states = {
+        entry["action"]: entry["state"]
+        for entry in listing
+        if entry["action"] in spec_assay.ACTIONS and entry.get("candidate_id") == candidate_id
+    }
+    assert states == {
+        spec_assay.REQUEST: "completed",
+        spec_assay.PREPARE: "completed",
+        spec_assay.RETURN_PARTIAL: "completed",
+        spec_assay.REVIEW_PARTIAL: "completed",
+    }
+    for action in (spec_assay.RETURN, spec_assay.REVIEW):
+        with pytest.raises(ConflictError, match=spec_assay.RETURN_PARTIAL):
+            coordinator.status(spec_01_intent(action, candidate_id))
+    decide_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PARK")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert "Partial Assay" in _invoke(bound, tmp_path, capsys, decide_intent, grant, PROPOSER, refused=True)
+
+
+def _partial_request(candidate_id: str, assay_id: str, review_id: str, digest: str) -> dict:
+    """A well-formed OR-035 request for a decisive control, bypassing the route."""
+    return {
+        "row_id": "OR-035",
+        "candidate_id": candidate_id,
+        "assay_id": assay_id,
+        "review_id": review_id,
+        "subject_sha256": digest,
+        "review_contract": {
+            "review_type": "provenance",
+            "new_review_id": review_id,
+            "subject_ids": [assay_id],
+            "subject_hashes": [digest],
+            "governing_refs": ["W11:OR-035"],
+            "review_questions": ["Is the Partial exact?"],
+            "required_evidence_refs": ["assay-partial:exact"],
+            "required_lanes": ["provenance"],
+            "reviewer_capability": ["assay-independent-review"],
+            "required_independence_grade": "independent",
+            "visibility_policy": "owner-visible",
+            "allowed_verdicts": ["approve", "changes_requested", "reject"],
+            "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+            "deadline": "2026-12-31T00:00:00Z",
+            "escalation_rule": "owner-ruling",
+        },
+    }
+
+
+def test_spec_01_partial_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+
+    # A Partial return without findings, one the inherited Partial rule would refuse at OR-005, and one with
+    # an inexact field set are each refused before anything is registered.
+    return_intent = spec_01_intent(spec_assay.RETURN_PARTIAL, candidate_id)
+    return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
+    no_findings = {**PARTIAL_EVIDENCE, "findings": []}
+    unpartitioned = {**PARTIAL_EVIDENCE, "unmet_axes": ["not-a-rubric-axis"]}
+    inexact = {key: value for key, value in PARTIAL_EVIDENCE.items() if key != "validation"}
+    for evidence, reason in (
+        (no_findings, "not schema-valid"),
+        (unpartitioned, "would not be admitted"),
+        (inexact, "evidence fields are not exact"),
+    ):
+        assert reason in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=evidence,
+                                 refused=True)  # fmt: skip
+    _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=PARTIAL_EVIDENCE)
+    # The alternatives share the return identity, so the complete return is now excluded for this Assay.
+    complete_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    assert "excluded" in _invoke(bound, tmp_path, capsys, complete_intent, return_grant, OWNER,
+                                 evidence=RETURN_EVIDENCE, refused=True)  # fmt: skip
+
+    # The Assay producer's own invocation must carry the exact Partial return the owner registered.
+    other_partial = {**PARTIAL_EVIDENCE, "reason_codes": ["a reason the operator did not return"]}
+    partial_grant = _grant(bound, "RecordAssayPartial", candidate_id, PRODUCER)
+    for evidence, reason in ((None, "evidence fields are not exact"), (other_partial, "exact operator Partial return")):
+        assert reason in _invoke(bound, tmp_path, capsys, return_intent, partial_grant, PRODUCER, evidence=evidence,
+                                 refused=True)  # fmt: skip
+    _invoke(bound, tmp_path, capsys, return_intent, partial_grant, PRODUCER, evidence=PARTIAL_EVIDENCE)
+    assert "already completed" in _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER,
+                                          evidence=other_partial, refused=True)  # fmt: skip
+
+    review_intent = spec_01_intent(spec_assay.REVIEW_PARTIAL, candidate_id)
+    for actor, human in ((PRODUCER, False), (OWNER, True)):
+        grant = _grant(bound, "RequestDiscoveryOutcomeReview", candidate_id, actor, human=human)
+        assert "outcome-review requester" in _invoke(bound, tmp_path, capsys, review_intent, grant, actor, refused=True)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    owner_review = _grant(bound, "ReviewDiscoveryOutcome", ids["review_id"], OWNER, human=True)
+    assert "must not be the owner" in _invoke(bound, tmp_path, capsys, review_intent, owner_review, OWNER,
+                                              evidence=OUTCOME_VERDICT_EVIDENCE, refused=True)  # fmt: skip
+    review_grant = _grant(bound, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER)
+    reviewed = _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                       evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    retried = _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                      evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    assert retried["receipt"] == reviewed["receipt"]
+    padded = {**OUTCOME_VERDICT_EVIDENCE, "unrecognised": True}
+    assert "already completed" in _invoke(bound, tmp_path, capsys, review_intent, review_grant, OUTCOME_REVIEWER,
+                                          evidence=padded, refused=True)  # fmt: skip
+
+    # Decisive controls on further Candidates: inherited admission records a Partial with no brief, Task or
+    # registered return, the producer's and the owner's Partial review requests, and the owner's review.
+    context = coordinator._assay_context()
+    requested_by = {}
+    for number, (requester, human) in enumerate(((PRODUCER, False), (OWNER, True))):
+        other = _ingest_direct(bound, number)
+        other_assay = f"asy_019fed25-b33e-7740-b280-{810 + number:012d}"
+        other_review = f"rev_019fed25-b33e-7740-b280-{820 + number:012d}"
+        projection = _replay(coordinator)
+        bar = projection["assay_bar_authority"]
+        request = {
+            "row_id": "OR-003",
+            "candidate_id": other,
+            "assay_id": other_assay,
+            "candidate_revision": 1,
+            "candidate_sha256": projection["candidates"][other]["content_sha256"],
+            "assay_bar_acceptance_sha256": bar["acceptance_sha256"],
+            "producer_relation_sha256": bar["producer_relation_sha256"],
+        }
+        assert _direct(bound, "RequestAssay", other_assay, request, STEWARD) == "accepted"
+        projection = _replay(coordinator)
+        subjects = {"candidate_id": other, "assay_id": other_assay}
+        partial = spec_assay._partial_artifact(subjects, projection, projection["candidates"][other],
+                                               projection["assays"][other_assay], PARTIAL_EVIDENCE, context)  # fmt: skip
+        digest = sha256_hex(canonical_bytes(partial))
+        recorded = {**subjects, "row_id": "OR-005", "partial_sha256": digest, "partial_artifact": partial,
+                    "producer_relation_sha256": bar["producer_relation_sha256"]}  # fmt: skip
+        assert _direct(bound, "RecordAssayPartial", other_assay, recorded, PRODUCER) == "accepted"
+        request = _partial_request(other, other_assay, other_review, digest)
+        assert _direct(bound, "RequestDiscoveryOutcomeReview", other_review, request, requester, human=human) == (
+            "accepted"
+        )
+        requested_by[requester] = (other, other_assay, other_review, digest)
+    other, other_assay, other_review, digest = requested_by[PRODUCER]
+    verdict = {
+        "review_id": other_review,
+        "verdict": "approve",
+        "findings": [],
+        "required_evidence_refs": ["assay-partial:exact"],
+        "limitations": [],
+        "conditions": [],
+        "reviewer_actor_id": OWNER,
+        **{
+            key: OUTCOME_VERDICT_EVIDENCE[key]
+            for key in (
+                "reviewer_profile",
+                "reviewer_session",
+                "reviewer_model_metadata",
+                "context_manifest_id",
+                "context_manifest_sha256",
+                "trace_visibility_evidence_refs",
+            )
+        },
+        "unchanged_subject_sha256": digest,
+        "producing_attempt_id": "att_019fed25-b33e-7740-b280-000000000813",
+        "computed_independence_grade": "independent",
+    }
+    recorded = {"candidate_id": other, "assay_id": other_assay, "row_id": "OR-007", "review_id": other_review,
+                "subject_sha256": digest, "verdict": "approve", "review_verdict": verdict}  # fmt: skip
+    assert _direct(bound, "ReviewDiscoveryOutcome", other_review, recorded, OWNER, human=True) == "accepted"
+    assert _replay(coordinator)["assays"][other_assay]["status"] == "partial_reviewed"

@@ -1738,6 +1738,86 @@ option for each.
     registration, and the caller retries. A concurrent identical registration
     conflicts instead of replaying, and a later retry reads its receipt.
 
+**4a′ design decisions (2026-09-17):** the 4a′ design pass at `8e14d1da` put six
+questions to Stephen for `return_spec_01_partial` and `review_spec_01_partial`. Paired
+scratch-store probes measured OR-005, OR-035 and OR-007 first. Stephen accepted every
+recommendation.
+- **A separate closed Partial return record.**
+  - **The problem:** the merged `spec-operator-return` 1.0.0 fixes `intent.action` to
+    `return_spec_01_complete` and requires `scorecard` and `scorecard_sha256`. OR-005
+    binds an `ars://portfolio/assay-partial` artefact instead
+    (`research_system/discovery/rules.py:54-75, 717-775`).
+  - **The decision:** a new closed record, `ars://portfolio/spec-operator-partial-return`
+    1.0.0, with its own object kind. The operator supplies the W11 Partial judgements
+    (completed and unmet axes and evidence, reason codes, limitations, revisit
+    requirements, and a PARK, KILL or UNABLE_TO_SCORE recommendation) and the brief's
+    return fields (direct sources, findings, validation, unresolved findings and
+    prohibited inferences). The route derives every reference, the Partial artefact and
+    its digest, and runs the inherited Partial binding rule before registration.
+    `spec-operator-return` 1.0.0 is unchanged.
+  - **Rejected:** a 2.0.0 return covering both outcomes. It changes a merged version, and
+    with one object kind, bytes orphaned by a crash on the complete path would block the
+    Partial on that Assay permanently.
+  - **Supersedes:** 06q's "same schema/version" for `return_spec_01_partial`, and adds a
+    record to P-058's records-kept list.
+- **`spec-assay-intent` 1.1.0.**
+  - **The problem:** the merged 1.0.0 is a closed enum of the seven 4a actions, so neither
+    Partial action validates.
+  - **The decision:** a new 1.1.0 adds both Partial actions, each with a Candidate and no
+    other field. 1.0.0 stays. The route validates intents at 1.1.0. Intents are never
+    stored, so no historical bytes change. 4b decides its own version at its design pass.
+- **Shared identities for each alternative pair.**
+  - **The decision:** `return_spec_01_partial` uses the return artefact identity and
+    `review_spec_01_partial` the outcome-review identity that the complete actions
+    already derive. The alternatives exclude each other at the first durable mutation:
+    the route refuses anything else on a stream the action owns, and inherited
+    admission refuses a second registration on an existing artefact stream
+    (`research_system/command/reducers.py:1423-1434`). OR-004/OR-005 and OR-034/OR-035
+    are already exclusive by Assay status.
+  - **Evaluation:** the alternative not taken conflicts, naming the one taken; there is no
+    fourth state. The status listing enumerates only the alternative the route issued.
+  - **Known limit:** an owner who registers the wrong alternative cannot switch on that
+    Assay. W11's recovery, cancellation (OR-008), is not on D1's list.
+  - **No public aliases** (`return_spec_01`, `review_spec_01`) are added.
+- **4a′ ends at a reviewed Partial Assay.**
+  - **The measurement:** after an approving OR-007, the Assay is `partial_reviewed`, the
+    review `satisfied`, and the Candidate `assay_revisit_eligible` with no Decision.
+    OR-012 requires an `assay_scored` Candidate and a `reviewed` Assay
+    (`research_system/discovery/runtime.py:1567-1604`), and the project-use result
+    requires a resolved terminal Decision (`research_system/discovery/spec_result.py:310-316`).
+  - **The decision:** `decide_spec_01` and the project-use registration refuse on a Partial;
+    status adds no field or state. 4b's revisit starts from this state.
+  - **Consequences:** each revisit requirement must later appear verbatim in a Scout
+    observation's `matching_facts` (`research_system/discovery/rules.py:307-310`), so the
+    operator writes them as exact facts. Whether an OR-010 PARK or KILL after a Partial
+    can close through project-use is a 4b design question.
+- **Measured admission and route bindings.** Each probe changed one actor or field at an
+  identical Assay state.
+  - **OR-005:** admission refuses every recorder but the Assay producer (steward, owner,
+    another human, the future reviewer), and a PROMOTE, an empty unmet-axis or
+    revisit-requirement list, or a wrong digest. It accepts any of the three
+    recommendations with any reason codes or evidence claims, and needs no brief, Task
+    or registered return. The route adds no actor check; the producer's own OR-005 must
+    carry the exact registered Partial return, compared as canonical JSON.
+  - **OR-035:** admission accepts a request from the producer, the owner, the future
+    reviewer and the steward. The route refuses the producer and the owner, as for OR-034.
+  - **OR-007:** admission refuses the requester and the producer, and accepts the owner and
+    a non-owner human. The route refuses the owner, as for OR-006.
+  - **Non-approving review:** admission records `changes_requested` without satisfying the
+    review, and then refuses a later `approve` on it. The route records only `approve`, so
+    PR #291 known limit 9 extends to the Partial.
+- **The 4a-2 rules apply unchanged**, with one exception.
+  - **Unchanged:** the ledger provenance (the one Task naming only this Candidate, unamended
+    since dispatch, its running Attempt, and the Task and Attempt the brief was issued to);
+    the Attempt's identities in the manifest; owner registration with the producer's exact
+    re-supply; the in-lock moved-ledger refusal; the completed-action conflict; the exact
+    retry field set; and orphan reuse only when the bytes re-derive and their
+    prerequisites still hold. The PROMOTE refusals do not apply.
+  - **The exception:** the Partial return requires non-empty `findings` only. A Partial may
+    stop before any source or validation is reached (W11 §4.3), and its unmet evidence and
+    reason codes record why. `direct_sources` and `validation` may be empty.
+- **Scope:** about nine files and 900–1,200 added lines, within the §5.0 checkpoint.
+
 ## Decision protocol
 
 Each future decision entry must record:

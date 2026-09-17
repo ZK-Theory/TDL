@@ -675,7 +675,9 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
         "request_spec_01": ("RequestAssay",),
         "prepare_spec_01": ("RegisterArtefact",),
         "return_spec_01_complete": ("RegisterArtefact", "RecordAssayScore"),
+        "return_spec_01_partial": ("RegisterArtefact", "RecordAssayPartial"),
         "review_spec_01_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "review_spec_01_partial": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
         "decide_spec_01": ("ProposePromotionDecision", "ResolveDecision"),
     }
 

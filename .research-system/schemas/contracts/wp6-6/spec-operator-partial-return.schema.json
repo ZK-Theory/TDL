@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-operator-partial-return",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "intent",
+    "recorded_at",
+    "producer_actor_id",
+    "causal_prefix",
+    "route_id",
+    "brief",
+    "task",
+    "candidate",
+    "assay",
+    "operator_partial_return",
+    "partial_artifact",
+    "partial_sha256",
+    "governed_code_subject"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-operator-partial-return"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_operator_partial_return"},
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "candidate_id"],
+      "properties": {
+        "action": {"const": "return_spec_01_partial"},
+        "candidate_id": {"type": "string", "pattern": "^obj_"}
+      }
+    },
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_"},
+    "causal_prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 0},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artefact_id", "content_sha256", "event_id", "event_hash", "global_position"],
+      "properties": {
+        "artefact_id": {"type": "string", "pattern": "^art_"},
+        "content_sha256": {"$ref": "#/$defs/sha256"},
+        "event_id": {"type": "string", "pattern": "^evt_"},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "global_position": {"type": "integer", "minimum": 1}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_revision",
+        "attempt_id",
+        "dispatch_id",
+        "context_packet_id",
+        "code_identity",
+        "environment_fingerprint"
+      ],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^tsk_"},
+        "task_revision": {"type": "integer", "minimum": 1},
+        "attempt_id": {"type": "string", "pattern": "^att_"},
+        "dispatch_id": {"type": "string", "pattern": "^dsp_"},
+        "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "code_identity": {"type": "string", "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"},
+        "environment_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "revision", "content_sha256"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^obj_"},
+        "revision": {"type": "integer", "minimum": 1},
+        "content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "assay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assay_id"],
+      "properties": {"assay_id": {"type": "string", "pattern": "^asy_"}}
+    },
+    "operator_partial_return": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed_axes",
+        "completed_evidence",
+        "unmet_axes",
+        "unmet_evidence",
+        "reason_codes",
+        "limitations",
+        "revisit_requirements",
+        "mechanical_recommendation",
+        "direct_sources",
+        "findings",
+        "validation",
+        "unresolved_findings",
+        "prohibited_inferences"
+      ],
+      "properties": {
+        "completed_axes": {"$ref": "#/$defs/strings"},
+        "completed_evidence": {"$ref": "#/$defs/strings"},
+        "unmet_axes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "unmet_evidence": {"$ref": "#/$defs/strings"},
+        "reason_codes": {"$ref": "#/$defs/nonEmptyStrings"},
+        "limitations": {"$ref": "#/$defs/strings"},
+        "revisit_requirements": {"$ref": "#/$defs/nonEmptyStrings"},
+        "mechanical_recommendation": {"enum": ["PARK", "KILL", "UNABLE_TO_SCORE"]},
+        "direct_sources": {"$ref": "#/$defs/strings"},
+        "findings": {"$ref": "#/$defs/nonEmptyStrings"},
+        "validation": {"$ref": "#/$defs/strings"},
+        "unresolved_findings": {"$ref": "#/$defs/strings"},
+        "prohibited_inferences": {"$ref": "#/$defs/nonEmptyStrings"}
+      }
+    },
+    "partial_artifact": {"$ref": "ars://portfolio/assay-partial"},
+    "partial_sha256": {"$ref": "#/$defs/sha256"},
+    "governed_code_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_event", "event_type", "recovery_binding_sha256", "git_head", "git_tree"],
+      "properties": {
+        "binding_event": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_id", "event_hash", "global_position"],
+          "properties": {
+            "event_id": {"type": "string", "pattern": "^evt_"},
+            "event_hash": {"$ref": "#/$defs/sha256"},
+            "global_position": {"type": "integer", "minimum": 1}
+          }
+        },
+        "event_type": {"enum": ["StoreBindingRepaired", "StoreBindingAdvanced"]},
+        "recovery_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}
