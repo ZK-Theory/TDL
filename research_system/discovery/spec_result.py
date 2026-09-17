@@ -297,6 +297,10 @@ def derive(
     selected = list(task.get("acceptance", {}).get("selected_artefact_ids", ()))
     if task.get("status") != "accepted" or not selected:
         raise IntegrityError(f"{REGISTER} requires an accepted Task that selected evidence artefacts")
+    # The decision names the closure Attempt, which ran the revision it was dispatched on. An amendment after
+    # dispatch would match the Candidate below on a definition that Attempt never ran.
+    if attempt.get("task_revision") != task.get("current_revision"):
+        raise IntegrityError(f"{REGISTER} requires Task {task_id} unamended since its Attempt's dispatch")
 
     projection = replay_discovery(tuple(events), schemas=ctx.schemas, authority_state_validator=ctx.validator)
     named = [ref for ref in task["definition"].get("portfolio_refs", ()) if ref in projection["candidates"]]
@@ -380,17 +384,18 @@ def _input_dependencies(document: dict[str, Any]) -> list[dict[str, str]]:
 def _manifest(document: dict[str, Any], artefact_id: str, attempt: dict[str, Any]) -> dict[str, Any]:
     raw = canonical_bytes(document)
     digest = sha256_hex(raw)
-    subject = document["governed_code_subject"]
     return {
         "task_id": document["task"]["task_id"],
         "dispatch_id": attempt["dispatch_id"],
         "attempt_id": document["task"]["attempt_id"],
         "context_packet_id": attempt["start"]["context_packet_id"],
         "producer_profile": f"{_ROUTE_IDENTITY}:{DOCUMENT_TYPE}",
-        "code_commit": "git:sha1:" + subject["git_head"],
+        # The closure Attempt's own identities, not the store binding's, which the document's
+        # governed_code_subject records. Admission's manifest schema refuses a non-git code identity.
+        "code_commit": attempt["start"]["code_identity"],
         "branch_identity": _ROUTE_IDENTITY,
         "worktree_identity": _ROUTE_IDENTITY,
-        "environment_fingerprint": subject["recovery_binding_sha256"],
+        "environment_fingerprint": attempt["start"]["environment_fingerprint"],
         "artefact_id": artefact_id,
         "aliases": [],
         "artefact_type": DOCUMENT_TYPE,

@@ -955,6 +955,84 @@ def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, mo
     assert coordinator.status(prepare_intent)["state"] == "not_started"
 
 
+def test_the_producer_return_is_compared_as_canonical_json(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+    return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    return_grant = _grant(bound, "RegisterArtefact", ids["return_id"], OWNER, human=True)
+    _invoke(bound, tmp_path, capsys, return_intent, return_grant, OWNER, evidence=RETURN_EVIDENCE)
+    returned = coordinator.objects.read(spec_assay.RETURN_KIND, ids["return_id"], 1)
+    assert returned["operator_return"]["axis_results"][0]["value"] is True
+
+    # The integer 1 equals the registered boolean in Python, but it is not the registered return.
+    substituted = {**RETURN_EVIDENCE, "axis_results": [{**RETURN_EVIDENCE["axis_results"][0], "value": 1}]}
+    assert substituted == RETURN_EVIDENCE and canonical_bytes(substituted) != canonical_bytes(RETURN_EVIDENCE)
+    score_grant = _grant(bound, "RecordAssayScore", candidate_id, PRODUCER)
+    assert "exact operator return" in _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER,
+                                              evidence=substituted, refused=True)  # fmt: skip
+    _invoke(bound, tmp_path, capsys, return_intent, score_grant, PRODUCER, evidence=RETURN_EVIDENCE)
+
+    # On the completed return, each exact repeat is answered from its receipt; the substitution is not.
+    for grant, actor in ((return_grant, OWNER), (score_grant, PRODUCER)):
+        tail = _tail(coordinator)
+        retried = _invoke(bound, tmp_path, capsys, return_intent, grant, actor, evidence=RETURN_EVIDENCE)
+        assert retried["state"] == "completed" and retried["receipt"]["status"] == "accepted", actor
+        assert _tail(coordinator) == tail
+        assert "already completed" in _invoke(bound, tmp_path, capsys, return_intent, grant, actor,
+                                              evidence=substituted, refused=True), actor  # fmt: skip
+
+
+def test_operator_record_registration_refuses_a_ledger_that_moved_after_derivation(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    source_repo,  # noqa: F811
+):
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    task = _seed_task_naming(bound, candidate_id, monkeypatch)
+    prepare_intent = spec_01_intent(spec_assay.PREPARE, candidate_id)
+    brief_grant = _grant(bound, "RegisterArtefact", ids["brief_id"], OWNER, human=True)
+    derive, moved = spec_assay.next_command, []
+
+    def derive_then_amend(*args, **kwargs):
+        built = derive(*args, **kwargs)
+        # Another writer amends the Task after the brief is derived, lapsing its prerequisite before the lock.
+        version = coordinator.ledger.snapshot().stream_versions[c1.TASK_ID]
+        amendment = c1._task_amendment_command(number=9101, expected_stream_version=version)
+        assert task.seeding.submit(amendment).status == "accepted"
+        moved.append(coordinator.ledger.snapshot())
+        return built
+
+    intent_path, config_path = tmp_path / "moved-intent.json", tmp_path / "moved-operator.json"
+    intent_path.write_bytes(canonical_bytes(prepare_intent))
+    config_path.write_bytes(
+        canonical_bytes({**bound.config, "authority_grant_id": brief_grant, "operator_actor_id": OWNER})
+    )
+    args = ["discovery", "spec", "advance", "--operator-config", str(config_path)]
+    before = _tail(coordinator)
+    with monkeypatch.context() as patched:
+        patched.setattr(spec_assay, "next_command", derive_then_amend)
+        code = cli.main([*args, "--action", prepare_intent["action"], "--input", str(intent_path)])
+    captured = capsys.readouterr()
+    assert code == 1, captured.out
+    assert "moved past" in captured.err and "nothing was published" in captured.err, captured.err
+    [appended] = moved
+    assert _tail(coordinator) == (appended.global_position, appended.event_hash) != before
+    assert not coordinator.objects.revision_exists(spec_assay.BRIEF_KIND, ids["brief_id"], 1)
+    assert coordinator.status(prepare_intent)["state"] == "not_started"
+
+    # Derived again from the moved ledger, the lapsed prerequisite refuses the brief with nothing appended.
+    assert "unamended since" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER, refused=True)
+
+
 def _unevaluated_axis_bar() -> dict[str, bytes]:
     """The committed fixture bar plus one required integer axis, which admission only bounds-checks."""
     rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())

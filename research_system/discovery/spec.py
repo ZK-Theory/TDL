@@ -32,7 +32,7 @@ from research_system.errors import ArsError, ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
 from research_system.schema_registry import runtime_schema_registry
 from research_system.config import SpecOperatorConfig
-from research_system.store.ledger import EventLedger
+from research_system.store.ledger import EventLedger, LedgerSnapshot
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 
@@ -51,11 +51,19 @@ class _DocumentRegistrationService(CommandService):
 
     Each subclass names its object kind as a literal at every store call, so the 06i
     storage-boundary contract can classify each direct object-store kind statically.
+
+    The document and the prerequisites it cites are derived from one ledger snapshot
+    before admission takes its writer lock. Inside the lock, before anything is
+    published, the registration is refused if any writer has appended since that
+    snapshot, so no record is registered whose prerequisites held only at an earlier
+    prefix (PR #291 known limit 14). Nothing in a route invocation itself appends in
+    that window, so an unrelated concurrent append also refuses, and the caller retries.
     """
 
-    def __init__(self, *args, document: dict, **kwargs):
+    def __init__(self, *args, document: dict, derived_from: LedgerSnapshot, **kwargs):
         super().__init__(*args, **kwargs)
         self.document = document
+        self.derived_from = (derived_from.global_position, derived_from.event_hash)
 
     def _publish(self, artefact_id: str) -> bool:
         raise NotImplementedError
@@ -66,6 +74,12 @@ class _DocumentRegistrationService(CommandService):
     @contextmanager
     def _submission_lock(self, command):
         with super()._submission_lock(command) as submission:
+            tail = (submission.snapshot.global_position, submission.snapshot.event_hash)
+            if tail != self.derived_from:
+                raise ConflictError(
+                    f"the ledger moved past position {self.derived_from[0]}, which this registration was derived "
+                    f"from, to position {tail[0]}; nothing was published"
+                )
             artefact_id = command.target_stream_id
             existed_before = self._publish(artefact_id)
             try:
@@ -158,7 +172,9 @@ class SpecCoordinator:
         )
         self.service = self._command_service()
 
-    def _command_service(self, document: tuple[str, dict] | None = None) -> CommandService:
+    def _command_service(
+        self, document: tuple[str, dict] | None = None, derived_from: LedgerSnapshot | None = None
+    ) -> CommandService:
         service_type = CommandService if document is None else _REGISTRATION_SERVICES[document[0]]
         return service_type(
             self.binding.control_root,
@@ -169,7 +185,7 @@ class SpecCoordinator:
             authority_resolver=self.resolver,
             governing_evidence_resolver=GoverningScientificReviewStore(self.objects, self.schemas),
             clock=self.clock,
-            **({} if document is None else {"document": document[1]}),
+            **({} if document is None else {"document": document[1], "derived_from": derived_from}),
         )
 
     def _result_context(self) -> spec_result.RouteContext:
@@ -469,6 +485,9 @@ class SpecCoordinator:
             return self._advance_task(intent, evidence)
         if intent.get("action") in {spec_result.REGISTER, spec_result.ACCEPT}:
             return self._advance_project_use(intent, evidence)
+        # Every read that derives this effect happens at or after this snapshot, so a registration
+        # refuses inside admission's lock once the ledger has moved past it.
+        snapshot = self.ledger.snapshot()
         state = self.status(intent)
         now = self.clock().isoformat().replace("+00:00", "Z")
         actor = self.operator.operator_actor_id
@@ -561,6 +580,7 @@ class SpecCoordinator:
             now,
             intent.get("correction_reason", intent["title"]),
             document=(SOURCE_DOCUMENT_KIND, document) if effect == "RegisterArtefact" else None,
+            derived_from=snapshot,
         )
 
     def _advance_task(self, intent: dict, evidence: dict | None) -> dict:
@@ -569,7 +589,9 @@ class SpecCoordinator:
         State, the next command and its expected stream version all come from the same
         snapshot. If another process commits the identical effect first, this command
         binds the version that commit bound and admission replays it; any other commit
-        fails the version check instead of pairing stale state with newer evidence.
+        fails the version check instead of pairing stale state with newer evidence. A
+        repeated invocation of a committed effect is answered from its receipt; any other
+        invocation of a completed action conflicts without publication.
 
         Known limit: admission binds only the target stream's version. A Task-stream
         commit by another process between this snapshot and a Review-stream effect
@@ -613,7 +635,10 @@ class SpecCoordinator:
             return replayed
         effect = state["next_effect"]
         if effect is None:
-            return replay_receipt(latest_only=False) or state
+            replayed = replay_receipt(latest_only=False)
+            if replayed is not None:
+                return replayed
+            raise ConflictError(f"{spec_task.ACTION} is already completed; this invocation repeats no committed effect")
         try:
             target, payload = spec_task.effect_command(
                 effect,
@@ -684,6 +709,7 @@ class SpecCoordinator:
             now,
             intent["reason"],
             document=document,
+            derived_from=snapshot,
             expected_stream_version=snapshot.stream_versions.get(target, 0),
             retry_intent=spec_assay.key_intent(intent),
         )
@@ -693,7 +719,8 @@ class SpecCoordinator:
 
         State, the next command and its expected stream version all come from the same
         snapshot. A repeated invocation of a committed effect is answered from its
-        receipt and never resubmitted, so it stays readable after its grant expires.
+        receipt and never resubmitted, so it stays readable after its grant expires. Any
+        other invocation of a completed action conflicts without publication.
         """
         self.binding.revalidate()
         self.schemas.validate(spec_result.INTENT_SCHEMA_ID, intent)
@@ -715,7 +742,7 @@ class SpecCoordinator:
                 raise IntegrityError(f"{action} retry has no matching committed receipt: {retry['command_id']}")
             return {**state, "receipt": asdict(receipt)}
         if state["next_effect"] is None:
-            return state
+            raise ConflictError(f"{action} is already completed; this invocation repeats no committed effect")
         now = self.clock().isoformat().replace("+00:00", "Z")
         effect, target, payload, document = spec_result.next_command(
             intent, evidence, snapshot.events, context, actor_id=actor, grant_id=grant, now=now
@@ -729,6 +756,7 @@ class SpecCoordinator:
             now,
             intent["reason"],
             document=None if document is None else (spec_result.DOCUMENT_KIND, document),
+            derived_from=snapshot,
             expected_stream_version=snapshot.stream_versions.get(target, 0),
             retry_intent=spec_result.key_intent(intent),
         )
@@ -744,10 +772,14 @@ class SpecCoordinator:
         reason: str,
         *,
         document: tuple[str, dict] | None = None,
+        derived_from: LedgerSnapshot | None = None,
         expected_stream_version: int | None = None,
         retry_intent: dict | None = None,
     ) -> dict:
-        """Submit one effect through the shared retry key, envelope and admission."""
+        """Submit one effect through the shared retry key, envelope and admission.
+
+        A document registration names ``derived_from``, the snapshot its document was derived from.
+        """
         retry = "spec:" + sha256_hex(
             canonical_bytes(
                 [
@@ -789,7 +821,7 @@ class SpecCoordinator:
         self.binding.revalidate()
         service = self._discovery() if effect in DISCOVERY_COMMAND_TYPES else self.service
         if document is not None:
-            service = self._command_service(document)
+            service = self._command_service(document, derived_from)
         receipt = service.submit(command)
         if receipt.status not in {"accepted", "replayed"}:
             raise ArsError(f"SPEC effect rejected: {asdict(receipt)}")

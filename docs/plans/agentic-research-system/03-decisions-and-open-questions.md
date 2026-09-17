@@ -1691,6 +1691,53 @@ the convergence assessment: a final fix round, one known limit, and a stopping r
   checkpoint. Stephen's acceptance of option 1 is the owner decision to continue for
   this final round, within the 2,500-line checkpoint.
 
+**4a-2 follow-up decisions (2026-09-16):** after PR #291 merged at `9fbab7ec`, the
+follow-up design pass put three questions to Stephen, who chose the recommended
+option for each.
+- **The project-use decision cites its closure Attempt.**
+  - **The problem (PR #291 known limit 10):** the merged route (`spec_result.py`,
+    PR #288) paired the closure Attempt's ID in the ProjectUseDecision manifest with
+    the store binding's git head and recovery digest. It also matched the Candidate
+    against the Task's current definition, although admission accepts `AmendTask`
+    after the Attempt has run. A scratch-store fixture showed the second gap is
+    reachable: the Task was amended after its Attempt completed, `close_task`
+    accepted it, and the decision was registered.
+  - **The decision:** the manifest's `code_commit` and `environment_fingerprint` are
+    the closure Attempt's start identities. They are re-derived from the ledger, like
+    its dispatch, Attempt and context packet. The registration refuses unless the
+    accepted Task is still at the revision the Attempt was dispatched on, which also
+    settles the Candidate match. The round-3 running-Attempt rule cannot apply, because
+    the decision is registered after closure.
+  - **No schema change:** `project-use-decision` stays 1.0.0, and its
+    `governed_code_subject` still records the store binding at decision time. A
+    non-git Attempt code identity is refused by the inherited `RegisterArtefact`
+    command schema before anything is published.
+  - **Migration consequence:** registrations made under the earlier derivation no
+    longer re-verify. Only scratch stores hold them.
+- **Known limit: orphan reuse on the project-use route.** Orphaned decision bytes are
+  re-derived only at their own causal prefix. Unlike the operator records since PR #291
+  round 1, the route does not re-check their prerequisites on the current ledger. The
+  gap needs a crash between publication and registration followed by a lapse, such as
+  a later revisit or a superseded correction. It is a follow-up.
+- **Document registrations refuse a moved ledger.**
+  - **The problem (PR #291 known limit 14):** every SPEC document registration derives
+    its document and prerequisites from a ledger snapshot before admission takes its
+    writer lock. A concurrent writer in that window could leave a registered record
+    whose prerequisites held only at an earlier prefix.
+  - **The measurement:** nothing in a route invocation appends in that window. Binding
+    revalidation only reads. Admission appends only the command's own events, after
+    the bytes are published. Grant auto-activation exists only in the
+    `GovernedTestCommandService` test adapter.
+  - **The decision:** inside the lock and before publishing, the shared document
+    registration service compares the ledger tail's position and hash with the
+    snapshot the effect was derived from, and refuses if they differ. This covers
+    SOURCE, project-use and both SPEC-01 operator records. The SOURCE path takes its
+    snapshot when `advance` starts. Re-deriving under the lock was rejected, because
+    it would hold the writer lock through several replays.
+  - **Consequence:** an unrelated writer appending in the window also refuses the
+    registration, and the caller retries. A concurrent identical registration
+    conflicts instead of replaying, and a later retry reads its receipt.
+
 ## Decision protocol
 
 Each future decision entry must record:

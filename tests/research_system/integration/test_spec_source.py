@@ -137,6 +137,52 @@ def test_source_registration_holds_writer_lock_through_rejection(bound_source, s
     read_document(artefact_id, objects=coordinator.objects, schemas=coordinator.schemas, ledger=coordinator.ledger)
 
 
+def test_source_registration_refuses_a_ledger_that_moved_after_derivation(
+    bound_source, source_repo, tmp_path, capsys, monkeypatch
+):
+    """The document is derived before admission's writer lock; inside the lock a moved ledger refuses it."""
+    from research_system.discovery import spec as spec_module
+
+    bound = bound_source
+    coordinator = bound.coordinator
+    intent = source_intent(source_repo)
+    ids = source_ids(PROJECT_ID, intent)
+    grant = activate_lifecycle_grant(
+        bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
+    )
+    derive, moved = spec_module.prepare_document, []
+
+    def derive_then_foreign_append(*args, **kwargs):
+        document = derive(*args, **kwargs)
+        # Another writer appends to an unrelated stream after the document is derived, before the lock.
+        activate_lifecycle_grant(
+            bound.harness, subject_kind="artefact", subject_id=new_id("artefact"), command_types=("RegisterArtefact",)
+        )
+        moved.append(coordinator.ledger.snapshot())
+        return document
+
+    intent_path, config_path = tmp_path / "moved-intent.json", tmp_path / "moved-operator.json"
+    intent_path.write_bytes(canonical_bytes(intent))
+    config_path.write_bytes(canonical_bytes({**bound.config, "authority_grant_id": grant}))
+    args = ["discovery", "spec", "advance", "--operator-config", str(config_path)]
+    before = coordinator.ledger.snapshot()
+    with monkeypatch.context() as patched:
+        patched.setattr(spec_module, "prepare_document", derive_then_foreign_append)
+        code = cli.main([*args, "--action", intent["action"], "--input", str(intent_path)])
+    captured = capsys.readouterr()
+    assert code == 1, captured.out
+    assert "moved past" in captured.err and "nothing was published" in captured.err, captured.err
+    [appended] = moved
+    after = coordinator.ledger.snapshot()
+    assert after.global_position > before.global_position
+    assert (after.global_position, after.event_hash) == (appended.global_position, appended.event_hash)
+    assert not coordinator.objects.revision_exists(DOCUMENT_KIND, ids["artefact_id"], 1)
+    assert coordinator.status(intent)["state"] == "not_started"
+
+    # Derived again from the moved ledger, the same invocation registers.
+    assert invoke_cli(bound, tmp_path, capsys, intent, "advance", grant)["state"] == "prepared"
+
+
 def test_git_ambiguous_absent_unavailable_and_malformed(source_repo, tmp_path):
     git(source_repo, "tag", "main")
     result, raw = resolve_source(str(source_repo), "main")
