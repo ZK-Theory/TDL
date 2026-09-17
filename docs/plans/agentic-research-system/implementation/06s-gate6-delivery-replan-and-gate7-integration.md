@@ -374,7 +374,7 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
-**Status (2026-09-17): 4a and 4a′ COMPLETE / INTEGRATED. 4b-1, 4b-2 and 4c remain.**
+**Status (2026-09-18): 4a, 4a′ and 4b-1 COMPLETE / INTEGRATED. 4b-2 and 4c remain.**
 Phase 4 as a whole, and Gate 6, remain INCOMPLETE.
 - **4a′**, PR #296, merged at `dc04e8303a3217061015500ac4ff5f54a4872576`:
   `return_spec_01_partial` and `review_spec_01_partial`, with the closed
@@ -545,6 +545,22 @@ table:
     runtime change;
   - after PR #297's first review, a later Assay's brief, return and Partial return are
     recorded at version 1.1.0 with the Assay's ordinal; first-Assay records stay 1.0.0.
+- **4b-1 integrated.** PR #297 merged at `f690efd6`, whose tree equals the certified candidate
+  `5b841df8`: the revisit, the owner's retry authorization and the retry request are on the
+  public route, and a retried Assay runs the whole SPEC-01 sequence.
+- **4b-2 decisions (P-058, 2026-09-18).** Stephen accepted the 4b-2 design pass at `f690efd6`,
+  after the whole Spike sequence was measured on scratch stores:
+  - 4b-2 ships as **4b-2a** (`approve_spec_02`, `prepare_spec_02`, `start_spec_02`) and
+    **4b-2b** (the two returns, the two reviews and `decide_spec_02`);
+  - the SPEC-02 brief and return are new closed records with their own object kinds, and the
+    SPEC-02 approval is a new closed record the owner registers;
+  - the Spike's evidence artefacts stay operator-mediated; no SPEC action registers them;
+  - the SPEC-02 tests re-date the operational fixture, because OR-017 needs a lease that is
+    live at the route's clock; no production change;
+  - the route mirrors SPEC-01's refusals against measured admission, and binds the start to
+    the lease holder;
+  - a Partial Spike is terminal on the route (measured) and ships with that known limit;
+  - `spec-assay-intent` 1.3.0 adds the eight SPEC-02 actions.
 
 ### Phase 5 — Owner-gated live proof and closure
 
