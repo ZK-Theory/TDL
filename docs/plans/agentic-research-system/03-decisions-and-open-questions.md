@@ -1818,6 +1818,98 @@ recommendation.
     reason codes record why. `direct_sources` and `validation` may be empty.
 - **Scope:** about nine files and 900–1,200 added lines, within the §5.0 checkpoint.
 
+**4b design decisions (2026-09-17):** after PR #296 merged at `dc04e830`, the 4b design pass
+put six questions to Stephen. Paired scratch-store probes at `dc04e830` measured OR-009,
+OR-010 and OR-011 first, and reproduced the scored-Assay PARK revisit. Stephen accepted
+every recommendation.
+- **4b ships as two PRs.**
+  - **4b-1:** `request_spec_01_revisit` (OR-009), `authorize_spec_01_retry` (OR-010,
+    RETRY) and `request_spec_01_retry` (OR-011), with the retry identity model.
+  - **4b-2:** the SPEC-02 sequence and the `spec-02-live-run-approval` record, with its own
+    design pass after 4b-1 merges.
+  - **The basis:** 4a's seven actions took two PRs (+1,180 and +2,194 lines) and 4a′'s two
+    took +895, so eleven actions in one PR would pass the §5.0 checkpoint.
+- **Retry identities: an optional `assay_ordinal`.**
+  - **The problem:** every SPEC-01 route identity (Assay, brief, return, review and
+    Decision) is derived from the Candidate and the action name alone
+    (`research_system/discovery/spec_assay.py::subject_ids`), so a retry Assay would
+    derive the first sequence's identities, and the status listing enumerates only the
+    first Assay.
+  - **The decision:** SPEC-01 intents take an optional `assay_ordinal` of 2 or more. Without
+    it, every identity is derived exactly as before, so merged records re-derive unchanged.
+    With it, the identities also derive from the ordinal. The route requires Assay *n* to
+    have been created by its own route-issued retry from Assay *n−1*.
+  - **Rejected:** acting on the Candidate's current Assay implicitly. An earlier Assay could
+    not be addressed, and a completed action would read `not_started` again after a retry.
+- **One Task and one running Attempt across the retry lineage.**
+  - **The decision:** the operator records keep their rules unchanged: exactly one Task
+    naming only the Candidate, unamended since dispatch, and its one started Attempt,
+    still running. That Attempt therefore stays running from the first brief to the last
+    return of every Assay in the Candidate's lineage.
+  - **Rejected:** a new Attempt per Assay. It changes the one-started-Attempt rule and meets
+    PR #286's known limit that there is no rework path once an Attempt ends.
+  - **Phase 5:** no retry is planned, so its ordering is unchanged.
+- **The revisit predicate comes from a route-issued SOURCE observation.**
+  - **The measurement:** OR-009 requires one Scout observation, later than both the outcome
+    review verdict and any PARK, whose `matching_facts` contain every revisit requirement
+    verbatim (`research_system/discovery/rules.py:253-313`). Admission refuses an OR-029
+    batch with no Candidate blueprint, so every predicate observation also registers a
+    Candidate.
+  - **The decision:** `request_spec_01_revisit` selects the earliest route-issued
+    `observe_source` observation after that point whose facts contain every requirement.
+    The caller supplies no observation identity. With none, the revisit is refused.
+  - **Known limits:** `observe_source` records exactly one fact, its title, so only a Partial
+    with a single revisit requirement can be revisited on the route, and each revisit
+    observation registers a Candidate named after the requirement.
+  - **Rejected:** a new route action for a multi-fact predicate observation (outside D1's
+    list), and a caller-named Scout observation (not route-issued evidence).
+- **Measured admission and route bindings.** Each acceptance consumed its own identical Partial
+  Assay.
+  - **OR-009:** admission accepts a proposal from the producer, the owner, the outcome reviewer
+    and the steward. The route refuses the producer, the owner and that Assay's outcome
+    reviewer, as for OR-012.
+  - **OR-010:** admission refuses a non-owner human, the steward and the producer, and accepts
+    the owner. The route adds no actor check and fixes the selected option to RETRY.
+  - **OR-011:** admission accepts a retry request from the producer, the owner and the steward.
+    The route refuses the producer and the owner, as for OR-003.
+  - **After OR-011:** the new Assay is `evidence_collecting`, the old one `superseded`, and the
+    Candidate `assay_pending` on the new Assay.
+- **`spec-assay-intent` 1.2.0** adds the three actions and `assay_ordinal`; 1.0.0 and 1.1.0
+  stay.
+- **Known limits, with no runtime change (D5):**
+  - **A scored-Assay PARK cannot be revisited (reproduced).** After an OR-013 PARK, the
+    Candidate is `parked` but the Assay stays `reviewed`, with no revisit requirements, and
+    OR-009 is refused. The identical construction on a Partial Assay is accepted. This
+    confirms the P-058 scope decision of 2026-09-14.
+  - **A revisit resolved PARK or KILL is off the route.** `authorize_spec_01_retry` records
+    only RETRY. A revisit PARK leaves the Candidate `parked` with no promotion gate
+    (measured), so the project-use result cannot close it.
+- **Scope (4b-1):** about ten files and 1,500–2,200 added lines, near the §5.0 checkpoint.
+
+**PR #297 review decisions (2026-09-17):** Codex's first review of `0512f924` found four
+defects in 4b-1. Stephen accepted the review stopping rule for #297, and decided the one
+finding that needed a schema version.
+- **A later Assay's operator records carry its ordinal.**
+  - **The defect:** a retried Assay's brief, return and Partial return recorded their intent
+    as `{action, candidate_id}`. That intent derives the first Assay's identities, while
+    the record's own `assay_id` names the later Assay.
+  - **The decision:** `spec-operator-brief-package`, `spec-operator-return` and
+    `spec-operator-partial-return` each gain version 1.1.0, whose intent requires an
+    `assay_ordinal` of 2 or more. The route writes 1.1.0 only for Assay 2 and later, so
+    every first-Assay record stays 1.0.0 and merged records re-derive unchanged. Each
+    registration manifest names its record's version.
+  - **Rejected:** deferring it to 4b-2 or 4c as a known limit.
+- **Route corrections that needed no decision:**
+  - **The revisit predicate:** an observation counts only if the SOURCE route's own
+    completion check accepts it. Checking three of its fields let an observation that
+    SOURCE status rejects satisfy the predicate.
+  - **The taken return:** the route now recognizes which return alternative an Assay took
+    at that Assay's ordinal. Before, a later Assay's Partial return was missing from the
+    listing and not excluded against its complete alternative.
+  - **A non-integer ordinal literal is refused.** JSON Schema accepts `2.0` as an
+    integer, but it derives other identities and P0 canonical JSON rejects
+    floating-point values.
+
 ## Decision protocol
 
 Each future decision entry must record:

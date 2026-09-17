@@ -424,6 +424,9 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
         "review_spec_01_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
         "review_spec_01_partial": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
         "decide_spec_01": ("ProposePromotionDecision", "ResolveDecision"),
+        "request_spec_01_revisit": ("ProposeRevisitDecision",),
+        "authorize_spec_01_retry": ("ResolveDecision",),
+        "request_spec_01_retry": ("RequestAssay",),
     }
 
 

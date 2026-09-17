@@ -374,8 +374,16 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
-**Status (2026-09-17): 4a COMPLETE / INTEGRATED. 4a′, 4b and 4c remain.** Phase 4
-as a whole, and Gate 6, remain INCOMPLETE. 4a merged through three PRs under P-058:
+**Status (2026-09-17): 4a and 4a′ COMPLETE / INTEGRATED. 4b-1, 4b-2 and 4c remain.**
+Phase 4 as a whole, and Gate 6, remain INCOMPLETE.
+- **4a′**, PR #296, merged at `dc04e8303a3217061015500ac4ff5f54a4872576`:
+  `return_spec_01_partial` and `review_spec_01_partial`, with the closed
+  `spec-operator-partial-return` 1.0.0 record and `spec-assay-intent` 1.1.0. The Partial path
+  ends at a `partial_reviewed` Assay whose Candidate is `assay_revisit_eligible`. It was
+  reviewed under the stopping rule from round 1: Codex raised no findings, and CodeRabbit
+  withdrew its one finding after verification.
+
+4a merged through three PRs under P-058:
 - **4a-1**, PR #290, merged at `52c2ce42a58f5dc2e6981c25e070846f216c859a`:
   `bootstrap_genesis`, `bootstrap_assay_authority` and `request_spec_01`, with the
   closed `spec-assay-intent` record and the PR #288 known limit 9 fix.
@@ -519,6 +527,24 @@ table:
     owner recording it, and records only an approving review;
   - the 4a-2 operator-record rules apply unchanged, except that a Partial return needs
     only non-empty findings.
+- **4b decisions (P-058, 2026-09-17).** Stephen accepted the 4b design pass at `dc04e830`:
+  - 4b ships as **4b-1** (`request_spec_01_revisit`, `authorize_spec_01_retry` and
+    `request_spec_01_retry`) and **4b-2** (the SPEC-02 sequence and its approval record), and
+    4b-2 has its own design pass after 4b-1 merges;
+  - a retry Assay's identities derive from an optional `assay_ordinal` in the intent;
+    without it every identity is unchanged;
+  - one Task and one running Attempt span the Candidate's whole retry lineage;
+  - the revisit predicate is the earliest route-issued `observe_source` observation after
+    the review and any PARK whose facts contain every revisit requirement, so only a
+    single-requirement Partial can be revisited on the route;
+  - the route refuses the producer, the owner or the outcome reviewer proposing a revisit,
+    and the producer or the owner requesting a retry; admission already keeps the revisit
+    resolution owner-only, and the route fixes it to RETRY;
+  - `spec-assay-intent` 1.2.0 adds the three actions and `assay_ordinal`;
+  - a scored-Assay PARK revisit was reproduced as refused, and is a known limit with no
+    runtime change;
+  - after PR #297's first review, a later Assay's brief, return and Partial return are
+    recorded at version 1.1.0 with the Assay's ordinal; first-Assay records stay 1.0.0.
 
 ### Phase 5 — Owner-gated live proof and closure
 

@@ -37,6 +37,17 @@ outcome-review identity of the complete action it replaces, so the two sequences
 other at the first durable mutation, and the one not taken conflicts. A reviewed Partial Assay
 reaches no promotion Decision; its Candidate is left for a revisit. Known limit: an owner who
 registers the wrong alternative cannot switch on that Assay.
+
+A reviewed Partial Assay is revisited, its retry authorized by the owner, and the retry requested
+(06s Phase 4b-1, P-058, 2026-09-17). A later Assay in the retry lineage is named by its ordinal;
+without one every identity is derived exactly as for the first Assay, and an ordinal is honoured
+only for an Assay the route's own retry created from the Assay before it. One Task and its one
+running Attempt span the whole lineage, and a later Assay's operator records are version 1.1.0,
+whose intent carries its ordinal. The revisit predicate is the earliest SOURCE observation after
+the review that the SOURCE route's own completion check accepts and whose one fact is the revisit
+requirement, so only a single-requirement Partial can be revisited on the route. The route
+refuses the producer, the owner or the outcome reviewer proposing a revisit, and the producer or
+the owner requesting a retry; admission keeps the retry authorization owner-only.
 """
 
 from __future__ import annotations
@@ -63,7 +74,7 @@ from research_system.discovery.rules import (
     _review_ref,
 )
 from research_system.discovery.spec_result import _BINDING_EVENTS, _event_ref
-from research_system.discovery.spec_source import registration_ref
+from research_system.discovery.spec_source import SOURCE_REF_PREFIX, registration_ref, source_ids
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.methods.registration import _stable_command_id
 from research_system.projection.replay import replay
@@ -78,8 +89,11 @@ REVIEW = "review_spec_01_complete"
 RETURN_PARTIAL = "return_spec_01_partial"
 REVIEW_PARTIAL = "review_spec_01_partial"
 DECIDE = "decide_spec_01"
+REVISIT = "request_spec_01_revisit"
+AUTHORIZE = "authorize_spec_01_retry"
+RETRY_REQUEST = "request_spec_01_retry"
 INTENT_SCHEMA_ID = "ars://portfolio/spec-assay-intent"
-INTENT_SCHEMA_VERSION = "1.1.0"
+INTENT_SCHEMA_VERSION = "1.2.0"
 BRIEF_SCHEMA_ID = "ars://portfolio/spec-operator-brief-package"
 RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-return"
 PARTIAL_RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-partial-return"
@@ -119,6 +133,9 @@ ROWS = {
     REVIEW: ("OR-034", "OR-006"),
     REVIEW_PARTIAL: ("OR-035", "OR-007"),
     DECIDE: ("OR-012", "OR-013"),
+    REVISIT: ("OR-009",),
+    AUTHORIZE: ("OR-010",),
+    RETRY_REQUEST: ("OR-011",),
 }
 
 
@@ -137,8 +154,15 @@ _OWNED_ROWS = {
     REVIEW: ("OR-034",),
     REVIEW_PARTIAL: ("OR-035",),
     DECIDE: ("OR-012",),
+    # The revisit and its authorization share the revisit Decision stream; each counts the other's effect.
+    REVISIT: ("OR-009",),
+    AUTHORIZE: ("OR-010",),
 }
-_SPEC_01_ACTIONS = frozenset({REQUEST, PREPARE, RETURN, RETURN_PARTIAL, REVIEW, REVIEW_PARTIAL, DECIDE})
+# The revisit trio acts on one Assay of the lineage and creates the next (P-058, 2026-09-17).
+_REVISIT_ACTIONS = frozenset({REVISIT, AUTHORIZE, RETRY_REQUEST})
+_SPEC_01_ACTIONS = (
+    frozenset({REQUEST, PREPARE, RETURN, RETURN_PARTIAL, REVIEW, REVIEW_PARTIAL, DECIDE}) | _REVISIT_ACTIONS
+)
 # The return alternative each outcome action follows. The complete and Partial sequences share their
 # return and outcome-review identities, so one Assay can take only one of them (P-058, 2026-09-17).
 _RETURN_OF = {RETURN: RETURN, REVIEW: RETURN, RETURN_PARTIAL: RETURN_PARTIAL, REVIEW_PARTIAL: RETURN_PARTIAL}
@@ -209,6 +233,8 @@ class AssayContext:
         repository_root: Governed repository root holding the committed authority files.
         objects: Immutable object store holding the operator records.
         raw_prefix_sha256: Ledger raw-prefix digest at a global position.
+        read_source_document: Validated SOURCE document reader by artefact identity.
+        source_state: The SOURCE route's own state of a SOURCE intent over a ledger and its replay.
     """
 
     project_id: str
@@ -217,6 +243,8 @@ class AssayContext:
     repository_root: Path
     objects: Any
     raw_prefix_sha256: Callable[[int], str]
+    read_source_document: Callable[[str], tuple[dict, dict]]
+    source_state: Callable[[dict, list[dict], dict], dict]
 
 
 def _stable(prefix: str, *parts: str) -> str:
@@ -233,7 +261,10 @@ def subject_ids(project_id: str, intent: dict[str, Any]) -> dict[str, str]:
     Returns:
         The review and Decision identities of the Assay bar; the Candidate and its Assay
         for a request; and, for the later SPEC-01 actions, also the brief and return
-        artefacts and the outcome review and Decision. Genesis has none.
+        artefacts and the outcome review and Decision. The revisit trio also names the
+        revisit Decision and the retry Assay it creates. A later Assay in the retry lineage
+        carries its ordinal, and each of its identities also derives from it; the first
+        Assay's identities are derived exactly as before (P-058, 2026-09-17). Genesis has none.
     """
     action = intent["action"]
     if action == BAR:
@@ -244,16 +275,46 @@ def subject_ids(project_id: str, intent: dict[str, Any]) -> dict[str, str]:
     if action not in _SPEC_01_ACTIONS:
         return {}
     candidate_id = intent["candidate_id"]
-    ids = {"candidate_id": candidate_id, "assay_id": _stable("asy", project_id, candidate_id, REQUEST)}
+    ordinal = intent.get("assay_ordinal")
+    if ordinal is not None and type(ordinal) is not int:
+        # JSON Schema accepts 2.0 as an integer, but it would derive other identities than 2, and P0
+        # canonical JSON rejects floating-point values (PR #297 review).
+        raise SchemaError(f"assay_ordinal must be an integer literal, not {ordinal!r}")
+
+    def identity(prefix: str, name: str, number: int | None = ordinal) -> str:
+        return _stable(prefix, project_id, candidate_id, name, *([str(number)] if number else []))
+
+    ids: dict[str, Any] = {"candidate_id": candidate_id, "assay_id": identity("asy", REQUEST)}
+    if ordinal:
+        ids["assay_ordinal"] = ordinal
     if action == REQUEST:
         return ids
-    return {
-        **ids,
-        "brief_id": _stable("art", project_id, candidate_id, PREPARE),
-        "return_id": _stable("art", project_id, candidate_id, RETURN),
-        "review_id": _stable("rev", project_id, candidate_id, REVIEW),
-        "decision_id": _stable("dec", project_id, candidate_id, DECIDE),
-    }
+    ids.update(
+        brief_id=identity("art", PREPARE),
+        return_id=identity("art", RETURN),
+        review_id=identity("rev", REVIEW),
+        decision_id=identity("dec", DECIDE),
+    )
+    if action in _REVISIT_ACTIONS:
+        ids.update(
+            revisit_decision_id=identity("dec", REVISIT),
+            retry_assay_id=identity("asy", REQUEST, (ordinal or 1) + 1),
+        )
+    return ids
+
+
+def _intent(action: str, ids: dict[str, Any]) -> dict[str, Any]:
+    """Return the route intent for another action on the same Assay of a Candidate's lineage."""
+    ordinal = {"assay_ordinal": ids["assay_ordinal"]} if "assay_ordinal" in ids else {}
+    return {"action": action, "candidate_id": ids["candidate_id"], **ordinal}
+
+
+def _record_version(ids: dict[str, Any]) -> str:
+    """Return an operator record's schema version: 1.1.0 records a later Assay's ordinal (PR #297 review).
+
+    A first Assay's records stay 1.0.0, so merged records re-derive unchanged.
+    """
+    return "1.1.0" if "assay_ordinal" in ids else "1.0.0"
 
 
 def producer_ref(producer_actor_id: str) -> dict[str, Any]:
@@ -284,11 +345,13 @@ def key_intent(intent: dict[str, Any]) -> dict[str, Any]:
         intent: Validated Assay route intent.
 
     Returns:
-        The action and, for a SPEC-01 action, its Candidate.
+        The action and, for a SPEC-01 action, its Candidate and any Assay ordinal.
     """
     key = {"action": intent["action"]}
     if intent["action"] in _SPEC_01_ACTIONS:
         key["candidate_id"] = intent["candidate_id"]
+        if "assay_ordinal" in intent:
+            key["assay_ordinal"] = intent["assay_ordinal"]
     return key
 
 
@@ -329,8 +392,12 @@ def _prefix(events: list[dict], position: int) -> list[dict]:
 
 
 def _validate(schema_id: str, document: dict[str, Any], ctx: AssayContext) -> None:
+    """Validate a record against the version it names; a later Assay's operator records are 1.1.0."""
+    version = document.get("schema_version")
     try:
-        ctx.schemas.validate(schema_id, document, schema_version="1.0.0")
+        if not isinstance(version, str):
+            raise SchemaError(f"{schema_id} record names no schema version")
+        ctx.schemas.validate(schema_id, document, schema_version=version)
     except SchemaError as exc:
         raise IntegrityError(f"{schema_id} record is not schema-valid: {exc}") from exc
 
@@ -375,10 +442,19 @@ def _stream(row: str, ids: dict[str, str], ctx: AssayContext) -> str:
         return ids["review_id"]
     if row in {"OR-107", "OR-108", "OR-012", "OR-013"}:
         return ids["decision_id"]
+    if row in {"OR-009", "OR-010"}:
+        return ids["revisit_decision_id"]
+    if row == "OR-011":
+        return ids["retry_assay_id"]
     return ids["assay_id"]
 
 
 def _subjects(ids: dict[str, str], events: list[dict], ctx: AssayContext) -> tuple[dict, dict, dict]:
+    if "assay_ordinal" in ids:
+        # A later Assay counts only if the route's own retry created it from the Assay before it.
+        ordinal = ids["assay_ordinal"] - 1
+        prior = {"candidate_id": ids["candidate_id"], **({"assay_ordinal": ordinal} if ordinal > 1 else {})}
+        _completed(RETRY_REQUEST, prior, events, ctx)
     projection = _projection(events, ctx)
     candidate = projection["candidates"].get(ids["candidate_id"])
     assay = projection["assays"].get(ids["assay_id"])
@@ -392,7 +468,7 @@ def _subjects(ids: dict[str, str], events: list[dict], ctx: AssayContext) -> tup
 
 
 def _completed(action: str, ids: dict[str, str], events: list[dict], ctx: AssayContext) -> dict[str, Any]:
-    state = evaluate({"action": action, "candidate_id": ids["candidate_id"]}, events, ctx)
+    state = evaluate(_intent(action, ids), events, ctx)
     if state["state"] != "completed":
         raise IntegrityError(f"the SPEC-01 route requires {action} to be completed first")
     return state
@@ -500,14 +576,16 @@ def _brief_source(ctx: AssayContext) -> dict[str, Any]:
 def _brief(ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str, recorded_at: str) -> dict:
     """Derive the operator brief package from a ledger prefix; refuses before registration."""
     _, candidate, assay = _subjects(ids, events, ctx)
-    _completed(REQUEST, ids, events, ctx)
+    if "assay_ordinal" not in ids:
+        # A later Assay was created by the route's retry, which _subjects has already required.
+        _completed(REQUEST, ids, events, ctx)
     if assay.get("status") != "evidence_collecting" or candidate.get("status") != "assay_pending":
         raise IntegrityError(f"{PREPARE} requires an Assay that is still collecting evidence")
     document = {
         "schema_id": BRIEF_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": BRIEF_TYPE,
-        "intent": {"action": PREPARE, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(PREPARE, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -637,9 +715,9 @@ def _operator_return(
     scorecard = _scorecard(ids, projection, candidate, assay, evidence, ctx)
     document = {
         "schema_id": RETURN_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": RETURN_TYPE,
-        "intent": {"action": RETURN, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(RETURN, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -706,9 +784,9 @@ def _operator_partial_return(
     partial = _partial_artifact(ids, projection, candidate, assay, evidence, ctx)
     document = {
         "schema_id": PARTIAL_RETURN_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": PARTIAL_RETURN_TYPE,
-        "intent": {"action": RETURN_PARTIAL, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(RETURN_PARTIAL, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -817,7 +895,7 @@ def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str,
         "aliases": [],
         "artefact_type": document_type,
         "artefact_schema_id": schema_id,
-        "artefact_schema_version": "1.0.0",
+        "artefact_schema_version": document["schema_version"],
         "producer_actor_id": document["producer_actor_id"],
         "created_at": document["recorded_at"],
         "observed_at": document["recorded_at"],
@@ -1150,7 +1228,150 @@ def _payload(
                 "revisit_triggers": triggers,
             },
         }
+    if row == "OR-009":
+        return _revisit_payload(ids, events, ctx, actor_id=actor_id)
+    if row == "OR-010":
+        _completed(REVISIT, ids, events, ctx)
+        decision = _projection(events, ctx)["decisions"].get(ids["revisit_decision_id"])
+        if not isinstance(decision, dict) or decision.get("status") != "proposed":
+            raise IntegrityError(f"{AUTHORIZE} requires its proposed revisit Decision")
+        proposal = _one(events, ids["revisit_decision_id"], "DecisionProposed")
+        return {
+            "row_id": "OR-010",
+            **subject,
+            "decision_id": ids["revisit_decision_id"],
+            "w2_payload": {
+                "decision_id": ids["revisit_decision_id"],
+                # The route authorizes only a retry; a revisit PARK or KILL is not a route action.
+                "selected_option": "RETRY",
+                "effective_scope": "exact Discovery subject",
+                "decision_revision": 1,
+                "deciding_actor_id": actor_id,
+                "decision_authority_grant_id": grant_id,
+                "governing_evidence_refs": list(proposal["payload"]["governing_evidence_refs"]),
+                "considered_review_ids": [ids["review_id"]],
+                "effective_at": _time(proposal["recorded_at"]),
+                "permitted_commands": ["RequestAssay"],
+                "superseded_decision_ids": [],
+                "conditions": [],
+                "revisit_triggers": [],
+            },
+        }
+    if row == "OR-011":
+        _completed(AUTHORIZE, ids, events, ctx)
+        projection, candidate, assay = _subjects(ids, events, ctx)
+        bar = projection["assay_bar_authority"]
+        if assay.get("status") != "retry_authorized" or candidate.get("status") != "assay_retry_authorized":
+            raise IntegrityError(f"{RETRY_REQUEST} requires an Assay whose retry the owner authorized")
+        if bar.get("status") != "accepted":
+            raise IntegrityError(f"{RETRY_REQUEST} requires an accepted Assay bar")
+        return {
+            "row_id": "OR-011",
+            "candidate_id": ids["candidate_id"],
+            "old_assay_id": ids["assay_id"],
+            "assay_id": ids["retry_assay_id"],
+            "candidate_revision": candidate["revision"],
+            "candidate_sha256": candidate["content_sha256"],
+            "assay_bar_acceptance_sha256": bar["acceptance_sha256"],
+            "producer_relation_sha256": bar["producer_relation_sha256"],
+        }
     raise IntegrityError(f"the Assay route has no payload for row {row}")
+
+
+def _route_source_observation(
+    observation_id: str, observation: dict, events: list[dict], projection: dict, ctx: AssayContext
+) -> bool:
+    """Whether an observation is the one the SOURCE route completed for its own ``observe_source`` intent.
+
+    It must cite exactly one SOURCE registration whose document's intent derives this observation's
+    identity, and the SOURCE route's own completion check must accept that intent over the same ledger:
+    the exact batch that route derives, its registration and the Candidate it registers (PR #297 review).
+    """
+    batch = observation.get("batch") or {}
+    refs = batch.get("raw_source_refs") or []
+    if len(refs) != 1 or not str(refs[0].get("locator", "")).startswith(SOURCE_REF_PREFIX):
+        return False
+    try:
+        document, _ = ctx.read_source_document(refs[0]["locator"][len(SOURCE_REF_PREFIX) :].partition(":")[0])
+        intent = document.get("intent") or {}
+        return bool(
+            intent.get("action") == "observe_source"
+            and source_ids(ctx.project_id, intent)["observation_id"] == observation_id
+            and ctx.source_state(intent, events, projection)["state"] == "completed"
+        )
+    except (ArsError, KeyError, TypeError):
+        return False
+
+
+def _revisit_payload(ids: dict[str, Any], events: list[dict], ctx: AssayContext, *, actor_id: str | None) -> dict:
+    """Derive the OR-009 revisit proposal of a route-reviewed Partial Assay (P-058, 2026-09-17).
+
+    The predicate is the earliest route-issued SOURCE observation, later than the outcome review
+    verdict and any PARK, whose facts contain every revisit requirement. The caller names none.
+    """
+    _completed(REVIEW_PARTIAL, ids, events, ctx)
+    projection, candidate, assay = _subjects(ids, events, ctx)
+    review = projection["reviews"].get(ids["review_id"])
+    requirements = assay.get("revisit_requirements")
+    if assay.get("status") != "partial_reviewed" or not isinstance(review, dict) or not requirements:
+        raise IntegrityError(f"{REVISIT} requires a reviewed Partial Assay")
+    verdict = _one(events, ids["review_id"], "ReviewVerdictRecorded")
+    threshold = max(verdict["global_position"], candidate.get("parked_at_global_position") or 0)
+    excluded = {ids["candidate_id"], ids["assay_id"], ids["review_id"]}
+    observations = sorted(projection["source_observations"].items(), key=lambda item: item[1]["global_position"])
+    predicate_id = next(
+        (
+            observation_id
+            for observation_id, observation in observations
+            if observation["global_position"] > threshold
+            and observation_id not in excluded
+            and set(requirements) <= set((observation.get("batch") or {}).get("matching_facts") or ())
+            and _route_source_observation(observation_id, observation, events, projection, ctx)
+        ),
+        None,
+    )
+    if predicate_id is None:
+        raise IntegrityError(
+            f"{REVISIT} revisit predicate is not satisfied: no later route SOURCE observation carries every "
+            "revisit requirement"
+        )
+    predicate = projection["source_observations"][predicate_id]
+    observed = _one(events, predicate_id, "ScoutObservationIngested")
+    decision_id = ids["revisit_decision_id"]
+    return {
+        "row_id": "OR-009",
+        "candidate_id": ids["candidate_id"],
+        "assay_id": ids["assay_id"],
+        "review_id": ids["review_id"],
+        "decision_id": decision_id,
+        "w2_payload": {
+            "question": "Retry the exact SPEC-01 Assay?",
+            "recommendation": "RETRY",
+            "new_decision_id": decision_id,
+            "decision_revision": 1,
+            "decision_kind": "design_lock",
+            "options": ["RETRY", "PARK", "KILL"],
+            "governing_evidence_refs": [ids["review_id"]],
+            "affected_task_ids": [],
+            "affected_claim_ids": [],
+            "required_authority": "owner",
+            "expires_at": _time(observed["recorded_at"], _REVIEW_WINDOW),
+            "review_date": _time(observed["recorded_at"]),
+            "consequences": ["authorize an exact Assay retry"],
+        },
+        "revisit_relation": {
+            "schema_id": "ars://portfolio/relation/discovery-revisit",
+            "schema_version": "1.0.0",
+            "relation_kind": "discovery_revisit",
+            "decision_id": decision_id,
+            "candidate_ref": _record_ref(ids["candidate_id"], candidate["revision"], candidate["content_sha256"]),
+            "prior_aggregate_ref": _record_ref(ids["assay_id"], assay["version"], _aggregate_content_hash(assay)),
+            "prior_outcome_review_ref": _review_ref(review),
+            "satisfied_revisit_predicate_ref": _record_ref(predicate_id, 1, predicate["content_sha256"]),
+            "selected_option": "RETRY",
+            "actor_id": actor_id,
+        },
+    }
 
 
 def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str) -> None:
@@ -1161,12 +1382,17 @@ def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: Assa
         authors = {_content(ctx, path).get("created_by_actor_id") for path in (ASSAY_RUBRIC_PATH, ASSAY_SCOPE_PATH)}
         if actor_id in authors:
             raise IntegrityError(f"{BAR} review requester must not be a content author")
-    if row == "OR-003":
+    if row in {"OR-003", "OR-011"}:
+        # A retry request was measured to accept the same collapses as the first request (P-058, 2026-09-17).
         bar = _projection(events, ctx)["assay_bar_authority"]
         producer = (bar.get("prospective_producer_ref") or {}).get("id")
-        if actor_id in {producer, _owner(events, ctx)}:
+        if row == "OR-003" and actor_id in {producer, _owner(events, ctx)}:
             raise IntegrityError(f"{REQUEST} Assay requester must be neither the prospective producer nor the owner")
-    if row not in {"OR-034", "OR-035", "OR-006", "OR-007", "OR-012"}:
+        if row == "OR-011" and actor_id in {producer, _owner(events, ctx)}:
+            raise IntegrityError(
+                f"{RETRY_REQUEST} retry requester must be neither the prospective producer nor the owner"
+            )
+    if row not in {"OR-034", "OR-035", "OR-006", "OR-007", "OR-012", "OR-009"}:
         return
     owner = _owner(events, ctx)
     producer = (_projection(events, ctx)["assays"].get(ids["assay_id"]) or {}).get("producer_actor_id")
@@ -1176,14 +1402,18 @@ def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: Assa
         raise IntegrityError(f"{review} outcome-review requester must be neither the producer nor the owner")
     if row in {"OR-006", "OR-007"} and actor_id == owner:
         raise IntegrityError(f"{review} outcome reviewer must not be the owner")
-    if row == "OR-012":
+    if row in {"OR-012", "OR-009"}:
         reviewers = {
             event["actor_id"]
             for event in events
             if event["stream_id"] == ids["review_id"] and event["event_type"] == "ReviewVerdictRecorded"
         }
-        if actor_id in {producer, owner, *reviewers}:
+        if row == "OR-012" and actor_id in {producer, owner, *reviewers}:
             raise IntegrityError(f"{DECIDE} proposer must be neither the producer, the reviewer nor the owner")
+        if row == "OR-009" and actor_id in {producer, owner, *reviewers}:
+            raise IntegrityError(
+                f"{REVISIT} revisit proposer must be neither the producer, the outcome reviewer nor the owner"
+            )
 
 
 def _check_evidence(row: str, evidence: dict | None) -> None:
@@ -1233,17 +1463,13 @@ def _return_taken(ids: dict[str, str], events: list[dict]) -> str | None:
 
     Both alternatives register at the same identity, and admission refuses a second registration there,
     so at most one is ever taken. This reads identity only; the taken action's own evaluation verifies it.
+    A later Assay's registration is keyed by its ordinal, so each alternative is read at that ordinal.
     """
     first = next((event for event in events if event["stream_id"] == ids["return_id"]), None)
     if first is None or first.get("event_type") != "ArtefactRegistered":
         return None
     return next(
-        (
-            action
-            for action in (RETURN, RETURN_PARTIAL)
-            if _issued_registration(first, {"action": action, "candidate_id": ids["candidate_id"]})
-        ),
-        None,
+        (action for action in (RETURN, RETURN_PARTIAL) if _issued_registration(first, _intent(action, ids))), None
     )
 
 
@@ -1252,6 +1478,12 @@ def _located(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> l
     ids = subject_ids(ctx.project_id, intent)
     found: list[tuple[str, list[dict]]] = []
     after = 0
+    if intent["action"] == AUTHORIZE:
+        # The authorization follows the revisit proposal on the same Decision stream.
+        proposed = _located({**intent, "action": REVISIT}, events, ctx)
+        if not proposed:
+            return []
+        after = max(e["global_position"] for e in proposed[-1][1])
     for row in ROWS[intent["action"]]:
         stream = _stream(row, ids, ctx)
         first = next((e for e in events if e["stream_id"] == stream and e["global_position"] > after), None)
@@ -1344,6 +1576,11 @@ def evaluate(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> d
     if action in _OWNED_ROWS:
         owned = {_stream(row, ids, ctx) for row in _OWNED_ROWS[action]}
         issued = {event["event_id"] for _, transaction in located for event in transaction}
+        if action in {REVISIT, AUTHORIZE}:
+            # Each locates, and the other's own evaluation verifies, its effect on the shared Decision stream.
+            partner = AUTHORIZE if action == REVISIT else REVISIT
+            partner_located = _located({**intent, "action": partner}, events, ctx)
+            issued |= {event["event_id"] for _, transaction in partner_located for event in transaction}
         for event in events:
             if event["stream_id"] in owned and event["event_id"] not in issued:
                 raise ConflictError(f"{action} found {event['event_type']} on its stream that this route did not issue")
@@ -1514,29 +1751,42 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
                 "producer_actor_id": (bar.get("prospective_producer_ref") or {}).get("id"),
             }
         )
-    for assay in projection["assays"].values():
-        candidate_id = assay.get("candidate_id")
-        if not isinstance(candidate_id, str):
-            continue
-        ids = subject_ids(ctx.project_id, {"action": DECIDE, "candidate_id": candidate_id})
-        if assay.get("assay_id") != ids["assay_id"]:
-            continue
-        # Only the outcome alternative the route registered is a subject; the other one is excluded.
-        outcome = (RETURN_PARTIAL, REVIEW_PARTIAL) if _return_taken(ids, events) == RETURN_PARTIAL else (RETURN, REVIEW)
-        for action in (REQUEST, PREPARE, *outcome):
-            candidates.append({"action": action, "reason": f"recorded route {action}", "candidate_id": candidate_id})
-        proposal = next(
-            (e for e in events if e["stream_id"] == ids["decision_id"] and e["event_type"] == "DecisionProposed"), None
-        )
-        if proposal is not None and (proposal.get("payload") or {}).get("recommendation") in _NEXT_STATE:
-            candidates.append(
-                {
-                    "action": DECIDE,
-                    "reason": "recorded route decision",
-                    "candidate_id": candidate_id,
-                    "recommendation": proposal["payload"]["recommendation"],
-                }
+    streams = {event["stream_id"] for event in events}
+    lineages = dict.fromkeys(
+        assay["candidate_id"] for assay in projection["assays"].values() if isinstance(assay.get("candidate_id"), str)
+    )
+    for candidate_id in lineages:
+        # Walk the Candidate's route lineage: the requested Assay, then each Assay a route retry created.
+        ordinal = 1
+        while True:
+            lineage = {"candidate_id": candidate_id, **({"assay_ordinal": ordinal} if ordinal > 1 else {})}
+            ids = subject_ids(ctx.project_id, {"action": REVISIT, **lineage})
+            if ids["assay_id"] not in projection["assays"]:
+                break
+            # Only the outcome alternative the route registered is a subject; the other one is excluded.
+            taken = _return_taken(ids, events)
+            outcome = (RETURN_PARTIAL, REVIEW_PARTIAL) if taken == RETURN_PARTIAL else (RETURN, REVIEW)
+            actions = [*((REQUEST,) if ordinal == 1 else ()), PREPARE, *outcome]
+            if ids["revisit_decision_id"] in streams:
+                actions += [REVISIT, AUTHORIZE]
+            if ids["retry_assay_id"] in projection["assays"]:
+                actions.append(RETRY_REQUEST)
+            for action in actions:
+                candidates.append({"action": action, "reason": f"recorded route {action}", **lineage})
+            proposal = next(
+                (e for e in events if e["stream_id"] == ids["decision_id"] and e["event_type"] == "DecisionProposed"),
+                None,
             )
+            if proposal is not None and (proposal.get("payload") or {}).get("recommendation") in _NEXT_STATE:
+                candidates.append(
+                    {
+                        "action": DECIDE,
+                        "reason": "recorded route decision",
+                        **lineage,
+                        "recommendation": proposal["payload"]["recommendation"],
+                    }
+                )
+            ordinal += 1
     intents = []
     for intent in candidates:
         try:
