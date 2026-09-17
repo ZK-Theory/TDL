@@ -1,14 +1,15 @@
 """Guard-branch controls for the tracked repowise auto-sync post-commit hook.
 
 Obs 2026-08-11-post-commit-repowise-guard-untested. `.githooks/post-commit` fires
-`repowise update` into the background after every commit and carries three
-purpose-built protective branches — no-op when `.repowise/` is absent, no-op when
-`.repowise` is a symlink (a hostile-clone redirect), and an atomic `mkdir` lock so
-concurrent commits cannot spawn overlapping updaters. `.repowise/.update.log`
-shows the happy path runs, but the happy path is not evidence for branches that
-exist specifically to handle the uncommon case: each needed its own watched
-failure, in the same shape `tests/tools/test_system_review_hook_gates.py` already
-gives the sibling `mirror-tree-guard.sh`.
+`repowise update` into the background after every commit and carries four
+purpose-built protective branches — no-op in a linked worktree, no-op when
+`.repowise/` is absent, no-op when `.repowise` is a symlink (a hostile-clone
+redirect), and an atomic `mkdir` lock so concurrent commits cannot spawn
+overlapping updaters. `.repowise/.update.log` shows the happy path runs, but the
+happy path is not evidence for branches that exist specifically to handle the
+uncommon case: each needed its own watched failure, in the same shape
+`tests/tools/test_system_review_hook_gates.py` already gives the sibling
+`mirror-tree-guard.sh`.
 
 Each test drives the tracked hook script directly against a disposable repo with a
 stand-in updater on PATH, so "the updater did not run" is an observed fact rather
@@ -159,7 +160,7 @@ pytestmark = [
 def test_updater_runs_once_when_the_state_dir_is_a_real_directory(
     hook_repo: tuple[Path, dict[str, str], Path],
 ) -> None:
-    """Positive control. Without it the three guard assertions below are vacuous.
+    """Positive control. Without it the guard assertions below are vacuous.
 
     Also pins the coalescing loop: HEAD does not move during the run, so the
     updater is invoked exactly once, not once per iteration.
@@ -181,6 +182,41 @@ def test_updater_runs_once_when_the_state_dir_is_a_real_directory(
     queued = json.loads((repo / ".repowise" / ".update.queued").read_text(encoding="utf-8"))
     assert queued["target_commit"] == head
     assert "post-commit hook fired" in (repo / ".repowise" / ".update.log").read_text(encoding="utf-8")
+
+
+def test_a_linked_worktree_is_a_true_no_op_while_its_main_checkout_still_updates(
+    hook_repo: tuple[Path, dict[str, str], Path],
+) -> None:
+    """Guard 0: a commit in a linked worktree runs no updater and writes no state.
+
+    Obs 2026-09-11-repowise-post-commit-dirties-tracked-files. `.repowise/mcp.json` is
+    tracked, so every linked worktree has the state dir that guard 1 looks for, and
+    each worktree commit used to run a full `repowise update` there. That built a
+    separate index which nothing reads (the MCP server serves the main checkout), and
+    rewrote the tracked `.claude/CLAUDE.md` block and `.repowise-workspace.yaml` while
+    the next commit's gates ran. The same hook in the main checkout of the same
+    repository still runs the updater, so the skip is decided by the worktree check
+    and nothing else.
+    """
+    repo, env, marker = hook_repo
+    (repo / ".repowise").mkdir()
+    (repo / ".repowise" / "mcp.json").write_text("{}\n", encoding="utf-8", newline="\n")
+    _git(repo, "add", ".repowise/mcp.json")
+    _git(repo, "commit", "-q", "-m", "track the shareable MCP config")
+    linked = repo.parent / "linked"
+    _git(repo, "worktree", "add", "-q", "--detach", str(linked))
+    # Precondition: guard 1 alone would not skip this worktree.
+    assert (linked / ".repowise").is_dir() and not (linked / ".repowise").is_symlink()
+
+    completed = _run_hook(linked, env)
+    assert completed.returncode == 0, completed.stderr
+
+    _assert_absent_throughout(marker, UPDATER_ABSENT_FOR)
+    written = sorted(path.name for path in (linked / ".repowise").iterdir())
+    assert written == ["mcp.json"], f"the hook wrote state in a linked worktree: {written}"
+
+    assert _run_hook(repo, env).returncode == 0
+    assert _wait_until_present(marker, UPDATER_APPEARS_WITHIN), "the updater never ran in the main checkout"
 
 
 def test_missing_state_dir_is_a_true_no_op(
