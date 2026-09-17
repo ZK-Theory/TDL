@@ -65,6 +65,7 @@ SUBJECT_KIND = {
     "RequestDiscoveryOutcomeReview": "scope_definition",
     "ReviewDiscoveryOutcome": "review",
     "ProposePromotionDecision": "scope_definition",
+    "ProposeRevisitDecision": "scope_definition",
 }
 # These W11 commands' grants name the Candidate rather than their target stream.
 CANDIDATE_SCOPED = frozenset(
@@ -74,6 +75,7 @@ CANDIDATE_SCOPED = frozenset(
         "RecordAssayPartial",
         "RequestDiscoveryOutcomeReview",
         "ProposePromotionDecision",
+        "ProposeRevisitDecision",
     }
 )
 
@@ -242,6 +244,10 @@ def test_the_action_table_adds_the_bootstrap_and_assay_request_actions():
     # 06s Phase 4a′ (P-058, 2026-09-17): the Partial alternatives.
     assert ACTION_EFFECTS[spec_assay.RETURN_PARTIAL] == ("RegisterArtefact", "RecordAssayPartial")
     assert ACTION_EFFECTS[spec_assay.REVIEW_PARTIAL] == ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome")
+    # 06s Phase 4b-1 (P-058, 2026-09-17): the revisit, its owner authorization and the retry request.
+    assert ACTION_EFFECTS[spec_assay.REVISIT] == ("ProposeRevisitDecision",)
+    assert ACTION_EFFECTS[spec_assay.AUTHORIZE] == ("ResolveDecision",)
+    assert ACTION_EFFECTS[spec_assay.RETRY_REQUEST] == ("RequestAssay",)
 
 
 def test_assay_intent_is_a_closed_record():
@@ -251,7 +257,16 @@ def test_assay_intent_is_a_closed_record():
     partial_intents = tuple(
         {"action": action, "reason": "advance", "candidate_id": candidate} for action in partial_actions
     )
-    for intent in (GENESIS_INTENT, BAR_INTENT, request_intent(candidate), *partial_intents):
+    revisit_actions = (spec_assay.REVISIT, spec_assay.AUTHORIZE, spec_assay.RETRY_REQUEST)
+    revisit_intents = tuple(
+        {"action": action, "reason": "advance", "candidate_id": candidate} for action in revisit_actions
+    )
+    # A later Assay in the retry lineage is named by its ordinal, never by an identity the caller supplies.
+    later = tuple(
+        {**intent, "assay_ordinal": 2}
+        for intent in (*partial_intents, *revisit_intents, spec_01_intent(spec_assay.PREPARE, candidate))
+    )
+    for intent in (GENESIS_INTENT, BAR_INTENT, request_intent(candidate), *partial_intents, *revisit_intents, *later):
         schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
     for invalid in (
         {**GENESIS_INTENT, "unrecognised": True},
@@ -264,6 +279,13 @@ def test_assay_intent_is_a_closed_record():
         *({**intent, "recommendation": "PARK"} for intent in partial_intents),
         # The version identifies the catalogue entry; an intent never carries it.
         {**request_intent(candidate), "schema_version": spec_assay.INTENT_SCHEMA_VERSION},
+        *({"action": action, "reason": "no candidate"} for action in revisit_actions),
+        *({**intent, "recommendation": "PARK"} for intent in revisit_intents),
+        # The first Assay is requested, never retried into; its ordinal is implicit and never 1.
+        {**request_intent(candidate), "assay_ordinal": 2},
+        {**GENESIS_INTENT, "assay_ordinal": 2},
+        {**revisit_intents[0], "assay_ordinal": 1},
+        {**revisit_intents[0], "assay_ordinal": "2"},
     ):
         with pytest.raises(SchemaError):
             schemas.validate(spec_assay.INTENT_SCHEMA_ID, invalid, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
@@ -282,6 +304,22 @@ def test_route_identities_are_deterministic_uuidv7_and_subject_bound():
     complete = spec_assay.subject_ids(PROJECT_ID, {**first, "action": spec_assay.RETURN})
     for action in (spec_assay.RETURN_PARTIAL, spec_assay.REVIEW, spec_assay.REVIEW_PARTIAL):
         assert spec_assay.subject_ids(PROJECT_ID, {**first, "action": action}) == complete, action
+    # A retry Assay's identities derive from its ordinal; without one every identity is unchanged (P-058, 2026-09-17).
+    second = spec_assay.subject_ids(PROJECT_ID, {**first, "action": spec_assay.RETURN, "assay_ordinal": 2})
+    assert second["assay_ordinal"] == 2 and "assay_ordinal" not in complete
+    for key in ("assay_id", "brief_id", "return_id", "review_id", "decision_id"):
+        assert second[key] != complete[key] and second[key][:4] == complete[key][:4], key
+    # The revisit trio acts on one Assay, shares its identities and names the Decision and the retry it creates.
+    revisit = spec_assay.subject_ids(PROJECT_ID, {**first, "action": spec_assay.REVISIT})
+    for action in (spec_assay.AUTHORIZE, spec_assay.RETRY_REQUEST):
+        assert spec_assay.subject_ids(PROJECT_ID, {**first, "action": action}) == revisit, action
+    assert {key: revisit[key] for key in complete} == complete
+    assert revisit["retry_assay_id"] == second["assay_id"]
+    assert re.fullmatch(f"dec_{UUIDV7}", revisit["revisit_decision_id"])
+    assert revisit["revisit_decision_id"] not in {complete["decision_id"], second["decision_id"]}
+    third = spec_assay.subject_ids(PROJECT_ID, {**first, "action": spec_assay.REVISIT, "assay_ordinal": 2})
+    assert third["assay_id"] == second["assay_id"] and third["retry_assay_id"] not in {complete["assay_id"],
+                                                                                       second["assay_id"]}  # fmt: skip
 
 
 def test_public_bootstrap_and_assay_request_positive_path(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
@@ -1393,3 +1431,338 @@ def test_spec_01_partial_route_refuses_what_admission_accepts(tmp_path, monkeypa
                 "subject_sha256": digest, "verdict": "approve", "review_verdict": verdict}  # fmt: skip
     assert _direct(bound, "ReviewDiscoveryOutcome", other_review, recorded, OWNER, human=True) == "accepted"
     assert _replay(coordinator)["assays"][other_assay]["status"] == "partial_reviewed"
+
+
+# 06s Phase 4b-1 (P-058, 2026-09-17): the revisit of a reviewed Partial, its owner authorization and the retry.
+REVISIT_FACT = "SPEC-01 source access restored"
+
+
+def _observe_fact(bound, tmp_path, capsys, source_repo, fact: str, source_key: str = "revisit-predicate") -> str:  # noqa: F811
+    """Observe a SOURCE on the public route whose one matching fact is ``fact``; return its observation."""
+    observation = {**source_intent(source_repo), "source_key": source_key, "title": fact}
+    ids = source_ids(PROJECT_ID, observation)
+    for subject_kind, subject_id, command in (
+        ("artefact", ids["artefact_id"], "RegisterArtefact"),
+        ("scope_definition", ids["observation_id"], "IngestScoutObservationBatch"),
+    ):
+        grant = activate_lifecycle_grant(
+            bound.harness, subject_kind=subject_kind, subject_id=subject_id, command_types=(command,)
+        )
+        state = invoke_cli(bound, tmp_path, capsys, observation, "advance", grant)
+    assert state["state"] == "completed"
+    return ids["observation_id"]
+
+
+def _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch) -> tuple[str, dict]:  # noqa: F811
+    """Request the Assay, issue its brief, and return and review a Partial with one revisit requirement."""
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+    evidence = {**PARTIAL_EVIDENCE, "revisit_requirements": [REVISIT_FACT]}
+    return_intent = spec_01_intent(spec_assay.RETURN_PARTIAL, candidate_id)
+    _run(bound, tmp_path, capsys, return_intent, "RegisterArtefact", ids["return_id"], OWNER, human=True,
+         evidence=evidence)  # fmt: skip
+    _run(bound, tmp_path, capsys, return_intent, "RecordAssayPartial", candidate_id, PRODUCER, evidence=evidence)
+    review_intent = spec_01_intent(spec_assay.REVIEW_PARTIAL, candidate_id)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER,
+         evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    return candidate_id, ids
+
+
+def test_public_revisit_and_retry_reach_a_promoted_second_assay(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    candidate_id, first = _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch)
+    brief = coordinator.objects.read(spec_assay.BRIEF_KIND, first["brief_id"], 1)
+
+    # The revisit needs a SOURCE observation, later than the review, whose facts carry the revisit requirement.
+    revisit_intent = spec_01_intent(spec_assay.REVISIT, candidate_id)
+    revisit_ids = spec_assay.subject_ids(PROJECT_ID, revisit_intent)
+    _observe_fact(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
+    revisited = _run(bound, tmp_path, capsys, revisit_intent, "ProposeRevisitDecision", candidate_id, STEWARD)
+    assert revisited["state"] == "completed"
+    authorize_intent = spec_01_intent(spec_assay.AUTHORIZE, candidate_id)
+    authorize_grant = _grant(bound, "ResolveDecision", revisit_ids["revisit_decision_id"], OWNER, human=True)
+    authorized = _invoke(bound, tmp_path, capsys, authorize_intent, authorize_grant, OWNER)
+    assert authorized["state"] == "completed"
+    # A lost response is answered from the committed receipt; nothing is appended.
+    tail = _tail(coordinator)
+    retried = _invoke(bound, tmp_path, capsys, authorize_intent, authorize_grant, OWNER)
+    assert retried["receipt"] == authorized["receipt"] and _tail(coordinator) == tail
+    requested = _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.RETRY_REQUEST, candidate_id), "RequestAssay",
+                     candidate_id, STEWARD)  # fmt: skip
+    assert requested["state"] == "completed"
+    projection = _replay(coordinator)
+    assert projection["assays"][first["assay_id"]]["status"] == "superseded"
+    assert projection["assays"][revisit_ids["retry_assay_id"]]["status"] == "evidence_collecting"
+    assert projection["candidates"][candidate_id]["status"] == "assay_pending"
+    assert projection["candidates"][candidate_id]["assay_id"] == revisit_ids["retry_assay_id"]
+
+    # The second Assay is named by its ordinal. Its brief cites the same Task and running Attempt.
+    def second(action: str, **extra) -> dict:
+        return spec_01_intent(action, candidate_id, assay_ordinal=2, **extra)
+
+    ids = spec_assay.subject_ids(PROJECT_ID, second(spec_assay.PREPARE))
+    assert ids["assay_id"] == revisit_ids["retry_assay_id"]
+    _run(bound, tmp_path, capsys, second(spec_assay.PREPARE), "RegisterArtefact", ids["brief_id"], OWNER, human=True)
+    second_brief = coordinator.objects.read(spec_assay.BRIEF_KIND, ids["brief_id"], 1)
+    assert second_brief["task"] == brief["task"] and second_brief["assay"]["assay_id"] == ids["assay_id"]
+    evidence = {**RETURN_EVIDENCE, "unresolved_findings": []}
+    _run(bound, tmp_path, capsys, second(spec_assay.RETURN), "RegisterArtefact", ids["return_id"], OWNER, human=True,
+         evidence=evidence)  # fmt: skip
+    _run(bound, tmp_path, capsys, second(spec_assay.RETURN), "RecordAssayScore", candidate_id, PRODUCER,
+         evidence=evidence)  # fmt: skip
+    _run(bound, tmp_path, capsys, second(spec_assay.REVIEW), "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    _run(bound, tmp_path, capsys, second(spec_assay.REVIEW), "ReviewDiscoveryOutcome", ids["review_id"],
+         OUTCOME_REVIEWER, evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    decide_intent = second(spec_assay.DECIDE, recommendation="PROMOTE")
+    _run(bound, tmp_path, capsys, decide_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
+    decided = _run(bound, tmp_path, capsys, decide_intent, "ResolveDecision", ids["decision_id"], OWNER, human=True,
+                   evidence={"selected_option": "PROMOTE", "revisit_triggers": []})  # fmt: skip
+    assert decided["state"] == "completed"
+    assert _replay(coordinator)["candidates"][candidate_id]["status"] == "spike_planning_authorized"
+
+    # The listing re-derives the whole lineage: each Assay's actions, keyed by its ordinal.
+    listing = coordinator.status()["actions"]
+    assert not [entry for entry in listing if "unreadable" in entry and entry["action"] in spec_assay.ACTIONS]
+    states = {
+        (entry["action"], entry.get("assay_ordinal", 1)): entry["state"]
+        for entry in listing
+        if entry["action"] in spec_assay.ACTIONS and entry.get("candidate_id") == candidate_id
+    }
+    lineage = (
+        (spec_assay.REQUEST, 1),
+        (spec_assay.PREPARE, 1),
+        (spec_assay.RETURN_PARTIAL, 1),
+        (spec_assay.REVIEW_PARTIAL, 1),
+        (spec_assay.REVISIT, 1),
+        (spec_assay.AUTHORIZE, 1),
+        (spec_assay.RETRY_REQUEST, 1),
+        (spec_assay.PREPARE, 2),
+        (spec_assay.RETURN, 2),
+        (spec_assay.REVIEW, 2),
+        (spec_assay.DECIDE, 2),
+    )
+    assert states == dict.fromkeys(lineage, "completed")
+
+
+def test_revisit_and_retry_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    candidate_id, first = _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch)
+    revisit_intent = spec_01_intent(spec_assay.REVISIT, candidate_id)
+    revisit_ids = spec_assay.subject_ids(PROJECT_ID, revisit_intent)
+
+    # With no later SOURCE observation carrying the requirement, the revisit predicate is not satisfied.
+    grant = _grant(bound, "ProposeRevisitDecision", candidate_id, STEWARD)
+    assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
+    # An observation whose one fact is not the requirement does not satisfy it either.
+    _observe_fact(bound, tmp_path, capsys, source_repo, "an unrelated fact", source_key="unrelated-fact")
+    assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
+    _observe_fact(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
+
+    for actor, human in ((PRODUCER, False), (OWNER, True), (OUTCOME_REVIEWER, False)):
+        actor_grant = _grant(bound, "ProposeRevisitDecision", candidate_id, actor, human=human)
+        assert "revisit proposer" in _invoke(bound, tmp_path, capsys, revisit_intent, actor_grant, actor, refused=True)
+    _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD)
+    # Admission keeps the revisit resolution owner-only; the route adds nothing.
+    authorize_intent = spec_01_intent(spec_assay.AUTHORIZE, candidate_id)
+    steward_resolve = _grant(bound, "ResolveDecision", revisit_ids["revisit_decision_id"], STEWARD)
+    _invoke(bound, tmp_path, capsys, authorize_intent, steward_resolve, STEWARD, refused=True)
+    _run(bound, tmp_path, capsys, authorize_intent, "ResolveDecision", revisit_ids["revisit_decision_id"], OWNER,
+         human=True)  # fmt: skip
+
+    retry_intent = spec_01_intent(spec_assay.RETRY_REQUEST, candidate_id)
+    for actor, human in ((PRODUCER, False), (OWNER, True)):
+        actor_grant = _grant(bound, "RequestAssay", candidate_id, actor, human=human)
+        assert "retry requester" in _invoke(bound, tmp_path, capsys, retry_intent, actor_grant, actor, refused=True)
+    # An Assay that no route retry created is not a route subject.
+    prepare_second = spec_01_intent(spec_assay.PREPARE, candidate_id, assay_ordinal=2)
+    second_ids = spec_assay.subject_ids(PROJECT_ID, prepare_second)
+    second_grant = _grant(bound, "RegisterArtefact", second_ids["brief_id"], OWNER, human=True)
+    assert "retry" in _invoke(bound, tmp_path, capsys, prepare_second, second_grant, OWNER, refused=True)
+    steward_retry = _grant(bound, "RequestAssay", candidate_id, STEWARD)
+    _invoke(bound, tmp_path, capsys, retry_intent, steward_retry, STEWARD)
+    assert _replay(bound.coordinator)["candidates"][candidate_id]["assay_id"] == revisit_ids["retry_assay_id"]
+    assert first["assay_id"] != revisit_ids["retry_assay_id"]
+    # The completed retry conflicts on any invocation that repeats no committed effect.
+    other_grant = _grant(bound, "RequestAssay", candidate_id, STEWARD)
+    assert "already completed" in _invoke(bound, tmp_path, capsys, retry_intent, other_grant, STEWARD,
+                                          refused=True)  # fmt: skip
+
+
+def _built_direct(bound, command_type: str, target: str, build, actor: str, *, subject: str, human=False) -> str:
+    """Submit straight to admission a payload built with its own grant (decisive controls only)."""
+    grant = _grant(bound, command_type, subject, actor, human=human)
+    command = {
+        "command_id": new_id("command"),
+        "command_type": command_type,
+        "actor_id": actor,
+        "authority_grant_id": grant,
+        "idempotency_key": f"control:{new_id('command')}",
+        "target_stream_id": target,
+        "expected_stream_version": bound.coordinator.ledger.snapshot().stream_versions.get(target, 0),
+        "payload": build(grant),
+    }
+    return bound.coordinator._discovery().submit(command).status
+
+
+def _direct_reviewed_partial(bound, number: int) -> tuple[str, str, str]:
+    """Record and review a Partial through inherited admission alone, with the revisit requirement."""
+    coordinator = bound.coordinator
+    candidate_id = _ingest_direct(bound, number)
+    assay_id = f"asy_019fed25-b33e-7740-b280-{860 + number:012d}"
+    review_id = f"rev_019fed25-b33e-7740-b280-{865 + number:012d}"
+    projection = _replay(coordinator)
+    bar = projection["assay_bar_authority"]
+    request = {
+        "row_id": "OR-003",
+        "candidate_id": candidate_id,
+        "assay_id": assay_id,
+        "candidate_revision": 1,
+        "candidate_sha256": projection["candidates"][candidate_id]["content_sha256"],
+        "assay_bar_acceptance_sha256": bar["acceptance_sha256"],
+        "producer_relation_sha256": bar["producer_relation_sha256"],
+    }
+    assert _direct(bound, "RequestAssay", assay_id, request, STEWARD) == "accepted"
+    projection = _replay(coordinator)
+    pair = {"candidate_id": candidate_id, "assay_id": assay_id}
+    evidence = {**PARTIAL_EVIDENCE, "revisit_requirements": [REVISIT_FACT]}
+    partial = spec_assay._partial_artifact(pair, projection, projection["candidates"][candidate_id],
+                                           projection["assays"][assay_id], evidence, coordinator._assay_context())  # fmt: skip
+    digest = sha256_hex(canonical_bytes(partial))
+    recorded = {**pair, "row_id": "OR-005", "partial_sha256": digest, "partial_artifact": partial,
+                "producer_relation_sha256": bar["producer_relation_sha256"]}  # fmt: skip
+    assert _direct(bound, "RecordAssayPartial", assay_id, recorded, PRODUCER) == "accepted"
+    request = _partial_request(candidate_id, assay_id, review_id, digest)
+    assert _direct(bound, "RequestDiscoveryOutcomeReview", review_id, request, STEWARD) == "accepted"
+    verdict = {
+        "review_id": review_id,
+        "verdict": "approve",
+        "findings": [],
+        "required_evidence_refs": ["assay-partial:exact"],
+        "limitations": [],
+        "conditions": [],
+        "reviewer_actor_id": OUTCOME_REVIEWER,
+        **{key: OUTCOME_VERDICT_EVIDENCE[key] for key in spec_assay._VERDICT_EVIDENCE - {"findings", "limitations"}},
+        "unchanged_subject_sha256": digest,
+        "producing_attempt_id": "att_019fed25-b33e-7740-b280-000000000869",
+        "computed_independence_grade": "independent",
+    }
+    reviewed = {**pair, "row_id": "OR-007", "review_id": review_id, "subject_sha256": digest, "verdict": "approve",
+                "review_verdict": verdict}  # fmt: skip
+    assert _direct(bound, "ReviewDiscoveryOutcome", review_id, reviewed, OUTCOME_REVIEWER) == "accepted"
+    return candidate_id, assay_id, review_id
+
+
+def test_admission_accepts_the_revisit_and_retry_collapses_the_route_refuses(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    source_repo,  # noqa: F811
+):
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    coordinator = bound.coordinator
+    _advance(bound, tmp_path, capsys, GENESIS_INTENT, "ImportAcceptedW11CatalogueGenesis", CATALOGUE_STREAM_ID,
+             OWNER, human=True)  # fmt: skip
+    for command_type, subject, actor, human in _bar_steps():
+        _advance(bound, tmp_path, capsys, BAR_INTENT, command_type, subject, actor, human)
+    subjects = [_direct_reviewed_partial(bound, number) for number in range(3)]
+    observation = _observe_fact(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
+
+    def proposal(candidate_id: str, assay_id: str, review_id: str, decision_id: str, actor: str) -> dict:
+        projection = _replay(coordinator)
+        candidate, assay = projection["candidates"][candidate_id], projection["assays"][assay_id]
+        predicate = projection["source_observations"][observation]
+        return {
+            "row_id": "OR-009",
+            "candidate_id": candidate_id,
+            "assay_id": assay_id,
+            "review_id": review_id,
+            "decision_id": decision_id,
+            "w2_payload": {
+                "question": "Retry the exact Assay?",
+                "recommendation": "RETRY",
+                "new_decision_id": decision_id,
+                "decision_revision": 1,
+                "decision_kind": "design_lock",
+                "options": ["RETRY", "PARK", "KILL"],
+                "governing_evidence_refs": [review_id],
+                "affected_task_ids": [],
+                "affected_claim_ids": [],
+                "required_authority": "owner",
+                "expires_at": "2026-12-31T00:00:00Z",
+                "review_date": "2026-09-11T00:00:00Z",
+                "consequences": ["authorize exact retry"],
+            },
+            "revisit_relation": {
+                "schema_id": "ars://portfolio/relation/discovery-revisit",
+                "schema_version": "1.0.0",
+                "relation_kind": "discovery_revisit",
+                "decision_id": decision_id,
+                "candidate_ref": _record_ref(candidate_id, candidate["revision"], candidate["content_sha256"]),
+                "prior_aggregate_ref": _record_ref(assay_id, assay["version"], _aggregate_content_hash(assay)),
+                "prior_outcome_review_ref": _review_ref(projection["reviews"][review_id]),
+                "satisfied_revisit_predicate_ref": _record_ref(observation, 1, predicate["content_sha256"]),
+                "selected_option": "RETRY",
+                "actor_id": actor,
+            },
+        }
+
+    # Inherited admission records a revisit proposed by the producer, the owner or the outcome reviewer.
+    decisions = []
+    for index, (actor, human) in enumerate(((PRODUCER, False), (OWNER, True), (OUTCOME_REVIEWER, False))):
+        decision_id = f"dec_019fed25-b33e-7740-b280-{875 + index:012d}"
+        payload = proposal(*subjects[index], decision_id, actor)
+        status = _built_direct(bound, "ProposeRevisitDecision", decision_id, lambda _grant, p=payload: p, actor,
+                               subject=subjects[index][0], human=human)  # fmt: skip
+        assert status == "accepted", actor
+        decisions.append(decision_id)
+
+    # After the owner's RETRY, inherited admission records a retry requested by the producer or the owner.
+    for index, (actor, human) in enumerate(((PRODUCER, False), (OWNER, True))):
+        candidate_id, assay_id, review_id = subjects[index]
+
+        def resolution(grant: str, c=candidate_id, a=assay_id, r=review_id, d=decisions[index]) -> dict:
+            return {
+                "row_id": "OR-010",
+                "candidate_id": c,
+                "assay_id": a,
+                "decision_id": d,
+                "w2_payload": {
+                    "decision_id": d,
+                    "selected_option": "RETRY",
+                    "effective_scope": "exact Assay",
+                    "decision_revision": 1,
+                    "deciding_actor_id": OWNER,
+                    "decision_authority_grant_id": grant,
+                    "governing_evidence_refs": [r],
+                    "considered_review_ids": [r],
+                    "effective_at": "2026-09-11T00:00:00Z",
+                    "permitted_commands": ["RequestAssay"],
+                    "superseded_decision_ids": [],
+                    "conditions": [],
+                    "revisit_triggers": [],
+                },
+            }
+
+        assert _built_direct(bound, "ResolveDecision", decisions[index], resolution, OWNER, subject=decisions[index],
+                             human=True) == "accepted"  # fmt: skip
+        projection = _replay(coordinator)
+        bar, candidate = projection["assay_bar_authority"], projection["candidates"][candidate_id]
+        new_assay = f"asy_019fed25-b33e-7740-b280-{880 + index:012d}"
+        retry = {
+            "row_id": "OR-011",
+            "candidate_id": candidate_id,
+            "old_assay_id": assay_id,
+            "assay_id": new_assay,
+            "candidate_revision": candidate["revision"],
+            "candidate_sha256": candidate["content_sha256"],
+            "assay_bar_acceptance_sha256": bar["acceptance_sha256"],
+            "producer_relation_sha256": bar["producer_relation_sha256"],
+        }
+        status = _built_direct(bound, "RequestAssay", new_assay, lambda _grant, p=retry: p, actor,
+                               subject=candidate_id, human=human)  # fmt: skip
+        assert status == "accepted", actor

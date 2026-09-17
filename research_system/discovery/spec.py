@@ -222,6 +222,9 @@ class SpecCoordinator:
             repository_root=self.binding.repository_root,
             objects=self.objects,
             raw_prefix_sha256=self.ledger.raw_prefix_sha256,
+            read_source_document=lambda artefact_id: read_document(
+                artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
+            ),
         )
 
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
