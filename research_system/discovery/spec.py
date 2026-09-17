@@ -225,6 +225,7 @@ class SpecCoordinator:
             read_source_document=lambda artefact_id: read_document(
                 artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
             ),
+            source_state=self._source_state,
         )
 
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
@@ -361,11 +362,19 @@ class SpecCoordinator:
             )
         self.schemas.validate("ars://portfolio/spec-source-intent", intent)
         parse_locator(intent["requested_locator"])
-        ids = source_ids(self.binding.project_id, intent)
         events = self.ledger.snapshot().events
         projection = replay_discovery(
             events, schemas=self.schemas, authority_state_validator=self.resolver.validate_replayed_administration_state
         )
+        return self._source_state(intent, events, projection)
+
+    def _source_state(self, intent: dict, events: list[dict], projection: dict) -> dict:
+        """Return a SOURCE intent's route state over a ledger and its Discovery replay.
+
+        The Assay route's revisit predicate accepts an observation only if this completion check
+        does (PR #297 review).
+        """
+        ids = source_ids(self.binding.project_id, intent)
         effects = ACTION_EFFECTS[intent["action"]]
         state = {"action": intent["action"], "state": "not_started", **ids, "next_effect": effects[0], "effects": []}
         registered = [

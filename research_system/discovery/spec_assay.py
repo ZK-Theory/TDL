@@ -42,11 +42,12 @@ A reviewed Partial Assay is revisited, its retry authorized by the owner, and th
 (06s Phase 4b-1, P-058, 2026-09-17). A later Assay in the retry lineage is named by its ordinal;
 without one every identity is derived exactly as for the first Assay, and an ordinal is honoured
 only for an Assay the route's own retry created from the Assay before it. One Task and its one
-running Attempt span the whole lineage. The revisit predicate is the earliest route-issued SOURCE
-observation after the review whose one fact is the revisit requirement, so only a
-single-requirement Partial can be revisited on the route. The route refuses the producer, the
-owner or the outcome reviewer proposing a revisit, and the producer or the owner requesting a
-retry; admission keeps the retry authorization owner-only.
+running Attempt span the whole lineage, and a later Assay's operator records are version 1.1.0,
+whose intent carries its ordinal. The revisit predicate is the earliest SOURCE observation after
+the review that the SOURCE route's own completion check accepts and whose one fact is the revisit
+requirement, so only a single-requirement Partial can be revisited on the route. The route
+refuses the producer, the owner or the outcome reviewer proposing a revisit, and the producer or
+the owner requesting a retry; admission keeps the retry authorization owner-only.
 """
 
 from __future__ import annotations
@@ -73,12 +74,7 @@ from research_system.discovery.rules import (
     _review_ref,
 )
 from research_system.discovery.spec_result import _BINDING_EVENTS, _event_ref
-from research_system.discovery.spec_source import (
-    SOURCE_REF_PREFIX,
-    registration_ref,
-    source_ids,
-    validate_source_refs,
-)
+from research_system.discovery.spec_source import SOURCE_REF_PREFIX, registration_ref, source_ids
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.methods.registration import _stable_command_id
 from research_system.projection.replay import replay
@@ -238,6 +234,7 @@ class AssayContext:
         objects: Immutable object store holding the operator records.
         raw_prefix_sha256: Ledger raw-prefix digest at a global position.
         read_source_document: Validated SOURCE document reader by artefact identity.
+        source_state: The SOURCE route's own state of a SOURCE intent over a ledger and its replay.
     """
 
     project_id: str
@@ -247,6 +244,7 @@ class AssayContext:
     objects: Any
     raw_prefix_sha256: Callable[[int], str]
     read_source_document: Callable[[str], tuple[dict, dict]]
+    source_state: Callable[[dict, list[dict], dict], dict]
 
 
 def _stable(prefix: str, *parts: str) -> str:
@@ -278,6 +276,10 @@ def subject_ids(project_id: str, intent: dict[str, Any]) -> dict[str, str]:
         return {}
     candidate_id = intent["candidate_id"]
     ordinal = intent.get("assay_ordinal")
+    if ordinal is not None and type(ordinal) is not int:
+        # JSON Schema accepts 2.0 as an integer, but it would derive other identities than 2, and P0
+        # canonical JSON rejects floating-point values (PR #297 review).
+        raise SchemaError(f"assay_ordinal must be an integer literal, not {ordinal!r}")
 
     def identity(prefix: str, name: str, number: int | None = ordinal) -> str:
         return _stable(prefix, project_id, candidate_id, name, *([str(number)] if number else []))
@@ -305,6 +307,14 @@ def _intent(action: str, ids: dict[str, Any]) -> dict[str, Any]:
     """Return the route intent for another action on the same Assay of a Candidate's lineage."""
     ordinal = {"assay_ordinal": ids["assay_ordinal"]} if "assay_ordinal" in ids else {}
     return {"action": action, "candidate_id": ids["candidate_id"], **ordinal}
+
+
+def _record_version(ids: dict[str, Any]) -> str:
+    """Return an operator record's schema version: 1.1.0 records a later Assay's ordinal (PR #297 review).
+
+    A first Assay's records stay 1.0.0, so merged records re-derive unchanged.
+    """
+    return "1.1.0" if "assay_ordinal" in ids else "1.0.0"
 
 
 def producer_ref(producer_actor_id: str) -> dict[str, Any]:
@@ -382,8 +392,12 @@ def _prefix(events: list[dict], position: int) -> list[dict]:
 
 
 def _validate(schema_id: str, document: dict[str, Any], ctx: AssayContext) -> None:
+    """Validate a record against the version it names; a later Assay's operator records are 1.1.0."""
+    version = document.get("schema_version")
     try:
-        ctx.schemas.validate(schema_id, document, schema_version="1.0.0")
+        if not isinstance(version, str):
+            raise SchemaError(f"{schema_id} record names no schema version")
+        ctx.schemas.validate(schema_id, document, schema_version=version)
     except SchemaError as exc:
         raise IntegrityError(f"{schema_id} record is not schema-valid: {exc}") from exc
 
@@ -569,9 +583,9 @@ def _brief(ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_
         raise IntegrityError(f"{PREPARE} requires an Assay that is still collecting evidence")
     document = {
         "schema_id": BRIEF_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": BRIEF_TYPE,
-        "intent": {"action": PREPARE, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(PREPARE, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -701,9 +715,9 @@ def _operator_return(
     scorecard = _scorecard(ids, projection, candidate, assay, evidence, ctx)
     document = {
         "schema_id": RETURN_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": RETURN_TYPE,
-        "intent": {"action": RETURN, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(RETURN, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -770,9 +784,9 @@ def _operator_partial_return(
     partial = _partial_artifact(ids, projection, candidate, assay, evidence, ctx)
     document = {
         "schema_id": PARTIAL_RETURN_SCHEMA_ID,
-        "schema_version": "1.0.0",
+        "schema_version": _record_version(ids),
         "document_type": PARTIAL_RETURN_TYPE,
-        "intent": {"action": RETURN_PARTIAL, "candidate_id": ids["candidate_id"]},
+        "intent": _intent(RETURN_PARTIAL, ids),
         "recorded_at": recorded_at,
         "producer_actor_id": actor_id,
         "causal_prefix": _causal_prefix(events, ctx),
@@ -881,7 +895,7 @@ def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str,
         "aliases": [],
         "artefact_type": document_type,
         "artefact_schema_id": schema_id,
-        "artefact_schema_version": "1.0.0",
+        "artefact_schema_version": document["schema_version"],
         "producer_actor_id": document["producer_actor_id"],
         "created_at": document["recorded_at"],
         "observed_at": document["recorded_at"],
@@ -1264,24 +1278,26 @@ def _payload(
     raise IntegrityError(f"the Assay route has no payload for row {row}")
 
 
-def _route_source_observation(observation_id: str, observation: dict, events: list[dict], ctx: AssayContext) -> bool:
-    """Whether an observation is the one the SOURCE route issues for its own ``observe_source`` intent.
+def _route_source_observation(
+    observation_id: str, observation: dict, events: list[dict], projection: dict, ctx: AssayContext
+) -> bool:
+    """Whether an observation is the one the SOURCE route completed for its own ``observe_source`` intent.
 
-    It must cite exactly one SOURCE registration whose bytes verify, sit at the observation identity the
-    SOURCE route derives for that document's intent, and carry that intent's title as its one fact.
+    It must cite exactly one SOURCE registration whose document's intent derives this observation's
+    identity, and the SOURCE route's own completion check must accept that intent over the same ledger:
+    the exact batch that route derives, its registration and the Candidate it registers (PR #297 review).
     """
     batch = observation.get("batch") or {}
     refs = batch.get("raw_source_refs") or []
     if len(refs) != 1 or not str(refs[0].get("locator", "")).startswith(SOURCE_REF_PREFIX):
         return False
     try:
-        validate_source_refs(batch, events, before_position=observation["global_position"])
         document, _ = ctx.read_source_document(refs[0]["locator"][len(SOURCE_REF_PREFIX) :].partition(":")[0])
         intent = document.get("intent") or {}
         return bool(
             intent.get("action") == "observe_source"
             and source_ids(ctx.project_id, intent)["observation_id"] == observation_id
-            and batch.get("matching_facts") == [intent.get("title")]
+            and ctx.source_state(intent, events, projection)["state"] == "completed"
         )
     except (ArsError, KeyError, TypeError):
         return False
@@ -1310,7 +1326,7 @@ def _revisit_payload(ids: dict[str, Any], events: list[dict], ctx: AssayContext,
             if observation["global_position"] > threshold
             and observation_id not in excluded
             and set(requirements) <= set((observation.get("batch") or {}).get("matching_facts") or ())
-            and _route_source_observation(observation_id, observation, events, ctx)
+            and _route_source_observation(observation_id, observation, events, projection, ctx)
         ),
         None,
     )
@@ -1447,17 +1463,13 @@ def _return_taken(ids: dict[str, str], events: list[dict]) -> str | None:
 
     Both alternatives register at the same identity, and admission refuses a second registration there,
     so at most one is ever taken. This reads identity only; the taken action's own evaluation verifies it.
+    A later Assay's registration is keyed by its ordinal, so each alternative is read at that ordinal.
     """
     first = next((event for event in events if event["stream_id"] == ids["return_id"]), None)
     if first is None or first.get("event_type") != "ArtefactRegistered":
         return None
     return next(
-        (
-            action
-            for action in (RETURN, RETURN_PARTIAL)
-            if _issued_registration(first, {"action": action, "candidate_id": ids["candidate_id"]})
-        ),
-        None,
+        (action for action in (RETURN, RETURN_PARTIAL) if _issued_registration(first, _intent(action, ids))), None
     )
 
 

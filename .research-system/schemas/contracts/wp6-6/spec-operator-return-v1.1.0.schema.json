@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-operator-return",
+  "$comment": "1.1.0 is the return of a later Assay in a retry lineage: its intent records the Assay's assay_ordinal, so the recorded intent derives the Assay the return names. A first Assay's return stays 1.0.0 (P-058, PR #297 review decisions, 2026-09-17).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "intent",
+    "recorded_at",
+    "producer_actor_id",
+    "causal_prefix",
+    "route_id",
+    "brief",
+    "task",
+    "candidate",
+    "assay",
+    "operator_return",
+    "scorecard",
+    "scorecard_sha256",
+    "governed_code_subject"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-operator-return"},
+    "schema_version": {"const": "1.1.0"},
+    "document_type": {"const": "spec_operator_return"},
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "candidate_id", "assay_ordinal"],
+      "properties": {
+        "action": {"const": "return_spec_01_complete"},
+        "candidate_id": {"type": "string", "pattern": "^obj_"},
+        "assay_ordinal": {"type": "integer", "minimum": 2}
+      }
+    },
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_"},
+    "causal_prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 0},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artefact_id", "content_sha256", "event_id", "event_hash", "global_position"],
+      "properties": {
+        "artefact_id": {"type": "string", "pattern": "^art_"},
+        "content_sha256": {"$ref": "#/$defs/sha256"},
+        "event_id": {"type": "string", "pattern": "^evt_"},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "global_position": {"type": "integer", "minimum": 1}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_revision",
+        "attempt_id",
+        "dispatch_id",
+        "context_packet_id",
+        "code_identity",
+        "environment_fingerprint"
+      ],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^tsk_"},
+        "task_revision": {"type": "integer", "minimum": 1},
+        "attempt_id": {"type": "string", "pattern": "^att_"},
+        "dispatch_id": {"type": "string", "pattern": "^dsp_"},
+        "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "code_identity": {"type": "string", "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"},
+        "environment_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "revision", "content_sha256"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^obj_"},
+        "revision": {"type": "integer", "minimum": 1},
+        "content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "assay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assay_id"],
+      "properties": {"assay_id": {"type": "string", "pattern": "^asy_"}}
+    },
+    "operator_return": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis_results",
+        "prohibited_inferences",
+        "review_requirements",
+        "direct_sources",
+        "findings",
+        "validation",
+        "unresolved_findings",
+        "limitations"
+      ],
+      "properties": {
+        "axis_results": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["axis_id", "value", "rationale", "unmet_condition_codes"],
+            "properties": {
+              "axis_id": {"type": "string", "minLength": 1},
+              "value": {"type": ["boolean", "integer", "number"]},
+              "rationale": {"type": "string", "minLength": 1},
+              "unmet_condition_codes": {"$ref": "#/$defs/strings"}
+            }
+          }
+        },
+        "prohibited_inferences": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "review_requirements": {"$ref": "#/$defs/strings"},
+        "direct_sources": {"$ref": "#/$defs/nonEmptyStrings"},
+        "findings": {"$ref": "#/$defs/nonEmptyStrings"},
+        "validation": {"$ref": "#/$defs/nonEmptyStrings"},
+        "unresolved_findings": {"$ref": "#/$defs/strings"},
+        "limitations": {"$ref": "#/$defs/strings"}
+      }
+    },
+    "scorecard": {"$ref": "ars://portfolio/assay-scorecard"},
+    "scorecard_sha256": {"$ref": "#/$defs/sha256"},
+    "governed_code_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_event", "event_type", "recovery_binding_sha256", "git_head", "git_tree"],
+      "properties": {
+        "binding_event": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_id", "event_hash", "global_position"],
+          "properties": {
+            "event_id": {"type": "string", "pattern": "^evt_"},
+            "event_hash": {"$ref": "#/$defs/sha256"},
+            "global_position": {"type": "integer", "minimum": 1}
+          }
+        },
+        "event_type": {"enum": ["StoreBindingRepaired", "StoreBindingAdvanced"]},
+        "recovery_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strings": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "nonEmptyStrings": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+  }
+}

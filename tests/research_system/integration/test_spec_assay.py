@@ -3,6 +3,7 @@
 import json
 import re
 
+from jsonschema import Draft202012Validator
 import pytest
 
 from research_system import cli
@@ -13,8 +14,8 @@ from research_system.discovery.assay_authority import content_sha256 as assay_co
 from research_system.discovery.rules import _aggregate_content_hash, _axis_set_hash, _record_ref, _review_ref
 from research_system.discovery.runtime import replay_discovery
 from research_system.discovery.spec import ACTION_EFFECTS
-from research_system.discovery.spec_source import source_ids
-from research_system.errors import ConflictError, SchemaError
+from research_system.discovery.spec_source import read_document, source_ids, source_ref
+from research_system.errors import ConflictError, IntegrityError, SchemaError
 from research_system.ids import new_id
 from research_system.canonical import sha256_hex
 from research_system.schema_registry import runtime_schema_registry
@@ -292,6 +293,37 @@ def test_assay_intent_is_a_closed_record():
     ):
         with pytest.raises(SchemaError):
             schemas.validate(spec_assay.INTENT_SCHEMA_ID, invalid, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
+    # JSON Schema accepts 2.0 as an integer, but it would derive other identities than 2 and P0 canonical
+    # JSON rejects floating-point values, so the route refuses it (PR #297 review).
+    floating = {**revisit_intents[0], "assay_ordinal": 2.0}
+    schemas.validate(spec_assay.INTENT_SCHEMA_ID, floating, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
+    with pytest.raises(SchemaError, match="assay_ordinal"):
+        spec_assay.subject_ids(PROJECT_ID, floating)
+
+
+def test_a_later_assay_records_its_ordinal_in_its_operator_records():
+    """A later Assay's brief, return and Partial return are 1.1.0 and carry its ordinal (PR #297 review).
+
+    The first Assay's records stay 1.0.0, which never carries an ordinal.
+    """
+    schemas = runtime_schema_registry(REPO_ROOT / ".research-system" / "schemas")
+    first = {"candidate_id": "obj_019fed25-b33e-7740-b280-000000000501"}
+    for schema_id, action in (
+        (spec_assay.BRIEF_SCHEMA_ID, spec_assay.PREPARE),
+        (spec_assay.RETURN_SCHEMA_ID, spec_assay.RETURN),
+        (spec_assay.PARTIAL_RETURN_SCHEMA_ID, spec_assay.RETURN_PARTIAL),
+    ):
+        intent = {"action": action, **first}
+        valid = {
+            version: Draft202012Validator(
+                json.loads(schemas.resolve_identity(schema_id, version).raw_bytes)["properties"]["intent"]
+            ).is_valid
+            for version in ("1.0.0", "1.1.0")
+        }
+        assert valid["1.0.0"](intent) and not valid["1.0.0"]({**intent, "assay_ordinal": 2}), schema_id
+        assert valid["1.1.0"]({**intent, "assay_ordinal": 2}), schema_id
+        for invalid in (intent, {**intent, "assay_ordinal": 1}, {**intent, "assay_ordinal": "2"}):
+            assert not valid["1.1.0"](invalid), (schema_id, invalid)
 
 
 def test_route_identities_are_deterministic_uuidv7_and_subject_bound():
@@ -1456,6 +1488,68 @@ def _observe_fact(bound, tmp_path, capsys, source_repo, fact: str, source_key: s
     return ids["observation_id"]
 
 
+def _observe_altered(bound, tmp_path, capsys, source_repo, fact: str) -> dict:  # noqa: F811
+    """Register a SOURCE record on the route, then ingest its observation straight through admission.
+
+    The observation sits at the SOURCE route's own identity, cites its registration and carries ``fact``,
+    but its source query is not the one the route derives, so the SOURCE route's completion check rejects
+    it (decisive controls only). Returns the SOURCE intent.
+    """
+    intent = {**source_intent(source_repo), "source_key": "altered-predicate", "title": fact}
+    ids = source_ids(PROJECT_ID, intent)
+    grant = activate_lifecycle_grant(
+        bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
+    )
+    assert invoke_cli(bound, tmp_path, capsys, intent, "advance", grant)["state"] == "prepared"
+    coordinator = bound.coordinator
+    document, registration = read_document(
+        ids["artefact_id"], objects=coordinator.objects, schemas=coordinator.schemas, ledger=coordinator.ledger
+    )
+    batch = {
+        "schema_id": "ars://portfolio/scout-observation-batch",
+        "schema_version": "1.0.0",
+        "source_query": "altered:" + intent["repository_url"] + "@" + intent["requested_locator"],
+        "source_version": document["resolution"]["commit_oid"],
+        "observed_at": document["recorded_at"],
+        "returned_identifiers": [ids["artefact_id"]],
+        "normalized_dedup_keys": [ids["artefact_id"]],
+        "raw_source_refs": [source_ref(registration)],
+        "matching_facts": [fact],
+        "omissions_or_errors": [],
+        "viability_judgment_absent": True,
+    }
+    batch_sha256 = sha256_hex(canonical_bytes(batch))
+    blueprint = {
+        "candidate_id": ids["candidate_id"],
+        "revision": 1,
+        "content_sha256": sha256_hex(
+            canonical_bytes([{"observation_id": ids["observation_id"], "content_sha256": batch_sha256}])
+        ),
+        "source_observation_refs": [ids["observation_id"]],
+        "title": fact,
+    }
+    payload = {
+        "row_id": "OR-029",
+        "observation_id": ids["observation_id"],
+        "batch": batch,
+        "batch_sha256": batch_sha256,
+        "candidate_blueprints": [blueprint],
+    }
+    assert (
+        _direct(bound, "IngestScoutObservationBatch", ids["observation_id"], payload, OWNER, human=True) == "accepted"
+    )
+    return intent
+
+
+def _manifest_of(coordinator, artefact_id: str) -> dict:
+    """Return the manifest of an artefact's registration."""
+    return next(
+        event["payload"]["manifest"]
+        for event in coordinator.ledger.snapshot().events
+        if event["stream_id"] == artefact_id and event["event_type"] == "ArtefactRegistered"
+    )
+
+
 def _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch) -> tuple[str, dict]:  # noqa: F811
     """Request the Assay, issue its brief, and return and review a Partial with one revisit requirement."""
     candidate_id = _requested(bound, tmp_path, capsys, source_repo)
@@ -1513,9 +1607,24 @@ def test_public_revisit_and_retry_reach_a_promoted_second_assay(tmp_path, monkey
     _run(bound, tmp_path, capsys, second(spec_assay.PREPARE), "RegisterArtefact", ids["brief_id"], OWNER, human=True)
     second_brief = coordinator.objects.read(spec_assay.BRIEF_KIND, ids["brief_id"], 1)
     assert second_brief["task"] == brief["task"] and second_brief["assay"]["assay_id"] == ids["assay_id"]
+    # Each record's intent derives the Assay it names; only a later Assay's records carry an ordinal (PR #297).
+    first_prepare = spec_assay.key_intent(spec_01_intent(spec_assay.PREPARE, candidate_id))
+    assert (brief["schema_version"], brief["intent"]) == ("1.0.0", first_prepare)
+    assert "assay_ordinal" not in first_prepare
+    assert (second_brief["schema_version"], second_brief["intent"]) == (
+        "1.1.0",
+        spec_assay.key_intent(second(spec_assay.PREPARE)),
+    )
+    assert _manifest_of(coordinator, ids["brief_id"])["artefact_schema_version"] == "1.1.0"
     evidence = {**RETURN_EVIDENCE, "unresolved_findings": []}
     _run(bound, tmp_path, capsys, second(spec_assay.RETURN), "RegisterArtefact", ids["return_id"], OWNER, human=True,
          evidence=evidence)  # fmt: skip
+    second_return = coordinator.objects.read(spec_assay.RETURN_KIND, ids["return_id"], 1)
+    assert (second_return["schema_version"], second_return["intent"]) == (
+        "1.1.0",
+        spec_assay.key_intent(second(spec_assay.RETURN)),
+    )
+    assert _manifest_of(coordinator, ids["return_id"])["artefact_schema_version"] == "1.1.0"
     _run(bound, tmp_path, capsys, second(spec_assay.RETURN), "RecordAssayScore", candidate_id, PRODUCER,
          evidence=evidence)  # fmt: skip
     _run(bound, tmp_path, capsys, second(spec_assay.REVIEW), "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
@@ -1567,6 +1676,11 @@ def test_revisit_and_retry_route_refuses_what_admission_accepts(tmp_path, monkey
     # A Scout observation outside the SOURCE route is not route-issued evidence, even carrying the requirement.
     _ingest_direct(bound, 0, fact=REVISIT_FACT)
     assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
+    # Nor is one at the SOURCE route's own observation identity that the SOURCE route's completion check rejects.
+    altered = _observe_altered(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
+    with pytest.raises(IntegrityError, match="SOURCE completion"):
+        bound.coordinator.status(altered)
+    assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
     _observe_fact(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
 
     for actor, human in ((PRODUCER, False), (OWNER, True), (OUTCOME_REVIEWER, False)):
@@ -1597,6 +1711,30 @@ def test_revisit_and_retry_route_refuses_what_admission_accepts(tmp_path, monkey
     other_grant = _grant(bound, "RequestAssay", candidate_id, STEWARD)
     assert "already completed" in _invoke(bound, tmp_path, capsys, retry_intent, other_grant, STEWARD,
                                           refused=True)  # fmt: skip
+
+    # The retried Assay takes the Partial alternative. Its record carries its ordinal, the complete return is
+    # excluded at that ordinal, and the listing names the Partial return it took (PR #297 review).
+    def second(action: str) -> dict:
+        return spec_01_intent(action, candidate_id, assay_ordinal=2)
+
+    coordinator = bound.coordinator
+    _run(bound, tmp_path, capsys, second(spec_assay.PREPARE), "RegisterArtefact", second_ids["brief_id"], OWNER,
+         human=True)  # fmt: skip
+    evidence = {**PARTIAL_EVIDENCE, "revisit_requirements": [REVISIT_FACT]}
+    _run(bound, tmp_path, capsys, second(spec_assay.RETURN_PARTIAL), "RegisterArtefact", second_ids["return_id"],
+         OWNER, human=True, evidence=evidence)  # fmt: skip
+    partial = coordinator.objects.read(spec_assay.PARTIAL_RETURN_KIND, second_ids["return_id"], 1)
+    assert (partial["schema_version"], partial["intent"]) == (
+        "1.1.0",
+        spec_assay.key_intent(second(spec_assay.RETURN_PARTIAL)),
+    )
+    complete_grant = _grant(bound, "RegisterArtefact", second_ids["return_id"], OWNER, human=True)
+    assert "excluded" in _invoke(bound, tmp_path, capsys, second(spec_assay.RETURN), complete_grant, OWNER,
+                                 evidence=RETURN_EVIDENCE, refused=True)  # fmt: skip
+    listed = spec_assay.enumerated_intents(coordinator.ledger.snapshot().events, coordinator._assay_context())
+    later = {entry["action"] for entry in listed if entry.get("candidate_id") == candidate_id
+             and entry.get("assay_ordinal") == 2}  # fmt: skip
+    assert spec_assay.RETURN_PARTIAL in later and spec_assay.RETURN not in later
 
 
 def _built_direct(bound, command_type: str, target: str, build, actor: str, *, subject: str, human=False) -> str:
