@@ -542,7 +542,9 @@ table:
     resolution owner-only, and the route fixes it to RETRY;
   - `spec-assay-intent` 1.2.0 adds the three actions and `assay_ordinal`;
   - a scored-Assay PARK revisit was reproduced as refused, and is a known limit with no
-    runtime change.
+    runtime change;
+  - after PR #297's first review, a later Assay's brief, return and Partial return are
+    recorded at version 1.1.0 with the Assay's ordinal; first-Assay records stay 1.0.0.
 
 ### Phase 5 — Owner-gated live proof and closure
 

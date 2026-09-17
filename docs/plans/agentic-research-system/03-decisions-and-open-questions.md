@@ -1886,6 +1886,30 @@ every recommendation.
     (measured), so the project-use result cannot close it.
 - **Scope (4b-1):** about ten files and 1,500–2,200 added lines, near the §5.0 checkpoint.
 
+**PR #297 review decisions (2026-09-17):** Codex's first review of `0512f924` found four
+defects in 4b-1. Stephen accepted the review stopping rule for #297, and decided the one
+finding that needed a schema version.
+- **A later Assay's operator records carry its ordinal.**
+  - **The defect:** a retried Assay's brief, return and Partial return recorded their intent
+    as `{action, candidate_id}`. That intent derives the first Assay's identities, while
+    the record's own `assay_id` names the later Assay.
+  - **The decision:** `spec-operator-brief-package`, `spec-operator-return` and
+    `spec-operator-partial-return` each gain version 1.1.0, whose intent requires an
+    `assay_ordinal` of 2 or more. The route writes 1.1.0 only for Assay 2 and later, so
+    every first-Assay record stays 1.0.0 and merged records re-derive unchanged. Each
+    registration manifest names its record's version.
+  - **Rejected:** deferring it to 4b-2 or 4c as a known limit.
+- **Route corrections that needed no decision:**
+  - **The revisit predicate:** an observation counts only if the SOURCE route's own
+    completion check accepts it. Checking three of its fields let an observation that
+    SOURCE status rejects satisfy the predicate.
+  - **The taken return:** the route now recognizes which return alternative an Assay took
+    at that Assay's ordinal. Before, a later Assay's Partial return was missing from the
+    listing and not excluded against its complete alternative.
+  - **A non-integer ordinal literal is refused.** JSON Schema accepts `2.0` as an
+    integer, but it derives other identities and P0 canonical JSON rejects
+    floating-point values.
+
 ## Decision protocol
 
 Each future decision entry must record:
