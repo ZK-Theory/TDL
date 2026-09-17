@@ -186,8 +186,11 @@ def _direct(bound, command_type: str, target: str, payload: dict, actor: str, *,
     return bound.coordinator._discovery().submit(command).status
 
 
-def _ingest_direct(bound, number: int) -> str:
-    """Register a throwaway Candidate through inherited admission for a decisive control."""
+def _ingest_direct(bound, number: int, fact: str | None = None) -> str:
+    """Register a throwaway Candidate through inherited admission for a decisive control.
+
+    ``fact`` replaces the observation's one matching fact.
+    """
     candidate_id = f"obj_019fed25-b33e-7740-b280-{900 + number:012d}"
     observation_id = f"obj_019fed25-b33e-7740-b280-{950 + number:012d}"
     batch = {
@@ -199,7 +202,7 @@ def _ingest_direct(bound, number: int) -> str:
         "returned_identifiers": [observation_id],
         "normalized_dedup_keys": [observation_id],
         "raw_source_refs": [{"ref_kind": "external", "locator": observation_id, "content_hash": "9" * 64}],
-        "matching_facts": [f"control {number}"],
+        "matching_facts": [fact or f"control {number}"],
         "omissions_or_errors": [],
         "viability_judgment_absent": True,
     }
@@ -1560,6 +1563,9 @@ def test_revisit_and_retry_route_refuses_what_admission_accepts(tmp_path, monkey
     assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
     # An observation whose one fact is not the requirement does not satisfy it either.
     _observe_fact(bound, tmp_path, capsys, source_repo, "an unrelated fact", source_key="unrelated-fact")
+    assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
+    # A Scout observation outside the SOURCE route is not route-issued evidence, even carrying the requirement.
+    _ingest_direct(bound, 0, fact=REVISIT_FACT)
     assert "revisit predicate" in _invoke(bound, tmp_path, capsys, revisit_intent, grant, STEWARD, refused=True)
     _observe_fact(bound, tmp_path, capsys, source_repo, REVISIT_FACT)
 
