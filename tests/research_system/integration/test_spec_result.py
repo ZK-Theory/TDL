@@ -420,7 +420,9 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
         "request_spec_01": ("RequestAssay",),
         "prepare_spec_01": ("RegisterArtefact",),
         "return_spec_01_complete": ("RegisterArtefact", "RecordAssayScore"),
+        "return_spec_01_partial": ("RegisterArtefact", "RecordAssayPartial"),
         "review_spec_01_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "review_spec_01_partial": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
         "decide_spec_01": ("ProposePromotionDecision", "ResolveDecision"),
     }
 
