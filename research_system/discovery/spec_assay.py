@@ -9,7 +9,8 @@ mutation:
 - genesis is imported by the authority owner;
 - the Assay-bar review requester is not an author of the committed content;
 - the Assay requester is neither the prospective producer nor the owner;
-- the Assay producer's own invocation carries the operator return it scores;
+- the Assay producer's own invocation carries the operator return it scores, or the Partial
+  return it records;
 - the outcome-review requester is neither the producer nor the owner;
 - the outcome reviewer is not the owner;
 - the promotion proposer is not the producer, the reviewer or the owner;
@@ -29,6 +30,13 @@ code and environment identities. The scorecard is derived from whichever Assay b
 accepted; the operator supplies only each rubric axis's value, rationale and unmet
 condition codes. Known limit: the committed bar is W11 fixture content, which Phase 5
 prep replaces.
+
+A Partial outcome (06s Phase 4a′, P-058, 2026-09-17) registers its own closed record, then
+OR-005, and is reviewed through OR-035 and OR-007. Each Partial action shares the return or
+outcome-review identity of the complete action it replaces, so the two sequences exclude each
+other at the first durable mutation, and the one not taken conflicts. A reviewed Partial Assay
+reaches no promotion Decision; its Candidate is left for a revisit. Known limit: an owner who
+registers the wrong alternative cannot switch on that Assay.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.routes import DISCOVERY_ROW_ROUTES
 from research_system.discovery.rules import (
     _aggregate_content_hash,
+    _assay_partial_bindings_match,
     _assay_scorecard_matches,
     _axis_set_hash,
     _record_ref,
@@ -66,14 +75,21 @@ REQUEST = "request_spec_01"
 PREPARE = "prepare_spec_01"
 RETURN = "return_spec_01_complete"
 REVIEW = "review_spec_01_complete"
+RETURN_PARTIAL = "return_spec_01_partial"
+REVIEW_PARTIAL = "review_spec_01_partial"
 DECIDE = "decide_spec_01"
 INTENT_SCHEMA_ID = "ars://portfolio/spec-assay-intent"
+INTENT_SCHEMA_VERSION = "1.1.0"
 BRIEF_SCHEMA_ID = "ars://portfolio/spec-operator-brief-package"
 RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-return"
+PARTIAL_RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-partial-return"
 BRIEF_KIND = "spec_operator_brief_document"
 RETURN_KIND = "spec_operator_return_document"
+PARTIAL_RETURN_KIND = "spec_operator_partial_return_document"
 BRIEF_TYPE = "spec_operator_brief_package"
 RETURN_TYPE = "spec_operator_return"
+PARTIAL_RETURN_TYPE = "spec_operator_partial_return"
+_ASSAY_PARTIAL_SCHEMA_ID = "ars://portfolio/assay-partial"
 ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
 ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
 ROUTE_PACKAGE_PATH = ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"
@@ -91,14 +107,17 @@ _CONSEQUENCES = {"PROMOTE": "authorize Spike planning", "PARK": "park the Candid
 
 # The operator records are artefact registrations, not W11 rows.
 _BRIEF, _RETURN = "AR:spec_01_operator_brief", "AR:spec_01_operator_return"
-_ARTEFACT_ROWS = frozenset({_BRIEF, _RETURN})
+_PARTIAL_RETURN = "AR:spec_01_operator_partial_return"
+_ARTEFACT_ROWS = frozenset({_BRIEF, _RETURN, _PARTIAL_RETURN})
 ROWS = {
     GENESIS: ("OR-140",),
     BAR: ("OR-101", "OR-102", "OR-103", "OR-104", "OR-105", "OR-106", "OR-107", "OR-108"),
     REQUEST: ("OR-003",),
     PREPARE: (_BRIEF,),
     RETURN: (_RETURN, "OR-004"),
+    RETURN_PARTIAL: (_PARTIAL_RETURN, "OR-005"),
     REVIEW: ("OR-034", "OR-006"),
+    REVIEW_PARTIAL: ("OR-035", "OR-007"),
     DECIDE: ("OR-012", "OR-013"),
 }
 
@@ -114,10 +133,41 @@ _OWNED_ROWS = {
     BAR: ROWS[BAR],
     PREPARE: (_BRIEF,),
     RETURN: (_RETURN,),
+    RETURN_PARTIAL: (_PARTIAL_RETURN,),
     REVIEW: ("OR-034",),
+    REVIEW_PARTIAL: ("OR-035",),
     DECIDE: ("OR-012",),
 }
-_SPEC_01_ACTIONS = frozenset({REQUEST, PREPARE, RETURN, REVIEW, DECIDE})
+_SPEC_01_ACTIONS = frozenset({REQUEST, PREPARE, RETURN, RETURN_PARTIAL, REVIEW, REVIEW_PARTIAL, DECIDE})
+# The return alternative each outcome action follows. The complete and Partial sequences share their
+# return and outcome-review identities, so one Assay can take only one of them (P-058, 2026-09-17).
+_RETURN_OF = {RETURN: RETURN, REVIEW: RETURN, RETURN_PARTIAL: RETURN_PARTIAL, REVIEW_PARTIAL: RETURN_PARTIAL}
+# The W11 Partial judgements the operator supplies; every reference in the Partial is derived.
+_PARTIAL_JUDGEMENTS = (
+    "completed_axes",
+    "completed_evidence",
+    "unmet_axes",
+    "unmet_evidence",
+    "reason_codes",
+    "limitations",
+    "revisit_requirements",
+    "mechanical_recommendation",
+)
+_OPERATOR_PARTIAL_RETURN = frozenset(
+    {*_PARTIAL_JUDGEMENTS, "direct_sources", "findings", "validation", "unresolved_findings", "prohibited_inferences"}
+)
+_VERDICT_EVIDENCE = frozenset(
+    {
+        "reviewer_profile",
+        "reviewer_session",
+        "reviewer_model_metadata",
+        "context_manifest_id",
+        "context_manifest_sha256",
+        "trace_visibility_evidence_refs",
+        "findings",
+        "limitations",
+    }
+)
 _OPERATOR_RETURN = frozenset(
     {
         "axis_results",
@@ -137,18 +187,10 @@ _EVIDENCE = {
     # return it scores (PR #291 review). Known limit: the fields the scorecard does not carry are
     # checked at that submission but not recorded in the OR-004 event.
     "OR-004": _OPERATOR_RETURN,
-    "OR-006": frozenset(
-        {
-            "reviewer_profile",
-            "reviewer_session",
-            "reviewer_model_metadata",
-            "context_manifest_id",
-            "context_manifest_sha256",
-            "trace_visibility_evidence_refs",
-            "findings",
-            "limitations",
-        }
-    ),
+    _PARTIAL_RETURN: _OPERATOR_PARTIAL_RETURN,
+    "OR-005": _OPERATOR_PARTIAL_RETURN,
+    "OR-006": _VERDICT_EVIDENCE,
+    "OR-007": _VERDICT_EVIDENCE,
     "OR-013": frozenset({"selected_option", "revisit_triggers"}),
 }
 _AXIS_EVIDENCE = frozenset({"axis_id", "value", "rationale", "unmet_condition_codes"})
@@ -327,9 +369,9 @@ def _stream(row: str, ids: dict[str, str], ctx: AssayContext) -> str:
         return _content(ctx, ASSAY_SCOPE_PATH)["record_id"]
     if row == _BRIEF:
         return ids["brief_id"]
-    if row == _RETURN:
+    if row in {_RETURN, _PARTIAL_RETURN}:
         return ids["return_id"]
-    if row in {"OR-105", "OR-106", "OR-034", "OR-006"}:
+    if row in {"OR-105", "OR-106", "OR-034", "OR-035", "OR-006", "OR-007"}:
         return ids["review_id"]
     if row in {"OR-107", "OR-108", "OR-012", "OR-013"}:
         return ids["decision_id"]
@@ -569,19 +611,29 @@ def _scorecard(
     raise IntegrityError(f"{RETURN} scorecard would not be admitted: each axis value must satisfy the accepted rubric")
 
 
-def _operator_return(
-    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str, recorded_at: str, evidence: dict
-) -> dict:
-    """Derive the operator return from a ledger prefix and the operator's content."""
+def _return_basis(action: str, ids: dict[str, str], events: list[dict], ctx: AssayContext) -> tuple:
+    """Return the projection, Candidate, Assay, brief registration and Task a return of either outcome cites.
+
+    Refuses before registration unless the return comes from the Task and Attempt the brief was issued
+    to, and the Assay is still collecting evidence.
+    """
     projection, candidate, assay = _subjects(ids, events, ctx)
     prepared = _completed(PREPARE, ids, events, ctx)
     registration = next(event for event in events if event["event_id"] == prepared["effects"][0]["event_id"])
     brief = _read_document(_BRIEF, registration, ctx)
     task = _task_provenance(ids["candidate_id"], events, ctx)
     if task != brief["task"]:
-        raise IntegrityError(f"{RETURN} must come from the Task and Attempt the brief was issued to")
+        raise IntegrityError(f"{action} must come from the Task and Attempt the brief was issued to")
     if assay.get("status") != "evidence_collecting" or candidate.get("status") != "assay_pending":
-        raise IntegrityError(f"{RETURN} requires an Assay that is still collecting evidence")
+        raise IntegrityError(f"{action} requires an Assay that is still collecting evidence")
+    return projection, candidate, assay, registration, task
+
+
+def _operator_return(
+    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str, recorded_at: str, evidence: dict
+) -> dict:
+    """Derive the operator return from a ledger prefix and the operator's content."""
+    projection, candidate, assay, registration, task = _return_basis(RETURN, ids, events, ctx)
     scorecard = _scorecard(ids, projection, candidate, assay, evidence, ctx)
     document = {
         "schema_id": RETURN_SCHEMA_ID,
@@ -605,6 +657,75 @@ def _operator_return(
     return document
 
 
+def _partial_artifact(
+    ids: dict[str, str], projection: dict, candidate: dict, assay: dict, evidence: dict, ctx: AssayContext
+) -> dict[str, Any]:
+    """Derive the Assay Partial from the Assay's bar and the operator's Partial judgements.
+
+    Every reference is derived. The inherited Partial binding rule, and the Assay-bar check
+    admission makes with it (``DiscoveryRuntime._valid_assay_partial``), run before the return is
+    registered, so an inadmissible Partial is refused before any durable mutation.
+    """
+    bar = projection["assay_bar_authority"]
+    acceptance = bar.get("acceptance")
+    if (
+        bar.get("status") != "accepted"
+        or not isinstance(acceptance, dict)
+        or assay.get("assay_bar_acceptance_sha256") != bar.get("acceptance_sha256")
+    ):
+        raise IntegrityError(f"{RETURN_PARTIAL} requires the Assay's accepted bar")
+    artifact = {
+        "schema_id": _ASSAY_PARTIAL_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "assay_id": ids["assay_id"],
+        "candidate_ref": _record_ref(ids["candidate_id"], candidate["revision"], candidate["content_sha256"]),
+        "rubric_ref": acceptance["rubric_ref"],
+        "scope_ref": acceptance["scope_ref"],
+        "assay_bar_acceptance_ref": _record_ref(acceptance["decision_id"], 1, bar["acceptance_sha256"]),
+        "assay_relation_hash": assay["producer_relation_sha256"],
+        **{key: deepcopy(evidence[key]) for key in _PARTIAL_JUDGEMENTS},
+    }
+    _validate(_ASSAY_PARTIAL_SCHEMA_ID, artifact, ctx)
+    payload = {
+        "candidate_id": ids["candidate_id"],
+        "assay_id": ids["assay_id"],
+        "partial_sha256": sha256_hex(canonical_bytes(artifact)),
+    }
+    if not _assay_partial_bindings_match(artifact, payload, candidate, assay, bar, acceptance):
+        raise IntegrityError(
+            f"{RETURN_PARTIAL} Partial would not be admitted: its axes must partition the rubric's required axes"
+        )
+    return artifact
+
+
+def _operator_partial_return(
+    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str, recorded_at: str, evidence: dict
+) -> dict:
+    """Derive the operator Partial return from a ledger prefix and the operator's content."""
+    projection, candidate, assay, registration, task = _return_basis(RETURN_PARTIAL, ids, events, ctx)
+    partial = _partial_artifact(ids, projection, candidate, assay, evidence, ctx)
+    document = {
+        "schema_id": PARTIAL_RETURN_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "document_type": PARTIAL_RETURN_TYPE,
+        "intent": {"action": RETURN_PARTIAL, "candidate_id": ids["candidate_id"]},
+        "recorded_at": recorded_at,
+        "producer_actor_id": actor_id,
+        "causal_prefix": _causal_prefix(events, ctx),
+        "route_id": _ROUTE_IDENTITY,
+        "brief": registration_ref(registration),
+        "task": task,
+        "candidate": {key: candidate[key] for key in ("candidate_id", "revision", "content_sha256")},
+        "assay": {"assay_id": ids["assay_id"]},
+        "operator_partial_return": deepcopy(evidence),
+        "partial_artifact": partial,
+        "partial_sha256": sha256_hex(canonical_bytes(partial)),
+        "governed_code_subject": _governed_code_subject(events),
+    }
+    _validate(PARTIAL_RETURN_SCHEMA_ID, document, ctx)
+    return document
+
+
 def _build(
     row: str,
     ids: dict[str, str],
@@ -617,7 +738,17 @@ def _build(
 ) -> dict:
     if row == _BRIEF:
         return _brief(ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at)
-    return _operator_return(ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at, evidence=evidence or {})
+    build = _operator_partial_return if row == _PARTIAL_RETURN else _operator_return
+    return build(ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at, evidence=evidence or {})
+
+
+def _record_identity(row: str) -> tuple[str, str, str]:
+    """Return an operator record row's object kind, document type and schema."""
+    if row == _BRIEF:
+        return BRIEF_KIND, BRIEF_TYPE, BRIEF_SCHEMA_ID
+    if row == _RETURN:
+        return RETURN_KIND, RETURN_TYPE, RETURN_SCHEMA_ID
+    return PARTIAL_RETURN_KIND, PARTIAL_RETURN_TYPE, PARTIAL_RETURN_SCHEMA_ID
 
 
 def _stored(row: str, artefact_id: str, ctx: AssayContext) -> dict | None:
@@ -626,11 +757,15 @@ def _stored(row: str, artefact_id: str, ctx: AssayContext) -> dict | None:
         if not ctx.objects.revision_exists(BRIEF_KIND, artefact_id, 1):
             return None
         document = ctx.objects.read(BRIEF_KIND, artefact_id, 1)
-    else:
+    elif row == _RETURN:
         if not ctx.objects.revision_exists(RETURN_KIND, artefact_id, 1):
             return None
         document = ctx.objects.read(RETURN_KIND, artefact_id, 1)
-    _validate(BRIEF_SCHEMA_ID if row == _BRIEF else RETURN_SCHEMA_ID, document, ctx)
+    else:
+        if not ctx.objects.revision_exists(PARTIAL_RETURN_KIND, artefact_id, 1):
+            return None
+        document = ctx.objects.read(PARTIAL_RETURN_KIND, artefact_id, 1)
+    _validate(_record_identity(row)[2], document, ctx)
     return document
 
 
@@ -641,7 +776,7 @@ def _read_document(row: str, registration: dict, ctx: AssayContext) -> dict:
         raise IntegrityError(f"SPEC-01 operator record bytes are absent for its registration: {artefact_id}")
     manifest = (registration.get("payload") or {}).get("manifest") or {}
     raw = canonical_bytes(document)
-    kind = BRIEF_KIND if row == _BRIEF else RETURN_KIND
+    kind = _record_identity(row)[0]
     if (
         manifest.get("content_sha256") != sha256_hex(raw)
         or manifest.get("size_bytes") != len(raw)
@@ -652,9 +787,7 @@ def _read_document(row: str, registration: dict, ctx: AssayContext) -> dict:
 
 
 def _manifest(row: str, document: dict[str, Any], artefact_id: str) -> dict[str, Any]:
-    kind, document_type, schema_id = (
-        (BRIEF_KIND, BRIEF_TYPE, BRIEF_SCHEMA_ID) if row == _BRIEF else (RETURN_KIND, RETURN_TYPE, RETURN_SCHEMA_ID)
-    )
+    kind, document_type, schema_id = _record_identity(row)
     raw = canonical_bytes(document)
     digest = sha256_hex(raw)
     task = document["task"]
@@ -817,6 +950,20 @@ def _payload(
             "producer_relation_sha256": bar["producer_relation_sha256"],
         }
     subject = {"candidate_id": ids["candidate_id"], "assay_id": ids["assay_id"]}
+    if row == "OR-005":
+        document = _read_document(_PARTIAL_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
+        if not _same_record(evidence, document["operator_partial_return"]):
+            raise IntegrityError(
+                f"{RETURN_PARTIAL} Assay producer must supply the exact operator Partial return that was registered"
+            )
+        _, _, assay = _subjects(ids, events, ctx)
+        return {
+            "row_id": "OR-005",
+            **subject,
+            "producer_relation_sha256": assay["producer_relation_sha256"],
+            "partial_sha256": document["partial_sha256"],
+            "partial_artifact": document["partial_artifact"],
+        }
     if row == "OR-004":
         document = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
         if not _same_record(evidence, document["operator_return"]):
@@ -829,16 +976,22 @@ def _payload(
             "scorecard_artifact": document["scorecard"],
             "producer_relation_sha256": assay["producer_relation_sha256"],
         }
-    if row == "OR-034":
-        _completed(RETURN, ids, events, ctx)
+    if row in {"OR-034", "OR-035"}:
+        partial = row == "OR-035"
+        _completed(RETURN_PARTIAL if partial else RETURN, ids, events, ctx)
         _, _, assay = _subjects(ids, events, ctx)
-        if assay.get("status") != "scored":
+        if partial and assay.get("status") != "partial_recorded":
+            raise IntegrityError(f"{REVIEW_PARTIAL} requires a Partial Assay")
+        if not partial and assay.get("status") != "scored":
             raise IntegrityError(f"{REVIEW} requires a scored Assay")
-        digest = assay["scorecard_sha256"]
+        digest = assay["outcome_sha256" if partial else "scorecard_sha256"]
         returned = _one(events, ids["return_id"], "ArtefactRegistered")
-        scored = _one(events, ids["assay_id"], "AssayScored")
+        scored = _one(events, ids["assay_id"], "AssayPartialRecorded" if partial else "AssayScored")
+        subject_label, return_label = (
+            ("assay-partial", "operator-partial-return") if partial else ("scorecard", "operator-return")
+        )
         return {
-            "row_id": "OR-034",
+            "row_id": row,
             **subject,
             "review_id": ids["review_id"],
             "subject_sha256": digest,
@@ -847,14 +1000,14 @@ def _payload(
                 "new_review_id": ids["review_id"],
                 "subject_ids": [ids["assay_id"]],
                 "subject_hashes": [digest],
-                "governing_refs": ["W11:OR-034", f"{_ROUTE_IDENTITY}:{_BRIEF_ALIAS}"],
+                "governing_refs": [f"W11:{row}", f"{_ROUTE_IDENTITY}:{_BRIEF_ALIAS}"],
                 "review_questions": [
-                    "Is the scorecard exactly the one the operator returned against the issued brief and the "
-                    "accepted Assay bar?"
+                    f"Is the {'Partial' if partial else 'scorecard'} exactly the one the operator returned against the "
+                    "issued brief and the accepted Assay bar?"
                 ],
                 "required_evidence_refs": [
-                    f"scorecard:{digest}",
-                    f"operator-return:{returned['payload']['manifest']['content_sha256']}",
+                    f"{subject_label}:{digest}",
+                    f"{return_label}:{returned['payload']['manifest']['content_sha256']}",
                 ],
                 "required_lanes": ["output", "provenance"],
                 "reviewer_capability": ["assay-independent-review"],
@@ -866,12 +1019,14 @@ def _payload(
                 "escalation_rule": "owner-ruling",
             },
         }
-    if row == "OR-006":
+    if row in {"OR-006", "OR-007"}:
+        partial = row == "OR-007"
         projection, _, _ = _subjects(ids, events, ctx)
         review = projection["reviews"].get(ids["review_id"])
         if not isinstance(review, dict) or review.get("status") != "pending":
-            raise IntegrityError(f"{REVIEW} requires its pending outcome review")
-        returned = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
+            raise IntegrityError(f"{REVIEW_PARTIAL if partial else REVIEW} requires its pending outcome review")
+        registration = _one(events, ids["return_id"], "ArtefactRegistered")
+        returned = _read_document(_PARTIAL_RETURN if partial else _RETURN, registration, ctx)
         supplied = evidence or {}
         verdict = {
             "review_id": ids["review_id"],
@@ -897,7 +1052,7 @@ def _payload(
             "computed_independence_grade": review["required_independence_grade"],
         }
         return {
-            "row_id": "OR-006",
+            "row_id": row,
             **subject,
             "review_id": ids["review_id"],
             "subject_sha256": review["subject_sha256"],
@@ -905,6 +1060,9 @@ def _payload(
             "review_verdict": verdict,
         }
     if row == "OR-012":
+        # OR-012 requires a scored, reviewed Assay; a reviewed Partial is revisited instead (P-058, 2026-09-17).
+        if _return_taken(ids, events) == RETURN_PARTIAL:
+            raise IntegrityError(f"{DECIDE} cannot decide a Partial Assay: its Candidate is revisited instead")
         _completed(REVIEW, ids, events, ctx)
         projection, candidate, assay = _subjects(ids, events, ctx)
         review = projection["reviews"].get(ids["review_id"])
@@ -1008,14 +1166,16 @@ def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: Assa
         producer = (bar.get("prospective_producer_ref") or {}).get("id")
         if actor_id in {producer, _owner(events, ctx)}:
             raise IntegrityError(f"{REQUEST} Assay requester must be neither the prospective producer nor the owner")
-    if row not in {"OR-034", "OR-006", "OR-012"}:
+    if row not in {"OR-034", "OR-035", "OR-006", "OR-007", "OR-012"}:
         return
     owner = _owner(events, ctx)
     producer = (_projection(events, ctx)["assays"].get(ids["assay_id"]) or {}).get("producer_actor_id")
-    if row == "OR-034" and actor_id in {producer, owner}:
-        raise IntegrityError(f"{REVIEW} outcome-review requester must be neither the producer nor the owner")
-    if row == "OR-006" and actor_id == owner:
-        raise IntegrityError(f"{REVIEW} outcome reviewer must not be the owner")
+    # The Partial review rows were measured to accept the same collapses (P-058, 2026-09-17).
+    review = REVIEW_PARTIAL if row in {"OR-035", "OR-007"} else REVIEW
+    if row in {"OR-034", "OR-035"} and actor_id in {producer, owner}:
+        raise IntegrityError(f"{review} outcome-review requester must be neither the producer nor the owner")
+    if row in {"OR-006", "OR-007"} and actor_id == owner:
+        raise IntegrityError(f"{review} outcome reviewer must not be the owner")
     if row == "OR-012":
         reviewers = {
             event["actor_id"]
@@ -1039,10 +1199,13 @@ def _check_evidence(row: str, evidence: dict | None) -> None:
 def _recorded_evidence(
     row: str, event: dict, ids: dict[str, str], prefix: list[dict], ctx: AssayContext
 ) -> dict | None:
-    """Recover the caller evidence an OR row carried, from its event or, for OR-004, the registered return."""
+    """Recover the caller evidence an OR row carried, from its event or, for OR-004/005, the registered return."""
     if row == "OR-004":
         return _read_document(_RETURN, _one(prefix, ids["return_id"], "ArtefactRegistered"), ctx)["operator_return"]
-    if row not in {"OR-006", "OR-013"}:
+    if row == "OR-005":
+        registration = _one(prefix, ids["return_id"], "ArtefactRegistered")
+        return _read_document(_PARTIAL_RETURN, registration, ctx)["operator_partial_return"]
+    if row not in {"OR-006", "OR-007", "OR-013"}:
         return None
     payload = event.get("payload") or {}
     return {key: payload.get(key) for key in _EVIDENCE[row]}
@@ -1063,6 +1226,25 @@ def _issued_registration(event: dict, intent: dict[str, Any]) -> bool:
         intent, "RegisterArtefact", event["actor_id"], event["authority_grant_id"], event.get("payload") or {}
     )
     return event.get("idempotency_key") == key and event.get("command_id") == _stable_command_id(key)
+
+
+def _return_taken(ids: dict[str, str], events: list[dict]) -> str | None:
+    """Return the return alternative whose route-keyed registration opens the Assay's return stream, if any.
+
+    Both alternatives register at the same identity, and admission refuses a second registration there,
+    so at most one is ever taken. This reads identity only; the taken action's own evaluation verifies it.
+    """
+    first = next((event for event in events if event["stream_id"] == ids["return_id"]), None)
+    if first is None or first.get("event_type") != "ArtefactRegistered":
+        return None
+    return next(
+        (
+            action
+            for action in (RETURN, RETURN_PARTIAL)
+            if _issued_registration(first, {"action": action, "candidate_id": ids["candidate_id"]})
+        ),
+        None,
+    )
 
 
 def _located(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> list[tuple[str, list[dict]]]:
@@ -1096,7 +1278,7 @@ def _verified_document(
         ctx,
         actor_id=registration["actor_id"],
         recorded_at=document["recorded_at"],
-        evidence=document.get("operator_return"),
+        evidence=document.get("operator_partial_return" if row == _PARTIAL_RETURN else "operator_return"),
     )
     if document != expected:
         raise IntegrityError("a SPEC-01 operator record is not the document this route derives")
@@ -1144,11 +1326,16 @@ def evaluate(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> d
         A state record: not_started, prepared or completed, with its effects.
 
     Raises:
-        ConflictError: If evidence this route did not issue sits on the action's streams.
+        ConflictError: If evidence this route did not issue sits on the action's streams, or the
+            Assay took the other outcome alternative.
         IntegrityError: If route-keyed evidence breaks a relation the route enforces.
     """
     action = intent["action"]
     ids = subject_ids(ctx.project_id, intent)
+    if action in _RETURN_OF:
+        taken = _return_taken(ids, events)
+        if taken not in {None, _RETURN_OF[action]}:
+            raise ConflictError(f"{action} is excluded: this Assay's operator return was registered by {taken}")
     located = _located(intent, events, ctx)
     for row, transaction in located:
         _verify_effect(row, intent, ids, transaction[0], events, ctx)
@@ -1242,9 +1429,8 @@ def next_command(
         if orphan != expected:
             raise ConflictError(f"{intent['action']} left unregistered bytes that bind a different record")
         document = orphan
-    kind = BRIEF_KIND if row == _BRIEF else RETURN_KIND
     payload = {"new_artefact_id": target, "manifest": _manifest(row, document, target)}
-    return state["next_effect"], target, payload, (kind, document)
+    return state["next_effect"], target, payload, (_record_identity(row)[0], document)
 
 
 def exact_retry(
@@ -1284,8 +1470,9 @@ def exact_retry(
         try:
             if row in _ARTEFACT_ROWS:
                 payload = first.get("payload") or {}
-                if row == _RETURN:
-                    registered = _read_document(_RETURN, first, ctx).get("operator_return")
+                if row in {_RETURN, _PARTIAL_RETURN}:
+                    field = "operator_partial_return" if row == _PARTIAL_RETURN else "operator_return"
+                    registered = _read_document(row, first, ctx).get(field)
                     if not _same_record(evidence, registered):
                         continue
             else:
@@ -1334,7 +1521,9 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
         ids = subject_ids(ctx.project_id, {"action": DECIDE, "candidate_id": candidate_id})
         if assay.get("assay_id") != ids["assay_id"]:
             continue
-        for action in (REQUEST, PREPARE, RETURN, REVIEW):
+        # Only the outcome alternative the route registered is a subject; the other one is excluded.
+        outcome = (RETURN_PARTIAL, REVIEW_PARTIAL) if _return_taken(ids, events) == RETURN_PARTIAL else (RETURN, REVIEW)
+        for action in (REQUEST, PREPARE, *outcome):
             candidates.append({"action": action, "reason": f"recorded route {action}", "candidate_id": candidate_id})
         proposal = next(
             (e for e in events if e["stream_id"] == ids["decision_id"] and e["event_type"] == "DecisionProposed"), None

@@ -447,6 +447,7 @@ def test_each_document_service_publishes_only_its_route_kind():
         spec_result.DOCUMENT_KIND,
         "spec_operator_brief_document",
         "spec_operator_return_document",
+        "spec_operator_partial_return_document",
     }
     for kind, service_type in _REGISTRATION_SERVICES.items():
         service = object.__new__(service_type)

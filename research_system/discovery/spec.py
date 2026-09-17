@@ -139,11 +139,24 @@ class _ReturnRegistrationService(_DocumentRegistrationService):
         )
 
 
+class _PartialReturnRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_operator_partial_return_document", artefact_id, 1)
+        self.objects.write("spec_operator_partial_return_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_operator_partial_return_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
 _REGISTRATION_SERVICES = {
     SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
     spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
     spec_assay.BRIEF_KIND: _BriefRegistrationService,
     spec_assay.RETURN_KIND: _ReturnRegistrationService,
+    spec_assay.PARTIAL_RETURN_KIND: _PartialReturnRegistrationService,
 }
 
 
@@ -324,7 +337,7 @@ class SpecCoordinator:
                     actions.append({"action": assay_intent["action"], "unreadable": str(exc)})
             return {"route_id": self.operator.route_id, "actions": actions, "available_actions": list(ACTION_EFFECTS)}
         if intent.get("action") in spec_assay.ACTIONS:
-            self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
+            self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
             return spec_assay.evaluate(intent, self.ledger.snapshot().events, self._assay_context())
         if intent.get("action") == spec_task.ACTION:
             self.schemas.validate(spec_task.INTENT_SCHEMA_ID, intent)
@@ -681,7 +694,7 @@ class SpecCoordinator:
         the registration's admission lock.
         """
         self.binding.revalidate()
-        self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent)
+        self.schemas.validate(spec_assay.INTENT_SCHEMA_ID, intent, schema_version=spec_assay.INTENT_SCHEMA_VERSION)
         snapshot = self.ledger.snapshot()
         context = self._assay_context()
         state = spec_assay.evaluate(intent, snapshot.events, context)
