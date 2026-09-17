@@ -503,6 +503,22 @@ table:
       current ledger, a known limit;
     - a SOURCE, project-use or operator-record registration refuses, before
       publishing, when the ledger has moved past the snapshot it was derived from.
+- **4a′ decisions (P-058, 2026-09-17).** Stephen accepted the 4a′ design pass at
+  `8e14d1da`:
+  - `return_spec_01_partial` registers a new closed record,
+    `spec-operator-partial-return` 1.0.0, then OR-005; `spec-operator-return` 1.0.0 is
+    unchanged;
+  - `spec-assay-intent` 1.1.0 adds both Partial actions, and 1.0.0 stays;
+  - each Partial action shares its return or outcome-review identity with the complete
+    action, so the alternatives exclude each other at the first durable mutation, and
+    the one not taken conflicts;
+  - 4a′ ends at a reviewed Partial Assay (`partial_reviewed`, Candidate
+    `assay_revisit_eligible`), where 4b's revisit starts; `decide_spec_01` and
+    project-use refuse on it;
+  - the route refuses the producer or the owner requesting the Partial review, and the
+    owner recording it, and records only an approving review;
+  - the 4a-2 operator-record rules apply unchanged, except that a Partial return needs
+    only non-empty findings.
 
 ### Phase 5 — Owner-gated live proof and closure
 
