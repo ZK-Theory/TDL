@@ -374,6 +374,43 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
+**Status (2026-09-17): 4a COMPLETE / INTEGRATED. 4a′, 4b and 4c remain.** Phase 4
+as a whole, and Gate 6, remain INCOMPLETE. 4a merged through three PRs under P-058:
+- **4a-1**, PR #290, merged at `52c2ce42a58f5dc2e6981c25e070846f216c859a`:
+  `bootstrap_genesis`, `bootstrap_assay_authority` and `request_spec_01`, with the
+  closed `spec-assay-intent` record and the PR #288 known limit 9 fix.
+- **4a-2**, PR #291, merged at `9fbab7ec`: `prepare_spec_01`,
+  `return_spec_01_complete`, `review_spec_01_complete` and `decide_spec_01`, with
+  the operator brief package and operator return records (both 1.0.0) and the
+  public path to an accepted project-use result.
+- **Follow-ups**, PR #292, merged at `781f1e6028cbe7624c1c07b7905d448f2a75eaa3`:
+  - the completed-action conflict on `close_task` and project-use;
+  - canonical comparison of the producer's operator return;
+  - closure-Attempt provenance for the project-use decision;
+  - the in-lock ledger check for every SPEC document registration.
+
+What is now integrated:
+- **The action table** holds 12 actions. The public SPEC-01 path runs genesis, the
+  Assay bar, the request, the brief, the return, the independent outcome review and
+  the owner decision, through to PARK and an accepted project-use result.
+- **The route bindings** in the P-058 amendments and their review decisions, listed
+  in the 4a-2 decisions above.
+
+Review record:
+- **PR #290:** two review rounds, with 5 and then 2 findings.
+- **PR #291:** four Codex rounds, with 5, 5, 5 and 2 findings. After round 3,
+  Stephen adopted a review stopping rule, and round 4 was resolved as known limits
+  with no push.
+- **PR #292:** reviewed under the same stopping rule from round 1, with no Codex
+  findings.
+
+Known limits are recorded on PR #290 (1–8), PR #291 (1–17, with 10, 14 and 17 later
+closed by PR #292) and PR #292 (1–6). PR #291 known limit 16 (scoring after a bar
+succession) is W11 runtime intake. The remainder handoff is
+`handoffs/01M2PFB005VNEA72FWKYZQPGND-wp6-phase4-remainder-handoff.md`. It carries
+the 4a decision process and conclusions forward, and names 4a′ as the next
+production action.
+
 **Exit:** complete remaining required actions and verify the assembled public route.
 Reuse DiscoveryRuntime.submit, CommandService.submit, replay_discovery and
 verify_restore_before_writer_lease. SpecActionIntent stays semantic; the system
@@ -658,12 +695,13 @@ C:/Users/steph/TDL/.venv/Scripts/python.exe -B -m pytest -o addopts= --no-cov -p
 ```
 
 **Capability status:** INCOMPLETE — the inherited STORE path, Phase 1 SOURCE,
-Phase 2 AUTHORITY/TASK and Phase 3 RESULT are integrated and verified; Phases
-4–5 and final Gate 6 closure remain. PR #282 is merged at
+Phase 2 AUTHORITY/TASK, Phase 3 RESULT and Phase 4a are integrated and verified;
+Phase 4a′, 4b and 4c, Phase 5 and final Gate 6 closure remain. PR #282 is merged at
 `3ce730d94402781767e7602660506e4b06cf8d68`, PR #286 at
-`bed57bf8960046462e654d24bec7eedea3a516c7` and PR #288 at
-`3f3de7b5cf9a743b1fe920324e2d73a91479eae7`; this does not open Gate 7 or
-authorize live/provider/paid work.
+`bed57bf8960046462e654d24bec7eedea3a516c7`, PR #288 at
+`3f3de7b5cf9a743b1fe920324e2d73a91479eae7`, PR #290 at `52c2ce42`, PR #291 at
+`9fbab7ec` and PR #292 at `781f1e6028cbe7624c1c07b7905d448f2a75eaa3`; this does
+not open Gate 7 or authorize live/provider/paid work.
 
 **Documentation checks:** the initial Phase 0 documentation PR contains the
 three required records: this 06s plan, P-051–P-056 in
@@ -694,3 +732,17 @@ RESULT (KAN-108) is the next dispatchable production action.
 
 Each changed issue was read back, and dependency-link sets remain unchanged.
 Phase 4 (KAN-109) is the next dispatchable production action.
+
+**Phase 4a reconciliation (2026-09-17):** PR #290 merged at `52c2ce42`, PR #291 at
+`9fbab7ec` and PR #292 at `781f1e60`.
+- **KAN-109:** the description records 4a as integrated and summarises the P-058
+  decisions, including the review stopping rule. It names the remainder handoff and
+  4a′ as the next production action, and lists the open known limits. It stays To
+  Do, with the `integration-pending` label, because Phase 4 is not complete.
+- **KAN-103 and KAN-12:** each has a comment recording 4a as integrated, the
+  remaining sub-phases and, on KAN-12, the new Phase 5 prerequisites. Their
+  descriptions are unchanged, and both remain open.
+
+Each changed issue was read back, and dependency-link sets remain unchanged.
+Phase 4a′ (KAN-109) is the next dispatchable production action, from
+`handoffs/01M2PFB005VNEA72FWKYZQPGND-wp6-phase4-remainder-handoff.md`.
