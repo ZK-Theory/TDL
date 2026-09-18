@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-assay-intent",
+  "$comment": "1.3.0 adds the eight 06s Phase 4b-2 SPEC-02 actions in one version, so no later sub-phase changes a merged schema (P-058, 2026-09-18). A SPEC-02 action never carries an assay_ordinal: a Spike follows its Candidate's promoted Assay. The schema_version property identifies this catalogue entry beside 1.0.0, 1.1.0 and 1.2.0; an intent never carries it.",
+  "type": "object", "additionalProperties": false,
+  "required": ["action", "reason"],
+  "properties": {
+    "schema_version": {"const": "1.3.0"},
+    "action": {
+      "enum": [
+        "bootstrap_genesis", "bootstrap_assay_authority", "request_spec_01", "prepare_spec_01",
+        "return_spec_01_complete", "return_spec_01_partial", "review_spec_01_complete", "review_spec_01_partial",
+        "decide_spec_01", "request_spec_01_revisit", "authorize_spec_01_retry", "request_spec_01_retry",
+        "approve_spec_02", "prepare_spec_02", "start_spec_02", "return_spec_02_complete", "return_spec_02_partial",
+        "review_spec_02_complete", "review_spec_02_partial", "decide_spec_02"
+      ]
+    },
+    "reason": {"type": "string", "minLength": 1},
+    "candidate_id": {"type": "string", "pattern": "^obj_"},
+    "assay_ordinal": {"type": "integer", "minimum": 2},
+    "reviewer_actor_id": {"type": "string", "pattern": "^act_"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_"},
+    "recommendation": {"enum": ["PROMOTE", "PARK", "KILL"]}
+  },
+  "not": {"required": ["schema_version"]},
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "bootstrap_genesis"}}},
+      "then": {
+        "not": {
+          "anyOf": [
+            {"required": ["candidate_id"]}, {"required": ["reviewer_actor_id"]},
+            {"required": ["producer_actor_id"]}, {"required": ["recommendation"]}, {"required": ["assay_ordinal"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {"properties": {"action": {"const": "bootstrap_assay_authority"}}},
+      "then": {
+        "required": ["reviewer_actor_id", "producer_actor_id"],
+        "not": {
+          "anyOf": [{"required": ["candidate_id"]}, {"required": ["recommendation"]}, {"required": ["assay_ordinal"]}]
+        }
+      }
+    },
+    {
+      "if": {"properties": {"action": {"const": "request_spec_01"}}},
+      "then": {
+        "required": ["candidate_id"],
+        "not": {
+          "anyOf": [
+            {"required": ["reviewer_actor_id"]}, {"required": ["producer_actor_id"]}, {"required": ["recommendation"]},
+            {"required": ["assay_ordinal"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "prepare_spec_01", "return_spec_01_complete", "return_spec_01_partial", "review_spec_01_complete",
+              "review_spec_01_partial", "request_spec_01_revisit", "authorize_spec_01_retry", "request_spec_01_retry"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": ["candidate_id"],
+        "not": {
+          "anyOf": [
+            {"required": ["reviewer_actor_id"]}, {"required": ["producer_actor_id"]}, {"required": ["recommendation"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {"properties": {"action": {"const": "decide_spec_01"}}},
+      "then": {
+        "required": ["candidate_id", "recommendation"],
+        "not": {"anyOf": [{"required": ["reviewer_actor_id"]}, {"required": ["producer_actor_id"]}]}
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "action": {
+            "enum": [
+              "approve_spec_02", "prepare_spec_02", "start_spec_02", "return_spec_02_complete",
+              "return_spec_02_partial", "review_spec_02_complete", "review_spec_02_partial"
+            ]
+          }
+        }
+      },
+      "then": {
+        "required": ["candidate_id"],
+        "not": {
+          "anyOf": [
+            {"required": ["reviewer_actor_id"]}, {"required": ["producer_actor_id"]}, {"required": ["recommendation"]},
+            {"required": ["assay_ordinal"]}
+          ]
+        }
+      }
+    },
+    {
+      "if": {"properties": {"action": {"const": "decide_spec_02"}}},
+      "then": {
+        "required": ["candidate_id", "recommendation"],
+        "not": {
+          "anyOf": [
+            {"required": ["reviewer_actor_id"]}, {"required": ["producer_actor_id"]}, {"required": ["assay_ordinal"]}
+          ]
+        }
+      }
+    }
+  ]
+}
