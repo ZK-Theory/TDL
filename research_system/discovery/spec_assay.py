@@ -179,8 +179,9 @@ _OWNED_ROWS = {
     AUTHORIZE: ("OR-010",),
     APPROVE_02: (_APPROVAL,),
     PREPARE_02: (_SPEC_02_BRIEF,),
-    # The Spike start owns both the Spike stream (OR-014, OR-017) and its execution Decision (OR-015, OR-016).
-    START_02: ("OR-014", "OR-015"),
+    # The Spike stream also carries the later Spike rows (OR-018 onward), so the start wholly owns only its
+    # execution Decision (OR-015, OR-016), as the Assay stream is left to its later actions (PR #298 review).
+    START_02: ("OR-015",),
 }
 # The revisit trio acts on one Assay of the lineage and creates the next (P-058, 2026-09-17).
 _REVISIT_ACTIONS = frozenset({REVISIT, AUTHORIZE, RETRY_REQUEST})
@@ -267,6 +268,18 @@ _EVIDENCE = {
 _AXIS_EVIDENCE = frozenset({"axis_id", "value", "rationale", "unmet_condition_codes"})
 _SPIKE_PLAN_SCHEMA_ID = "ars://portfolio/spike-plan"
 _SPIKE_EXECUTION_RELATION = "ars://portfolio/relation/spike-execution-authority"
+# The SPEC-02 contract's hard resource limits, transcribed from the exact contract bytes the route package
+# pins: four CPU slots (workers), two hours, 12 GB memory and 5 GB attempt scratch, read as decimal
+# megabytes (the stricter reading), and no network. The owner's ceiling may not exceed them (PR #298
+# review). A test binds this transcription to the pinned bytes, so a changed contract fails until re-read.
+_SPEC_02_LIMITS_SHA256 = "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32"
+_SPEC_02_LIMITS = {
+    "worker_limit": 4,
+    "time_limit_seconds": 7_200,
+    "memory_limit_mb": 12_000,
+    "storage_limit_mb": 5_000,
+    "network_access": False,
+}
 
 _Validator = Callable[[dict[str, Any]], None] | None
 
@@ -284,7 +297,7 @@ class AssayContext:
         raw_prefix_sha256: Ledger raw-prefix digest at a global position.
         read_source_document: Validated SOURCE document reader by artefact identity.
         source_state: The SOURCE route's own state of a SOURCE intent over a ledger and its replay.
-        operational_state: The control plane's current stream states, which a Spike start binds.
+        operational_state: The control plane's stream states over a ledger prefix, which a Spike start binds.
     """
 
     project_id: str
@@ -295,7 +308,7 @@ class AssayContext:
     raw_prefix_sha256: Callable[[int], str]
     read_source_document: Callable[[str], tuple[dict, dict]]
     source_state: Callable[[dict, list[dict], dict], dict]
-    operational_state: Callable[[], dict[str, Any]]
+    operational_state: Callable[[list[dict]], dict[str, Any]]
 
 
 def _stable(prefix: str, *parts: str) -> str:
@@ -957,6 +970,9 @@ def _live_run_approval(
         "governed_code_subject": _governed_code_subject(events),
     }
     _validate(APPROVAL_SCHEMA_ID, document, ctx)
+    # The approval binds the SPEC-02 contract, so its ceiling states every limit that contract sets.
+    if not _within_ceiling(document["cost_ceiling"], _SPEC_02_LIMITS):
+        raise IntegrityError(f"{APPROVE_02} cost ceiling exceeds the SPEC-02 contract's resource limits")
     return document
 
 
@@ -1517,9 +1533,9 @@ def _within_ceiling(box: Any, ceiling: Any) -> bool:
 
 
 def _execution_pair(ids: dict[str, str], events: list[dict], ctx: AssayContext) -> tuple[str, dict, dict]:
-    """Return the Task's running Attempt, with the live Lease OR-017 binds, from the control plane."""
+    """Return the Task's running Attempt and the live Lease OR-017 binds, as held at this ledger prefix."""
     task = _task_provenance(ids["candidate_id"], events, ctx)
-    state = ctx.operational_state()
+    state = ctx.operational_state(events)
     attempt = state.get(task["attempt_id"])
     lease = state.get((attempt or {}).get("lease_id")) if isinstance(attempt, dict) else None
     if (
@@ -1539,7 +1555,7 @@ def _execution_relation(
     """Derive the Spike execution-authority relation, which names the owner as its deciding actor."""
     _, _, lease = _execution_pair(ids, events, ctx)
     resource_id = lease.get("resource_grant_id")
-    resource = ctx.operational_state().get(resource_id)
+    resource = ctx.operational_state(events).get(resource_id)
     if not isinstance(resource, dict):
         raise IntegrityError(f"{START_02} requires the resource grant the Lease holds")
     plan_ref = _record_ref(ids["spike_id"], 1, spike.get("plan_sha256"))
@@ -2117,9 +2133,10 @@ def exact_retry(
         try:
             if row in _ARTEFACT_ROWS:
                 payload = first.get("payload") or {}
-                if row in {_RETURN, _PARTIAL_RETURN}:
-                    field = "operator_partial_return" if row == _PARTIAL_RETURN else "operator_return"
-                    registered = _read_document(row, first, ctx).get(field)
+                # A record's caller evidence is in its bytes, not its retry key, so a registration that
+                # takes evidence is a retry only of the exact evidence it recorded (PR #298 review).
+                if row in _EVIDENCE:
+                    registered = _document_evidence(row, _read_document(row, first, ctx))
                     if not _same_record(evidence, registered):
                         continue
             else:

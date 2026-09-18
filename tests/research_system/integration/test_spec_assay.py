@@ -70,6 +70,7 @@ SUBJECT_KIND = {
     "RegisterSpikePlan": "scope_definition",
     "ProposeSpikeExecutionDecision": "scope_definition",
     "StartSpike": "scope_definition",
+    "RecordSpikeVerdict": "scope_definition",
 }
 # These W11 commands' grants name the Candidate rather than their target stream.
 CANDIDATE_SCOPED = frozenset(
@@ -83,6 +84,7 @@ CANDIDATE_SCOPED = frozenset(
         "RegisterSpikePlan",
         "ProposeSpikeExecutionDecision",
         "StartSpike",
+        "RecordSpikeVerdict",
     }
 )
 

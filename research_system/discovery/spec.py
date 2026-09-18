@@ -14,8 +14,9 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
 from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
-from research_system.discovery.commands import DISCOVERY_COMMAND_TYPES
+from research_system.discovery.commands import DISCOVERY_COMMAND_TYPES, discovery_resolve_transaction_ids
 from research_system.discovery.replay.driver import replay_discovery
+from research_system.discovery.routes import shared_event_partition
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.discovery.spec_source import (
     document_manifest,
@@ -256,9 +257,19 @@ class SpecCoordinator:
             operational_state=self._operational_state,
         )
 
-    def _operational_state(self) -> dict:
-        """Return the control plane's current stream states, which a Spike start binds (P-058, 4b-2a)."""
-        return dict(replay_control_plane(self._discovery()._operational_events()).stream_states)
+    def _operational_state(self, events: list[dict]) -> dict:
+        """Return the control plane's stream states over a ledger prefix, which a Spike start binds.
+
+        The events are partitioned exactly as Discovery admission partitions the shared ledger, so a
+        start is re-verified against the Attempt and Lease it bound, not their current state (PR #298).
+        """
+        resolve_transaction_ids = discovery_resolve_transaction_ids(events)
+        operational = tuple(
+            event
+            for event in events
+            if shared_event_partition(event, resolve_transaction_ids=resolve_transaction_ids) == "operational"
+        )
+        return dict(replay_control_plane(operational).stream_states)
 
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
         """Refuse review evidence that inherited use-authority admission would later reject.
