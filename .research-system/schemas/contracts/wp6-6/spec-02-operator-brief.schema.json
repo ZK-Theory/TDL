@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-02-operator-brief",
+  "$comment": "The operator brief of a bounded SPEC-02 Spike (P-058, 06s Phase 4b-2a, 2026-09-18). It is the SPEC-01 brief's counterpart for the Spike: the SPEC-02 route source, the dispatched Task and its running Attempt, the Candidate, its promoted Assay and PROMOTE Decision, and the owner's live-run approval. A Spike carries no Assay scorecard, so it has its own record rather than a version of the SPEC-01 brief.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "intent",
+    "recorded_at",
+    "producer_actor_id",
+    "causal_prefix",
+    "route_id",
+    "brief_source",
+    "task",
+    "candidate",
+    "assay",
+    "approval",
+    "governed_code_subject"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-02-operator-brief"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_02_operator_brief"},
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "candidate_id"],
+      "properties": {
+        "action": {"const": "prepare_spec_02"},
+        "candidate_id": {"type": "string", "pattern": "^obj_"}
+      }
+    },
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_"},
+    "causal_prefix": {"$ref": "#/$defs/causal_prefix"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "brief_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alias", "locator", "media_type", "size_bytes", "sha256", "route_package_sha256"],
+      "properties": {
+        "alias": {"const": "SPEC-02"},
+        "locator": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "size_bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/sha256"},
+        "route_package_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "task": {"$ref": "#/$defs/task"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "assay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assay_id", "scorecard_sha256", "promotion_decision"],
+      "properties": {
+        "assay_id": {"type": "string", "pattern": "^asy_"},
+        "scorecard_sha256": {"$ref": "#/$defs/sha256"},
+        "promotion_decision": {"$ref": "#/$defs/record_ref"}
+      }
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artefact_id", "content_sha256", "scope", "cost_ceiling"],
+      "properties": {
+        "artefact_id": {"type": "string", "pattern": "^art_"},
+        "content_sha256": {"$ref": "#/$defs/sha256"},
+        "scope": {"type": "string", "minLength": 1},
+        "cost_ceiling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["time_limit_seconds", "worker_limit", "network_access"],
+          "properties": {
+            "time_limit_seconds": {"type": "integer", "minimum": 1},
+            "worker_limit": {"type": "integer", "minimum": 1},
+            "memory_limit_mb": {"type": "integer", "minimum": 1},
+            "storage_limit_mb": {"type": "integer", "minimum": 1},
+            "network_access": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "governed_code_subject": {"$ref": "#/$defs/governed_code_subject"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "record_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "record_revision", "content_hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "record_revision": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "event_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "event_hash", "global_position"],
+      "properties": {
+        "event_id": {"type": "string", "pattern": "^evt_"},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "global_position": {"type": "integer", "minimum": 1}
+      }
+    },
+    "causal_prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 0},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_revision",
+        "attempt_id",
+        "dispatch_id",
+        "context_packet_id",
+        "code_identity",
+        "environment_fingerprint"
+      ],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^tsk_"},
+        "task_revision": {"type": "integer", "minimum": 1},
+        "attempt_id": {"type": "string", "pattern": "^att_"},
+        "dispatch_id": {"type": "string", "pattern": "^dsp_"},
+        "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "code_identity": {"type": "string", "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"},
+        "environment_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "revision", "content_sha256"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^obj_"},
+        "revision": {"type": "integer", "minimum": 1},
+        "content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "governed_code_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_event", "event_type", "recovery_binding_sha256", "git_head", "git_tree"],
+      "properties": {
+        "binding_event": {"$ref": "#/$defs/event_ref"},
+        "event_type": {"enum": ["StoreBindingRepaired", "StoreBindingAdvanced"]},
+        "recovery_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    }
+  }
+}

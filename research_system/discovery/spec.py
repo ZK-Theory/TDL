@@ -12,6 +12,7 @@ from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.artefacts.runtime import GoverningScientificReviewStore
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Command
+from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
 from research_system.discovery.commands import DISCOVERY_COMMAND_TYPES
 from research_system.discovery.replay.driver import replay_discovery
@@ -151,12 +152,38 @@ class _PartialReturnRegistrationService(_DocumentRegistrationService):
         )
 
 
+class _LiveRunApprovalRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_02_live_run_approval_document", artefact_id, 1)
+        self.objects.write("spec_02_live_run_approval_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_02_live_run_approval_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
+class _Spec02BriefRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_02_operator_brief_document", artefact_id, 1)
+        self.objects.write("spec_02_operator_brief_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_02_operator_brief_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
 _REGISTRATION_SERVICES = {
     SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
     spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
     spec_assay.BRIEF_KIND: _BriefRegistrationService,
     spec_assay.RETURN_KIND: _ReturnRegistrationService,
     spec_assay.PARTIAL_RETURN_KIND: _PartialReturnRegistrationService,
+    spec_assay.APPROVAL_KIND: _LiveRunApprovalRegistrationService,
+    spec_assay.SPEC_02_BRIEF_KIND: _Spec02BriefRegistrationService,
 }
 
 
@@ -226,7 +253,12 @@ class SpecCoordinator:
                 artefact_id, objects=self.objects, schemas=self.schemas, ledger=self.ledger
             ),
             source_state=self._source_state,
+            operational_state=self._operational_state,
         )
+
+    def _operational_state(self) -> dict:
+        """Return the control plane's current stream states, which a Spike start binds (P-058, 4b-2a)."""
+        return dict(replay_control_plane(self._discovery()._operational_events()).stream_states)
 
     def _check_review_evidence(self, registration: dict, review: dict, use: dict, actor_id: str, now: str) -> None:
         """Refuse review evidence that inherited use-authority admission would later reject.

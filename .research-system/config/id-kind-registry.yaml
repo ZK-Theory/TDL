@@ -10,6 +10,8 @@ kinds:
   spec_operator_brief_document: art
   spec_operator_return_document: art
   spec_operator_partial_return_document: art
+  spec_02_live_run_approval_document: art
+  spec_02_operator_brief_document: art
   review: rev
   decision: dec
   command: cmd
