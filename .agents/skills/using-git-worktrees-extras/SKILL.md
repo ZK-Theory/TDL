@@ -131,6 +131,41 @@ the runtime workspace. Do not retry from the orchestrating task.
   validating contracts against the main venv is authoritative when the
   worktree itself authors no contracts.
 
+## Worktree Sweep
+
+A sweep judged only on "dirty" and "unpushed" errs in both directions at
+once: squash merges make finished work look unfinished, and a deleted-files
+shell makes an empty worktree look like thousands of changes. Classify
+against what the repository's merge style and the platform's file
+attributes actually mean, not the obvious signals:
+
+- **Squash merges orphan the branch, not the work.** GitHub deletes the head
+  branch on a squash merge, so a fully merged worktree's commits are on no
+  remote and read as "unpushed." Classify a worktree as merged when its
+  `HEAD` equals a merged PR's `headRefOid`, never by branch presence alone.
+- **An all-deleted-files worktree is empty, not dirty.** Scratch cleanup can
+  delete a worktree's tracked files while leaving its registration behind,
+  producing thousands of ` D ` status lines. A worktree whose entire status
+  is `D` lines holds nothing — treat it as empty, not as uncommitted work
+  worth preserving.
+- **`git worktree remove --force` cannot delete a read-only directory on
+  Windows** (e.g. a cache directory marked read-only). It deregisters the
+  worktree and silently leaves the folder on disk. Clear read-only
+  attributes first, then verify the folder is actually gone; diff any
+  leftovers against the commit's `ls-tree` before deleting them by hand —
+  they are usually tracked files or regenerable cache, not unique work.
+- Allowlist regenerable ignored caches (editor state, lint caches,
+  hook-receipt logs, scheduled-task locks) when judging "clean"; report any
+  other ignored-path content as a real finding instead of skipping it as
+  noise.
+- Re-check each worktree's status immediately before removing it — time
+  passes between the classification pass and the removal pass, and state
+  changes in between.
+- A committed `--dry-run`-default sweep tool implementing these checks is
+  preferable to re-deriving them by hand each time; until one exists, apply
+  this section's checks manually and do not trust a plain dirty/unpushed
+  read.
+
 ## Pre-Delivery Check
 
 Report the full and scoped baseline states separately, the explicit approval for scoping, the exact excluded ownership, and evidence that reads, edits, index operations, and tests all resolved inside one worktree.
