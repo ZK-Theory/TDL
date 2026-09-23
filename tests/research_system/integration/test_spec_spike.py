@@ -5,7 +5,7 @@ registers the owner's separate live-run approval, which changes no Candidate sta
 registers the operator brief; `start_spec_02` runs W11 OR-014, OR-015, OR-016 and OR-017 in route order.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 import json
 import re
@@ -427,7 +427,9 @@ def test_public_spec_02_path_starts_the_approved_spike(tmp_path, monkeypatch, ca
     assert _spec_02_states(coordinator, candidate_id) == completed
 
     # The start stays completed when a later Spike row lands on the Spike stream, and when the Attempt it
-    # started ends: it is verified against the ledger prefix it was issued at (PR #298 review).
+    # started ends: it is verified against the ledger prefix it was issued at (PR #298 review). Re-deriving
+    # a recorded row consults no clock either, so these readings hold although the Lease the start bound
+    # has expired by the moment they are taken.
     _record_pass_verdict(bound, candidate_id, ids["spike_id"])
     assert _replay(coordinator)["spikes"][ids["spike_id"]]["status"] == "verdict_recorded"
     assert _spec_02_states(coordinator, candidate_id) == completed
@@ -510,6 +512,14 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
         assert "cost ceiling" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD,
                                          evidence={**PLAN_EVIDENCE, "time_resource_box": over}, refused=True)  # fmt: skip
     _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=PLAN_EVIDENCE)
+    # A Lease the replay still marks active is not live once it has expired. The execution rows are
+    # refused at the submission time they would be recorded at, so the route never records an authority
+    # OR-017 could not start and renewal could not rescue (PR #298 review).
+    propose_grant = _grant(bound, "ProposeSpikeExecutionDecision", candidate_id, STEWARD)
+    with monkeypatch.context() as expired:
+        expired.setattr(cli, "SpecCoordinator", partial(SpecCoordinator, clock=lambda: C1_NOW + timedelta(minutes=50)))
+        assert "Lease that has not expired" in _invoke(bound, tmp_path, capsys, start_intent, propose_grant, STEWARD,
+                                                       refused=True)  # fmt: skip
     # Nor does either propose its execution.
     for actor, human in ((PRODUCER, False), (OWNER, True)):
         grant = _grant(bound, "ProposeSpikeExecutionDecision", candidate_id, actor, human=human)

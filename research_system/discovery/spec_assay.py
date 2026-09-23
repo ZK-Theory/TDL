@@ -1207,17 +1207,23 @@ def _payload(
     actor_id: str | None = None,
     grant_id: str | None = None,
     evidence: dict | None = None,
+    taken_at: str | None,
 ) -> dict:
     """Return the exact command payload for one W11 row from the ledger before it.
 
     This is the single source for building a command, verifying a located one and
     recognising a retry, so no derived field can be generated without being checked.
+    ``taken_at`` is the trusted submission time while the route builds a row to record,
+    which the Spike rows hold their Lease live to, and None while it re-derives a row
+    already recorded, which consults no clock.
     """
     if row == "OR-140":
         return deepcopy(dict(ACCEPTED))
     if row in {"OR-014", "OR-015", "OR-016", "OR-017"}:
         # A Spike row names no Assay of its own: it follows the Candidate's promoted Assay.
-        return _spike_start(row, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence)
+        return _spike_start(
+            row, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence, taken_at=taken_at
+        )
     if row in {"OR-101", "OR-102"}:
         path = ASSAY_RUBRIC_PATH if row == "OR-101" else ASSAY_SCOPE_PATH
         return {
@@ -1532,8 +1538,31 @@ def _within_ceiling(box: Any, ceiling: Any) -> bool:
     return not box.get("network_access") or ceiling.get("network_access") is True
 
 
-def _execution_pair(ids: dict[str, str], events: list[dict], ctx: AssayContext) -> tuple[str, dict, dict]:
-    """Return the Task's running Attempt and the live Lease OR-017 binds, as held at this ledger prefix."""
+def _moment(value: Any, what: str) -> datetime:
+    """Return an instant as aware UTC, refusing a value the route cannot compare against a Lease."""
+    try:
+        moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError) as exc:
+        raise IntegrityError(f"{START_02} requires {what} to be an instant") from exc
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        raise IntegrityError(f"{START_02} requires {what} to name its offset")
+    return moment.astimezone(UTC)
+
+
+def _execution_pair(
+    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, taken_at: str | None
+) -> tuple[str, dict, dict]:
+    """Return the Task's running Attempt and the live Lease OR-017 binds, as held at this ledger prefix.
+
+    ``taken_at`` is the trusted submission time while the route builds a row to record, and None while
+    it re-derives a row already recorded. A Lease the replay still marks active is not live once it has
+    expired, and only OR-017's admission reads a clock, so without this the route would record an
+    execution authority OR-017 must refuse and renewal cannot rescue (PR #298 review).
+
+    Re-deriving a recorded row consults no clock. Its Lease's liveness is a fact about the moment that
+    row was taken, not about any later reading, so a completed start stays readable once its Lease
+    expires, as the previous round's fix requires.
+    """
     task = _task_provenance(ids["candidate_id"], events, ctx)
     state = ctx.operational_state(events)
     attempt = state.get(task["attempt_id"])
@@ -1546,14 +1575,25 @@ def _execution_pair(ids: dict[str, str], events: list[dict], ctx: AssayContext) 
         or lease.get("attempt_id") != task["attempt_id"]
     ):
         raise IntegrityError(f"{START_02} requires the Task's running Attempt to hold its active Lease")
+    if taken_at is not None and _moment(lease.get("expires_at"), "the Lease expiry") <= _moment(
+        taken_at, "its own submission time"
+    ):
+        raise IntegrityError(f"{START_02} requires a Lease that has not expired when this effect is taken")
     return task["attempt_id"], attempt, lease
 
 
 def _execution_relation(
-    ids: dict[str, str], events: list[dict], ctx: AssayContext, candidate: dict, assay: dict, spike: dict
+    ids: dict[str, str],
+    events: list[dict],
+    ctx: AssayContext,
+    candidate: dict,
+    assay: dict,
+    spike: dict,
+    *,
+    taken_at: str | None,
 ) -> dict[str, Any]:
     """Derive the Spike execution-authority relation, which names the owner as its deciding actor."""
-    _, _, lease = _execution_pair(ids, events, ctx)
+    _, _, lease = _execution_pair(ids, events, ctx, taken_at=taken_at)
     resource_id = lease.get("resource_grant_id")
     resource = ctx.operational_state(events).get(resource_id)
     if not isinstance(resource, dict):
@@ -1610,6 +1650,7 @@ def _spike_start(
     actor_id: str | None,
     grant_id: str | None,
     evidence: dict | None,
+    taken_at: str | None,
 ) -> dict[str, Any]:
     """Return the exact payload for one row of ``start_spec_02`` (W11 OR-014 to OR-017)."""
     _completed(PREPARE_02, ids, events, ctx)
@@ -1624,7 +1665,7 @@ def _spike_start(
     if not isinstance(spike, dict) or spike.get("candidate_id") != ids["candidate_id"]:
         raise IntegrityError(f"{START_02} requires the Spike its own plan registered")
     if row == "OR-017":
-        attempt_id, attempt, lease = _execution_pair(ids, events, ctx)
+        attempt_id, attempt, lease = _execution_pair(ids, events, ctx, taken_at=taken_at)
         return {
             **subject,
             "attempt_id": attempt_id,
@@ -1635,7 +1676,9 @@ def _spike_start(
     payload = {
         **subject,
         "decision_id": ids["execution_decision_id"],
-        "execution_authority_relation": _execution_relation(ids, events, ctx, candidate, assay, spike),
+        "execution_authority_relation": _execution_relation(
+            ids, events, ctx, candidate, assay, spike, taken_at=taken_at
+        ),
     }
     planned = _one(events, ids["spike_id"], "SpikePlanned")
     if row == "OR-015":
@@ -1966,6 +2009,7 @@ def _verify_effect(
             actor_id=first["actor_id"],
             grant_id=first["authority_grant_id"],
             evidence=_recorded_evidence(row, first, ids, prefix, ctx),
+            taken_at=None,
         )
         if not _issued(first, intent, _command_type(row), payload):
             raise foreign
@@ -2068,7 +2112,8 @@ def next_command(
     _check_relation(row, ids, events, ctx, actor_id=actor_id)
     target = _stream(row, ids, ctx)
     if row not in _ARTEFACT_ROWS:
-        payload = _payload(row, intent, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence)
+        payload = _payload(row, intent, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence,
+                           taken_at=now)  # fmt: skip
         return state["next_effect"], target, payload, None
     orphan = _stored(row, target, ctx)
     if orphan is None:
@@ -2142,8 +2187,9 @@ def exact_retry(
             else:
                 prefix = _prefix(events, first["global_position"])
                 payload = _payload(
-                    row, intent, ids, prefix, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence
-                )
+                    row, intent, ids, prefix, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence,
+                    taken_at=None,
+                )  # fmt: skip
         except (ArsError, KeyError, TypeError):
             continue
         if retry_key(intent, _command_type(row), actor_id, grant_id, payload) == first.get("idempotency_key"):
@@ -2246,6 +2292,7 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
                     actor_id=first["actor_id"],
                     grant_id=first["authority_grant_id"],
                     evidence=_recorded_evidence(row, first, ids, prefix, ctx),
+                    taken_at=None,
                 )
                 issued = _issued(first, intent, _command_type(row), payload)
         except (ArsError, KeyError, TypeError):
