@@ -269,15 +269,16 @@ _AXIS_EVIDENCE = frozenset({"axis_id", "value", "rationale", "unmet_condition_co
 _SPIKE_PLAN_SCHEMA_ID = "ars://portfolio/spike-plan"
 _SPIKE_EXECUTION_RELATION = "ars://portfolio/relation/spike-execution-authority"
 # The SPEC-02 contract's hard resource limits, transcribed from the exact contract bytes the route package
-# pins: four CPU slots (workers), two hours, 12 GB memory and 5 GB attempt scratch, read as decimal
-# megabytes (the stricter reading), and no network. The owner's ceiling may not exceed them (PR #298
-# review). A test binds this transcription to the pinned bytes, so a changed contract fails until re-read.
+# pins: four CPU slots (workers), two hours, 12 GB memory and 5 GB attempt scratch, read as binary megabytes
+# (Stephen's decision, 2026-09-24: this is the value everyone here means by GB), and no network. The owner's
+# ceiling may not exceed them (PR #298 review). A test binds this transcription to the pinned bytes, so a
+# changed contract fails until re-read.
 _SPEC_02_LIMITS_SHA256 = "f005f4c961f91c4abcfdb6fc8a89d3b609b371ac5e613e82e68aaf5c3cf4dd32"
 _SPEC_02_LIMITS = {
     "worker_limit": 4,
     "time_limit_seconds": 7_200,
-    "memory_limit_mb": 12_000,
-    "storage_limit_mb": 5_000,
+    "memory_limit_mb": 12 * 1024,
+    "storage_limit_mb": 5 * 1024,
     "network_access": False,
 }
 

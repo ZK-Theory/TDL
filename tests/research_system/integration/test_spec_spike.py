@@ -156,7 +156,7 @@ def test_the_spec_02_limits_are_the_pinned_contracts_own():
     """The route's SPEC-02 resource limits are transcribed from the exact contract bytes the package pins.
 
     A changed SPEC-02 contract fails here until its limits are transcribed again (PR #298 review). The
-    units read "12 GB" and "5 GB" as decimal megabytes, the stricter reading.
+    units read "12 GB" and "5 GB" as binary megabytes (Stephen's decision, 2026-09-24).
     """
     package = json.loads((REPO_ROOT / spec_assay.ROUTE_PACKAGE_PATH).read_bytes())
     source = next(source for source in package["sources"] if source["alias"] == "SPEC-02")
@@ -169,8 +169,8 @@ def test_the_spec_02_limits_are_the_pinned_contracts_own():
     assert spec_assay._SPEC_02_LIMITS == {
         "worker_limit": 4,
         "time_limit_seconds": 2 * 60 * 60,
-        "memory_limit_mb": 12_000,
-        "storage_limit_mb": 5_000,
+        "memory_limit_mb": 12 * 1024,
+        "storage_limit_mb": 5 * 1024,
         "network_access": False,
     }
 
@@ -475,7 +475,7 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
     beyond_contract = (
         {**ceiling, "worker_limit": 5},
         {**ceiling, "time_limit_seconds": 7201},
-        {**ceiling, "memory_limit_mb": 12001},
+        {**ceiling, "memory_limit_mb": 12 * 1024 + 1},
         {key: value for key, value in ceiling.items() if key != "storage_limit_mb"},
         {**ceiling, "network_access": True},
     )
