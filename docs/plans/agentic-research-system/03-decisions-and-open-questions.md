@@ -1961,6 +1961,40 @@ variations. The complete path ran end to end and left the Candidate
 - **`spec-assay-intent` 1.3.0** adds the eight SPEC-02 actions; 1.0.0, 1.1.0 and 1.2.0 stay.
   SPEC-02 actions carry no `assay_ordinal`: a Spike follows its Candidate's promoted Assay.
 
+**PR #298 review decisions (2026-09-24):** two rounds of Codex review and one CodeRabbit review
+on the SPEC-02 start, under the stopping rule Stephen accepted for #298 on 2026-09-18.
+
+- **The SPEC-02 contract's "12 GB" and "5 GB" are binary megabytes (Stephen's decision,
+  2026-09-24):** `memory_limit_mb` 12,288 and `storage_limit_mb` 5,120, not the decimal 12,000
+  and 5,000 the first transcription chose. The open question was raised when the contract-limits
+  check was added in round 1; Stephen resolved it as the value everyone here means by GB. The
+  route transcribes the pinned contract's prose, so the reading is a decision, not a derivation,
+  and a test binds the transcription to the contract's pinned bytes.
+- **A Lease's liveness is a fact about the moment its row was taken (round 2, Codex P1).** The
+  route holds the Spike execution rows to a Lease that is live at the trusted submission time,
+  and re-derives a recorded row with no clock at all. Admission reads a Lease's expiry only at
+  OR-017, so without this the route recorded an execution authority OR-017 must refuse and
+  renewal cannot rescue.
+  - **Measured, and it changed the design:** the bound fixture stamps ledger `recorded_at` from
+    the real clock while its operational payloads carry the re-dated Lease window. Two clocks
+    over one store, so a row's own `recorded_at` is not a moment its Lease can be judged against.
+  - **Known limit:** nothing re-checks a Lease between the rows of one start, and the route has
+    no Spike revisit, so a start whose Lease expires mid-sequence is abandoned, not resumed.
+- **CodeRabbit's three findings are declined, each verified against the code first.** None is a
+  defect in the latest round's code, and none is a false durable claim on the Phase 5 path.
+  - **The approval ceiling cannot omit a limit.** The route already refuses it: the ceiling is
+    checked against every key of `_SPEC_02_LIMITS`, and a missing key fails the integer test.
+    **Known limit:** the record's own schema does not restate this, so a future contract that
+    dropped a limit would leave the plan's matching limit unbounded.
+  - **The five deferred 4b-2b actions fall through to the SOURCE contract,** which refuses them
+    before any state evaluation or ledger change. The refusal names the SOURCE contract rather
+    than the unimplemented action. Error reporting only; 4b-2b implements them.
+  - **The Ruff findings do not hold under the governing config.** Root `.ruff.toml` sets only
+    `line-length`, so neither `E501` nor `I` is selected; CodeRabbit forced both with
+    `--select I,E501`. Four lines in the SPEC-02 tests do exceed 120 characters, all from
+    `5f78e5d0` rather than the latest round, and `# fmt: skip` is the house idiom that keeps
+    them. Recorded as a follow-up, not a fix in this PR.
+
 ## Decision protocol
 
 Each future decision entry must record:
