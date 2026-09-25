@@ -157,6 +157,96 @@ def _review_commit(review: Mapping[str, Any]) -> str | None:
     return str(oid) if isinstance(oid, str) else None
 
 
+_USAGE_LIMIT_MARKERS = ("usage limit",)
+
+
+def _login(value: object) -> str:
+    """Normalise a login: GraphQL reports a bot's reactions as ``name[bot]`` and its reviews as ``name``."""
+    login = str(value or "")
+    return login[: -len("[bot]")] if login.endswith("[bot]") else login
+
+
+def _first_check_started(pull_request: Mapping[str, Any], candidate_sha: str) -> datetime | None:
+    """Return the earliest check-run start on the candidate: an upper bound on when this head was pushed.
+
+    GitHub no longer exposes a push timestamp. A check run on the candidate can only start after the
+    head was pushed, so a signal created after the earliest start is provably newer than the push.
+    """
+    nodes = _require_nodes(pull_request.get("commits"), "pullRequest.commits")
+    starts: list[datetime] = []
+    for node in nodes:
+        commit = _require_mapping(node.get("commit"), "pullRequest.commits.nodes[].commit")
+        if commit.get("oid") != candidate_sha:
+            continue
+        rollup = commit.get("statusCheckRollup")
+        contexts = rollup.get("contexts") if isinstance(rollup, Mapping) else None
+        for context in (contexts or {}).get("nodes") or [] if isinstance(contexts, Mapping) else []:
+            if isinstance(context, Mapping) and context.get("__typename") == "CheckRun" and context.get("startedAt"):
+                starts.append(_parse_timestamp(context["startedAt"], "CheckRun.startedAt"))
+    return min(starts) if starts else None
+
+
+def _producer_state(
+    pull_request: Mapping[str, Any], producer: str, candidate_sha: str, reviews: list[Mapping[str, Any]]
+) -> str | None:
+    """Return ``None`` when ``producer`` is terminal on the candidate, else a message naming its state.
+
+    Codex emits two terminal signals: a review object when it has findings, and only a +1 reaction on
+    the pull request when it has none (obs 2026-09-17-merge-admission-cannot-see-a-clean-codex-review).
+    A reaction carries no commit oid, so it is bound to the candidate by time: it must be newer than
+    the candidate's first check-run start, and no review by the producer may name another commit after
+    that moment. This binding is weaker than a review oid, by owner decision of 2026-09-25. A usage-limit
+    reply and an untriggered head are named separately, each with its remedy
+    (obs 2026-09-11-required-review-producer-is-quota-limited).
+    """
+    if any(_login(_review_login(r)) == producer and _review_commit(r) == candidate_sha for r in reviews):
+        return None
+    arrived = _first_check_started(pull_request, candidate_sha)
+    reactions = pull_request.get("reactions")
+    plus_ones = [
+        _parse_timestamp(reaction.get("createdAt"), "reaction createdAt")
+        for reaction in (_require_nodes(reactions, "pullRequest.reactions") if reactions is not None else [])
+        if reaction.get("content") == "THUMBS_UP" and _login((reaction.get("user") or {}).get("login")) == producer
+    ]
+    if plus_ones:
+        if arrived is None:
+            return (
+                f"{producer} left a +1, but no check run has started on the candidate, so the reaction cannot be "
+                "bound to this head; wait for CI to start, then re-run admission"
+            )
+        if max(plus_ones) <= arrived:
+            return (
+                f"{producer}'s +1 predates this head (its first check started {arrived.isoformat()}), so it "
+                "describes an earlier head; comment '@codex review' so this head is reviewed"
+            )
+        later_foreign = [
+            r
+            for r in reviews
+            if _login(_review_login(r)) == producer
+            and _review_commit(r) != candidate_sha
+            and r.get("submittedAt")
+            and _parse_timestamp(r["submittedAt"], "review submittedAt") > arrived
+        ]
+        if later_foreign:
+            return (
+                f"{producer} left a +1 after this head arrived, but a later review of theirs names another commit, "
+                "so the reaction's target is ambiguous; comment '@codex review' for a review of this head"
+            )
+        return None
+    comments = pull_request.get("comments")
+    for comment in (comments or {}).get("nodes") or [] if isinstance(comments, Mapping) else []:
+        if not isinstance(comment, Mapping) or _login((comment.get("author") or {}).get("login")) != producer:
+            continue
+        created = _parse_timestamp(comment.get("createdAt"), "comment createdAt")
+        body = str(comment.get("body") or "").lower()
+        if arrived is not None and created > arrived and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
+            return (
+                f"{producer} hit its usage limit on this head ({created.isoformat()}) and will not review it "
+                "automatically; comment '@codex review' once the quota resets, or record an owner waiver"
+            )
+    return f"{producer} has not reviewed or reacted on this head; comment '@codex review' to request a review"
+
+
 def evaluate_thread_finality(
     payload: Mapping[str, Any],
     *,
@@ -165,6 +255,9 @@ def evaluate_thread_finality(
 ) -> None:
     """Admit only when every producer is terminal and no live thread remains.
 
+    A producer is terminal on the candidate when it submitted a review naming the candidate, or when
+    it left a +1 reaction provably newer than the candidate (see :func:`_producer_state`).
+
     Args:
         payload: Raw ``gh api graphql`` response for the pull request.
         candidate_sha: The exact merge candidate the evidence must describe.
@@ -172,19 +265,21 @@ def evaluate_thread_finality(
 
     Raises:
         ValueError: If the evidence is stale, truncated, malformed, a configured
-            producer has not reached a terminal state on the candidate, or any
-            unresolved non-outdated review thread remains.
+            producer has not reached a terminal state on the candidate (the
+            message names the state and its remedy), or any unresolved
+            non-outdated review thread remains.
     """
     pull_request = _pull_request(payload)
     _assert_candidate(pull_request, candidate_sha)
 
     reviews = _review_rows(pull_request)
-    terminal = {_review_login(review) for review in reviews if _review_commit(review) == candidate_sha}
-    pending = [producer for producer in review_producers if producer not in terminal]
+    pending = [
+        state
+        for producer in sorted(review_producers)
+        if (state := _producer_state(pull_request, producer, candidate_sha, reviews)) is not None
+    ]
     if pending:
-        raise ValueError(
-            "review producers have not reached a terminal state on the candidate: " + ", ".join(sorted(pending))
-        )
+        raise ValueError("review producers have not reached a terminal state on the candidate: " + "; ".join(pending))
 
     threads = _require_nodes(pull_request.get("reviewThreads"), "pullRequest.reviewThreads")
     for index, thread in enumerate(threads):
