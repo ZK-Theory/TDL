@@ -76,6 +76,40 @@ observation against current HEAD and the owning repository:
    their OPEN items in the same packet. SKILL and RECORD self-application stays
    limited to trees the run can reach.
 
+### Implementation (2026-09-25)
+
+Each approved campaign was re-resolved against current state, then built on
+its own branch off `main`. Items still under review stay OPEN in the log with
+their PR named, and flip to ACTIONED with the merge commit.
+
+| Campaign | PR | Delivered |
+|---|---|---|
+| A | [#300](https://github.com/ZK-Theory/TDL/pull/300) | pre-commit gate −1 refuses commits on `main` (override `TDL_ALLOW_MAIN_COMMIT=1`); `commit-state-guard` harness hook refuses piped commits and branch drift; `executing-plans-extras` commit/background rules |
+| B | [#301](https://github.com/ZK-Theory/TDL/pull/301) | CRLF gate `--worktree` scan of tracked hook dirs; corrected remediation advice; **found nine CRLF hooks on disk in the main checkout** (one-time repair in the PR) |
+| C | [#302](https://github.com/ZK-Theory/TDL/pull/302) | hooks path must resolve inside the checkout (installer and dispatch `hook-gate`); `--all-tracked` workflow liveness; pre-commit gate 0b (staged Repowise bytes, dangling gitlinks). Three items already closed by later work |
+| D | [#303](https://github.com/ZK-Theory/TDL/pull/303) | dead `.codex` installer and stale commit-msg copies removed plus a tree lint; notation-guard and dispatch-readiness controls; `tools/mutation_check.py`; hook suites in the required `admission-controls` lane with a no-skips check; legible long-path fixture errors |
+| E | [#307](https://github.com/ZK-Theory/TDL/pull/307) | code items DEFERRED to the 06s D5 process; lessons folded into `contract-first-tdd` and `research-assurance-triage` |
+| F | [#305](https://github.com/ZK-Theory/TDL/pull/305) | `tools/check_brief_paths.py` (plus `manager_dispatch_check --brief`); `tools/ast_equivalence.py`; brief-to-mechanism correspondence in `tda-task-brief-from-plan` |
+| G + I (admission) | [#304](https://github.com/ZK-Theory/TDL/pull/304) | Codex +1 on the exact head admits; named quota and untriggered states; replayed live, PRs #296 and #283 now admit |
+| H | [#306](https://github.com/ZK-Theory/TDL/pull/306) | `tools/observation_log_lint.py` (duplicate ids, evidence-free or borrowed stamps, computed ledger); eight real records re-verified; the review skill and task now cover all repos and deliver by PR |
+| I (lessons) | [#307](https://github.com/ZK-Theory/TDL/pull/307), [#305](https://github.com/ZK-Theory/TDL/pull/305) | review stopping rule, red-run rule, singular expectations, spec divergence as an owner decision, closed-record sizing, probe entry points |
+
+Owner actions the PRs name:
+- #300: the guard's mutation run was refused as self-modification, so it's left for you.
+- #301: the one-time CRLF repair in the main checkout.
+- #302: unset the foreign `core.hooksPath` in the four desktop worktrees.
+- #303, #304: code-owner review of the gate files.
+- #307: whether to lock the review stopping rule in `CONVENTIONS.md`.
+
+Suggested merge order: #304 first, so clean Codex +1s count on the rest. Then
+A to D, whose `.githooks/pre-commit` edits touch separate hunks but need
+sequential rebases. Then F, H, E/I.
+
+New observations logged during implementation:
+`2026-09-25-codex-live-hooks-are-stale-sibling-copies` (Codex's wired hooks
+are months-old copies still calling `python3`; needs a check from a Codex
+session).
+
 Total: 5+2+7+6+16+6+1+4+7 = 54 (campaigns A–I, TDL) + 1 (TDL residual) + 11 (non-TDL) = **66**.
 
 ---
