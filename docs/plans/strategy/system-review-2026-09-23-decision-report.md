@@ -48,17 +48,33 @@ observation against current HEAD and the owning repository:
 
 | Campaign | OPEN items | Recommended resolution | Decision |
 |---|---:|---|---|
-| A. Branch/commit-state trust under concurrency | 5 | One pre-commit branch-admission gate + a PreToolUse branch-drift hook | `[ ]` |
-| B. Working-tree CRLF byte integrity | 2 (+1 self-corrected) | `.gitattributes` half is DONE (verified); add a `--worktree` byte-check mode | `[ ]` |
-| C. CI/workflow & hook-path liveness | 7 | One CI-liveness + hooksPath-resolution campaign | `[ ]` |
-| D. Hook/gate negative-control debt | 6 | Wire selftests into pytest/CI; hardened mutation-check tool; fix/retire the dead `.codex` installer | `[ ]` |
-| E. Gate 6 SPEC route/admission binding gaps | 16 | Continue under the existing 06s Phase 4/5 D5-scope process (tracking only) | `[ ]` (tracking only) |
-| F. Brief/handoff/dispatch hygiene | 6 | Extend `manager_dispatch_check`/dispatch-readiness with five named assertions | `[ ]` |
-| G. External-review-producer dependency | 1 | Distinguish quota/untriggered states in merge admission | `[ ]` |
-| H. Observation-log record-keeping (meta) | 4 | Mechanical duplicate-resolution lint + cross-repo review-scope decision + PR-per-review convention | `[ ]` |
-| I. Review/certification-ladder process discipline (new) | 7 | Fold five named lessons into `research-assurance-triage`/`contract-first-tdd`/dispatch checklists (tracking only) | `[ ]` (tracking only) |
-| — Non-TDL residual (MathUni/Counting Lives/codex_workflow) | 11 | Report-only; folds into Campaign H's scope decision | `[ ]` |
-| — TDL residual carried forward | 1 | Continue tracking `2026-08-22-retired-procedure-kept-live-imperatives`'s open enumerable-contract limb | `[ ]` |
+| A. Branch/commit-state trust under concurrency | 5 | One pre-commit branch-admission gate + a PreToolUse branch-drift hook | `[x]` approved |
+| B. Working-tree CRLF byte integrity | 2 (+1 self-corrected) | `.gitattributes` half is DONE (verified); add a `--worktree` byte-check mode | `[x]` approved |
+| C. CI/workflow & hook-path liveness | 7 | One CI-liveness + hooksPath-resolution campaign | `[x]` approved |
+| D. Hook/gate negative-control debt | 6 | Wire selftests into pytest/CI; hardened mutation-check tool; fix/retire the dead `.codex` installer | `[x]` approved |
+| E. Gate 6 SPEC route/admission binding gaps | 16 | Continue under the existing 06s Phase 4/5 D5-scope process (tracking only) | `[x]` approved — lessons folded into skills |
+| F. Brief/handoff/dispatch hygiene | 6 | Extend `manager_dispatch_check`/dispatch-readiness with five named assertions | `[x]` approved |
+| G. External-review-producer dependency | 1 | Distinguish quota/untriggered states in merge admission | `[x]` approved, bundled with I's clean-signal fix |
+| H. Observation-log record-keeping (meta) | 4 | Mechanical duplicate-resolution lint + cross-repo review-scope decision + PR-per-review convention | `[x]` approved — one review, all repos |
+| I. Review/certification-ladder process discipline (new) | 7 | Fold five named lessons into `research-assurance-triage`/`contract-first-tdd`/dispatch checklists (tracking only) | `[x]` approved — +1 on head accepted |
+| — Non-TDL residual (MathUni/Counting Lives/codex_workflow) | 11 | Report-only; folds into Campaign H's scope decision | `[x]` into the all-repo review |
+| — TDL residual carried forward | 1 | Continue tracking `2026-08-22-retired-procedure-kept-live-imperatives`'s open enumerable-contract limb | `[x]` keep tracking |
+
+### Owner decisions (Stephen, 2026-09-25)
+
+1. **Delivery:** one PR per campaign, each on its own branch and worktree off
+   `main`. This PR stays the decision record and carries the Campaign
+   B-adjacent `sync_agent_skills.py` LF fix plus the reviewed skill edit.
+2. **Codex clean signal (G + I):** accept a Codex +1 reaction as terminal only
+   when it was created after the candidate head's push and no Codex review names
+   another commit. A reaction carries no commit oid, so this binding is weaker
+   than a review oid, and the implementing PR must say so. Negative control: a
+   stale +1 from an earlier head still blocks. Quota and untriggered heads get
+   distinct named states.
+3. **Cross-repo scope (H):** one `weekly-system-review` covering all repos. It
+   reads MathUni, Counting Lives and codex_workflow read-only and dispositions
+   their OPEN items in the same packet. SKILL and RECORD self-application stays
+   limited to trees the run can reach.
 
 Total: 5+2+7+6+16+6+1+4+7 = 54 (campaigns A–I, TDL) + 1 (TDL residual) + 11 (non-TDL) = **66**.
 
