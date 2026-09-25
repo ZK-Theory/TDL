@@ -288,6 +288,22 @@ def check_hook_gate(workspace: Path) -> Check:
     return Check("hook-gate", True, f"pre-commit live ({where})")
 
 
+def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
+    """Assert every repository path the brief cites resolves on ``ref``.
+
+    Obs 2026-09-14-handoff-cited-at-a-path-only-an-unmerged-pr-contains: a dispatch cited a handoff
+    present only on an open PR branch. A Worker starts from the base ref, so a path it is told to
+    read must exist there, or the brief must say which branch holds it.
+    """
+    from tools.check_brief_paths import cited_paths, unresolved
+
+    paths = cited_paths(brief.read_text(encoding="utf-8"))
+    problems = unresolved(paths, repo_root, ref, brief=brief)
+    if problems:
+        return Check("brief-paths", False, f"{brief.name}: " + "; ".join(problems))
+    return Check("brief-paths", True, f"{brief.name}: {len(paths)} cited path(s) resolve on {ref}")
+
+
 def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) -> list[Check]:
     """Run the input-provenance check on each declared manifest."""
     if not manifests:
@@ -643,6 +659,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Dir to run the contract gate in (default: the branch worktree, else PROJ_ROOT).",
     )
     p.add_argument("--state-manifest", required=True, help="Tracked task-state manifest (YAML).")
+    p.add_argument(
+        "--brief",
+        action="append",
+        default=[],
+        help="Task brief or handoff to check: every cited repo path must resolve on --brief-ref. Repeatable.",
+    )
+    p.add_argument("--brief-ref", default="origin/main", help="Ref a dispatched Worker starts from.")
     return p.parse_args(argv)
 
 
@@ -668,6 +691,7 @@ def main(argv: list[str] | None = None) -> int:
     if not state_path.is_absolute():
         state_path = workspace / state_path
     checks.extend(check_state_manifest(state_path, workspace, proj_root))
+    checks.extend(check_brief_paths(Path(brief), proj_root, args.brief_ref) for brief in args.brief)
 
     print(render(args.agent, args.branch, args.mode, checks))
     if all(c.ok for c in checks):

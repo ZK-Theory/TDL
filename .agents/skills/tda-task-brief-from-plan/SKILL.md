@@ -2,7 +2,7 @@
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: core
   lanes: []
   roles:
@@ -154,6 +154,49 @@ When the agent must stop and ask or escalate.
   that currently owns the required branch. A detached checkout at the same
   commit is not an alternative owner and must not receive the task.
 
+### Brief-to-mechanism correspondence
+
+A brief that says X while the enforcing code does Y surfaces the gap only after
+dispatch. Close each of these before writing the brief:
+
+- **Role words name their enforcement.** For every role word the brief uses
+  ("authorized producer", "owner-only", "reviewer"), cite the code that
+  enforces it: the admission rule, the grant check, the actor binding. A role
+  with no enforcement locus is a design question for the owner, not a brief
+  instruction.
+- **Spec rows are diffed, not trusted.** Where an accepted spec assigns actors or
+  authorities per action, diff every planned binding against that column and
+  raise each divergence as an owner decision before construction. A divergence
+  discovered in construction is not a PR "known limit".
+- **Historical records name their field sources.** When the brief requires a phase
+  to bind historical evidence, name where each required field comes from and how
+  it is verified. If a field's producer cannot be verified from the repository,
+  the requirement needs an owner decision first.
+- **Inherited action lists carry their required subset.** A list inherited from a
+  plan or superseded document states which items current decisions still require
+  and which are dropped, with the decision that dropped each.
+- **Closed records are sized for their whole life.** When a design pass creates a
+  closed enum or record, list everything later sub-phases will add. Either size it
+  to that list now, or record the planned version bumps as an accepted decision.
+- **Cited paths resolve where the worker starts.** Run
+  `python tools/check_brief_paths.py <brief> --ref origin/main` (or
+  `manager_dispatch_check --brief <brief>`). A path held only on an unmerged
+  branch is cited together with that branch or PR.
+- **Probes use the public entry point.** A design-pass probe that measures a planned
+  public action goes through the entry point the public tests use, or states which
+  entry point and which clock it used.
+
+### Shared records and collateral
+
+- Before replacing a whole field of a shared record (a Jira description, a
+  handoff, a decision register), re-read its current version and `updated`
+  time. If it has moved since you last read it, merge into the new version or add
+  a comment instead. Never overwrite another session's update.
+- When a formatter or codemod touches more than the intended edit, attach
+  `python tools/ast_equivalence.py --base <base> <files>` as evidence. Any file
+  reported `CHANGED` gets a real review; "formatters preserve semantics" is a
+  claim to check, not an assumption.
+
 ## Completion Checklist
 
 - [ ] Task is a vertical contribution; target paper and named end-to-end
@@ -176,6 +219,10 @@ When the agent must stop and ask or escalate.
 - [ ] Paper-claim constraints and suggested skills included.
 - [ ] Dispatch-safety elements present (scope stops, blocking gates,
       results/ rule).
+- [ ] Brief-to-mechanism correspondence closed: role words cite their
+      enforcement, spec actor columns diffed, historical field sources named,
+      inherited action lists scoped, closed records sized, and
+      `check_brief_paths.py` passes on `origin/main`.
 - [ ] Stop conditions included.
 
 ## Escalate Or Stop When
