@@ -427,6 +427,9 @@ def test_the_action_table_names_every_route_action_and_its_ordered_effects():
         "request_spec_01_revisit": ("ProposeRevisitDecision",),
         "authorize_spec_01_retry": ("ResolveDecision",),
         "request_spec_01_retry": ("RequestAssay",),
+        "approve_spec_02": ("RegisterArtefact",),
+        "prepare_spec_02": ("RegisterArtefact",),
+        "start_spec_02": ("RegisterSpikePlan", "ProposeSpikeExecutionDecision", "ResolveDecision", "StartSpike"),
     }
 
 
@@ -453,6 +456,8 @@ def test_each_document_service_publishes_only_its_route_kind():
         "spec_operator_brief_document",
         "spec_operator_return_document",
         "spec_operator_partial_return_document",
+        "spec_02_live_run_approval_document",
+        "spec_02_operator_brief_document",
     }
     for kind, service_type in _REGISTRATION_SERVICES.items():
         service = object.__new__(service_type)

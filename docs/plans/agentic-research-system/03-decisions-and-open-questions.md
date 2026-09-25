@@ -1910,6 +1910,91 @@ finding that needed a schema version.
     integer, but it derives other identities and P0 canonical JSON rejects
     floating-point values.
 
+**4b-2 design decisions (2026-09-18):** after PR #297 merged at `f690efd6`, the 4b-2 design
+pass measured the whole SPEC-02 Spike sequence on scratch stores: OR-014, OR-015, OR-016,
+OR-017, OR-018, OR-019, OR-036, OR-037, OR-020, OR-021, OR-026 and OR-027, each with actor
+variations. The complete path ran end to end and left the Candidate
+`preregistration_authorized`. Stephen accepted every recommendation.
+- **4b-2 ships as two PRs.**
+  - **4b-2a:** `approve_spec_02`, `prepare_spec_02` and `start_spec_02` (OR-014 to OR-017).
+  - **4b-2b:** `return_spec_02_complete`, `return_spec_02_partial`, `review_spec_02_complete`,
+    `review_spec_02_partial` and `decide_spec_02`.
+  - **The basis:** eight actions and fifteen effects, plus three new records, exceed the
+    §5.0 checkpoint that 4a-2's seven actions already split across two PRs.
+- **SPEC-02 gets its own records.**
+  - **The measurement:** the merged `spec-operator-brief-package` and `spec-operator-return`
+    fix `intent.action` to `prepare_spec_01` and `return_spec_01_complete`, and the return
+    requires an Assay scorecard, which a Spike has not. A Spike's own artefacts are the
+    inherited `ars://portfolio/spike-plan` and `ars://portfolio/spike-verdict`, both 1.0.0.
+  - **The decision:** new closed schemas with their own object kinds for the SPEC-02 brief and
+    return, as 4a′ did for the Partial return. The merged SPEC-01 records are untouched.
+- **The SPEC-02 approval record.** New closed `ars://portfolio/spec-02-live-run-approval`
+  1.0.0, registered by the owner, binding the Candidate, the exact OR-013 PROMOTE Decision,
+  the route, the scope and the cost ceiling. It changes no Candidate state, and
+  `start_spec_02` is refused without it.
+- **Spike evidence artefacts stay operator-mediated.** The verdict must cite registered
+  canonical artefacts, one of a validation, verification or review type (measured). No SPEC
+  action registers them, and none is added; the route verifies the refs the operator names.
+- **The operational fixture is re-dated in the SPEC-02 tests (test-only).**
+  - **The measurement:** `bind_scratch_route` fixes the route clock at 2026-09-10, while the
+    C1 fixture leases in a 2026-08-01 window. OR-017 requires a live lease, so every start was
+    refused, and a renewal was refused as `lease_expired`. Re-dating the fixture's window onto
+    the route's day seeds an active lease and admits the start.
+  - **The decision:** the SPEC-02 tests re-date the fixture. No production change (P-058's
+    "return to Stephen" point for `start_spec_02` seeding).
+- **Route bindings mirror SPEC-01's, against measured admission.** Admission accepts the plan
+  from the steward, the producer, the owner and an unrelated human; the execution proposal from
+  the producer, the owner and the steward; the verdict, the review request and the decision
+  proposal from the producer. It already holds the execution approval and the final resolution
+  to the owner, and binds the start to the lease holder.
+  - The route refuses the producer and the owner registering the plan or proposing execution,
+    binds the verdict to the Spike producer, refuses the producer or the owner requesting the
+    outcome review and the owner recording it, and refuses the producer, the reviewer or the
+    owner proposing the decision, as for OR-012.
+  - **Known limit:** rows after OR-017 record one accepted actor each, because an acceptance
+    consumes the row and a store holds one Attempt and Lease.
+- **A Partial Spike is terminal on the route (measured).** OR-019 leaves the Candidate
+  `spike_partial_recorded`; OR-037 and OR-021 leave it `spike_revisit_eligible` with the Spike
+  `partial_reviewed`; OR-026 is then refused for PROMOTE and for PARK. The Spike revisit rows
+  (OR-023 to OR-025) are outside the agreed action list. The Partial pair still ships, with
+  this recorded as a known limit and no runtime change.
+- **`spec-assay-intent` 1.3.0** adds the eight SPEC-02 actions; 1.0.0, 1.1.0 and 1.2.0 stay.
+  SPEC-02 actions carry no `assay_ordinal`: a Spike follows its Candidate's promoted Assay.
+
+**PR #298 review decisions (2026-09-24):** two rounds of Codex review and one CodeRabbit review
+on the SPEC-02 start, under the stopping rule Stephen accepted for #298 on 2026-09-18.
+
+- **The SPEC-02 contract's "12 GB" and "5 GB" are binary megabytes (Stephen's decision,
+  2026-09-24):** `memory_limit_mb` 12,288 and `storage_limit_mb` 5,120, not the decimal 12,000
+  and 5,000 the first transcription chose. The open question was raised when the contract-limits
+  check was added in round 1; Stephen resolved it as the value everyone here means by GB. The
+  route transcribes the pinned contract's prose, so the reading is a decision, not a derivation,
+  and a test binds the transcription to the contract's pinned bytes.
+- **A Lease's liveness is a fact about the moment its row was taken (round 2, Codex P1).** The
+  route holds the Spike execution rows to a Lease that is live at the trusted submission time,
+  and re-derives a recorded row with no clock at all. Admission reads a Lease's expiry only at
+  OR-017, so without this the route recorded an execution authority OR-017 must refuse and
+  renewal cannot rescue.
+  - **Measured, and it changed the design:** the bound fixture stamps ledger `recorded_at` from
+    the real clock while its operational payloads carry the re-dated Lease window. Two clocks
+    over one store, so a row's own `recorded_at` is not a moment its Lease can be judged against.
+  - **Known limit:** nothing re-checks a Lease between the rows of one start, and the route has
+    no Spike revisit, so a start whose Lease expires mid-sequence is abandoned, not resumed.
+- **CodeRabbit's three findings are declined, each verified against the code first.** None is a
+  defect in the latest round's code, and none is a false durable claim on the Phase 5 path.
+  - **The approval ceiling cannot omit a limit.** The route already refuses it: the ceiling is
+    checked against every key of `_SPEC_02_LIMITS`, and a missing key fails the integer test.
+    **Known limit:** the record's own schema does not restate this, so a future contract that
+    dropped a limit would leave the plan's matching limit unbounded.
+  - **The five deferred 4b-2b actions fall through to the SOURCE contract,** which refuses them
+    before any state evaluation or ledger change. The refusal names the SOURCE contract rather
+    than the unimplemented action. Error reporting only; 4b-2b implements them.
+  - **The Ruff findings do not hold under the governing config.** Root `.ruff.toml` sets only
+    `line-length`, so neither `E501` nor `I` is selected; CodeRabbit forced both with
+    `--select I,E501`. Four lines in the SPEC-02 tests do exceed 120 characters, all from
+    `5f78e5d0` rather than the latest round, and `# fmt: skip` is the house idiom that keeps
+    them. Recorded as a follow-up, not a fix in this PR.
+
 ## Decision protocol
 
 Each future decision entry must record:

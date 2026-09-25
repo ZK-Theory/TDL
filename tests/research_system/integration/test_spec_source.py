@@ -682,6 +682,9 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
         "request_spec_01_revisit": ("ProposeRevisitDecision",),
         "authorize_spec_01_retry": ("ResolveDecision",),
         "request_spec_01_retry": ("RequestAssay",),
+        "approve_spec_02": ("RegisterArtefact",),
+        "prepare_spec_02": ("RegisterArtefact",),
+        "start_spec_02": ("RegisterSpikePlan", "ProposeSpikeExecutionDecision", "ResolveDecision", "StartSpike"),
     }
 
     def timed_out(*args, **kwargs):
