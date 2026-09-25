@@ -177,6 +177,18 @@ class _Spec02BriefRegistrationService(_DocumentRegistrationService):
         )
 
 
+class _Spec02ReturnRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_02_operator_return_document", artefact_id, 1)
+        self.objects.write("spec_02_operator_return_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_02_operator_return_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
 _REGISTRATION_SERVICES = {
     SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
     spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
@@ -185,6 +197,7 @@ _REGISTRATION_SERVICES = {
     spec_assay.PARTIAL_RETURN_KIND: _PartialReturnRegistrationService,
     spec_assay.APPROVAL_KIND: _LiveRunApprovalRegistrationService,
     spec_assay.SPEC_02_BRIEF_KIND: _Spec02BriefRegistrationService,
+    spec_assay.SPEC_02_RETURN_KIND: _Spec02ReturnRegistrationService,
 }
 
 
