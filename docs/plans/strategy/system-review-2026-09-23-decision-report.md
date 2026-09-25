@@ -150,7 +150,7 @@ write; a killed background run is reported as killed, not failed.
 **Note:** `2026-09-09-the-branch-moved-under-a-running-session` is the same shape,
 logged from a MathUni session (non-TDL section). Worth deciding once, not twice.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25; implemented in #300.
 
 ---
 
@@ -188,7 +188,7 @@ alone.
 verified passing); the `--worktree` mode, once built, catches a CRLF-rewritten hook
 that `git status` calls clean.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25; implemented in #301.
 
 ---
 
@@ -248,7 +248,7 @@ ran against the right scope, or against the right hook files.
 gitlink check fails on a `mode-160000` entry with no `.gitmodules`; the hooksPath
 check fails on the exact `magical-bardeen-05956b`-shaped fixture.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25; implemented in #302.
 
 ---
 
@@ -317,7 +317,7 @@ a planted `.git/hooks`-writing installer trips the new repo-wide lint;
 `test_dispatch_readiness_guard_hook.py` denies a Task Prompt bus write missing the
 Dispatch Readiness block and allows one that has it.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25; implemented in #303.
 
 ---
 
@@ -386,7 +386,7 @@ F's edits, not dispatched separately):**
 own D5 process continues absorbing these, and fold the five lessons above into the next
 `research-assurance-triage`/`contract-first-tdd` revision.
 
-**Decision:** `[ ]` (acknowledge tracking-only status; no build to approve here)
+**Decision:** `[x]` approved 2026-09-25: code items DEFERRED to the 06s D5 process; lessons folded into skills in #307.
 
 ---
 
@@ -429,7 +429,7 @@ a handoff citation missing its branch/PR is flagged before dispatch; a Jira edit
 when `updated` is newer than the session's last read; the AST-equivalence helper
 distinguishes the 14 benign files from the 1 real one in the motivating case.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25; implemented in #305.
 
 ---
 
@@ -453,7 +453,7 @@ since both touch `evaluate_thread_finality`.
 **Controls:** a synthetic quota-response fixture resolves to a named "quota" state;
 an untriggered head resolves to a distinct "untriggered" state.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25 (+1 on the head accepted); implemented in #304.
 
 ---
 
@@ -499,7 +499,7 @@ check fails when a handoff omits an in-window, in-scope observation; **this pack
 itself is the positive control for the new PR-per-review rule** — see the final
 section.
 
-**Decision:** `[ ]`
+**Decision:** `[x]` approved 2026-09-25 (one review, all repos); implemented in #306.
 
 ---
 
@@ -571,10 +571,9 @@ Campaign E's:
   terminal signal (a stale-head-gated reaction) as a distinct accepted state, not
   silent BLOCKED-forever.
 
-**Decision:** `[ ]` (acknowledge tracking-only status; approve promoting the
-review-stopping rule to a written convention if desired — it is the one item here with
-a demonstrated payoff, roughly 3 hours of packet-and-certify cost avoided on its first
-use)
+**Decision:** `[x]` approved 2026-09-25 (+1 on the head accepted; implemented in #304,
+#305 and #307). The stopping rule lives in `tda-large-workflow-supervision`; locking
+it in `CONVENTIONS.md` is left for an explicit owner decision.
 
 ---
 
@@ -656,9 +655,13 @@ One OPEN observation was lane-tagged SKILL this week
 (`2026-09-17-worktree-sweep-needs-squash-aware-and-attribute-aware-checks`) —
 **self-applied**: added a "Worktree Sweep" section to
 `.agents/skills/using-git-worktrees-extras/SKILL.md` (squash-merge classification by
-`headRefOid` rather than remote branch presence, all-`D`-status shells read as empty
-not dirty, Windows read-only-directory removal order, ignored-cache allowlisting,
-re-check-before-removing), synced to `.claude/skills/`
+`headRefOid` rather than remote branch presence; an all-`D`-status worktree is treated
+as an abandoned shell only with independent evidence (the deleted set covers the whole
+tracked tree, no tracked files remain, and HEAD is merged), and otherwise stays dirty,
+because deliberate uncommitted deletions look the same; Windows
+read-only-directory removal order; ignored-cache allowlisting; and a re-derivation of
+HEAD, merge evidence and status immediately before each removal), synced to
+`.claude/skills/`
 (`tools/sync_agent_skills.py --check` passes, byte-identical). The section explicitly
 recommends — but does not build — a committed `tools/sweep_worktrees.py`; that stays a
 GATE-lane follow-up pending Stephen's approval, not self-applied.
