@@ -1995,6 +1995,68 @@ on the SPEC-02 start, under the stopping rule Stephen accepted for #298 on 2026-
     `5f78e5d0` rather than the latest round, and `# fmt: skip` is the house idiom that keeps
     them. Recorded as a follow-up, not a fix in this PR.
 
+**4b-2b design decisions (2026-09-25):** PR #298 merged at `764d8b9f`, whose tree equals the
+certified candidate `3dfe0456`. The 4b-2b design pass then measured the Spike's return, review
+and decision rows at `764d8b9f`: nineteen probes, each on its own scratch store with the Spike
+started, and one run from a Candidate the public SOURCE and SPEC-01 route promoted. Stephen
+accepted every recommendation.
+- **Measured admission.**
+  - OR-018 records a PASS or FAIL verdict from the producer, the steward, the owner or an
+    unrelated human, with the Lease expired, and after the Attempt has completed.
+  - OR-019 records a Partial verdict from the steward, and is refused once the Lease has
+    expired. It leaves the Attempt `partial` and the Lease `released`.
+  - A verdict citing an artefact whose manifest names another Attempt is recorded.
+  - OR-036 accepts the owner and the producer as the review requester. OR-020 refuses the
+    producer and the requester, and accepts the owner and an unrelated human.
+  - OR-026 accepts the owner, the reviewer, the steward and the producer as proposer. OR-027 is
+    owner-only and is not bound to the proposal: PROMOTE was selected after a PARK proposal,
+    and PARK was selected with no revisit triggers.
+  - Both rows apply the verdict truth table: after a FAIL with a triggered kill condition only
+    KILL, after a FAIL without one PARK or KILL, and after a PASS any option, including KILL.
+  - From the public Candidate, the complete Spike path ran through `close_task` to an accepted
+    project-use result that records the Spike.
+- **Decisions.**
+  1. **One return record.** A new closed `ars://portfolio/spec-02-operator-return` 1.0.0, with
+     its own object kind, serves both return actions: one W11 `spike-verdict` carries PASS, FAIL
+     and PARTIAL, and 06q gives both returns the same schema and version. Its verdict must
+     match the action. The two actions share the return and outcome-review identities, so the
+     alternative not taken conflicts, as in 4a′. The operator supplies the eleven W11 verdict
+     judgements; the route derives the Spike, Candidate, Assay, plan and Attempt references
+     and runs admission's own verdict rule before registration.
+  2. **The cited evidence comes from the Spike's own Attempt.** Every `artefact_refs` entry must
+     name the Spike's Attempt in its registered manifest. `validation_refs` keep admission's
+     type check only, so an independent validator may be cited.
+  3. **A Partial return needs a live Lease.** Both Partial rows are held to a Lease that is live
+     at their trusted submission time, the rule the start rows have, and re-deriving a recorded
+     row consults no clock. The complete return needs no Lease. **Known limit:** a Lease that
+     expires between the two Partial rows leaves the return unrecordable, as for the start.
+  4. **The mechanical recommendation is evidence only** (W11 §4.4). The route adds no PROMOTE
+     condition beyond admission's verdict truth table. SPEC-01's check reads the recommendation
+     admission derives; for a Spike, the fact admission validates is the verdict.
+  5. **No KILL after a PASS.** W11 §4.5 requires a satisfied kill or failure condition for KILL,
+     and admission accepts a KILL proposal after a PASS, so the route refuses it at both OR-026
+     and OR-027.
+  6. **The complete public path reaches an accepted project-use result** through `close_task`,
+     closing PR #288's known limit that the Spike branch is tested at function level only.
+     **Phase 5 prep:** a Spike PROMOTE permits `adopt_default`, while the SPEC-02 contract says
+     no result supports a superiority or paper claim.
+  7. **The stuck start is asserted in 4b-2b (Stephen, 2026-09-24).** PR #298 known limit 7:
+     once the Lease expires between the start's rows, the route refuses the next row, the start
+     stays `prepared`, and a renewal is rejected as `lease_expired`, so the start cannot be
+     resumed.
+  8. **The four SPEC-02 test lines over 120 characters** are wrapped in 4b-2b, in their own
+     commit.
+- **Confirmed by measurement** (the 2026-09-18 bindings): the route records the verdict only from
+  the prospective producer; refuses the producer or the owner requesting the outcome review,
+  and the owner recording it; records only an approving review; and refuses the producer, the
+  reviewer or the owner proposing the decision. A PARK needs the owner's revisit triggers, as
+  for SPEC-01. A Partial Spike is terminal: `decide_spec_02` refuses it, so it reaches no
+  project-use result.
+- **Known limits:** a validation artefact's independence is not checked; the operator's
+  mechanical recommendation is not validated; nothing checks the accepted plan's
+  outcome-to-next-step mapping after a FAIL without a triggered kill condition; and OR-019
+  closes the Attempt as Partial, so its Task reaches no project-use result.
+
 ## Decision protocol
 
 Each future decision entry must record:

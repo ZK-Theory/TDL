@@ -374,7 +374,7 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
-**Status (2026-09-18): 4a, 4a′ and 4b-1 COMPLETE / INTEGRATED. 4b-2 and 4c remain.**
+**Status (2026-09-25): 4a, 4a′, 4b-1 and 4b-2a COMPLETE / INTEGRATED. 4b-2b and 4c remain.**
 Phase 4 as a whole, and Gate 6, remain INCOMPLETE.
 - **4a′**, PR #296, merged at `dc04e8303a3217061015500ac4ff5f54a4872576`:
   `return_spec_01_partial` and `review_spec_01_partial`, with the closed
@@ -561,6 +561,19 @@ table:
     the lease holder;
   - a Partial Spike is terminal on the route (measured) and ships with that known limit;
   - `spec-assay-intent` 1.3.0 adds the eight SPEC-02 actions.
+- **4b-2a integrated.** PR #298 merged at `764d8b9f`, whose tree equals the certified candidate
+  `3dfe0456`: the owner's live-run approval, the Spike's operator brief and the Spike start are on
+  the public route. Its review decisions (P-058, 2026-09-24) read the SPEC-02 contract's limits as
+  binary megabytes and hold each start row to a Lease live at its submission time.
+- **4b-2b decisions (P-058, 2026-09-25).** Stephen accepted the 4b-2b design pass at `764d8b9f`:
+  - one closed `spec-02-operator-return` 1.0.0 serves both return actions, its verdict matching
+    the action, and the two alternatives share their identities;
+  - the verdict's cited artefacts come from the Spike's own Attempt;
+  - a Partial return is held to a live Lease, as the start is;
+  - the operator's mechanical recommendation is evidence only, and the route refuses KILL after a
+    PASS (W11 §4.5);
+  - the complete public path reaches an accepted project-use result that records the Spike;
+  - the stuck start (PR #298 known limit 7) is asserted in 4b-2b, as Stephen decided on 2026-09-24.
 
 ### Phase 5 — Owner-gated live proof and closure
 
