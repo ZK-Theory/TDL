@@ -86,6 +86,12 @@ the runtime workspace. Do not retry from the orchestrating task.
   worktree-relative path is empty or absent, verify with `Get-ChildItem`/`ls`
   (a shell listing) — never trust a Glob/Grep absence signal alone inside
   `.apm/worktrees/` or any other gitignored mount.
+- **Provision a new worktree venv with `uv sync --all-extras`, then prove it:**
+  `python -m pytest --version` must succeed before any red run. `uv sync
+  --frozen` installs no extras, so pytest is absent; every test group then exits 1
+  within a second, which reads exactly like the expected red run. A
+  one-second bound-test run is a broken harness, not a result. Alternatively,
+  run from the main checkout's venv, as the pre-commit hook does.
 - **Never run two `uv run`/`uv sync` against the same venv concurrently**,
   including one backgrounded overlapping a foreground call — they race the
   editable-install and leave the venv missing deps while `uv sync` still

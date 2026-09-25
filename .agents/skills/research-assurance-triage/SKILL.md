@@ -116,6 +116,12 @@ Before accepting Success:
 - Caches are preserved, named distinctly, and not silently overwritten.
 - Vault entries were actually written where required.
 - Paper-facing conclusions follow the decision rule and cite result files.
+- Admission and evaluator boundaries carry the controls in `contract-first-tdd`
+  "Admission, evaluator and route controls": each negative control names the
+  layer that must refuse; construction and evaluation have a field-by-field
+  correspondence table; refusals precede the first irreversible effect; borrowed
+  derivations and cross-route evidence are re-asserted against the owning
+  record; hash-bound rule references are shown to be evaluated.
 
 ## Escalate Or Stop When
 

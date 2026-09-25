@@ -153,6 +153,22 @@ CodeRabbit review binds a commit, not a PR. Before merging, filter
 `commit_id`, and compare it with `gh pr view N --json headRefOid`. A later
 commit makes the current bytes unreviewed.
 
+**Automated review stopping rule.** An automated reviewer walking an
+invariant-dense surface returns a steady count of findings, so "fix until zero"
+is not a reachable stop. Measure convergence by the *kind* and *reachability* of
+findings, not their count. Keep a per-round ledger (count, finding family, origin
+commit, reachability) in the handback. Once a round opens no new finding family,
+a later finding gets code in the same PR only if it is:
+
+- a defect in code the previous round added; or
+- a false durable claim reachable on the planned owner path.
+
+Everything else becomes a recorded known limit or a follow-up. In PR #291 this
+turned round 4 into dispositions only, saving roughly one ~3-hour
+fix-and-certify cycle. A known limit records a boundary the owner has accepted. A
+divergence from an accepted specification is not a known limit; raise it as an
+owner decision.
+
 ## Exact-State Record
 
 At rotation or completion, invoke `tda-handoff` and write to the authorized
