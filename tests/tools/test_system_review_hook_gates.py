@@ -151,6 +151,62 @@ def test_install_git_hooks_resolves_linked_worktree_hooks(tmp_path: Path, monkey
     assert module.verify() == 0
 
 
+def _worktree_with_foreign_hooks_path(tmp_path: Path) -> tuple[Path, Path]:
+    """A linked worktree whose config.worktree points core.hooksPath at the MAIN checkout's hooks.
+
+    Obs 2026-09-17-worktree-scoped-hookspath-runs-main-checkout-hooks: every desktop-session
+    worktree carried exactly this override, so commits there ran the main checkout's hook bytes
+    and a `.githooks` fix on the branch never executed at commit time.
+    """
+    repo = _hook_repo(tmp_path)
+    _git(repo, "-c", "user.name=test", "-c", "user.email=test@example.invalid", "commit", "-qm", "hooks")
+    worktree = tmp_path / "linked"
+    _git(repo, "worktree", "add", "-q", "-b", "test-linked", str(worktree))
+    _git(repo, "config", "extensions.worktreeConfig", "true")
+    _git(worktree, "config", "--worktree", "core.hooksPath", str(repo / ".githooks"))
+    return repo, worktree
+
+
+def test_install_git_hooks_refuses_a_worktree_whose_hooks_live_in_another_checkout(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """The hook is present and executable, so the old check passed; it is the wrong checkout's hook."""
+    module = _installer_module()
+    repo, worktree = _worktree_with_foreign_hooks_path(tmp_path)
+
+    monkeypatch.setattr(module, "REPO_ROOT", worktree)
+    assert module.verify() == 1
+    assert "outside this checkout" in capsys.readouterr().err
+
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+    assert module.verify() == 0, "positive control: the main checkout's own hooks are its own"
+
+
+def test_install_git_hooks_admits_the_same_worktree_once_the_override_is_removed(tmp_path: Path, monkeypatch) -> None:
+    """Positive control on the worktree itself: the relative shared setting resolves inside it."""
+    module = _installer_module()
+    _, worktree = _worktree_with_foreign_hooks_path(tmp_path)
+    _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
+
+    monkeypatch.setattr(module, "REPO_ROOT", worktree)
+    assert module.verify() == 0
+
+
+def test_dispatch_hook_gate_refuses_a_worktree_whose_hooks_live_in_another_checkout(tmp_path: Path) -> None:
+    """manager_dispatch_check's hook-gate must apply the same rule before a dispatch."""
+    from shared.manager_dispatch_check import check_hook_gate
+
+    repo, worktree = _worktree_with_foreign_hooks_path(tmp_path)
+
+    refused = check_hook_gate(worktree)
+    assert not refused.ok
+    assert "outside" in refused.detail
+    assert check_hook_gate(repo).ok, "positive control: the main checkout's own hooks are its own"
+
+    _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
+    assert check_hook_gate(worktree).ok
+
+
 def _run_guard(path: str, project: Path, payload: str | None = None) -> subprocess.CompletedProcess[str]:
     body = payload or json.dumps({"tool_name": "Write", "tool_input": {"file_path": path}})
     env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project)}

@@ -72,6 +72,37 @@ def active_hooks_dir() -> tuple[str, Path]:
     return configured, path if path.is_absolute() else REPO_ROOT / path
 
 
+def foreign_hooks_problem(hooks_dir: Path) -> str | None:
+    """Return a problem when the active hook directory lies outside this checkout's own tree.
+
+    A present, executable hook proves a hook will run, not that it is THIS branch's hook
+    (obs 2026-09-17-worktree-scoped-hookspath-runs-main-checkout-hooks). Desktop-session
+    worktrees carried an absolute `core.hooksPath` in `config.worktree` pointing at the main
+    checkout's `.githooks`, so a commit there ran the main checkout's hook bytes and a hook fix
+    on the branch never executed at commit time. Tracked hooks must resolve inside the tree.
+    """
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    ).stdout.strip()
+    if not toplevel:
+        return None
+    root = Path(toplevel).resolve()
+    if hooks_dir.resolve().is_relative_to(root):
+        return None
+    scope = subprocess.run(
+        ["git", "config", "--show-scope", "--show-origin", "--get", "core.hooksPath"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    return (
+        f"active hook directory {hooks_dir} is outside this checkout ({root}); commits here run "
+        f"another checkout's hook bytes. Set by: {scope or 'unknown'}. Remove the override "
+        f"(git config --worktree --unset core.hooksPath) so the tracked .githooks resolves here."
+    )
+
+
 def make_executable(path: Path) -> None:
     mode = path.stat().st_mode
     path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -143,6 +174,12 @@ def verify(install: bool = False) -> int:
     print(f"active hooks   : {hooks_dir}")
 
     problems: list[str] = []
+
+    foreign = foreign_hooks_problem(hooks_dir)
+    if foreign:
+        print("\nFAIL — the hook gate is not this checkout's:", file=sys.stderr)
+        print(f"  - {foreign}", file=sys.stderr)
+        return 1
 
     if not hooks_dir.is_dir():
         # Deliberately NOT created here, even under --install. .githooks/ is tracked,

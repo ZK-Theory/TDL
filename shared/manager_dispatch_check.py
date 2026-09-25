@@ -277,6 +277,23 @@ def check_hook_gate(workspace: Path) -> Check:
 
     hook = hooks_dir / "pre-commit"
     where = f"core.hooksPath={configured or '(unset)'} -> {hook}"
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    # Present-and-executable is not enough: an absolute per-worktree core.hooksPath runs another
+    # checkout's hook bytes (obs 2026-09-17-worktree-scoped-hookspath-runs-main-checkout-hooks).
+    if toplevel and not hooks_dir.resolve().is_relative_to(Path(toplevel).resolve()):
+        return Check(
+            "hook-gate",
+            False,
+            f"active hooks resolve outside this workspace ({where}; toplevel {toplevel}) — the "
+            f"Worker's commits would run another checkout's hooks, not this branch's. Fix before "
+            f"dispatch: git -C {workspace} config --worktree --unset core.hooksPath",
+        )
     if not hook.is_file():
         return Check(
             "hook-gate",
