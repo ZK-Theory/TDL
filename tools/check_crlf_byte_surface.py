@@ -157,10 +157,54 @@ def scan_paths(paths: list[str], repo_root: Path, *, check_index: bool) -> list[
     return violations
 
 
+def tracked_paths(pathspecs: list[str], repo_root: Path) -> list[str]:
+    """Return tracked paths matching `pathspecs`, whatever their staged or status state."""
+    out = _git(["ls-files", "-z", "--", *pathspecs], repo_root=repo_root)
+    return [chunk.decode("utf-8") for chunk in out.split(b"\x00") if chunk]
+
+
+def worktree_violations(pathspecs: list[str], repo_root: Path) -> list[str]:
+    """Scan the working-tree bytes of every tracked file under `pathspecs`.
+
+    Why the staged scan is not enough (obs 2026-09-08-shell-rewrite-crlf-on-tracked-hook): a
+    shell redirect rewrote a tracked hook with CRLF. Once any `git add` touches such a file,
+    the index records its stat against the unchanged normalised LF blob, so nothing is staged
+    and `git status` reports nothing, yet the CRLF shebang still executes from disk. For
+    executable surfaces (hook directories) the working tree itself must be checked.
+    """
+    paths = tracked_paths(pathspecs, repo_root)
+    skip = binary_declared(paths, repo_root, cached=False)
+    return scan_paths([path for path in paths if path not in skip], repo_root, check_index=False)
+
+
+def remediation(violations: list[str]) -> list[str]:
+    """Return fix-up lines that act on the surface this gate reads: the working tree.
+
+    `git add --renormalize` alone rewrites only the index blob, so the working-tree bytes this
+    gate reads stay CRLF and the gate fails again. Staging normalises the blob; rewriting the
+    file from the index then writes LF back to disk with the author's content intact.
+    """
+    paths = sorted({line.split(": ", 1)[0] for line in violations})
+    lines = [
+        "Fix the producer, not just the file: on Windows `pathlib.Path.write_text` and "
+        "`open(..., 'w')` translate \\n to \\r\\n unless you pass newline=''.",
+        "Then rewrite each working-tree file from the normalised index (keeps your content):",
+    ]
+    lines += [f"  git add {path} && rm {path} && git checkout -- {path}" for path in paths]
+    return lines
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Scan the staged set, or an explicit path list, for CRLF."""
+    """Scan the staged set, or an explicit path list, plus any tracked worktree pathspecs, for CRLF."""
     parser = argparse.ArgumentParser(description="Reject CRLF on the canonical LF byte surface.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--worktree",
+        action="append",
+        default=[],
+        metavar="PATHSPEC",
+        help="Also scan the working-tree bytes of every tracked file under PATHSPEC, staged or not. Repeatable.",
+    )
     parser.add_argument(
         "paths",
         nargs="*",
@@ -169,27 +213,25 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
 
-    if args.paths:
-        violations = scan_paths(args.paths, repo_root, check_index=False)
-    else:
-        try:
-            paths = staged_paths(repo_root)
-        except subprocess.CalledProcessError as exc:
-            print(f"ERROR: could not enumerate staged paths: {exc}", file=sys.stderr)
-            return 2
-        violations = scan_paths(paths, repo_root, check_index=True)
+    try:
+        if args.paths:
+            violations = scan_paths(args.paths, repo_root, check_index=False)
+        else:
+            violations = scan_paths(staged_paths(repo_root), repo_root, check_index=True)
+        if args.worktree:
+            seen = set(violations)
+            violations += [v for v in worktree_violations(args.worktree, repo_root) if v not in seen]
+    except subprocess.CalledProcessError as exc:
+        print(f"ERROR: could not enumerate paths to scan: {exc}", file=sys.stderr)
+        return 2
 
     if violations:
         print("CRLF found on a surface the repository declares LF-canonical:", file=sys.stderr)
         for line in violations:
             print(f"  {line}", file=sys.stderr)
         print("", file=sys.stderr)
-        print(
-            "Fix the producer, not just the file: on Windows `pathlib.Path.write_text` and "
-            "`open(..., 'w')` translate \\n to \\r\\n unless you pass newline=''.",
-            file=sys.stderr,
-        )
-        print("Then renormalise:  git add --renormalize <path>", file=sys.stderr)
+        for line in remediation(violations):
+            print(line, file=sys.stderr)
         return 1
 
     return 0
