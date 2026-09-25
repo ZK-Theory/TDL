@@ -152,7 +152,11 @@ jobs:
       - name: Install dependencies from the lockfile
         run: uv sync --locked --extra dev
 
-      - name: Run merge-admission and CI platform controls
+      # The git-hook suites and the harness-hook controls run here too (2026-09-23 system
+      # review, Campaign D): a hook test outside every automatic path went stale when a gate
+      # was added and nothing noticed. The suites need Git Bash and skip without it, and a
+      # lane of skips exits green, so the JUnit report is checked for skips and for zero tests.
+      - name: Run merge-admission, CI platform, and hook controls
         run: >-
           .venv\Scripts\python.exe -m pytest -q
           tests/tools/test_merge_admission.py
@@ -160,4 +164,15 @@ jobs:
           tests/tools/test_admin_bypass_guard_hook.py
           tests/tools/test_ars_currency_workflow_controls.py
           tests/tools/test_check_workflow_liveness.py
+          tests/tools/test_pre_commit_hook.py
+          tests/tools/test_post_commit_repowise_hook.py
+          tests/tools/test_notation_guard_hook.py
+          tests/tools/test_dispatch_readiness_guard_hook.py
+          tests/tools/test_no_dot_git_hooks_writers.py
+          tests/tools/test_mutation_check.py
+          tests/tools/test_assert_no_skips.py
+          --junitxml=admission-controls.xml
           -o "addopts=" -p no:cacheprovider -p no:cov
+
+      - name: Refuse skipped or absent controls
+        run: .venv\Scripts\python.exe tools/assert_no_skips.py admission-controls.xml

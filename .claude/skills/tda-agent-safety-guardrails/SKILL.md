@@ -82,3 +82,20 @@ tier 2 skill first.
 Do not infer purity from names such as `validate`, `check`, or `ensure`. Before probing any helper, perform static inspection, a dry-run execution, or isolated sandboxing to determine whether it creates targets, writes directories, mutates registries, or acquires locks, and classify those effects before authorising the call.
 
 Before delivery, re-read the active guardrails and verify that every invoked helper's observed effects match its authorised phase and ownership boundary.
+
+## Testing Hooks And Gates
+
+- **A hook test drives the real hook** (the script under the same bash the harness uses)
+  and fails, not skips, when that bash is missing. CI runs the hook suites in
+  `admission-controls`, which refuses a JUnit report containing a skip or zero tests.
+- **Capture to files, never pipes, and always set a hard timeout** when a hook backgrounds
+  work. On Windows a backgrounded grandchild inherits the pipe handles, so
+  `capture_output=True` waits for that child to exit and the test deadlocks; a positive
+  control whose stand-in exits in milliseconds never shows it.
+- **Prove a new control discriminates.** Run `tools/mutation_check.py` with a mutant that
+  disables the rule the control guards and confirm it is CAUGHT. Where editing the guard is
+  not permitted, at least assert both directions (a deny case and an allow case) against
+  the same hook, and record the missing mutation run as a known gap.
+- **A pinned expectation of a gate's exact behaviour is updated in the same change as the
+  gate.** A hook test that pins the gate list went stale when a gate was added because
+  nothing ran it; it now runs in CI, so the miss fails the PR instead of rotting.

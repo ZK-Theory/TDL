@@ -95,6 +95,16 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_merge_admission.py",
     "tests/tools/test_ci_platform_policy.py",
     "tests/tools/test_admin_bypass_guard_hook.py",
+    # Hook and gate controls (2026-09-23 system review, Campaign D). The two git-hook suites
+    # went stale outside every automatic path (obs 2026-09-17-hook-test-outside-ci-rotted-
+    # after-a-gate-was-added); the two harness-hook suites replace a manual selftest and no test.
+    "tests/tools/test_pre_commit_hook.py",
+    "tests/tools/test_post_commit_repowise_hook.py",
+    "tests/tools/test_notation_guard_hook.py",
+    "tests/tools/test_dispatch_readiness_guard_hook.py",
+    "tests/tools/test_no_dot_git_hooks_writers.py",
+    "tests/tools/test_mutation_check.py",
+    "tests/tools/test_assert_no_skips.py",
 )
 
 
@@ -107,6 +117,14 @@ def test_admission_controls_run_in_a_blocking_windows_job() -> None:
     scripts = " ".join(step.get("run", "") for step in job["steps"])
     for module in ADMISSION_CONTROL_MODULES:
         assert module in scripts, f"admission-controls does not run {module}"
+
+
+def test_admission_controls_refuse_skipped_or_absent_controls() -> None:
+    """The hook suites skip without Git Bash, and a lane of skips exits green; the job must check."""
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"]["admission-controls"]
+    scripts = " ".join(step.get("run", "") for step in job["steps"])
+    assert "--junitxml=admission-controls.xml" in scripts
+    assert "tools/assert_no_skips.py admission-controls.xml" in scripts
 
 
 # Every file the gate's behaviour depends on. If a new gate file appears, it must

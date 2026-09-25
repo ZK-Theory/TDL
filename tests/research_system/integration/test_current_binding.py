@@ -32,14 +32,38 @@ _SOURCES = (
 )
 
 
+LONG_PATH_HINT = (
+    "git hit the Windows 260-character path limit under this fixture's tmp path "
+    "({length} characters). Use a short --basetemp (for example %TEMP%\\p3a) or enable "
+    "core.longpaths; this is an environment limit, not a code result."
+)
+
+
 def _git(root: Path, *arguments: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", str(root), *arguments],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    """Run git in ``root``; on failure raise with git's own stderr, never an anonymous error.
+
+    Obs 2026-09-13-basetemp-longpath: with ``check=True`` a deep parallel ``--basetemp`` broke
+    this fixture past the 260-character limit, the stderr naming it was captured and dropped,
+    and the failure read as a code defect. It cost ten minutes to diagnose.
+    """
+    result = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        message = f"git {' '.join(arguments)} failed in {root} (exit {result.returncode}): {result.stderr.strip()}"
+        if "too long" in result.stderr.lower():
+            message += "\n" + LONG_PATH_HINT.format(length=len(str(root)))
+        raise AssertionError(message)
     return result.stdout.strip()
+
+
+def test_fixture_git_failures_carry_gits_own_stderr(tmp_path: Path) -> None:
+    """The fixture helper must surface git's diagnosis, not swallow it."""
+    with pytest.raises(AssertionError, match="not a git repository"):
+        _git(tmp_path, "rev-parse", "HEAD")
+
+
+def test_the_long_path_hint_names_the_limit_and_the_remedy() -> None:
+    hint = LONG_PATH_HINT.format(length=231)
+    assert "260" in hint and "--basetemp" in hint and "core.longpaths" in hint
 
 
 def _write_json(path: Path, value: dict[str, object]) -> bytes:

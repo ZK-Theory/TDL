@@ -29,16 +29,18 @@ Follow the repository branch naming conventions:
 
 ### Hook enforcement
 
-+This repository requires commit prefixes on all commits and provides a git hook to enforce them.
-+A `commit-msg` hook validates commit prefixes automatically.
-+Branch naming conventions are recommended but not enforced by hooks.
-Install the provided helper script with:
+This repository requires commit prefixes on all commits. The tracked `.githooks/commit-msg`
+enforces them, alongside `pre-commit`, `prepare-commit-msg` and `pre-push`. Git reads hooks
+from `.githooks/` because the repository sets `core.hooksPath=.githooks`; anything placed in
+`.git/hooks/` is silently ignored, so nothing is ever installed there. Verify the hooks are
+live, and belong to this checkout, with:
 
 ```bash
-python .claude/hooks/install-git-hooks.py
+uv run python .claude/hooks/install-git-hooks.py
 ```
 
-This installs `.claude/hooks/git-commit-msg.sh` as `.git/hooks/commit-msg` and makes it executable.
+A fresh clone with no `core.hooksPath` set is activated with `--install`, which sets the
+clone-local `core.hooksPath=.githooks` and copies nothing.
 
 ### When to use this guidance
 
