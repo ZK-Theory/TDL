@@ -117,11 +117,13 @@ def test_spec_02_route_identities_are_deterministic_and_subject_bound():
     # Every SPEC-02 action names the same subjects, and free text is not identity.
     assert approve == prepare == start
     assert spec_assay.subject_ids(PROJECT_ID, {**spec_02_intent(spec_assay.START_02), "reason": "other"}) == start
-    other = spec_assay.subject_ids(PROJECT_ID, spec_02_intent(spec_assay.START_02, "obj_019fed25-b33e-7740-b280-000000000502"))  # fmt: skip
+    other_candidate = "obj_019fed25-b33e-7740-b280-000000000502"
+    other = spec_assay.subject_ids(PROJECT_ID, spec_02_intent(spec_assay.START_02, other_candidate))
     assert other["spike_id"] != start["spike_id"]
     # A Spike follows its Candidate's promoted Assay, which the route reads from the ledger rather than
     # derives, so no SPEC-02 identity is a SPEC-01 one and the SPEC-01 identities are unchanged.
-    spec_01 = spec_assay.subject_ids(PROJECT_ID, {"action": spec_assay.PREPARE, "reason": "x", "candidate_id": CANDIDATE})  # fmt: skip
+    prepare_01 = {"action": spec_assay.PREPARE, "reason": "x", "candidate_id": CANDIDATE}
+    spec_01 = spec_assay.subject_ids(PROJECT_ID, prepare_01)
     assert set(start) == {"candidate_id", "approval_id", "spec_02_brief_id", "spike_id", "execution_decision_id"}
     assert not (set(start.values()) & set(spec_01.values())) - {CANDIDATE}
 
@@ -492,8 +494,9 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
     _invoke(bound, tmp_path, capsys, approve_intent, approve_grant, OWNER, evidence=APPROVAL_EVIDENCE)
     # Nor does the start precede the brief, even once the approval is registered.
     plan_grant = _grant(bound, "RegisterSpikePlan", candidate_id, STEWARD)
-    assert "prepare_spec_02 to be completed first" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant,
-                                                              STEWARD, evidence=PLAN_EVIDENCE, refused=True)  # fmt: skip
+    unprepared = _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=PLAN_EVIDENCE,
+                         refused=True)  # fmt: skip
+    assert "prepare_spec_02 to be completed first" in unprepared
     _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER)
 
     # Neither the prospective producer nor the owner plans the Spike.
@@ -509,8 +512,9 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
         {key: value for key, value in box.items() if key != "memory_limit_mb"},
         {**box, "network_access": True},
     ):
-        assert "cost ceiling" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD,
-                                         evidence={**PLAN_EVIDENCE, "time_resource_box": over}, refused=True)  # fmt: skip
+        over_plan = {**PLAN_EVIDENCE, "time_resource_box": over}
+        assert "cost ceiling" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=over_plan,
+                                         refused=True)  # fmt: skip
     _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=PLAN_EVIDENCE)
     # A Lease the replay still marks active is not live once it has expired. The execution rows are
     # refused at the submission time they would be recorded at, so the route never records an authority
