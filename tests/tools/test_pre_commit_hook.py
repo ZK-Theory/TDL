@@ -274,7 +274,7 @@ def _repowise_fixture_repo(
     """
     repo = tmp_path / "repo"
     (repo / ".claude").mkdir(parents=True)
-    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "init", "-q", "-b", "fixture-branch")
     _git(repo, "config", "user.email", "hook-test@example.invalid")
     _git(repo, "config", "user.name", "Hook Test")
     _git(repo, "config", "core.autocrlf", "false")
@@ -528,3 +528,70 @@ def test_pre_commit_does_not_restore_against_an_updater_that_will_not_quiesce(tm
     assert RESTORED not in completed.stderr
     for path in REPOWISE_OWNED:
         assert (repo / path).read_bytes() != before[path], f"{path} was restored against a live updater"
+
+
+BRANCH_REFUSED = "commits on main are refused"
+BRANCH_OVERRIDDEN = "TDL_ALLOW_MAIN_COMMIT=1"
+
+
+def _branch_fixture_repo(tmp_path: Path, branch: str) -> tuple[Path, dict[str, str]]:
+    """A real repo on ``branch`` whose gates all pass, with one staged change."""
+    repo, env = _repowise_fixture_repo(tmp_path, ())
+    _write_fake_interpreter(repo, "")
+    if branch != "fixture-branch":
+        _git(repo, "checkout", "-q", "-b", branch)
+    (repo / "notes.md").write_text("one\ntwo\n", encoding="utf-8", newline="\n")
+    _git(repo, "add", "notes.md")
+    env.pop("TDL_ALLOW_MAIN_COMMIT", None)
+    return repo, env
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_a_commit_on_main(tmp_path: Path) -> None:
+    """Obs 2026-09-08-concurrent-session-branch-switch: a commit on main is refused before any gate runs."""
+    repo, env = _branch_fixture_repo(tmp_path, "main")
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 1, completed.stderr
+    assert BRANCH_REFUSED in completed.stderr
+    assert BRANCH_OVERRIDDEN in completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_admits_the_same_commit_on_a_feature_branch(tmp_path: Path) -> None:
+    """Positive control: the identical staged change passes on a non-main branch."""
+    repo, env = _branch_fixture_repo(tmp_path, "fixture-branch")
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 0, completed.stderr
+    assert BRANCH_REFUSED not in completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_admits_main_only_with_the_explicit_override_and_says_so(tmp_path: Path) -> None:
+    """The override works, and its use leaves a visible signal rather than passing silently."""
+    repo, env = _branch_fixture_repo(tmp_path, "main")
+    env["TDL_ALLOW_MAIN_COMMIT"] = "1"
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 0, completed.stderr
+    assert "override" in completed.stderr
+    assert BRANCH_OVERRIDDEN in completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_admits_a_detached_head(tmp_path: Path) -> None:
+    """Rebases and cherry-picks commit on a detached HEAD; the gate guards the main branch only."""
+    repo, env = _branch_fixture_repo(tmp_path, "fixture-branch")
+    _git(repo, "checkout", "-q", "--detach")
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 0, completed.stderr

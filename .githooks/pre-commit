@@ -14,6 +14,7 @@
 # worktree.
 #
 # Gates, in order — the first failure blocks the commit:
+#  -1. Branch admission: no commit on main without TDL_ALLOW_MAIN_COMMIT=1.
 #   0. Dual-tree skill sync: .agents/skills/ (authoring source) and .claude/skills/
 #      must stay mirrored, or a research-assurance skill is invisible to one runtime.
 #   1. ruff lint + format, via the pre-commit framework (.pre-commit-config.yaml).
@@ -39,6 +40,28 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$REPO_ROOT" ]; then
   echo "ERROR: pre-commit could not locate the repo root via git rev-parse." >&2
   exit 2
+fi
+
+# Gate -1 — branch admission. Work reaches main only through a reviewed PR, so a
+# local commit on main is always a mistake, most often a shared working directory
+# whose HEAD another session moved (obs 2026-09-08-concurrent-session-branch-switch:
+# a session verified its branch, another session checked out main, and the next
+# commit landed on main with every gate passing). Checking the branch earlier in the
+# task does not survive that, so the check lives in the commit path. It runs first,
+# before any snapshot, so a refusal leaves the tree exactly as it was. A detached
+# HEAD (rebase, cherry-pick) is admitted: the guard is for the main branch only.
+_current_branch=$(git symbolic-ref -q --short HEAD 2>/dev/null)
+if [ "$_current_branch" = "main" ]; then
+  if [ "${TDL_ALLOW_MAIN_COMMIT:-}" = "1" ]; then
+    echo "pre-commit: committing on main under the TDL_ALLOW_MAIN_COMMIT=1 override." >&2
+  else
+    echo "" >&2
+    echo "pre-commit: commits on main are refused — commit blocked." >&2
+    echo "HEAD is on main. If you expected a feature branch, another session may have" >&2
+    echo "moved HEAD in a shared working directory: check 'git reflog -5' before anything else." >&2
+    echo "Deliberate owner-only exception: TDL_ALLOW_MAIN_COMMIT=1 git commit ..." >&2
+    exit 1
+  fi
 fi
 
 # Snapshot unstaged changes to tracked files before running any gate. These
