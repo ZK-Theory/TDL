@@ -179,9 +179,11 @@ dispatch. Close each of these before writing the brief:
   closed enum or record, list everything later sub-phases will add. Either size it
   to that list now, or record the planned version bumps as an accepted decision.
 - **Cited paths resolve where the worker starts.** Run
-  `python tools/check_brief_paths.py <brief> --ref origin/main` (or
-  `manager_dispatch_check --brief <brief>`). A path held only on an unmerged
-  branch is cited together with that branch or PR.
+  `python tools/check_brief_paths.py <brief> --ref <worker start ref>` (or
+  `manager_dispatch_check --brief <brief>`, which defaults to the workspace's
+  HEAD and fails when no brief is given without a `--no-brief` reason). A path
+  held only on an unmerged branch is cited with that branch in backticks on
+  the same line (read `path` from branch `name`).
 - **Probes use the public entry point.** A design-pass probe that measures a planned
   public action goes through the entry point the public tests use, or states which
   entry point and which clock it used.
@@ -222,7 +224,7 @@ dispatch. Close each of these before writing the brief:
 - [ ] Brief-to-mechanism correspondence closed: role words cite their
       enforcement, spec actor columns diffed, historical field sources named,
       inherited action lists scoped, closed records sized, and
-      `check_brief_paths.py` passes on `origin/main`.
+      `check_brief_paths.py` passes on the worker's start ref.
 - [ ] Stop conditions included.
 
 ## Escalate Or Stop When

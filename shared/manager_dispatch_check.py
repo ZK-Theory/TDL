@@ -30,7 +30,12 @@ Usage::
         --branch run/b9-b10-recompute --mode parallel \\
         --expected-base <required-prerequisite-ref> \\
         --state-manifest contracts/manifests/dispatch-state/panel-statistics.yaml \\
-        --provenance-manifest contracts/manifests/input-provenance/b9-om-gmm-inputs.yaml
+        --provenance-manifest contracts/manifests/input-provenance/b9-om-gmm-inputs.yaml \\
+        --brief .apm/bus/panel-statistics-agent/draft-task.md
+
+Every cited path in the brief must resolve on the commit the Worker starts from (the workspace's
+HEAD unless ``--brief-ref`` says otherwise). With no brief file, ``--no-brief '<reason>'`` records
+why; omitting both fails the ``brief-paths`` check.
 
 Exit codes:
     0 — every applicable prerequisite passed; the Task is dispatch-ready.
@@ -295,13 +300,43 @@ def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     present only on an open PR branch. A Worker starts from the base ref, so a path it is told to
     read must exist there, or the brief must say which branch holds it.
     """
-    from tools.check_brief_paths import cited_paths, unresolved
+    from tools.check_brief_paths import citations, unresolved
 
-    paths = cited_paths(brief.read_text(encoding="utf-8"))
-    problems = unresolved(paths, repo_root, ref, brief=brief)
+    cited = citations(brief.read_text(encoding="utf-8"))
+    problems = unresolved(cited, repo_root, ref, brief=brief)
     if problems:
         return Check("brief-paths", False, f"{brief.name}: " + "; ".join(problems))
-    return Check("brief-paths", True, f"{brief.name}: {len(paths)} cited path(s) resolve on {ref}")
+    return Check("brief-paths", True, f"{brief.name}: {len(cited)} cited path(s) resolve on {ref}")
+
+
+def brief_checks(briefs: list[str], no_brief: str | None, repo_root: Path, ref: str) -> list[Check]:
+    """Check every brief, or record why none is checked; silence is not an option at the dispatch seam.
+
+    Without this, a dispatch run with no ``--brief`` passes having checked nothing (Codex review on
+    PR #305). The brief is checked as drafted, before the Task Prompt goes to the bus.
+    """
+    if briefs:
+        return [check_brief_paths(Path(brief), repo_root, ref) for brief in briefs]
+    if no_brief and no_brief.strip():
+        return [Check("brief-paths", True, f"no brief checked, by stated reason: {no_brief.strip()}")]
+    return [
+        Check(
+            "brief-paths",
+            False,
+            "no brief checked: pass --brief <drafted Task Prompt or handoff> (draft it before this gate), "
+            "or --no-brief '<reason>' when the dispatch has no brief file",
+        )
+    ]
+
+
+def workspace_head(workspace: Path) -> str:
+    """Return the commit the Worker starts from: the workspace's HEAD."""
+    head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"], cwd=workspace, capture_output=True, text=True, check=False
+    )
+    if head.returncode != 0 or not head.stdout.strip():
+        raise ValueError(f"cannot resolve HEAD in {workspace}; pass --brief-ref explicitly")
+    return head.stdout.strip()
 
 
 def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) -> list[Check]:
@@ -663,9 +698,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--brief",
         action="append",
         default=[],
-        help="Task brief or handoff to check: every cited repo path must resolve on --brief-ref. Repeatable.",
+        help="Task brief or handoff to check: every cited repo path must resolve on --brief-ref. Repeatable. "
+        "Required unless --no-brief gives a reason.",
     )
-    p.add_argument("--brief-ref", default="origin/main", help="Ref a dispatched Worker starts from.")
+    p.add_argument("--no-brief", default=None, metavar="REASON", help="Dispatch with no brief file, and why.")
+    p.add_argument(
+        "--brief-ref",
+        default=None,
+        help="Ref a dispatched Worker starts from. Default: the workspace's HEAD, the commit it actually starts on.",
+    )
     return p.parse_args(argv)
 
 
@@ -691,7 +732,12 @@ def main(argv: list[str] | None = None) -> int:
     if not state_path.is_absolute():
         state_path = workspace / state_path
     checks.extend(check_state_manifest(state_path, workspace, proj_root))
-    checks.extend(check_brief_paths(Path(brief), proj_root, args.brief_ref) for brief in args.brief)
+    try:
+        brief_ref = args.brief_ref or workspace_head(workspace)
+    except ValueError as exc:
+        checks.append(Check("brief-paths", False, str(exc)))
+    else:
+        checks.extend(brief_checks(args.brief, args.no_brief, proj_root, brief_ref))
 
     print(render(args.agent, args.branch, args.mode, checks))
     if all(c.ok for c in checks):

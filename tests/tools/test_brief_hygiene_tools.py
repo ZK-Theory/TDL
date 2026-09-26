@@ -100,17 +100,92 @@ def test_refs_branch_namespaces_and_brief_relative_paths_are_not_false_positives
     _git(repo, "branch", "codex/topic")
     brief = repo / "docs" / "notes" / "brief.md"
     brief.parent.mkdir()
-    brief.write_text(
-        "Base on `main`, branch from `codex/`, read `docs/plan.md` and `notes/../plan.md`.\n", newline="\n"
-    )
-    (repo / "docs" / "notes" / "local.md").write_text("x\n", newline="\n")
+    (repo / "docs" / "notes" / "sub").mkdir()
+    (repo / "docs" / "notes" / "sub" / "local.md").write_text("x\n", newline="\n")
+    brief.write_text("x\n", newline="\n")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "--no-verify", "-m", "brief")
-    brief.write_text("Base on `refs/heads/main`, branch from `codex/`, see `notes/local.md`.\n", newline="\n")
+    brief.write_text(
+        "Base on `refs/heads/main`, branch from `codex/`, see `sub/local.md` and `../plan.md`.\n", newline="\n"
+    )
 
     result = _check(repo, brief)
 
     assert result.returncode == 0, result.stderr
+
+
+def test_a_path_resolving_only_under_an_ancestor_of_the_brief_is_reported(repo: Path) -> None:
+    """Only the repository root and the brief's own directory are readings a Worker would try."""
+    brief = repo / "docs" / "notes" / "brief.md"
+    brief.parent.mkdir()
+    (repo / "docs" / "notes" / "local.md").write_text("x\n", newline="\n")
+    brief.write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "brief")
+    brief.write_text("See `notes/local.md`.\n", newline="\n")
+
+    result = _check(repo, brief)
+
+    assert result.returncode == 1
+    assert "notes/local.md: not at the repository root or beside the brief" in result.stderr
+    assert "docs/notes/local.md" in result.stderr, "the full path it probably meant is named"
+
+
+@pytest.mark.parametrize("anchor", [":2", ":1-2", "#L2", "#L1-L2"])
+def test_line_anchors_are_dropped_before_resolving(repo: Path, anchor: str) -> None:
+    result = _check(repo, _brief(repo, f"See `tools/a.py{anchor}`.\n"))
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_root_level_files_are_checked(repo: Path) -> None:
+    """A slash-less file name was ignored, so a missing root file passed as '0 cited path(s)'."""
+    (repo / "AGENTS.md").write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "agents")
+
+    missing = _check(repo, _brief(repo, "Read `AGENTS.md` and `MISSING.md`.\n"))
+    generic = _check(repo, _brief(repo, "Every `plan.md` must say so; then read `AGENTS.md`.\n"))
+
+    assert missing.returncode == 1
+    assert "MISSING.md: absent from main" in missing.stderr
+    assert "AGENTS.md" not in missing.stderr
+    assert generic.returncode == 0, "a bare name some file on the ref carries is a kind of file, not a citation"
+
+
+def test_a_branch_qualified_citation_is_accepted(repo: Path) -> None:
+    """The remedy the tool prints must clear it: name the holding branch on the same line."""
+    result = _check(repo, _brief(repo, "Read `docs/handoff.md` from branch `docs/handoff`.\n"))
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_naming_a_branch_that_does_not_hold_the_path_does_not_qualify_it(repo: Path) -> None:
+    _git(repo, "branch", "docs/other", "main")
+    result = _check(repo, _brief(repo, "Read `docs/handoff.md` from branch `docs/other`.\n"))
+
+    assert result.returncode == 1
+
+
+def test_dispatch_check_requires_a_brief_or_a_stated_reason(repo: Path) -> None:
+    from shared.manager_dispatch_check import brief_checks
+
+    (none,) = brief_checks([], None, repo, "main")
+    (waived,) = brief_checks([], "sequential hot-fix, prompt written inline", repo, "main")
+
+    assert none.name == "brief-paths" and not none.ok
+    assert waived.ok and "sequential hot-fix" in waived.detail
+
+
+def test_dispatch_check_defaults_to_the_workspace_head(repo: Path) -> None:
+    """A stacked branch not cut from main is checked on the commit the Worker actually starts from."""
+    from shared.manager_dispatch_check import brief_checks, workspace_head
+
+    _git(repo, "checkout", "-q", "docs/handoff")
+    brief = [str(_brief(repo, "Read `docs/handoff.md`.\n"))]
+
+    assert brief_checks(brief, None, repo, workspace_head(repo))[0].ok
+    assert not brief_checks(brief, None, repo, "main")[0].ok
 
 
 def test_dispatch_check_reports_brief_paths_as_a_named_check(repo: Path) -> None:
