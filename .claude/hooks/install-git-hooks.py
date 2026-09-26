@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -70,6 +71,68 @@ def active_hooks_dir() -> tuple[str, Path]:
         return configured, REPO_ROOT / ".git" / "hooks"
     path = Path(configured)
     return configured, path if path.is_absolute() else REPO_ROOT / path
+
+
+def foreign_hooks_problem(hooks_dir: Path) -> str | None:
+    """Return a problem when the active hook directory lies outside this checkout's own tree.
+
+    A present, executable hook proves a hook will run, not that it is THIS branch's hook
+    (obs 2026-09-17-worktree-scoped-hookspath-runs-main-checkout-hooks). Desktop-session
+    worktrees carried an absolute `core.hooksPath` in `config.worktree` pointing at the main
+    checkout's `.githooks`, so a commit there ran the main checkout's hook bytes and a hook fix
+    on the branch never executed at commit time. Tracked hooks must resolve inside the tree.
+    """
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], cwd=REPO_ROOT, capture_output=True, text=True, check=False
+    ).stdout.strip()
+    if not toplevel:
+        return None
+    root = Path(toplevel).resolve()
+    if hooks_dir.resolve().is_relative_to(root):
+        return None
+    scope = subprocess.run(
+        ["git", "config", "--show-scope", "--show-origin", "--get", "core.hooksPath"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    return (
+        f"active hook directory {hooks_dir} is outside this checkout ({root}); commits here run "
+        f"another checkout's hook bytes. Set by: {scope or 'unknown'}. Fix it where it was set, "
+        f"so the tracked .githooks resolves here: {hookspath_remedy(REPO_ROOT)}"
+    )
+
+
+def hookspath_remedy(checkout: Path) -> str:
+    """Return the command that clears a foreign core.hooksPath in the config scope that set it.
+
+    `--worktree` edits only config.worktree, so it cannot clear a value that comes from the
+    shared local config or the global one. The local scope is the repository's own binding, so
+    it is reset to the relative `.githooks` rather than unset, which would disable the hooks. A
+    global or system value is overridden with that same local setting, never removed: other
+    repositories on the machine may rely on it.
+    """
+    scope = (
+        subprocess.run(
+            ["git", "config", "--show-scope", "--get", "core.hooksPath"],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.split("\t", 1)[0]
+        .strip()
+    )
+    fixes = {
+        "worktree": ["--worktree", "--unset", "core.hooksPath"],
+        "local": ["--local", "core.hooksPath", ".githooks"],
+        "global": ["--local", "core.hooksPath", ".githooks"],
+        "system": ["--local", "core.hooksPath", ".githooks"],
+    }
+    if scope in fixes:
+        return shlex.join(["git", "-C", str(checkout), "config", *fixes[scope]])
+    return f"core.hooksPath comes from scope '{scope or 'unknown'}' (a -c option or GIT_CONFIG_* variable); remove it there"
 
 
 def make_executable(path: Path) -> None:
@@ -143,6 +206,12 @@ def verify(install: bool = False) -> int:
     print(f"active hooks   : {hooks_dir}")
 
     problems: list[str] = []
+
+    foreign = foreign_hooks_problem(hooks_dir)
+    if foreign:
+        print("\nFAIL — the hook gate is not this checkout's:", file=sys.stderr)
+        print(f"  - {foreign}", file=sys.stderr)
+        return 1
 
     if not hooks_dir.is_dir():
         # Deliberately NOT created here, even under --install. .githooks/ is tracked,
