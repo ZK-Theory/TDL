@@ -12,6 +12,11 @@ name: Merge Admission Sweep
 #     is re-run, so current thread state replaces the stale success on the same
 #     commit.
 #
+# Reactions trigger no workflow either, and Codex's clean signal is a +1 reaction.
+# A pull request with no live thread whose admission check failed before a review
+# producer's +1 arrived gets that run re-run, so the +1 is read on the same head
+# (Codex review on PR #304). The re-run completes after the +1, so it is not repeated.
+#
 # The window is the cron interval plus GitHub's best-effort scheduling delay,
 # typically 5-10 minutes. Chosen by Stephen on 2026-09-11 over relying on the
 # queue-time check alone. Scheduled workflows run only from the default branch,
@@ -89,13 +94,14 @@ jobs:
                       id
                       mergeQueueEntry{ id }
                       reviewThreads(first:100){ pageInfo{hasNextPage} nodes{ isResolved isOutdated } }
+                      reactions(first:100, content:THUMBS_UP){ pageInfo{hasNextPage} nodes{ content createdAt user{login} } }
                       commits(last:1){
                         pageInfo{hasNextPage}
                         nodes{ commit{ oid statusCheckRollup{ contexts(first:50){
                           pageInfo{hasNextPage}
                           nodes{
                             __typename
-                            ... on CheckRun{ databaseId name status conclusion checkSuite{ workflowRun{ databaseId file{path} } } }
+                            ... on CheckRun{ databaseId name status conclusion completedAt checkSuite{ workflowRun{ databaseId file{path} } } }
                           }
                         } } } }
                       }
@@ -123,7 +129,7 @@ jobs:
                 ;;
               rerun)
                 gh run rerun "$target"
-                echo "::warning::Re-ran merge-admission run ${target} for PR #${number}: a live review thread outlived its success."
+                echo "::warning::Re-ran merge-admission run ${target} for PR #${number}: a live thread outlived its success, or a producer +1 arrived after its failure."
                 ;;
               *)
                 echo "BLOCKED: unknown sweep action '${action}'" >&2

@@ -202,49 +202,86 @@ def _producer_state(
     if any(_login(_review_login(r)) == producer and _review_commit(r) == candidate_sha for r in reviews):
         return None
     arrived = _first_check_started(pull_request, candidate_sha)
-    reactions = pull_request.get("reactions")
-    plus_ones = [
-        _parse_timestamp(reaction.get("createdAt"), "reaction createdAt")
-        for reaction in (_require_nodes(reactions, "pullRequest.reactions") if reactions is not None else [])
-        if reaction.get("content") == "THUMBS_UP" and _login((reaction.get("user") or {}).get("login")) == producer
-    ]
-    if plus_ones:
-        if arrived is None:
-            return (
-                f"{producer} left a +1, but no check run has started on the candidate, so the reaction cannot be "
-                "bound to this head; wait for CI to start, then re-run admission"
-            )
-        if max(plus_ones) <= arrived:
-            return (
-                f"{producer}'s +1 predates this head (its first check started {arrived.isoformat()}), so it "
-                "describes an earlier head; comment '@codex review' so this head is reviewed"
-            )
+    plus_ones = _producer_plus_ones(pull_request, producer)
+    current = [at for at in plus_ones if arrived is not None and at > arrived]
+    if current:
+        # Only a foreign review submitted after the accepted +1 makes its target ambiguous; one submitted
+        # between this head's arrival and the +1 is older than the signal being accepted.
+        accepted = max(current)
         later_foreign = [
             r
             for r in reviews
             if _login(_review_login(r)) == producer
             and _review_commit(r) != candidate_sha
             and r.get("submittedAt")
-            and _parse_timestamp(r["submittedAt"], "review submittedAt") > arrived
+            and _parse_timestamp(r["submittedAt"], "review submittedAt") > accepted
         ]
-        if later_foreign:
-            return (
-                f"{producer} left a +1 after this head arrived, but a later review of theirs names another commit, "
-                "so the reaction's target is ambiguous; comment '@codex review' for a review of this head"
-            )
-        return None
+        if not later_foreign:
+            return None
+        return (
+            f"{producer} left a +1 after this head arrived, but a later review of theirs names another commit, "
+            "so the reaction's target is ambiguous; comment '@codex review' for a review of this head"
+        )
+    # No current +1. Quota on this head is checked before any stale-reaction diagnosis: it changes the
+    # remedy (wait for the reset or record a waiver) whatever an earlier head received.
+    quota = _quota_state(pull_request, producer, arrived)
+    if quota is not None:
+        return quota
+    if plus_ones and arrived is None:
+        return (
+            f"{producer} left a +1, but no check run has started on the candidate, so the reaction cannot be "
+            "bound to this head; wait for CI to start, then re-run admission"
+        )
+    if plus_ones:
+        return (
+            f"{producer}'s +1 predates this head (its first check started {arrived.isoformat()}), so it "
+            "describes an earlier head; comment '@codex review' so this head is reviewed"
+        )
+    return f"{producer} has not reviewed or reacted on this head; comment '@codex review' to request a review"
+
+
+def _producer_plus_ones(pull_request: Mapping[str, Any], producer: str) -> list[datetime]:
+    """Return the creation times of ``producer``'s +1 reactions on the pull request."""
+    reactions = pull_request.get("reactions")
+    return [
+        _parse_timestamp(reaction.get("createdAt"), "reaction createdAt")
+        for reaction in (_require_nodes(reactions, "pullRequest.reactions") if reactions is not None else [])
+        if reaction.get("content") == "THUMBS_UP" and _login((reaction.get("user") or {}).get("login")) == producer
+    ]
+
+
+def _quota_state(pull_request: Mapping[str, Any], producer: str, arrived: datetime | None) -> str | None:
+    """Name a usage-limit reply on this head, or refuse when the comment window cannot rule one out.
+
+    The snapshot holds the last 50 comments. When earlier ones exist and even the oldest fetched comment
+    is newer than this head's arrival, a quota reply could sit in the unfetched part, so the state is
+    reported unknown rather than guessed as untriggered.
+    """
     comments = pull_request.get("comments")
-    for comment in (comments or {}).get("nodes") or [] if isinstance(comments, Mapping) else []:
-        if not isinstance(comment, Mapping) or _login((comment.get("author") or {}).get("login")) != producer:
+    if comments is None or arrived is None:
+        return None
+    connection = _require_mapping(comments, "pullRequest.comments")
+    nodes = [node for node in connection.get("nodes") or [] if isinstance(node, Mapping)]
+    for comment in nodes:
+        if _login((comment.get("author") or {}).get("login")) != producer:
             continue
         created = _parse_timestamp(comment.get("createdAt"), "comment createdAt")
         body = str(comment.get("body") or "").lower()
-        if arrived is not None and created > arrived and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
+        if created > arrived and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
             return (
                 f"{producer} hit its usage limit on this head ({created.isoformat()}) and will not review it "
                 "automatically; comment '@codex review' once the quota resets, or record an owner waiver"
             )
-    return f"{producer} has not reviewed or reacted on this head; comment '@codex review' to request a review"
+    page_info = connection.get("pageInfo")
+    if not isinstance(page_info, Mapping) or not isinstance(page_info.get("hasPreviousPage"), bool):
+        raise ValueError("pullRequest.comments is missing pageInfo.hasPreviousPage; comment completeness is unknown")
+    oldest = min((_parse_timestamp(c.get("createdAt"), "comment createdAt") for c in nodes), default=None)
+    if page_info["hasPreviousPage"] and (oldest is None or oldest > arrived):
+        return (
+            f"more comments arrived on this head than the snapshot holds, so whether {producer} replied with a "
+            "usage limit is unknown; read the pull request's comments since this head before choosing a remedy"
+        )
+    return None
 
 
 def evaluate_thread_finality(
@@ -709,13 +746,55 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
     failing re-run already reflects the live thread, and re-running the old
     success would be noise (Codex review 3990012209).
     """
+    latest = _latest_gate_check(pull_request, gate=gate, what=what)
+    if latest is None or latest[0].get("conclusion") != "SUCCESS":
+        return []
+    return [_gate_run_id(latest[1], gate=gate, what=what)]
+
+
+def _gate_run_id(run: Mapping[str, Any], *, gate: SweepGate, what: str) -> int:
+    run_id = run.get("databaseId")
+    if not isinstance(run_id, int) or isinstance(run_id, bool):
+        raise ValueError(f"{what}: a {gate.check_run} check carries no workflow run id, so it cannot be re-run")
+    return run_id
+
+
+def _failed_gate_run_before_plus_one(
+    pull_request: Mapping[str, Any], *, gate: SweepGate, producers: Sequence[str], what: str
+) -> list[int]:
+    """Return the run id of a failed admission check that a producer's +1 arrived after.
+
+    Codex's clean signal is a reaction, and reactions trigger no workflow, so a head whose admission
+    failed as untriggered before the +1 arrived would stay failed (Codex review on PR #304). The re-run
+    evaluates the same head again; the evaluator still decides whether the +1 binds to it. After the
+    re-run completes, the +1 is older than the new completion, so the sweep does not repeat itself.
+    """
+    latest = _latest_gate_check(pull_request, gate=gate, what=what)
+    if latest is None or latest[0].get("conclusion") != "FAILURE" or not latest[0].get("completedAt"):
+        return []
+    completed = _parse_timestamp(latest[0]["completedAt"], f"{what} {gate.check_run} completedAt")
+    reactions = pull_request.get("reactions")
+    if reactions is None:
+        raise ValueError(f"{what}.reactions is absent; a clean +1 after the failed check cannot be ruled out")
+    connection = _require_mapping(reactions, f"{what}.reactions")
+    if not isinstance(connection.get("pageInfo"), Mapping) or connection["pageInfo"].get("hasNextPage") is not False:
+        raise ValueError(f"{what}.reactions is truncated or missing pageInfo; reaction evidence is incomplete")
+    if any(at > completed for producer in producers for at in _producer_plus_ones(pull_request, producer)):
+        return [_gate_run_id(latest[1], gate=gate, what=what)]
+    return []
+
+
+def _latest_gate_check(
+    pull_request: Mapping[str, Any], *, gate: SweepGate, what: str
+) -> tuple[Mapping[str, Any], Mapping[str, Any]] | None:
+    """Return (check run, workflow run) for the head's latest admission check attempt, or None."""
     commits = _require_nodes(pull_request.get("commits"), f"{what}.commits")
     if len(commits) != 1:
         raise ValueError(f"{what}: expected exactly one tip commit, got {len(commits)}")
     commit = _require_mapping(commits[0].get("commit"), f"{what} head commit")
     rollup = commit.get("statusCheckRollup")
     if rollup is None:
-        return []
+        return None
     contexts = _require_nodes(_require_mapping(rollup, f"{what} statusCheckRollup").get("contexts"), f"{what} contexts")
     latest: Mapping[str, Any] | None = None
     latest_run: Mapping[str, Any] | None = None
@@ -732,12 +811,9 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
             raise ValueError(f"{what}: a {gate.check_run} check carries no databaseId; its latest attempt is unknown")
         if latest is None or check_id > latest["databaseId"]:
             latest, latest_run = context, run
-    if latest is None or latest_run is None or latest.get("conclusion") != "SUCCESS":
-        return []
-    run_id = latest_run.get("databaseId")
-    if not isinstance(run_id, int) or isinstance(run_id, bool):
-        raise ValueError(f"{what}: a green {gate.check_run} check carries no workflow run id, so it cannot be re-run")
-    return [run_id]
+    if latest is None or latest_run is None:
+        return None
+    return latest, latest_run
 
 
 SweepListing = Mapping[str, Any] | Sequence[Mapping[str, Any]]
@@ -781,7 +857,7 @@ def _paginated_pull_requests(listing: SweepListing) -> list[Mapping[str, Any]]:
     return pulls
 
 
-def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
+def sweep_actions(payload: SweepListing, *, gate: SweepGate, producers: Sequence[str] = ()) -> list[str]:
     """Return what a scheduled sweep must do for open pull requests with live threads.
 
     Reopening a resolved thread (``unresolveReviewThread``) emits no Actions
@@ -793,14 +869,19 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
     - ``rerun <workflow-run-id> <number>`` for each currently green admission
       check on its head, so the re-run replaces that success on the same commit.
 
-    Pull requests with no live thread, and admission checks that are already
-    failing or still running, need nothing and yield nothing, so repeated sweeps
-    do not pile up re-runs.
+    A pull request with no live thread whose latest admission check failed, and
+    which a configured producer +1'd after that failure completed, yields
+    ``rerun <workflow-run-id> <number>``: reactions trigger no workflow, so a
+    clean +1 arriving after the only evaluation would otherwise never be read.
+
+    Anything else, including checks still running, yields nothing, so repeated
+    sweeps do not pile up re-runs.
 
     Args:
         payload: ``gh api graphql`` response listing open pull requests, or the
             list of page responses from ``--paginate --slurp``.
         gate: The admission check to re-run.
+        producers: Review producers whose +1 re-runs a failed admission check.
 
     Returns:
         Action lines in pull-request order.
@@ -817,6 +898,13 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
             raise ValueError("a repository.pullRequests node is missing its number")
         what = f"pull request #{number}"
         if _live_thread_count(pull_request, what) == 0:
+            if producers:
+                actions.extend(
+                    f"rerun {run_id} {number}"
+                    for run_id in _failed_gate_run_before_plus_one(
+                        pull_request, gate=gate, producers=producers, what=what
+                    )
+                )
             continue
         pull_request_id = pull_request.get("id")
         if not isinstance(pull_request_id, str) or not pull_request_id:
@@ -939,7 +1027,8 @@ def main(argv: list[str] | None = None) -> int:
             listing = json.loads(args.snapshot.read_text(encoding="utf-8"))
             if not isinstance(listing, (Mapping, list)):
                 raise ValueError("--snapshot must contain a JSON object or a list of page objects")
-            verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config)))
+            producers = _string_list(_section(config, "thread_finality"), "review_producers")
+            verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config), producers=producers))
         elif args.gate == "queue-disposition":
             verdict = queue_disposition(
                 _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")

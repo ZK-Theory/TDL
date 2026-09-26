@@ -267,7 +267,7 @@ jobs:
                         pageInfo{hasNextPage}
                         nodes{ content createdAt user{login} }
                       }
-                      comments(last:50){ nodes{ createdAt body author{login} } }
+                      comments(last:50){ pageInfo{hasPreviousPage} nodes{ createdAt body author{login} } }
                       commits(last:1){ pageInfo{hasNextPage} nodes{ commit{ ...platformChecks } } }
                     }
                     platformCommit: object(oid:$platformSha){ ...platformChecks }

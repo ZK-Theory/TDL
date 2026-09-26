@@ -205,7 +205,7 @@ def _without_codex_review(snapshot: dict[str, Any], *, started_at: str | None = 
         if context.get("__typename") == "CheckRun":
             context["startedAt"] = started_at
     pull_request["reactions"] = {"pageInfo": {"hasNextPage": False}, "nodes": []}
-    pull_request["comments"] = {"nodes": []}
+    pull_request["comments"] = {"pageInfo": {"hasPreviousPage": False}, "nodes": []}
     return snapshot
 
 
@@ -272,6 +272,51 @@ def test_a_codex_review_naming_another_commit_after_the_push_voids_the_plus_one(
         _thread_finality(snapshot, config)
 
 
+def test_a_foreign_review_older_than_the_accepted_plus_one_does_not_void_it(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """A review of the previous commit that lands after this head's first check but before the +1 is older than
+    the signal being accepted; only a review after the +1 makes its target ambiguous."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:40:00Z")
+    _pull_request(snapshot)["reviews"]["nodes"].append(
+        {
+            "state": "COMMENTED",
+            "submittedAt": "2026-08-23T07:32:00Z",
+            "author": {"login": "chatgpt-codex-connector"},
+            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
+        }
+    )
+    _thread_finality(snapshot, config)
+
+
+def test_quota_on_this_head_outranks_a_stale_plus_one(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """An earlier head's +1 must not hide that this head hit the usage limit: the remedy differs."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
+    _comment(snapshot, at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
+    with pytest.raises(ValueError, match=r"usage limit.*waiver"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_comment_window_that_cannot_reach_this_heads_arrival_is_not_called_untriggered(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """More than 50 comments since the push: a quota reply may be in the unfetched part, so the state is unknown."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:50:00Z", body="a later discussion comment")
+    _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
+    with pytest.raises(ValueError, match="usage limit is unknown"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_comment_window_that_reaches_back_past_this_heads_arrival_is_complete(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """Earlier pages exist, but the fetched window already covers everything since the push."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:00:00Z", body="an older comment")
+    _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
+    with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, config)
+
+
 def test_a_usage_limit_on_this_head_is_named_with_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """Quota is not 'still reviewing': the head will never be reviewed automatically."""
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
@@ -305,7 +350,7 @@ def test_a_clean_plus_one_does_not_excuse_a_live_thread(snapshot: dict[str, Any]
 def test_the_admission_snapshot_requests_reactions_comments_and_check_start_times() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "reactions(first:100, content:THUMBS_UP)" in workflow
-    assert "comments(last:50)" in workflow
+    assert "comments(last:50){ pageInfo{hasPreviousPage}" in workflow
     assert "startedAt" in workflow
 
 
@@ -958,6 +1003,47 @@ def _open_pull_request(
 def _sweep_payload(*pulls: dict[str, Any], truncated: bool = False) -> dict[str, Any]:
     """Return the sweep query response wrapping the given pull requests."""
     return {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": truncated}, "nodes": list(pulls)}}}}
+
+
+PRODUCERS = ["chatgpt-codex-connector"]
+GATE_FAILED_AT = "2026-09-25T17:00:00Z"
+
+
+def _failed_then_reacted(plus_one_at: str | None, login: str = CODEX_BOT) -> dict[str, Any]:
+    """An open PR, no live thread, whose admission check failed at GATE_FAILED_AT, with an optional +1."""
+    pull_request = _open_pull_request(live=0, conclusion="FAILURE")
+    gate = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"][0]
+    gate["completedAt"] = GATE_FAILED_AT
+    nodes = (
+        [] if plus_one_at is None else [{"content": "THUMBS_UP", "createdAt": plus_one_at, "user": {"login": login}}]
+    )
+    pull_request["reactions"] = {"pageInfo": {"hasNextPage": False}, "nodes": nodes}
+    return pull_request
+
+
+def test_a_plus_one_after_a_failed_admission_re_runs_it(config: dict[str, Any]) -> None:
+    """Reactions trigger no workflow: without this, a clean +1 after the only evaluation is never read."""
+    listing = _sweep_payload(_failed_then_reacted("2026-09-25T17:05:00Z"))
+    assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == [f"rerun {GATE_RUN_ID} 278"]
+
+
+@pytest.mark.parametrize(
+    ("plus_one_at", "login"),
+    [(None, CODEX_BOT), ("2026-09-25T16:55:00Z", CODEX_BOT), ("2026-09-25T17:05:00Z", "stephendor")],
+    ids=["no-plus-one", "plus-one-before-the-failure", "someone-elses-plus-one"],
+)
+def test_the_sweep_does_not_re_run_without_a_newer_producer_plus_one(
+    config: dict[str, Any], plus_one_at: str | None, login: str
+) -> None:
+    """A +1 the failed run already saw, or no producer +1 at all, must not pile up re-runs."""
+    listing = _sweep_payload(_failed_then_reacted(plus_one_at, login))
+    assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == []
+
+
+def test_the_sweep_snapshot_requests_reactions_and_completion_times() -> None:
+    sweep = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "reactions(first:100, content:THUMBS_UP){ pageInfo{hasNextPage}" in sweep
+    assert "conclusion completedAt" in sweep
 
 
 def test_a_reopened_thread_behind_a_green_admission_check_is_re_run(config: dict[str, Any]) -> None:
