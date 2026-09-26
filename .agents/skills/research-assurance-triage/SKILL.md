@@ -2,7 +2,7 @@
 name: research-assurance-triage
 description: Use when planning, dispatching, or reviewing TDL tasks that touch mathematical, statistical, topological, representation, output provenance, or paper-claim logic.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: domain
   lanes:
     - topology

@@ -2,7 +2,7 @@
 name: using-git-worktrees-extras
 description: Complement superpowers:using-git-worktrees in multi-interpreter or optional-dependency repositories, and on Windows or sandboxed runtimes where a linked worktree may not be editable by the mandated tool. Use when the full baseline fails outside task scope or when manually created worktrees need operational readiness checks.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: domain
   lanes: []
   roles:
@@ -86,12 +86,17 @@ the runtime workspace. Do not retry from the orchestrating task.
   worktree-relative path is empty or absent, verify with `Get-ChildItem`/`ls`
   (a shell listing) — never trust a Glob/Grep absence signal alone inside
   `.apm/worktrees/` or any other gitignored mount.
-- **Provision a new worktree venv with `uv sync --all-extras`, then prove it:**
-  `python -m pytest --version` must succeed before any red run. `uv sync
-  --frozen` installs no extras, so pytest is absent; every test group then exits 1
-  within a second, which reads exactly like the expected red run. A
-  one-second bound-test run is a broken harness, not a result. Alternatively,
-  run from the main checkout's venv, as the pre-commit hook does.
+- **Provision a new worktree venv with `uv sync --all-extras`, then prove it
+  against that exact venv:** `uv run --no-sync python -c "import sys, pytest;
+  print(sys.executable, pytest.__version__)"` must succeed and print the
+  worktree's own `.venv` interpreter before any red run. An ambient
+  `python -m pytest --version` can pass on the main checkout's venv or a global
+  Python while the worktree venv has no pytest. `uv sync --frozen` installs no
+  extras, so pytest is absent; every test group then exits 1 within a second,
+  which reads exactly like the expected red run. A one-second bound-test run is
+  a broken harness, not a result. Alternatively, run from the main checkout's
+  venv by naming its interpreter explicitly (`<main>/.venv/Scripts/python.exe
+  -m pytest`), as the pre-commit hook does, and report which one ran.
 - **Never run two `uv run`/`uv sync` against the same venv concurrently**,
   including one backgrounded overlapping a foreground call — they race the
   editable-install and leave the venv missing deps while `uv sync` still

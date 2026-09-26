@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: optional
   lanes: []
   roles:
@@ -157,8 +157,13 @@ commit makes the current bytes unreviewed.
 invariant-dense surface returns a steady count of findings, so "fix until zero"
 is not a reachable stop. Measure convergence by the *kind* and *reachability* of
 findings, not their count. Keep a per-round ledger (count, finding family, origin
-commit, reachability) in the handback. Once a round opens no new finding family,
-a later finding gets code in the same PR only if it is:
+commit, reachability) in the handback.
+
+The rule curtails remediation, so it needs the owner's acceptance **for each PR**.
+Propose it when the PR opens, with the ledger, and do not apply it to that PR until
+the owner accepts it there. Acceptance on one PR does not carry to the next. Once
+it is accepted and a round opens no new finding family, a later finding gets code
+in the same PR only if it is:
 
 - a defect in code the previous round added; or
 - a false durable claim reachable on the planned owner path.
