@@ -104,11 +104,21 @@ PIPED_COMMITS = [
     "git add a.txt && git commit -F msg.txt | tail -30",
     "git -C some/path commit -m x | grep -v IDENTICAL",
     "git commit -m x |& tail",
+    # the word pipefail somewhere in the command is not pipefail being on
+    "git commit -m pipefail | tail -5",
+    "set +o pipefail; git commit -m x | tail",
+    "set -o pipefail; set +o pipefail; git commit -m x | tail",
+    "git commit -m x | tail; set -o pipefail",
+    # wrappers and grouping still run git
+    "command git commit -m x | tail -5",
+    "env X=1 git commit -m x | tail",
+    "(git commit -m x) | tail",
 ]
 
 NOT_PIPED = [
     "git commit -m 'x'",
     "set -o pipefail; git commit -m x 2>&1 | tail -5",
+    "set -euo pipefail; git commit -m x | tail -5",
     "git commit -m 'subject with a | pipe inside the quotes'",
     "git log --oneline | head -3",
     "git commit -m x || echo failed",
@@ -160,6 +170,93 @@ def test_a_checkout_in_the_same_command_as_the_commit_is_not_drift(repo: Path) -
     _post("git status", repo)
 
     assert _pre("git checkout -q -b fresh && git commit -m x", repo) == "allow"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git checkout missing; git commit -m x",
+        "git checkout missing || git commit -m x",
+        "git checkout -- a.txt && git commit -m x",
+    ],
+)
+def test_a_checkout_that_does_not_gate_the_commit_does_not_exempt_it(command: str, repo: Path) -> None:
+    """Only a branch move the commit depends on through ``&&`` explains the new branch."""
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(command, repo) == "deny"
+
+
+def test_a_checkout_in_another_repository_does_not_exempt_the_commit(repo: Path, tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    _git(elsewhere, "init", "-q", "-b", "topic")
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(f"git -C {elsewhere.as_posix()} checkout topic && git commit -m x", repo) == "deny"
+
+
+@pytest.mark.parametrize("command", ["cd missing; git commit -m x", "cd missing || git commit -m x"])
+def test_a_directory_change_that_can_fail_still_checks_the_original_repository(command: str, repo: Path) -> None:
+    """If the ``cd`` fails the commit still runs here, so this repository's drift must still refuse it."""
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(command, repo) == "deny"
+
+
+def test_a_guarded_directory_change_moves_the_check(repo: Path, tmp_path: Path) -> None:
+    """``cd elsewhere && git commit`` only commits if the cd succeeded, so the original repository is not checked."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    _git(elsewhere, "init", "-q", "-b", "topic")
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(f"cd {elsewhere.as_posix()} && git commit -m x", repo) == "allow"
+
+
+def test_git_dir_and_work_tree_select_the_repository(repo: Path, tmp_path: Path) -> None:
+    _post(f"git --git-dir={(repo / '.git').as_posix()} --work-tree {repo.as_posix()} status", tmp_path)
+    _git(repo, "checkout", "-q", "other")
+
+    command = f"git --git-dir {(repo / '.git').as_posix()} --work-tree={repo.as_posix()} commit -m x"
+    assert _pre(command, tmp_path) == "deny"
+
+
+def test_powershell_paths_keep_their_backslashes(repo: Path, tmp_path: Path) -> None:
+    """``git -C C:\\Users\\...`` in PowerShell must resolve to that directory, not ``C:Users...``."""
+    windows = str(repo).replace("/", "\\")
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(f"git -C {windows} commit -m x", tmp_path, tool="PowerShell") == "deny"
+
+
+@pytest.mark.parametrize(
+    ("command", "tool"),
+    [
+        ("TDL_ALLOW_MAIN_COMMIT=1 git commit -m x", "Bash"),
+        ("export TDL_ALLOW_MAIN_COMMIT=1", "Bash"),
+        ("$env:TDL_ALLOW_MAIN_COMMIT = '1'; git commit -m x", "PowerShell"),
+    ],
+)
+def test_an_agent_cannot_set_the_owner_main_commit_override(command: str, tool: str, repo: Path) -> None:
+    assert _pre(command, repo, tool=tool) == "deny"
+
+
+def test_concurrent_recorders_keep_every_sessions_record(repo: Path) -> None:
+    """Sessions record in separate files, so concurrent PostToolUse runs cannot drop each other's record."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    sessions = [f"c{i}" for i in range(8)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda s: _post("git status", repo, session=s), sessions))
+    _git(repo, "checkout", "-q", "other")
+
+    assert all(_pre("git commit -m x", repo, session=s) == "deny" for s in sessions)
 
 
 def test_sessions_are_isolated(repo: Path) -> None:

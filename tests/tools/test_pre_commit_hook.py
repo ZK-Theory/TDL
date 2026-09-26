@@ -587,6 +587,35 @@ def test_pre_commit_admits_main_only_with_the_explicit_override_and_says_so(tmp_
 
 @pytest.mark.integration
 @pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_main_when_a_tag_named_main_shortens_the_ref(tmp_path: Path) -> None:
+    """With a tag ``main`` as well, ``symbolic-ref --short`` prints ``heads/main``; the gate compares the full ref."""
+    repo, env = _branch_fixture_repo(tmp_path, "main")
+    _git(repo, "tag", "main")
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 1, completed.stderr
+    assert BRANCH_REFUSED in completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_when_head_moves_while_the_gates_run(tmp_path: Path) -> None:
+    """A session switching HEAD to main after gate -1's first read would otherwise land the commit on main."""
+    repo, env = _branch_fixture_repo(tmp_path, "fixture-branch")
+    _git(repo, "branch", "main")
+    _write_fake_interpreter(
+        repo, '  *run_staged_contract_gate.py*) git -C "$HOOK_TEST_REPO" symbolic-ref HEAD refs/heads/main ;;'
+    )
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 1, completed.stderr
+    assert "HEAD moved while the gates ran" in completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
 def test_pre_commit_admits_a_detached_head(tmp_path: Path) -> None:
     """Rebases and cherry-picks commit on a detached HEAD; the gate guards the main branch only."""
     repo, env = _branch_fixture_repo(tmp_path, "fixture-branch")
