@@ -37,7 +37,8 @@ _CLOSING = ("ACTIONED", "CLOSED", "DECLINED")
 # A commit hash must carry a hex letter, or be introduced by the word "commit": an all-digit run is
 # far more often a date or a count (`completed on 20260925`) than a hash.
 _ARTIFACT = re.compile(
-    r"\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\bcommit\s+`?[0-9a-f]{7,40}\b|#\d+|\b[A-Z][A-Z0-9]+-\d+\b|archive/log-"
+    r"github\.com/[\w.-]+/[\w.-]+/(?:pull|commit|issues)/\w+"
+    r"|\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\bcommit\s+`?[0-9a-f]{7,40}\b|#\d+|\b[A-Z][A-Z0-9]+-\d+\b|archive/log-"
     r"|[\w-]+(?:/[\w.-]+)+\.[A-Za-z0-9]{1,5}\b|\b[\w-]+\.(?:py|ps1|md|sh|yml|yaml|json|toml|txt|ts|js|lean|tex)\b"
 )
 # A bare status word ("CLOSED", "ACTIONED (2026-09-09)") is not borrowable text; the borrowed
@@ -48,10 +49,29 @@ _SUBSTANTIVE = 40
 _RESOLUTION = re.compile(r"(?ms)^\*\*(?:Resolution|Closed)[^*]*:\*\*(.*?)(?=\n\s*\n|\Z)")
 
 
+_STATUSES = ("OPEN", "ACTIONED", "CLOSED", "DECLINED", "DEFERRED", "ESCALATED", "PARTIALLY")
+_HEADING = "### Observation "
+
+
+def _blocks(log_text: str) -> list[str]:
+    """Split the log at observation headings that sit outside fenced code, so a quoted template is not an entry."""
+    blocks: list[list[str]] = []
+    fence: str | None = None
+    for line in log_text.splitlines(keepends=True):
+        marker = re.match(r"\s*(```|~~~)", line)
+        if marker:
+            fence = None if fence == marker.group(1) else (fence or marker.group(1))
+        if fence is None and not marker and line.startswith(_HEADING):
+            blocks.append([line[len(_HEADING) :]])
+        elif blocks:
+            blocks[-1].append(line)
+    return ["".join(block) for block in blocks]
+
+
 def parse(log_text: str) -> list[tuple[str, str, str]]:
     """Return (id, status line, whole block) for every observation in order; the status is "" when absent."""
     entries: list[tuple[str, str, str]] = []
-    for block in re.split(r"(?m)^### Observation ", log_text)[1:]:
+    for block in _blocks(log_text):
         heading = block.split("\n", 1)[0]
         ident = re.split(r":\s", heading, maxsplit=1)[0].strip().strip("[]").rstrip(":")
         status = re.search(r"(?m)^\*\*Status:\*\*\s*(.*)$", block)
@@ -70,6 +90,11 @@ def lint(entries: list[tuple[str, str, str]]) -> list[str]:
         if not status:
             # Neither OPEN nor closed, so it would silently drop out of every ledger.
             problems.append(f"{ident}: no **Status:** line")
+            continue
+        word = re.match(r"[*\s]*([A-Za-z]+)", status)
+        if not word or word.group(1).upper() not in _STATUSES:
+            # A misspelt status (`OPEM`) is neither OPEN nor closed, so it would drop out of the ledger.
+            problems.append(f"{ident}: unrecognised status {status[:40]!r}; expected one of {', '.join(_STATUSES)}")
             continue
         if not status.upper().startswith(_CLOSING):
             continue
@@ -111,24 +136,36 @@ def parse_ledger(packet_text: str) -> tuple[list[str], list[str]]:
     if header is None:
         return [], ["the Completeness ledger has no table with an IDs column"]
     names = [c.lower() for c in _cells(rows[header])]
-    id_col, count_col = names.index("ids"), names.index("count") if "count" in names else None
+    if "count" not in names:
+        return [], ["the Completeness ledger table has no Count column, so its rows cannot be checked"]
+    id_col, count_col = names.index("ids"), names.index("count")
     listed: list[str] = []
     problems: list[str] = []
-    counted = 0
+    totals: list[tuple[int, int | None]] = []  # (data-row position, declared total)
+    position = 0
     for row in rows[header + 1 :]:
         cells = _cells(row)
         if all(re.fullmatch(r":?-+:?", c) for c in cells if c):
             continue
+        position += 1
         ids = [t.strip("`") for t in re.split(r"[\s·,]+", cells[id_col] if id_col < len(cells) else "") if t.strip("`")]
-        count = _count(cells[count_col]) if count_col is not None and count_col < len(cells) else None
+        count = _count(cells[count_col]) if count_col < len(cells) else None
         if not ids:
-            if count is not None and count != counted:
-                problems.append(f"ledger total {count} does not equal the {counted} ids listed")
+            totals.append((position, count))
             continue
-        if count_col is not None and count != len(ids):
+        if count != len(ids):
             problems.append(f"ledger row {cells[0]!r} declares {cells[count_col]!r} but lists {len(ids)} id(s)")
-        counted += len(ids)
         listed += ids
+    # One Total, as the last row, checked against every id listed: a Total placed mid-table was
+    # compared only with the rows above it.
+    if len(totals) > 1:
+        problems.append(f"the ledger has {len(totals)} Total rows; expected one")
+    elif totals:
+        where, declared = totals[0]
+        if where != position:
+            problems.append("the ledger's Total row is not its last row")
+        if declared != len(listed):
+            problems.append(f"ledger total {declared} does not equal the {len(listed)} ids listed")
     return listed, problems
 
 

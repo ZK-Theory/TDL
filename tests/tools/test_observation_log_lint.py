@@ -146,6 +146,44 @@ def test_a_progress_note_is_not_closure_evidence(tmp_path: Path) -> None:
     assert "a: closing status names no checkable artifact" in result.stderr
 
 
+def test_a_ledger_without_a_count_column_fails(tmp_path: Path) -> None:
+    packet = tmp_path / "packet.md"
+    packet.write_text("## Completeness ledger\n\n| Group | IDs |\n|---|---|\n| A | a |\n", encoding="utf-8")
+    result = _run(tmp_path, _obs("a", "OPEN"), "--packet", str(packet))
+    assert result.returncode == 1 and "no Count column" in result.stderr
+
+
+def test_a_total_row_is_checked_against_the_whole_ledger(tmp_path: Path) -> None:
+    """A Total placed mid-table was compared only with the rows above it."""
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    early = _run(
+        tmp_path, log, "--packet", _packet(tmp_path, "| A | 1 | a |\n| **Total** | **1** | |\n| B | 1 | b |\n")
+    )
+    assert early.returncode == 1
+    assert "not its last row" in early.stderr and "total 1 does not equal the 2 ids" in early.stderr
+
+
+def test_a_pull_request_url_is_closure_evidence(tmp_path: Path) -> None:
+    status = "ACTIONED — merged as [PR 306](https://github.com/ZK-Theory/TDL/pull/306)."
+    assert _run(tmp_path, _obs("a", status)).returncode == 0
+
+
+def test_headings_inside_fenced_code_are_not_observations(tmp_path: Path) -> None:
+    fenced = "Template:\n\n```markdown\n### Observation fake: example\n\n**Status:** OPEN\n```\n"
+    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    result = _run(tmp_path, _obs("a", "OPEN", fenced), "--packet", packet)
+    assert result.returncode == 0, result.stderr
+    assert "1 observation(s): 1 OPEN" in result.stdout
+
+
+def test_an_unrecognised_status_fails(tmp_path: Path) -> None:
+    """`OPEM` is neither OPEN nor closed, so it vanished from the ledger while the lint passed."""
+    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    result = _run(tmp_path, _obs("a", "OPEN") + _obs("b", "OPEM"), "--packet", packet)
+    assert result.returncode == 1
+    assert "b: unrecognised status" in result.stderr
+
+
 def test_a_digit_only_number_is_not_a_commit(tmp_path: Path) -> None:
     dated = _run(tmp_path, _obs("a", "ACTIONED — completed on 20260925."))
     commit = _run(tmp_path, _obs("a", "ACTIONED — landed in commit 1234567."))
