@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: optional
   lanes: []
   roles:
@@ -152,6 +152,34 @@ CodeRabbit review binds a commit, not a PR. Before merging, filter
 `gh api .../pulls/N/reviews` to the configured reviewer, take the latest
 `commit_id`, and compare it with `gh pr view N --json headRefOid`. A later
 commit makes the current bytes unreviewed.
+
+**Automated review stopping rule.** An automated reviewer walking an
+invariant-dense surface returns a steady count of findings, so "fix until zero"
+is not a reachable stop. Measure convergence by the *kind* and *reachability* of
+findings, not their count. Keep a per-round ledger (count, finding family, origin
+commit, reachability) in the handback.
+
+The rule curtails remediation, so it needs the owner's acceptance **for each PR**.
+Propose it when the PR opens, with the ledger, and do not apply it to that PR until
+the owner accepts it there. Acceptance on one PR does not carry to the next. Once
+it is accepted and a round opens no new finding family, a later finding gets code
+in the same PR only if it is:
+
+- a defect in code the previous round added; or
+- a false durable claim reachable on the planned owner path.
+
+The rule decides where code lands, never whether a real defect is dropped. A
+finding that causes a reachable crash, corrupt write or incorrect result on the
+named capability stays active campaign work even when it predates the last
+round. It may move to a follow-up PR tracked in the campaign status, but it
+becomes a known limit only by a separate owner scope decision on that finding.
+Accepting the stopping rule in advance is not that decision.
+
+Everything else becomes a recorded known limit or a follow-up. In PR #291 this
+turned round 4 into dispositions only, saving roughly one ~3-hour
+fix-and-certify cycle. A known limit records a boundary the owner has accepted. A
+divergence from an accepted specification is not a known limit; raise it as an
+owner decision.
 
 ## Exact-State Record
 
