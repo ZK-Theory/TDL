@@ -38,6 +38,11 @@ from pathlib import Path
 
 _SPAN = re.compile(r"`([^`\n]+)`")
 _PLACEHOLDER = re.compile(r"[<>*?{}\[\]$]")
+# Path characters only: a span such as `p=(r+1)/(B+1)` is an expression, not a citation.
+_PATH_CHARS = re.compile(r"[\w.@/ -]+")
+_EXTENSION = re.compile(
+    r"\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r|pdf|html|lean|js|ts)$"
+)
 _ANCHOR = re.compile(r"(?::\d+(?:-\d+)?|#L\d+(?:-L?\d+)?)$")
 _ROOT_FILE = re.compile(
     r"(?:\.?[\w-][\w.-]*\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r)"
@@ -52,7 +57,9 @@ def _normalise(span: str) -> str | None:
         candidate = candidate[2:]
     if (
         not candidate
-        or re.search(r"\s", candidate)
+        or re.search(r"[\t\n\r]", candidate)
+        or (" " in candidate and "/" not in candidate)
+        or not _PATH_CHARS.fullmatch(candidate)
         or _PLACEHOLDER.search(candidate)
         or "://" in candidate
         or candidate.startswith(("-", "/", "~"))
@@ -64,18 +71,20 @@ def _normalise(span: str) -> str | None:
     return candidate
 
 
-def citations(text: str) -> list[tuple[str, list[str]]]:
-    """Return (path, other backtick spans on the same line) for each distinct cited path, in order."""
-    found: dict[str, list[str]] = {}
+def citations(text: str) -> list[tuple[str, list[list[str]]]]:
+    """Return (path, per-occurrence lists of the other backtick spans on that line) for each distinct path.
+
+    Occurrences are kept apart: a branch named beside one mention does not qualify another mention
+    of the same path on a different line.
+    """
+    found: dict[str, list[list[str]]] = {}
     for line in text.splitlines():
         spans = _SPAN.findall(line)
         for span in spans:
             path = _normalise(span)
             if path is None:
                 continue
-            others = [s.strip() for s in spans if s != span]
-            found.setdefault(path, [])
-            found[path].extend(o for o in others if o not in found[path])
+            found.setdefault(path, []).append([s.strip() for s in spans if s != span])
     return list(found.items())
 
 
@@ -134,18 +143,35 @@ def _suffix_matches(repo_root: Path, ref: str, target: str) -> list[str]:
     return [line for line in _tree(repo_root, ref) if line.endswith("/" + target)]
 
 
+def _top_level(repo_root: Path, ref: str) -> set[str]:
+    return {line.split("/", 1)[0] for line in _tree(repo_root, ref)}
+
+
+def _path_shaped(repo_root: Path, ref: str, target: str) -> bool:
+    """Whether a slash-bearing span looks like a path rather than prose such as `try/except`.
+
+    It must end in a known file extension, start with `..` or a top-level entry of ``ref``, or end in `/`.
+    """
+    first = target.split("/", 1)[0]
+    return (
+        bool(_EXTENSION.search(target)) or first in _top_level(repo_root, ref) or first == ".." or target.endswith("/")
+    )
+
+
 def unresolved(
-    paths: list[str] | list[tuple[str, list[str]]], repo_root: Path, ref: str, brief: Path | None = None
+    paths: list[str] | list[tuple[str, list[list[str]]]], repo_root: Path, ref: str, brief: Path | None = None
 ) -> list[str]:
     """Return one problem line per path absent from ``ref``, naming the branches that do hold it.
 
-    ``paths`` is either plain paths or :func:`citations` pairs; with pairs, a branch named on the same
-    line that holds the path makes the citation branch-qualified, and so acceptable.
+    ``paths`` is either plain paths or :func:`citations` pairs; with pairs, a path is branch-qualified,
+    and so acceptable, only when EVERY mention of it names on its own line a branch that holds it.
     """
+    if _git(repo_root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
+        return [f"ref {ref!r} does not resolve to a commit; no citation can be checked against it"]
     problems: list[str] = []
     directory = _brief_directory(repo_root, brief)
     for item in paths:
-        path, context = (item, []) if isinstance(item, str) else item
+        path, contexts = (item, [[]]) if isinstance(item, str) else item
         target = path.rstrip("/")
         readings = [target]
         if directory is not None:
@@ -154,7 +180,9 @@ def unresolved(
             continue
         if _is_ref_or_namespace(repo_root, path):
             continue
-        if _git(repo_root, "check-ignore", "-q", "--no-index", target).returncode == 0:
+        if " " in target and target.split("/", 1)[0] not in _top_level(repo_root, ref):
+            continue  # a command line such as `uv run python tools/x.py`, not a spaced path
+        if "/" in target and not _path_shaped(repo_root, ref, target):
             continue
         if "/" not in target and _basename_on_ref(repo_root, ref, target):
             continue
@@ -164,19 +192,30 @@ def unresolved(
                 f"({', '.join(suggestions[:3])})"
             )
             continue
-        named = [c for c in context if _is_ref_or_namespace(repo_root, c)]
-        if any(_exists(repo_root, candidate.rstrip("/"), reading) for candidate in named for reading in readings):
+
+        def qualified(context: list[str], readings: list[str] = readings) -> bool:
+            named = [c for c in context if _is_ref_or_namespace(repo_root, c)]
+            return any(_exists(repo_root, c.rstrip("/"), reading) for c in named for reading in readings)
+
+        if all(qualified(context) for context in contexts):
             continue
         last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", target).stdout.strip()
         if not last:
+            if _git(repo_root, "check-ignore", "-q", "--no-index", target).returncode == 0:
+                # Never tracked and ignored (data, .env): no ref can hold it, so check the checkout
+                # the Worker reads from. Ignored patterns such as `docs/*` also cover force-added
+                # tracked files, which is why this runs only once no branch has ever held the path.
+                if not (repo_root / target).exists():
+                    problems.append(f"{path}: git-ignored, never tracked, and not present in {repo_root}")
+                continue
             problems.append(f"{path}: absent from {ref} and from every branch")
             continue
         branches = [
             name
             for name in _git(repo_root, "branch", "-a", "--contains", last, "--format=%(refname:short)").stdout.split()
-            if name != ref
+            if name != ref and _exists(repo_root, name, target)  # a later deletion leaves nothing to read
         ]
-        where = ", ".join(branches) if branches else f"commit {last[:12]} only"
+        where = ", ".join(branches) if branches else f"no branch tip (last touched in commit {last[:12]})"
         problems.append(f"{path}: absent from {ref}; present on {where}")
     return problems
 

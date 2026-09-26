@@ -167,6 +167,87 @@ def test_naming_a_branch_that_does_not_hold_the_path_does_not_qualify_it(repo: P
     assert result.returncode == 1
 
 
+def test_branch_qualification_is_per_mention(repo: Path) -> None:
+    """A branch named beside a later mention does not qualify an earlier, bare instruction."""
+    text = "Read `docs/handoff.md` first.\nIt lives on: `docs/handoff.md` from branch `docs/handoff`.\n"
+    assert _check(repo, _brief(repo, text)).returncode == 1
+
+
+def test_a_branch_whose_tip_deleted_the_path_is_not_named_as_holding_it(repo: Path) -> None:
+    _git(repo, "checkout", "-q", "-b", "docs/vanished")
+    (repo / "docs" / "vanished.md").write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "add")
+    _git(repo, "rm", "-q", "docs/vanished.md")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "delete")
+    _git(repo, "checkout", "-q", "main")
+
+    result = _check(repo, _brief(repo, "Read `docs/vanished.md`.\n"))
+
+    assert result.returncode == 1
+    assert "present on docs/vanished" not in result.stderr
+    assert "no branch tip" in result.stderr
+
+
+def test_an_ignored_citation_must_exist_in_the_checkout(repo: Path) -> None:
+    """Ignored paths never live on a ref, so they are checked on disk rather than waved through."""
+    (repo / ".gitignore").write_text("data/\n", newline="\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "ignore data")
+
+    missing = _check(repo, _brief(repo, "Input: `data/never.csv`.\n"))
+    (repo / "data").mkdir()
+    (repo / "data" / "present.csv").write_text("x\n", newline="\n")
+    present = _check(repo, _brief(repo, "Input: `data/present.csv`.\n"))
+
+    assert missing.returncode == 1 and "git-ignored, never tracked" in missing.stderr
+    assert present.returncode == 0, present.stderr
+
+
+def test_an_ignored_pattern_does_not_hide_a_path_held_only_on_a_branch(repo: Path) -> None:
+    """This repository ignores `docs/*` and force-adds tracked docs: the motivating case must still be named."""
+    (repo / ".gitignore").write_text("docs/*\n", newline="\n")
+    _git(repo, "add", ".gitignore")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "ignore docs")
+
+    result = _check(repo, _brief(repo, "Read `docs/handoff.md`.\n"))
+
+    assert result.returncode == 1
+    assert "docs/handoff.md: absent from main; present on docs/handoff" in result.stderr
+
+
+def test_an_invalid_ref_fails_even_with_no_citations(repo: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(BRIEF_PATHS),
+            str(_brief(repo, "No paths here.\n")),
+            "--ref",
+            "mian",
+            "--repo-root",
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "does not resolve to a commit" in result.stderr
+
+
+def test_paths_with_spaces_are_checked_but_command_lines_are_not(repo: Path) -> None:
+    missing = _check(repo, _brief(repo, "See `docs/Research Papers/missing.md`.\n"))
+    command = _check(repo, _brief(repo, "Run `uv run python tools/a.py` then `git -C docs/x status`.\n"))
+
+    assert missing.returncode == 1 and "docs/Research Papers/missing.md" in missing.stderr
+    assert command.returncode == 0, command.stderr
+
+
+def test_slash_bearing_prose_and_formulas_are_not_citations(repo: Path) -> None:
+    result = _check(repo, _brief(repo, "Wrap it in `try/except`; the p-value is `p=(r+1)/(B+1)`, and `and/or`.\n"))
+    assert result.returncode == 0, result.stderr
+
+
 def test_dispatch_check_requires_a_brief_or_a_stated_reason(repo: Path) -> None:
     from shared.manager_dispatch_check import brief_checks
 
