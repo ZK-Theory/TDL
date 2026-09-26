@@ -14,6 +14,7 @@
 # worktree.
 #
 # Gates, in order — the first failure blocks the commit:
+#  -1. Branch admission: no commit on main without TDL_ALLOW_MAIN_COMMIT=1.
 #   0. Dual-tree skill sync: .agents/skills/ (authoring source) and .claude/skills/
 #      must stay mirrored, or a research-assurance skill is invisible to one runtime.
 #   1. ruff lint + format, via the pre-commit framework (.pre-commit-config.yaml).
@@ -39,6 +40,31 @@ REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 if [ -z "$REPO_ROOT" ]; then
   echo "ERROR: pre-commit could not locate the repo root via git rev-parse." >&2
   exit 2
+fi
+
+# Gate -1 — branch admission. Work reaches main only through a reviewed PR, so a
+# local commit on main is always a mistake, most often a shared working directory
+# whose HEAD another session moved (obs 2026-09-08-concurrent-session-branch-switch:
+# a session verified its branch, another session checked out main, and the next
+# commit landed on main with every gate passing). Checking the branch earlier in the
+# task does not survive that, so the check lives in the commit path. It runs first,
+# before any snapshot, so a refusal leaves the tree exactly as it was. A detached
+# HEAD (rebase, cherry-pick) is admitted: the guard is for the main branch only.
+# The full ref is compared: with a tag also named main, --short prints heads/main.
+# HEAD is read again after the last gate (below), so a switch made by another
+# session while the gates run is refused too.
+_start_ref=$(git symbolic-ref -q HEAD 2>/dev/null)
+if [ "$_start_ref" = "refs/heads/main" ]; then
+  if [ "${TDL_ALLOW_MAIN_COMMIT:-}" = "1" ]; then
+    echo "pre-commit: committing on main under the TDL_ALLOW_MAIN_COMMIT=1 override." >&2
+  else
+    echo "" >&2
+    echo "pre-commit: commits on main are refused — commit blocked." >&2
+    echo "HEAD is on main. If you expected a feature branch, another session may have" >&2
+    echo "moved HEAD in a shared working directory: check 'git reflog -5' before anything else." >&2
+    echo "Deliberate owner-only exception: TDL_ALLOW_MAIN_COMMIT=1 git commit ..." >&2
+    exit 1
+  fi
 fi
 
 # Snapshot unstaged changes to tracked files before running any gate. These
@@ -328,6 +354,19 @@ if [ "$PRE_GATE_DIRTY" != "$POST_GATE_DIRTY" ]; then
   echo "Unstaged tracked diff after gates ran:" >&2
   echo "${POST_GATE_DIRTY_NAMES:-  (none)}" >&2
   echo "Gates validate; they must not write. Investigate before retrying." >&2
+  exit 1
+fi
+
+# Gate -1, second read. The gates above can run for minutes, and a HEAD switch
+# by another session in that window would otherwise land this commit on the new
+# branch (main included) with every gate passed. What remains is the gap between
+# this read and git's ref update, which is milliseconds rather than minutes.
+_end_ref=$(git symbolic-ref -q HEAD 2>/dev/null)
+if [ "$_end_ref" != "$_start_ref" ]; then
+  echo "" >&2
+  echo "pre-commit: HEAD moved while the gates ran — commit blocked." >&2
+  echo "Started on '${_start_ref:-detached HEAD}', now on '${_end_ref:-detached HEAD}'." >&2
+  echo "Another session likely switched branches in this working directory: check 'git reflog -5'." >&2
   exit 1
 fi
 

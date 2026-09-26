@@ -27,6 +27,32 @@ For every exact command named by the plan:
 
 A direct handler unit test can supplement this check but cannot replace it.
 
+## Commits And Background Runs
+
+The same rule applies to the agent's own git and test commands: the exit code
+describes the process, not the outcome.
+
+- **Confirm a commit by the state it produces.** Record `git rev-parse HEAD`
+  before committing; afterwards check that HEAD moved and `git log -1
+  --format=%s` is the intended subject. Never pipe `git commit` into `tail`,
+  `grep` or `head` without `set -o pipefail`: the pipeline reports the last
+  command's status, so a commit blocked by pre-commit reads as exit 0. The
+  commit-state guard hook refuses that shape; redirect long hook output to a
+  file instead.
+- **A killed run is not a red run.** Never wrap a long background test run in
+  a shell `timeout`; use the harness's own background execution. Exit 124,
+  137 or 143 means the run was killed. Report it as killed and re-run it;
+  never read it as a test failure.
+- **Do not commit while tests read the tree.** Pre-commit stashes unstaged
+  changes and restores them afterwards, rewriting working-tree bytes under any
+  running process. Commit first and launch tests against the committed tree,
+  or give the test run its own worktree.
+- **Check each command did what it said.** An edit that matched nothing, an
+  empty heredoc and a process-kill filter that matches the invoking shell all
+  report success. Re-read the changed lines after an edit, check a generated
+  file is non-empty before using it, and exclude the current shell's PID from
+  any kill filter.
+
 ## Pre-Delivery Check
 
 Re-run each plan-specified command literally and verify its declared evidence. Do not mark the task complete when only an internal function test passed or when process success produced no observable proof that the handler executed.
