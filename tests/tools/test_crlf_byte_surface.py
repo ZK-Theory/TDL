@@ -320,6 +320,33 @@ def test_the_printed_remediation_quotes_paths_with_spaces(lf_repo: Path) -> None
     assert target.read_bytes() == b"a\n"
 
 
+def test_fix_refuses_paths_outside_the_repository(lf_repo: Path, tmp_path: Path) -> None:
+    """--fix writes, so an absolute or escaping path must not reach a file outside the checkout."""
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"x\r\n")
+    for target in (str(outside), "../outside.txt"):
+        result = subprocess.run(
+            [sys.executable, str(CHECKER), "--repo-root", str(lf_repo), "--fix", "--", target],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 2, result.stderr
+    assert outside.read_bytes() == b"x\r\n"
+
+
+def test_a_forced_text_hook_with_a_nul_byte_is_still_scanned(lf_repo: Path) -> None:
+    """`.githooks/** text eol=lf` means git never applies the NUL heuristic there, so neither may the gate."""
+    hook = lf_repo / ".githooks" / "post-commit"
+    hook.write_bytes(b"#!/bin/bash\r\necho \x00ok\r\n")
+    _git(lf_repo, "add", ".githooks/post-commit")
+    hook.write_bytes(b"#!/bin/bash\r\necho \x00ok\r\n")
+
+    result = _run_worktree(lf_repo, ".githooks")
+
+    assert result.returncode == 1, result.stderr
+
+
 def test_an_unstaged_binary_declaration_does_not_exempt_a_hook(lf_repo: Path) -> None:
     """Only the index's attributes (the commit's policy) may exempt a hook from the worktree scan."""
     hook = lf_repo / ".githooks" / "post-commit"

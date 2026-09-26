@@ -131,8 +131,32 @@ def looks_binary(data: bytes) -> bool:
     return b"\x00" in data[:8000]
 
 
-def scan_paths(paths: list[str], repo_root: Path, *, check_index: bool) -> list[str]:
-    """Return one violation line per CRLF-bearing surface, empty when the surface is clean."""
+def text_forced(paths: list[str], repo_root: Path) -> set[str]:
+    """Return the subset of `paths` whose index attributes force `text` (not `text=auto`).
+
+    For those, git never applies its NUL heuristic, so this check must not either: a CRLF hook
+    that also carries a NUL byte is still a text file git will check out as such.
+    """
+    if not paths:
+        return set()
+    completed = subprocess.run(
+        ["git", "check-attr", "--stdin", "-z", "--cached", "text"],
+        cwd=repo_root,
+        input="\x00".join(paths).encode("utf-8"),
+        capture_output=True,
+        check=True,
+    )
+    fields = [chunk.decode("utf-8") for chunk in completed.stdout.split(b"\x00")]
+    return {fields[i] for i in range(0, len(fields) - 2, 3) if fields[i + 1] == "text" and fields[i + 2] == "set"}
+
+
+def scan_paths(
+    paths: list[str], repo_root: Path, *, check_index: bool, forced_text: set[str] | frozenset[str] = frozenset()
+) -> list[str]:
+    """Return one violation line per CRLF-bearing surface, empty when the surface is clean.
+
+    Paths in `forced_text` are scanned even when git's NUL heuristic would call them binary.
+    """
     skip = binary_declared(paths, repo_root) if check_index else set()
     violations: list[str] = []
     for path in paths:
@@ -148,7 +172,7 @@ def scan_paths(paths: list[str], repo_root: Path, *, check_index: bool) -> list[
         elif absolute.is_file():
             data = absolute.read_bytes()
             count = count_crlf(data)
-            if count and not looks_binary(data):
+            if count and (path in forced_text or not looks_binary(data)):
                 violations.append(f"{path}: {count} CRLF pair(s) in the working tree")
         if check_index:
             blob = index_bytes(path, repo_root)
@@ -178,7 +202,8 @@ def worktree_violations(pathspecs: list[str], repo_root: Path) -> list[str]:
     # Attributes come from the index, the policy the commit being validated carries. An unstaged
     # working-tree `.gitattributes` edit declaring a hook `binary` must not exempt it.
     skip = binary_declared(paths, repo_root, cached=True)
-    return scan_paths([path for path in paths if path not in skip], repo_root, check_index=False)
+    scanned = [path for path in paths if path not in skip]
+    return scan_paths(scanned, repo_root, check_index=False, forced_text=text_forced(scanned, repo_root))
 
 
 VIOLATION = re.compile(r"(?P<path>.*): \d+ CRLF pair\(s\) in the (?P<surface>working tree|staged blob)")
@@ -190,13 +215,19 @@ def fix_worktree(paths: list[str], repo_root: Path) -> list[str]:
     Only the working tree is written. The index, and with it any partial staging, is untouched,
     and content other than line endings is preserved byte for byte.
     """
+    root = repo_root.resolve()
+    outside = [p for p in paths if Path(p).is_absolute() or not (root / p).resolve().is_relative_to(root)]
+    if outside:
+        # This mode writes, so it acts only on repository-relative paths inside the checkout.
+        raise ValueError(f"--fix takes repository-relative paths inside {root}; refusing: {', '.join(outside)}")
+    forced = text_forced(list(paths), repo_root)
     changed: list[str] = []
     for path in paths:
         absolute = repo_root / path
         if absolute.is_symlink() or not absolute.is_file():
             continue
         data = absolute.read_bytes()
-        if looks_binary(data) or CRLF not in data:
+        if (looks_binary(data) and path not in forced) or CRLF not in data:
             continue
         absolute.write_bytes(data.replace(CRLF, b"\n"))
         changed.append(path)
@@ -277,7 +308,12 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
 
     if args.fix:
-        for path in fix_worktree(args.paths, repo_root):
+        try:
+            changed = fix_worktree(args.paths, repo_root)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        for path in changed:
             print(f"rewrote {path} with LF line endings", file=sys.stderr)
         return 0
 

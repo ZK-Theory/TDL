@@ -290,6 +290,10 @@ fi
 # .codex/hooks, which .codex/hooks.json runs: a CRLF-rewritten hook can read clean to
 # `git status` while its broken shebang still executes
 # (obs 2026-09-08-shell-rewrite-crlf-on-tracked-hook).
+# Known limit: .codex/hooks.json runs the MAIN checkout's .codex/hooks by absolute path, so a
+# commit from a linked worktree scans its own copies, not the ones Codex executes. Those are
+# covered by commits made in the main checkout and by the one-time repair in PR #301; making
+# hooks.json worktree-relative is tracked with obs 2026-09-25-codex-live-hooks-are-stale-sibling-copies.
 if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/check_crlf_byte_surface.py" --repo-root "$REPO_ROOT" --worktree .githooks --worktree .claude/hooks --worktree .codex/hooks; then
   echo "" >&2
   echo "pre-commit: CRLF byte-surface gate FAILED — commit blocked." >&2
