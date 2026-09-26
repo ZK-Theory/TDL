@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import stat
 import subprocess
@@ -98,9 +99,38 @@ def foreign_hooks_problem(hooks_dir: Path) -> str | None:
     ).stdout.strip()
     return (
         f"active hook directory {hooks_dir} is outside this checkout ({root}); commits here run "
-        f"another checkout's hook bytes. Set by: {scope or 'unknown'}. Remove the override "
-        f"(git config --worktree --unset core.hooksPath) so the tracked .githooks resolves here."
+        f"another checkout's hook bytes. Set by: {scope or 'unknown'}. Fix it where it was set, "
+        f"so the tracked .githooks resolves here: {hookspath_remedy(REPO_ROOT)}"
     )
+
+
+def hookspath_remedy(checkout: Path) -> str:
+    """Return the command that clears a foreign core.hooksPath in the config scope that set it.
+
+    `--worktree` edits only config.worktree, so it cannot clear a value that comes from the
+    shared local config or the global one. The local scope is the repository's own binding, so
+    it is reset to the relative `.githooks` rather than unset, which would disable the hooks.
+    """
+    scope = (
+        subprocess.run(
+            ["git", "config", "--show-scope", "--get", "core.hooksPath"],
+            cwd=checkout,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.split("\t", 1)[0]
+        .strip()
+    )
+    fixes = {
+        "worktree": ["--worktree", "--unset", "core.hooksPath"],
+        "local": ["--local", "core.hooksPath", ".githooks"],
+        "global": ["--global", "--unset", "core.hooksPath"],
+        "system": ["--system", "--unset", "core.hooksPath"],
+    }
+    if scope in fixes:
+        return shlex.join(["git", "-C", str(checkout), "config", *fixes[scope]])
+    return f"core.hooksPath comes from scope '{scope or 'unknown'}' (a -c option or GIT_CONFIG_* variable); remove it there"
 
 
 def make_executable(path: Path) -> None:

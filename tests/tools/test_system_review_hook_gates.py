@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -204,6 +205,38 @@ def test_dispatch_hook_gate_refuses_a_worktree_whose_hooks_live_in_another_check
     assert check_hook_gate(repo).ok, "positive control: the main checkout's own hooks are its own"
 
     _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
+    assert check_hook_gate(worktree).ok
+
+
+def _apply(command: str) -> None:
+    subprocess.run(shlex.split(command), check=True, capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("scope", ["worktree", "local"])
+def test_the_printed_hookspath_fix_clears_the_scope_that_set_it(
+    tmp_path: Path, monkeypatch, capsys, scope: str
+) -> None:
+    """``--worktree --unset`` cannot clear a value from the shared local config; the remedy must match the scope."""
+    from shared.manager_dispatch_check import check_hook_gate
+
+    module = _installer_module()
+    repo, worktree = _worktree_with_foreign_hooks_path(tmp_path)
+    if scope == "local":
+        _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
+        _git(repo, "config", "--local", "core.hooksPath", str(repo / ".githooks"))
+
+    refused = check_hook_gate(worktree)
+    assert not refused.ok
+    dispatch_fix = refused.detail.rsplit("set it: ", 1)[1]
+    assert f"--{scope}" in dispatch_fix
+
+    monkeypatch.setattr(module, "REPO_ROOT", worktree)
+    assert module.verify() == 1
+    installer_fix = capsys.readouterr().err.rsplit("resolves here: ", 1)[1].strip()
+    assert installer_fix == dispatch_fix
+
+    _apply(installer_fix)
+    assert module.verify() == 0
     assert check_hook_gate(worktree).ok
 
 

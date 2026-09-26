@@ -488,6 +488,22 @@ def test_pre_commit_refuses_a_gitlink_without_a_gitmodules_entry(tmp_path: Path)
 
 @pytest.mark.integration
 @pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_a_gitlink_whose_path_line_is_not_a_submodule_mapping(tmp_path: Path) -> None:
+    """``[foo] path = vendored`` is not a submodule stanza; ``git submodule status`` still fails on it."""
+    repo, env = _admission_fixture(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-index", "--add", "--cacheinfo", f"160000,{sha},vendored")
+    (repo / ".gitmodules").write_text("[foo]\n\tpath = vendored\n", encoding="utf-8", newline="\n")
+    _git(repo, "add", ".gitmodules")
+
+    refused = _run_hook(repo, env)
+
+    assert refused.returncode == 1, refused.stderr
+    assert DANGLING_GITLINK in refused.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
 def test_pre_commit_restores_the_generated_region_even_when_a_gate_blocks(tmp_path: Path) -> None:
     """A blocked commit must not leave a half-applied refresh behind either.
 

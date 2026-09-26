@@ -104,3 +104,38 @@ def test_the_watchdog_checks_every_tracked_workflow() -> None:
     watchdog = (REPO_ROOT / ".github" / "workflows" / "ars-artefact-currency-watchdog.yml").read_text(encoding="utf-8")
     assert "--all-tracked" in watchdog
     assert "--paginate" in watchdog and "--slurp" in watchdog
+    assert "--tracked-ref FETCH_HEAD" in watchdog and "github.base_ref" in watchdog
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=True).stdout
+
+
+def test_a_pull_request_run_checks_the_base_branch_workflow_set(tmp_path: Path) -> None:
+    """A workflow the PR adds cannot be registered until merge, so a PR run must not demand it."""
+    repo = tmp_path / "repo"
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    (repo / TRACKED[0]).write_text("on: push\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "base")
+    base = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / TRACKED[1]).write_text("on: push\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    response = tmp_path / "workflows.json"
+    response.write_text(json.dumps(_page((TRACKED[0], "active"))), encoding="utf-8")
+    command = [
+        sys.executable,
+        str(SCRIPT),
+        "--workflows-json",
+        str(response),
+        "--all-tracked",
+        "--repo-root",
+        str(repo),
+    ]
+
+    head_run = subprocess.run(command, capture_output=True, text=True, check=False)
+    base_run = subprocess.run([*command, "--tracked-ref", base], capture_output=True, text=True, check=False)
+
+    assert head_run.returncode == 1 and f"{TRACKED[1]}: not registered" in head_run.stderr
+    assert base_run.returncode == 0, base_run.stderr

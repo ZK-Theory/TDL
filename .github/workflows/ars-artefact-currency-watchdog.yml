@@ -95,8 +95,18 @@ jobs:
           gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/workflows"
           > all-workflows.json
 
+      # A PR or merge-queue run checks the BASE branch's workflow set: GitHub registers a
+      # workflow only once its file is on the default branch, so one the PR adds cannot be
+      # registered yet. The post-merge push run then checks it.
       - name: Fail closed if any tracked workflow is inactive
-        run: >-
-          python tools/check_workflow_liveness.py
-          --workflows-json all-workflows.json
-          --all-tracked
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref }}
+        run: |
+          ref_args=()
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            ref_args=(--tracked-ref FETCH_HEAD)
+          fi
+          python tools/check_workflow_liveness.py \
+            --workflows-json all-workflows.json \
+            --all-tracked "${ref_args[@]}"

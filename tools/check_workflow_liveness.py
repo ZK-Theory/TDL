@@ -53,14 +53,19 @@ def validate_workflow_liveness(payload: Mapping[str, object], *, target_path: st
         raise ValueError(f"workflow at {target_path} is {state!r}, expected 'active'")
 
 
-def tracked_workflow_paths(repo_root: Path) -> list[str]:
-    """Return the workflow files git tracks, as repository-relative POSIX paths."""
-    out = subprocess.run(
-        ["git", "ls-files", "-z", "--", WORKFLOW_DIR],
-        cwd=repo_root,
-        capture_output=True,
-        check=True,
-    ).stdout
+def tracked_workflow_paths(repo_root: Path, ref: str | None = None) -> list[str]:
+    """Return the workflow files git tracks, as repository-relative POSIX paths.
+
+    With ``ref``, the set comes from that commit's tree instead of the index. A pull-request run
+    passes the base branch: GitHub registers a workflow only once its file is on the default
+    branch, so one the PR itself adds cannot be registered yet and is checked after merge.
+    """
+    command = (
+        ["git", "ls-tree", "-r", "-z", "--name-only", ref, "--", WORKFLOW_DIR]
+        if ref
+        else ["git", "ls-files", "-z", "--", WORKFLOW_DIR]
+    )
+    out = subprocess.run(command, cwd=repo_root, capture_output=True, check=True).stdout
     paths = [chunk.decode("utf-8") for chunk in out.split(b"\x00") if chunk]
     return sorted(path for path in paths if path.endswith((".yml", ".yaml")))
 
@@ -98,13 +103,17 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="Override the tracked set (repeatable); default: git ls-files .github/workflows/.",
     )
+    parser.add_argument(
+        "--tracked-ref",
+        help="Take the tracked set from this commit's tree (a PR run passes its base branch).",
+    )
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     args = parser.parse_args(argv)
 
     try:
         payload = json.loads(args.workflows_json.read_text(encoding="utf-8"))
         if args.all_tracked:
-            tracked = args.tracked_path or tracked_workflow_paths(args.repo_root)
+            tracked = args.tracked_path or tracked_workflow_paths(args.repo_root, args.tracked_ref)
             if not tracked:
                 raise ValueError(f"no tracked workflow files under {WORKFLOW_DIR}; refusing to pass vacuously")
             problems = inactive_tracked_workflows(payload, tracked)

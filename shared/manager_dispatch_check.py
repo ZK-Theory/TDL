@@ -44,6 +44,7 @@ import argparse
 import ast
 import os
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -245,6 +246,34 @@ def check_contracts(workspace: Path) -> Check:
     return Check("contracts", proc.returncode == 0, msg)
 
 
+def _hookspath_remedy(workspace: Path) -> str:
+    """Return the command clearing a foreign core.hooksPath in the scope that set it.
+
+    Mirrors ``hookspath_remedy`` in ``.claude/hooks/install-git-hooks.py``: ``--worktree`` edits
+    only config.worktree, and the local scope is reset to ``.githooks`` rather than unset.
+    """
+    scope = (
+        subprocess.run(
+            ["git", "config", "--show-scope", "--get", "core.hooksPath"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.split("\t", 1)[0]
+        .strip()
+    )
+    fixes = {
+        "worktree": ["--worktree", "--unset", "core.hooksPath"],
+        "local": ["--local", "core.hooksPath", ".githooks"],
+        "global": ["--global", "--unset", "core.hooksPath"],
+        "system": ["--system", "--unset", "core.hooksPath"],
+    }
+    if scope in fixes:
+        return shlex.join(["git", "-C", str(workspace), "config", *fixes[scope]])
+    return f"core.hooksPath comes from scope '{scope or 'unknown'}' (a -c option or GIT_CONFIG_* variable); remove it there"
+
+
 def check_hook_gate(workspace: Path) -> Check:
     """Assert the Worker's commit-time contract gate is actually live in workspace.
 
@@ -292,7 +321,7 @@ def check_hook_gate(workspace: Path) -> Check:
             False,
             f"active hooks resolve outside this workspace ({where}; toplevel {toplevel}) — the "
             f"Worker's commits would run another checkout's hooks, not this branch's. Fix before "
-            f"dispatch: git -C {workspace} config --worktree --unset core.hooksPath",
+            f"dispatch, in the scope that set it: {_hookspath_remedy(workspace)}",
         )
     if not hook.is_file():
         return Check(

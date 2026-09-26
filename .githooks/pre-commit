@@ -305,7 +305,10 @@ if [ -n "$_generated_staged" ]; then
     exit 1
   fi
 fi
-_gitmodules_paths=$(git show ":.gitmodules" 2>/dev/null | sed -n 's/^[[:space:]]*path[[:space:]]*=[[:space:]]*//p' | tr -d '\r')
+# Read the staged .gitmodules with git's own config parser and accept only real
+# submodule.<name>.path mappings: a `path =` line under any other section is not one.
+# --null keeps a submodule name containing spaces from being read as part of the path.
+_gitmodules_paths=$(git config --blob :.gitmodules --null --get-regexp '^submodule\..*\.path$' 2>/dev/null | sed -z 's/^[^\n]*\n//' | tr '\0' '\n' | tr -d '\r')
 _dangling_gitlinks=""
 while read -r _mode _sha _stage _path; do
   [ "$_mode" = "160000" ] || continue
