@@ -307,13 +307,20 @@ if [ -n "$_generated_staged" ]; then
 fi
 # Read the staged .gitmodules with git's own config parser and accept only real
 # submodule.<name>.path mappings: a `path =` line under any other section is not one.
-# --null keeps a submodule name containing spaces from being read as part of the path.
-_gitmodules_paths=$(git config --blob :.gitmodules --null --get-regexp '^submodule\..*\.path$' 2>/dev/null | sed -z 's/^[^\n]*\n//' | tr '\0' '\n' | tr -d '\r')
+# Both sides are read NUL-delimited and compared raw: `--null` keeps a submodule name with
+# spaces out of the path, and `ls-files -z` gives real pathnames rather than the C-quoted
+# display form, which a matching quoted spelling in .gitmodules could otherwise satisfy.
+declare -A _mapped_paths=()
+while IFS= read -r -d '' _entry; do
+  _mapped_paths["${_entry#*$'\n'}"]=1
+done < <(git config --blob :.gitmodules --null --get-regexp '^submodule\..*\.path$' 2>/dev/null)
 _dangling_gitlinks=""
-while read -r _mode _sha _stage _path; do
-  [ "$_mode" = "160000" ] || continue
-  printf '%s\n' "$_gitmodules_paths" | grep -qxF -- "$_path" || _dangling_gitlinks="$_dangling_gitlinks $_path"
-done < <(git ls-files -s)
+while IFS= read -r -d '' _entry; do
+  _meta=${_entry%%$'\t'*}
+  _path=${_entry#*$'\t'}
+  [ "${_meta%% *}" = "160000" ] || continue
+  [ -n "${_mapped_paths[$_path]+x}" ] || _dangling_gitlinks="$_dangling_gitlinks $_path"
+done < <(git ls-files -s -z)
 if [ -n "$_dangling_gitlinks" ]; then
   echo "" >&2
   echo "pre-commit: gitlink with no .gitmodules entry — commit blocked:$_dangling_gitlinks" >&2

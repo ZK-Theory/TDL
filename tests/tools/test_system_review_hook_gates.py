@@ -212,11 +212,14 @@ def _apply(command: str) -> None:
     subprocess.run(shlex.split(command), check=True, capture_output=True, text=True)
 
 
-@pytest.mark.parametrize("scope", ["worktree", "local"])
+@pytest.mark.parametrize(("scope", "flag"), [("worktree", "--worktree"), ("local", "--local"), ("global", "--local")])
 def test_the_printed_hookspath_fix_clears_the_scope_that_set_it(
-    tmp_path: Path, monkeypatch, capsys, scope: str
+    tmp_path: Path, monkeypatch, capsys, scope: str, flag: str
 ) -> None:
-    """``--worktree --unset`` cannot clear a value from the shared local config; the remedy must match the scope."""
+    """``--worktree --unset`` cannot clear a value from the shared local config; the remedy must match the scope.
+
+    A global value is overridden locally, never unset: other repositories on the machine may rely on it.
+    """
     from shared.manager_dispatch_check import check_hook_gate
 
     module = _installer_module()
@@ -224,11 +227,19 @@ def test_the_printed_hookspath_fix_clears_the_scope_that_set_it(
     if scope == "local":
         _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
         _git(repo, "config", "--local", "core.hooksPath", str(repo / ".githooks"))
+    global_config = tmp_path / "global.gitconfig"
+    global_config.write_text("", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_config))
+    if scope == "global":
+        _git(worktree, "config", "--worktree", "--unset", "core.hooksPath")
+        _git(repo, "config", "--local", "--unset", "core.hooksPath")
+        _git(repo, "config", "--global", "core.hooksPath", str(repo / ".githooks"))
+    global_before = global_config.read_bytes()
 
     refused = check_hook_gate(worktree)
     assert not refused.ok
     dispatch_fix = refused.detail.rsplit("set it: ", 1)[1]
-    assert f"--{scope}" in dispatch_fix
+    assert flag in dispatch_fix and "--global" not in dispatch_fix
 
     monkeypatch.setattr(module, "REPO_ROOT", worktree)
     assert module.verify() == 1
@@ -238,6 +249,7 @@ def test_the_printed_hookspath_fix_clears_the_scope_that_set_it(
     _apply(installer_fix)
     assert module.verify() == 0
     assert check_hook_gate(worktree).ok
+    assert global_config.read_bytes() == global_before, "the fix must not touch the global config"
 
 
 def _run_guard(path: str, project: Path, payload: str | None = None) -> subprocess.CompletedProcess[str]:

@@ -109,7 +109,9 @@ def hookspath_remedy(checkout: Path) -> str:
 
     `--worktree` edits only config.worktree, so it cannot clear a value that comes from the
     shared local config or the global one. The local scope is the repository's own binding, so
-    it is reset to the relative `.githooks` rather than unset, which would disable the hooks.
+    it is reset to the relative `.githooks` rather than unset, which would disable the hooks. A
+    global or system value is overridden with that same local setting, never removed: other
+    repositories on the machine may rely on it.
     """
     scope = (
         subprocess.run(
@@ -125,8 +127,8 @@ def hookspath_remedy(checkout: Path) -> str:
     fixes = {
         "worktree": ["--worktree", "--unset", "core.hooksPath"],
         "local": ["--local", "core.hooksPath", ".githooks"],
-        "global": ["--global", "--unset", "core.hooksPath"],
-        "system": ["--system", "--unset", "core.hooksPath"],
+        "global": ["--local", "core.hooksPath", ".githooks"],
+        "system": ["--local", "core.hooksPath", ".githooks"],
     }
     if scope in fixes:
         return shlex.join(["git", "-C", str(checkout), "config", *fixes[scope]])

@@ -250,7 +250,8 @@ def _hookspath_remedy(workspace: Path) -> str:
     """Return the command clearing a foreign core.hooksPath in the scope that set it.
 
     Mirrors ``hookspath_remedy`` in ``.claude/hooks/install-git-hooks.py``: ``--worktree`` edits
-    only config.worktree, and the local scope is reset to ``.githooks`` rather than unset.
+    only config.worktree, and the local scope is reset to ``.githooks`` rather than unset. A global
+    or system value is overridden locally, never removed for every other repository.
     """
     scope = (
         subprocess.run(
@@ -266,8 +267,8 @@ def _hookspath_remedy(workspace: Path) -> str:
     fixes = {
         "worktree": ["--worktree", "--unset", "core.hooksPath"],
         "local": ["--local", "core.hooksPath", ".githooks"],
-        "global": ["--global", "--unset", "core.hooksPath"],
-        "system": ["--system", "--unset", "core.hooksPath"],
+        "global": ["--local", "core.hooksPath", ".githooks"],
+        "system": ["--local", "core.hooksPath", ".githooks"],
     }
     if scope in fixes:
         return shlex.join(["git", "-C", str(workspace), "config", *fixes[scope]])

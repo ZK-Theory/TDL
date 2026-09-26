@@ -488,6 +488,31 @@ def test_pre_commit_refuses_a_gitlink_without_a_gitmodules_entry(tmp_path: Path)
 
 @pytest.mark.integration
 @pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_compares_raw_gitlink_paths_not_their_quoted_display(tmp_path: Path) -> None:
+    """``ls-files -s`` prints ``"vend\\303\\266red"`` for ``vendöred``; a .gitmodules path spelled that way is no mapping."""
+    repo, env = _admission_fixture(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-index", "--add", "--cacheinfo", f"160000,{sha},vendöred")
+    (repo / ".gitmodules").write_text(
+        '[submodule "v"]\n\tpath = "\\"vend\\\\303\\\\266red\\""\n\turl = https://example.invalid/v.git\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    _git(repo, "add", ".gitmodules")
+    refused = _run_hook(repo, env)
+
+    (repo / ".gitmodules").write_text(
+        '[submodule "v"]\n\tpath = vendöred\n\turl = https://example.invalid/v.git\n', encoding="utf-8", newline="\n"
+    )
+    _git(repo, "add", ".gitmodules")
+    admitted = _run_hook(repo, env)
+
+    assert refused.returncode == 1 and DANGLING_GITLINK in refused.stderr, refused.stderr
+    assert admitted.returncode == 0, admitted.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
 def test_pre_commit_refuses_a_gitlink_whose_path_line_is_not_a_submodule_mapping(tmp_path: Path) -> None:
     """``[foo] path = vendored`` is not a submodule stanza; ``git submodule status`` still fails on it."""
     repo, env = _admission_fixture(tmp_path)
