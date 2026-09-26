@@ -259,6 +259,55 @@ def test_concurrent_recorders_keep_every_sessions_record(repo: Path) -> None:
     assert all(_pre("git commit -m x", repo, session=s) == "deny" for s in sessions)
 
 
+@pytest.mark.parametrize(
+    "command",
+    ["git commit --no-verify -m x", "git commit -n -m x", "git commit -anm x", "git push --no-verify origin work"],
+)
+def test_skipping_the_git_hooks_is_refused(command: str, repo: Path) -> None:
+    """--no-verify skips gate -1, so a fresh session could land a commit on main unrefused."""
+    assert _pre(command, repo) == "deny"
+
+
+def test_a_message_that_looks_like_a_flag_is_not_no_verify(repo: Path) -> None:
+    assert _pre('git commit -m "-n"', repo) == "allow"
+
+
+def test_a_backgrounded_commit_is_refused_even_with_pipefail(repo: Path) -> None:
+    assert _pre("set -o pipefail; git commit -m x | tail &", repo) == "deny"
+    assert _pre("git commit -m x &", repo) == "deny"
+
+
+def test_env_dash_c_moves_the_commit_target(repo: Path, tmp_path: Path) -> None:
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre(f"env -C {repo.as_posix()} git commit -m x", tmp_path) == "deny"
+    assert _pre(f"env --chdir={repo.as_posix()} git commit -m x", tmp_path) == "deny"
+
+
+def test_a_checkout_that_restores_a_path_is_not_a_branch_move(repo: Path) -> None:
+    """``git checkout a.txt`` restores a file (no branch has that name), so it cannot explain a new branch."""
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "other")
+
+    assert _pre("git checkout a.txt && git commit -m x", repo) == "deny"
+    assert _pre("git checkout work && git commit -m x", repo) == "allow", "a real branch move still exempts"
+
+
+def test_two_distinct_detached_heads_are_not_the_same_state(repo: Path) -> None:
+    """A session mid-rebase at commit A; another session detaches the shared tree at B."""
+    first = _git(repo, "rev-parse", "HEAD").strip()
+    (repo / "b.txt").write_text("b\n", encoding="utf-8", newline="\n")
+    _git(repo, "add", "b.txt")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "second")
+    second = _git(repo, "rev-parse", "HEAD").strip()
+    _git(repo, "checkout", "-q", "--detach", first)
+    _post("git status", repo)
+    _git(repo, "checkout", "-q", "--detach", second)
+
+    assert _pre("git commit -m x", repo) == "deny"
+
+
 def test_sessions_are_isolated(repo: Path) -> None:
     """One session's observation neither refuses nor admits another session's commit."""
     _post("git status", repo, session="s1")

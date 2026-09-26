@@ -30,7 +30,14 @@ repository a git command touched, one file per session under
 worktree keeps its own record, and one file per session means concurrent
 sessions never overwrite each other's record. Any git command counts as the
 session looking, so after a refusal a single ``git status`` records the new
-branch and the commit is admitted knowingly.
+branch and the commit is admitted knowingly. Known limit: recording follows the
+command's text, not its control flow, so a git call that never ran (``true || git
+status``) still records the branch. Evaluating the shell is out of scope for this
+backstop; pre-commit gate -1 refuses a commit on main regardless.
+
+Also denied: ``--no-verify`` (or ``git commit -n``), which would skip the pre-commit
+gates, and a Bash commit backgrounded with ``&``, whose status the shell never reports.
+Detached HEADs are recorded with their commit, so two detached states differ.
 
 The hook reads the payload from stdin and writes a decision (PreToolUse) or
 nothing (PostToolUse). Errors propagate; the launcher turns them into a visible
@@ -71,6 +78,15 @@ PIPE_REASON = (
     "output to a file instead), or prefix `set -o pipefail;`, then confirm with `git log -1` "
     "that HEAD actually moved."
 )
+NO_VERIFY_REASON = (
+    "--no-verify (or `git commit -n`) skips the git hooks, including the pre-commit refusal of commits "
+    "on main and every validation gate. Project rules forbid it: if a hook fails, fix the cause."
+)
+BACKGROUND_REASON = (
+    "git commit is backgrounded with `&`, so the shell reports success at once, whatever the commit's "
+    "outcome (pipefail does not help). Run it in the foreground, or use the tool's own background "
+    "option and confirm with `git log -1` that HEAD moved."
+)
 OVERRIDE_REASON = (
     "TDL_ALLOW_MAIN_COMMIT is the owner's exception to the pre-commit refusal of commits on main, "
     "for use from the owner's own terminal. An agent does not set it: work reaches main through a "
@@ -92,6 +108,7 @@ class GitCall:
     subcommand: str | None
     args: list[str]
     directories: list[str]  # candidate repositories; the first assumes every directory change succeeded
+    options: list[str]  # git's global options, before the subcommand
 
 
 def tokenize(command: str, tool: str) -> list[str]:
@@ -125,31 +142,44 @@ def statements(tokens: list[str]) -> list[Statement]:
     return result
 
 
-def _strip_prefixes(segment: list[str]) -> list[str]:
-    """Drop assignments, subshell/group openers and command wrappers ahead of the real command."""
+def _strip_prefixes(segment: list[str]) -> tuple[list[str], str | None]:
+    """Drop assignments, subshell/group openers and command wrappers ahead of the real command.
+
+    Returns the remaining words and any directory ``env -C DIR`` / ``env --chdir=DIR`` moves into
+    before running the command.
+    """
     index = 0
+    chdir: str | None = None
     while index < len(segment):
         token = segment[index]
         if token in OPENERS or ASSIGNMENT.fullmatch(token):
             index += 1
         elif token in WRAPPERS:
+            wrapper = token
             index += 1
             while index < len(segment) and segment[index].startswith("-") and segment[index] != "--":
-                index += 2 if segment[index] in ("-u", "-C", "-S") else 1
+                option = segment[index]
+                if wrapper == "env" and option in ("-C", "--chdir") and index + 1 < len(segment):
+                    chdir = segment[index + 1]
+                elif wrapper == "env" and option.startswith("--chdir="):
+                    chdir = option.partition("=")[2]
+                index += 2 if option in ("-u", "-C", "-S", "--chdir") else 1
         else:
             break
-    return segment[index:]
+    return segment[index:], chdir
 
 
-def git_call(segment: list[str]) -> tuple[str | None, list[str], str | None] | None:
-    """Return (subcommand, its arguments, repository directory) if the segment runs git, else None.
+def git_call(segment: list[str]) -> tuple[str | None, list[str], str | None, list[str]] | None:
+    """Return (subcommand, its arguments, repository directory, global options) if the segment runs git.
 
-    The directory combines ``-C`` with ``--work-tree`` (or ``--git-dir``), as git does.
+    The directory combines ``env -C`` with ``-C`` and ``--work-tree`` (or ``--git-dir``), as they
+    apply in that order.
     """
-    words = _strip_prefixes(segment)
+    words, chdir = _strip_prefixes(segment)
     if not words or not GIT_TOKEN.fullmatch(words[0]):
         return None
-    directory: str | None = None
+    directory: str | None = chdir
+    options: list[str] = []
     git_dir: str | None = None
     work_tree: str | None = None
     index = 1
@@ -171,13 +201,14 @@ def git_call(segment: list[str]) -> tuple[str | None, list[str], str | None] | N
             index += 2
             continue
         if token.startswith("-"):
+            options.append(token)
             index += 1
             continue
         target = work_tree or git_dir
         if target:
             directory = target if directory is None else str(Path(directory) / target)
-        return token, [w for w in words[index + 1 :] if w not in (")", "}")], directory
-    return None, [], directory
+        return token, [w for w in words[index + 1 :] if w not in (")", "}")], directory, options
+    return None, [], directory, options
 
 
 def to_native(path: str) -> str:
@@ -212,7 +243,7 @@ def walk(parsed: list[Statement], cwd: str) -> list[GitCall]:
     deferred: list[str] = []  # directories live again once the current && chain ends
     for s_index, statement in enumerate(parsed):
         for g_index, segment in enumerate(statement.segments):
-            words = [w for w in _strip_prefixes(segment) if w not in (")", "}")]
+            words = [w for w in _strip_prefixes(segment)[0] if w not in (")", "}")]
             if words[:1] and words[0] in CHANGE_DIR and len(statement.segments) == 1:
                 target = words[1] if len(words) > 1 else os.path.expanduser("~")
                 old = possible
@@ -224,7 +255,7 @@ def walk(parsed: list[Statement], cwd: str) -> list[GitCall]:
                 continue
             found = git_call(segment)
             if found is not None:
-                subcommand, args, directory = found
+                subcommand, args, directory, options = found
                 calls.append(
                     GitCall(
                         s_index,
@@ -233,6 +264,7 @@ def walk(parsed: list[Statement], cwd: str) -> list[GitCall]:
                         subcommand,
                         args,
                         _dedupe([resolve(p, directory) for p in possible]),
+                        options,
                     )
                 )
         if statement.separator != "&&" and deferred:
@@ -255,10 +287,54 @@ def pipefail_before(parsed: list[Statement], statement: int) -> bool:
     return enabled
 
 
+def moves_branch(call: GitCall) -> bool:
+    """Whether a checkout/switch moves HEAD rather than restoring paths.
+
+    ``git checkout a.txt`` restores a path when ``a.txt`` is not a ref, with no ``--`` needed, so
+    a checkout counts as a move only with a branch-creating/detaching option or when its first
+    operand resolves to a commit in the target repository.
+    """
+    if call.subcommand == "switch":
+        return True
+    if "--" in call.args:
+        return False
+    if any(a in ("-b", "-B", "--orphan", "--detach") for a in call.args):
+        return True
+    operands = [a for a in call.args if not a.startswith("-")]
+    if not operands:
+        return False
+    return any(
+        git(directory, "rev-parse", "--verify", "--quiet", f"{operands[0]}^{{commit}}").returncode == 0
+        for directory in call.directories
+        if Path(directory).is_dir()
+    )
+
+
+def bypasses_hooks(call: GitCall) -> bool:
+    """Whether a git call skips the git hooks: ``--no-verify`` anywhere, or ``-n`` on a commit."""
+    if "--no-verify" in call.args:
+        return True
+    if call.subcommand != "commit":
+        return False
+    takes_value = False
+    for arg in call.args:
+        if takes_value:  # a message or file argument, such as `-m "-n"`
+            takes_value = False
+            continue
+        if re.fullmatch(r"-[A-Za-z]+", arg):
+            for position, flag in enumerate(arg[1:], start=1):
+                if flag == "n":
+                    return True
+                if flag in "mFcCt":  # the rest of the cluster, or the next word, is this option's value
+                    takes_value = position == len(arg) - 1
+                    break
+    return False
+
+
 def gated_by_move(parsed: list[Statement], calls: list[GitCall], commit: GitCall) -> bool:
-    """Whether a same-repository checkout/switch earlier in an unbroken && chain gates this commit."""
+    """Whether a same-repository branch move earlier in an unbroken && chain gates this commit."""
     for call in calls:
-        if call.subcommand not in BRANCH_MOVERS or call.statement >= commit.statement or "--" in call.args:
+        if call.subcommand not in BRANCH_MOVERS or call.statement >= commit.statement or not moves_branch(call):
             continue
         if not set(call.directories) & set(commit.directories):
             continue
@@ -281,7 +357,13 @@ def branch_and_state(directory: str, session: str) -> tuple[str, Path] | None:
     if git_dir.returncode != 0 or not git_dir.stdout.strip():
         return None
     head = git(directory, "symbolic-ref", "-q", "--short", "HEAD")
-    branch = head.stdout.strip() if head.returncode == 0 and head.stdout.strip() else DETACHED
+    if head.returncode == 0 and head.stdout.strip():
+        branch = head.stdout.strip()
+    else:
+        # Record which commit: two distinct detached states (a rebase here, another session's
+        # checkout there) must not compare equal.
+        oid = git(directory, "rev-parse", "--verify", "--quiet", "HEAD").stdout.strip()
+        branch = f"{DETACHED[:-1]} at {oid})" if oid else DETACHED
     name = hashlib.sha256(session.encode("utf-8")).hexdigest()[:32]
     return branch, Path(git_dir.stdout.strip()) / STATE_DIR / name
 
@@ -331,6 +413,8 @@ def decide(payload: dict) -> dict | None:
 
     if OVERRIDE.search(command):
         return emit("deny", OVERRIDE_REASON)
+    if any(bypasses_hooks(call) for call in calls):
+        return emit("deny", NO_VERIFY_REASON)
 
     commits = [call for call in calls if call.subcommand == "commit"]
     if not commits:
@@ -338,6 +422,8 @@ def decide(payload: dict) -> dict | None:
 
     if tool == "Bash":
         for commit in commits:
+            if parsed[commit.statement].separator == "&":
+                return emit("deny", BACKGROUND_REASON)
             if commit.segment < commit.segment_count - 1 and not pipefail_before(parsed, commit.statement):
                 return emit("deny", PIPE_REASON)
 
