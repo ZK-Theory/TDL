@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -183,3 +184,182 @@ def test_checker_source_is_itself_lf() -> None:
     """A CRLF checker committed as CRLF would be self-refuting."""
     assert CHECKER.read_bytes().count(b"\r\n") == 0
     assert HOOK.read_bytes().count(b"\r\n") == 0
+
+
+def _git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, f"git {' '.join(args)} failed: {completed.stderr}"
+    return completed.stdout
+
+
+@pytest.fixture
+def lf_repo(tmp_path: Path) -> Path:
+    """A real repository with the live `.gitattributes` hook pin, one tracked hook script, committed LF.
+
+    The explicit `.githooks/** text eol=lf` matters: under `text=auto` alone git still reports a
+    CRLF rewrite as modified, so only the explicit pin the real repository uses reproduces the
+    clean status that made the incident invisible.
+    """
+    repo = tmp_path / "repo"
+    (repo / ".githooks").mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "fixture-branch")
+    _git(repo, "config", "user.email", "crlf-test@example.invalid")
+    _git(repo, "config", "user.name", "CRLF Test")
+    _git(repo, "config", "core.autocrlf", "false")
+    (repo / ".gitattributes").write_bytes(b"* text=auto eol=lf\n.githooks/** text eol=lf\n")
+    (repo / ".githooks" / "post-commit").write_bytes(b"#!/bin/bash\necho ok\n")
+    (repo / "notes.md").write_bytes(b"one\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "seed")
+    return repo
+
+
+def _run_worktree(repo: Path, *pathspecs: str) -> subprocess.CompletedProcess[str]:
+    args = [sys.executable, str(CHECKER), "--repo-root", str(repo)]
+    for pathspec in pathspecs:
+        args += ["--worktree", pathspec]
+    return subprocess.run(args, capture_output=True, text=True, check=False)
+
+
+def test_worktree_mode_catches_a_crlf_hook_that_git_status_calls_clean(lf_repo: Path) -> None:
+    """Obs 2026-09-08-shell-rewrite-crlf-on-tracked-hook: the watched failure.
+
+    A shell redirect rewrote a tracked hook with CRLF. Once any `git add` has touched it, the
+    index records the CRLF file's stat against the unchanged normalised LF blob: nothing is
+    staged, `git status` reports nothing, and the staged-set scan never looks. The broken
+    shebang still executes from disk. (Before that add, git reports the file modified, because a
+    size change is reported without a content comparison.)
+    """
+    hook = lf_repo / ".githooks" / "post-commit"
+    hook.write_bytes(b"#!/bin/bash\r\necho ok\r\n")
+    _git(lf_repo, "add", ".githooks/post-commit")
+    assert _git(lf_repo, "status", "--porcelain") == "", "fixture must reproduce git calling the file clean"
+    assert hook.read_bytes().count(b"\r\n") == 2, "the working tree must still carry the CRLF"
+
+    staged_only = _run_worktree(lf_repo)
+    with_worktree = _run_worktree(lf_repo, ".githooks")
+
+    assert staged_only.returncode == 0, "the staged-set scan is blind to this, which is why the mode exists"
+    assert with_worktree.returncode == 1, with_worktree.stderr
+    assert ".githooks/post-commit: 2 CRLF pair(s) in the working tree" in with_worktree.stderr
+
+
+def test_worktree_mode_passes_a_clean_tree_and_ignores_paths_outside_its_pathspecs(lf_repo: Path) -> None:
+    """Positive controls: LF hooks pass, and CRLF outside the named pathspecs is not its business."""
+    (lf_repo / "notes.md").write_bytes(b"one\r\n")
+    (lf_repo / ".githooks" / "untracked-scratch").write_bytes(b"x\r\n")
+
+    result = _run_worktree(lf_repo, ".githooks")
+
+    assert result.returncode == 0, result.stderr
+
+
+def _check(repo: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(repo)], capture_output=True, text=True, check=False
+    )
+
+
+def _apply_printed_commands(stderr: str, repo: Path) -> None:
+    """Run every command line the gate printed, exactly as printed (one command per indented line)."""
+    commands = [line[2:] for line in stderr.splitlines() if line.startswith("  ") and " CRLF pair" not in line]
+    assert commands, stderr
+    for command in commands:
+        completed = subprocess.run(shlex.split(command), cwd=repo, capture_output=True, text=True, check=False)
+        assert completed.returncode == 0, f"{command}: {completed.stderr}"
+
+
+def test_the_remediation_the_gate_prints_actually_clears_it(lf_repo: Path) -> None:
+    """The advice must work against the surface the gate reads.
+
+    The old message said `git add --renormalize <path>`. That rewrites the index blob only; the
+    gate reads working-tree bytes, so following it fails the gate again (hit three times in the
+    2026-09-23 review session). Applying the printed commands must leave the gate green.
+    """
+    target = lf_repo / "notes.md"
+    target.write_bytes(b"one\r\ntwo\r\n")
+    _git(lf_repo, "add", "notes.md")
+    blocked = _check(lf_repo)
+    assert blocked.returncode == 1
+    assert "git add --renormalize" not in blocked.stderr
+
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    cleared = _check(lf_repo)
+    assert cleared.returncode == 0, cleared.stderr
+    assert target.read_bytes() == b"one\ntwo\n", "the author's content must survive the fix"
+
+
+def test_the_remediation_keeps_a_partially_staged_file_partial(lf_repo: Path) -> None:
+    """Staged `two`, unstaged `three`: the fix must not sweep `three` into the index."""
+    target = lf_repo / "notes.md"
+    target.write_bytes(b"one\ntwo\n")
+    _git(lf_repo, "add", "notes.md")
+    target.write_bytes(b"one\r\ntwo\r\nthree\r\n")
+    blocked = _check(lf_repo)
+    assert blocked.returncode == 1
+
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    assert _check(lf_repo).returncode == 0
+    assert _git(lf_repo, "show", ":notes.md") == "one\ntwo\n", "the staged selection must be unchanged"
+    assert target.read_bytes() == b"one\ntwo\nthree\n", "the unstaged edit must survive in the working tree"
+
+
+def test_the_printed_remediation_quotes_paths_with_spaces(lf_repo: Path) -> None:
+    target = lf_repo / "first pass" / "Report; notes.md"
+    target.parent.mkdir()
+    target.write_bytes(b"a\r\n")
+    _git(lf_repo, "add", "first pass/Report; notes.md")
+    blocked = _check(lf_repo)
+    assert blocked.returncode == 1
+
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    assert _check(lf_repo).returncode == 0, "every printed command must act on the reported file"
+    assert target.read_bytes() == b"a\n"
+
+
+def test_fix_refuses_paths_outside_the_repository(lf_repo: Path, tmp_path: Path) -> None:
+    """--fix writes, so an absolute or escaping path must not reach a file outside the checkout."""
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"x\r\n")
+    for target in (str(outside), "../outside.txt"):
+        result = subprocess.run(
+            [sys.executable, str(CHECKER), "--repo-root", str(lf_repo), "--fix", "--", target],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 2, result.stderr
+    assert outside.read_bytes() == b"x\r\n"
+
+
+def test_a_forced_text_hook_with_a_nul_byte_is_still_scanned(lf_repo: Path) -> None:
+    """`.githooks/** text eol=lf` means git never applies the NUL heuristic there, so neither may the gate."""
+    hook = lf_repo / ".githooks" / "post-commit"
+    hook.write_bytes(b"#!/bin/bash\r\necho \x00ok\r\n")
+    _git(lf_repo, "add", ".githooks/post-commit")
+    hook.write_bytes(b"#!/bin/bash\r\necho \x00ok\r\n")
+
+    result = _run_worktree(lf_repo, ".githooks")
+
+    assert result.returncode == 1, result.stderr
+
+
+def test_an_unstaged_binary_declaration_does_not_exempt_a_hook(lf_repo: Path) -> None:
+    """Only the index's attributes (the commit's policy) may exempt a hook from the worktree scan."""
+    hook = lf_repo / ".githooks" / "post-commit"
+    hook.write_bytes(b"#!/bin/bash\r\necho ok\r\n")
+    _git(lf_repo, "add", ".githooks/post-commit")
+    (lf_repo / ".gitattributes").write_bytes(b"* text=auto eol=lf\n.githooks/** binary\n")
+
+    result = _run_worktree(lf_repo, ".githooks")
+
+    assert result.returncode == 1, result.stderr
+
+
+def test_pre_commit_scans_the_tracked_hook_directories_on_disk() -> None:
+    """The mode only protects anything if the commit path runs it over the hook directories."""
+    hook = HOOK.read_text(encoding="utf-8")
+    assert "--worktree .githooks --worktree .claude/hooks --worktree .codex/hooks" in hook

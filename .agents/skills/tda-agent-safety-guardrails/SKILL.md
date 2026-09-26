@@ -56,6 +56,27 @@ tier 2 skill first.
 - For an autonomous dispatch: does the prompt bound scope with hard stops,
   state blocking gates, and repeat the `results/` provenance rule?
 
+## Line Endings On Executable And Classified Files
+
+`git status` and `.gitattributes` normalise at the index, not the working
+tree, so neither is evidence about the bytes on disk.
+
+- After any shell rewrite of a tracked hook or script (`sed ... > file`,
+  `grep ... > file`, a redirect), count its CRLF bytes directly. Repair with
+  `uv run python tools/check_crlf_byte_surface.py --fix -- <p>`, which
+  rewrites only the working-tree bytes and leaves the index, and any partial
+  staging, alone. `git checkout HEAD -- <p>` alone is a no-op when the index
+  already matches, and `git add --renormalize` alone fixes only the index.
+  Do not stage the whole file to repair it: that sweeps unstaged edits in.
+- Pre-commit runs the CRLF gate with `--worktree .githooks --worktree
+  .claude/hooks --worktree .codex/hooks`, so a CRLF hook on disk blocks every
+  commit until repaired, even when `git status` is clean.
+- When a classification decides which files may be modified or reverted (for
+  example, "which of these 2,000 dirty files have real edits"), compare bytes
+  or use a content diff. Never use a name-only listing: `git diff --name-only`
+  silently discards content flags such as `--ignore-cr-at-eol` and reports
+  every drift-only file as changed.
+
 ## Self-Test Prompts
 
 - *A hook is blocking a legitimate commit and the agent proposes

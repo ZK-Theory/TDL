@@ -1,6 +1,6 @@
 {
   "adversarial-design-review": {
-    "SKILL.md": "c10d74e03f474e43eb41540009de82ae173c5c3e97c03be6773f996d2fe1439d"
+    "SKILL.md": "c283938af8e72219aaf883b006bc302d040bb4d0ee8683621e5e17ad1610615f"
   },
   "assay": {
     "SKILL.md": "952be58bf4ea1782077c63c45b4cf6de819a91e5915e545dcbe3c3c747c6e664"
@@ -12,7 +12,7 @@
     "SKILL.md": "86296694503feb21e337ac907e09315dc46fcc325140a97abae8ee1ccae03c6a"
   },
   "contract-first-tdd": {
-    "SKILL.md": "801e6fd5b82c593070cb9c036a085ffbbe54885c2b27747f479bf989f7604cf8"
+    "SKILL.md": "bd9ee030cfe1f337beb4a02c01becc9190f34944cd78fd586e099afd663706b3"
   },
   "executing-plans-extras": {
     "SKILL.md": "ac00ff404577696109c5fdf0e0117fe2e15b16c5dcb68921b976586b2f550bd7",
@@ -56,7 +56,7 @@
     "SKILL.md": "b29f7496c58e2b595ffe4cb2633e74f5f15202d1dad844c7f4005b3da248420d"
   },
   "pre-reg-to-dispatch": {
-    "SKILL.md": "0f1f7f44906fd6365e59085ce18ef6ec8fe1b0b9cb7570f0d6e749d9098e1841"
+    "SKILL.md": "ebd08192492cf652d3bb6d0b8f29311b79b039bd721e2c039378bc3b66aecdf8"
   },
   "representation-freeze-audit": {
     "SKILL.md": "b9fabd83f38b1c595e0d455ced9a7d21020c9a8008c40befecdafae448137d86"
@@ -71,7 +71,7 @@
     "SKILL.md": "45cd4223406009e586d824aff11a72e534e268fd16e31707bdaa7ecc7e4c88e1"
   },
   "schema-contract-design": {
-    "SKILL.md": "9beacbc1fb34c52a66cea48e621bab48b91fb7c4c8633156c453597dd21dc04d"
+    "SKILL.md": "237a4a26cb3b472951f89202df738a4dcb1aeb279a6413727bd1c7c18dc68ea6"
   },
   "scout-review": {
     "SKILL.md": "816feb82455c1b59661389ea37a22344c35cb40b17537835394aea2df9093e6e"
@@ -93,7 +93,7 @@
     "SKILL.md": "a0e9a183143575b984bb8db48d847b32b2dc7a9cb1bec4b7939888cda633506a"
   },
   "tda-agent-safety-guardrails": {
-    "SKILL.md": "ab9aeb15f1e83cdd7de8d397fff05b008059c2a4ccb724b377512ca2c2bf0d3e"
+    "SKILL.md": "097c58afd10defc5b6d538f0042426f0ff1389aac0a879ef0cd5d510b51408f8"
   },
   "tda-codebase-design": {
     "SKILL.md": "6091a27d2ac11a08474d5d3a742e7d95b688bb87d81ed3b1b342b519f00c431c"
@@ -123,7 +123,7 @@
     "SKILL.md": "bfa53899ad55ff83e75839b8f28797bf027a7c38e5fcc67fd0c415d0a094be4f"
   },
   "tda-large-workflow-supervision": {
-    "SKILL.md": "d61d72724dd439290a6c3f2e0040a96c61bf52aa612a016cc2d32c14e513fefc"
+    "SKILL.md": "1afc3977219c7bbb39566b423711c1fc3cee38ffc2ae2f9b82a3e1f32ed5d77f"
   },
   "tda-learning-scaffold": {
     "SKILL.md": "b0778f0c820139e718f67bf258e97d2dd02900a3e78126aaf97f5f81c46cebf8"
@@ -165,7 +165,7 @@
     "SKILL.md": "cbec4304838ce97b52e048904b4398979030eb3d1ac0863020b03c93ea19d4f3"
   },
   "tda-task-brief-from-plan": {
-    "SKILL.md": "c4f39f6f4e5b5059c11b4ef4a626c3992b86d9d08baa12e6fdbe6dbadc66df3f"
+    "SKILL.md": "28ee762ee23817c1cff9002e7bd46945a80dbb3c2b7f229d3aef2ffa120b985f"
   },
   "tda-trajectory-baselines": {
     "SKILL.md": "c04c0071be192518e393c0d6d369965bdf469572ddc4b891d6337235f179e84a"
