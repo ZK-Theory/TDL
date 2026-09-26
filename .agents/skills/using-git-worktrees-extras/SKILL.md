@@ -131,6 +131,57 @@ the runtime workspace. Do not retry from the orchestrating task.
   validating contracts against the main venv is authoritative when the
   worktree itself authors no contracts.
 
+## Worktree Sweep
+
+A sweep judged only on "dirty" and "unpushed" errs in both directions at
+once: squash merges make finished work look unfinished, and a deleted-files
+shell makes an empty worktree look like thousands of changes. Classify
+against what the repository's merge style and the platform's file
+attributes actually mean, not the obvious signals:
+
+- **Squash merges orphan the branch, not the work.** GitHub deletes the head
+  branch on a squash merge, so a fully merged worktree's commits are on no
+  remote and read as "unpushed." Classify a worktree as merged when its
+  `HEAD` equals a merged PR's `headRefOid`, never by branch presence alone.
+- **An all-`D` status is not by itself evidence of an empty worktree.**
+  Scratch cleanup can delete a worktree's tracked files while leaving its
+  registration behind, producing thousands of ` D ` status lines — but a
+  worktree holding deliberate uncommitted deletions (removing a retired
+  module or generated tree) shows the same all-`D` shape, and forced removal
+  would discard that work irreversibly. Classify it as an abandoned shell
+  only with independent evidence: the deleted set covers essentially the
+  whole tracked tree (`git ls-files | wc -l` against the `D` count), the
+  worktree root holds no tracked files at all, and `HEAD` is already merged
+  by the rule above. A partial deletion set, or any all-`D` worktree whose
+  `HEAD` is not merged, stays dirty and is kept.
+- **`git worktree remove --force` cannot delete a read-only directory on
+  Windows** (e.g. a cache directory marked read-only). It deregisters the
+  worktree and silently leaves the folder on disk. Clear read-only
+  attributes first, then verify the folder is actually gone; diff any
+  leftovers against the commit's `ls-tree` before deleting them by hand —
+  they are usually tracked files or regenerable cache, not unique work.
+- Allowlist regenerable ignored caches (editor state, lint caches,
+  scheduled-task locks) when judging "clean"; report any other ignored-path
+  content as a real finding instead of skipping it as noise.
+- `.claude/hooks/hook-receipts.log` is not a cache. It is the only durable
+  record that the harness hooks ran or failed open in that worktree
+  (`_receipt-wrap.sh`), and it is ignored by `*.log`, so removal would delete
+  it silently. Before removing a worktree that holds a non-empty receipt log,
+  copy it out (for example to
+  `~/.claude/hook-receipts-archive/<worktree>-<date>.log`) and confirm the
+  copy's size matches; only then treat the log as clearable.
+- Re-derive the whole classification immediately before removing each
+  worktree, not just its status — time passes between the classification
+  pass and the removal pass, and another session can commit in between. A
+  new commit leaves `git status` clean while `HEAD` no longer equals the
+  merged PR's `headRefOid`, so a status-only re-check would remove a checkout
+  from under unmerged work. Re-read `HEAD`, compare it to the merge evidence
+  again, and re-read status; skip the worktree if any of the three changed.
+- A committed `--dry-run`-default sweep tool implementing these checks is
+  preferable to re-deriving them by hand each time; until one exists, apply
+  this section's checks manually and do not trust a plain dirty/unpushed
+  read.
+
 ## Pre-Delivery Check
 
 Report the full and scoped baseline states separately, the explicit approval for scoping, the exact excluded ownership, and evidence that reads, edits, index operations, and tests all resolved inside one worktree.
