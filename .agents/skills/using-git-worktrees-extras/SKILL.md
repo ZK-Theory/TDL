@@ -86,8 +86,10 @@ the runtime workspace. Do not retry from the orchestrating task.
   worktree-relative path is empty or absent, verify with `Get-ChildItem`/`ls`
   (a shell listing) — never trust a Glob/Grep absence signal alone inside
   `.apm/worktrees/` or any other gitignored mount.
-- **Provision a new worktree venv with `uv sync --all-extras`, then prove it
-  against that exact venv:** `uv run --no-sync python -c "import sys, pytest;
+- **Provision a new worktree venv with `uv sync --locked --all-extras`, then
+  prove it against that exact venv.** `--locked` makes provisioning fail if it
+  would rewrite the tracked `uv.lock`, so the candidate's bytes and dependency
+  set stay the ones under test. Probe: `uv run --no-sync python -c "import sys, pytest;
   print(sys.executable, pytest.__version__)"` must succeed and print the
   worktree's own `.venv` interpreter before any red run. An ambient
   `python -m pytest --version` can pass on the main checkout's venv or a global

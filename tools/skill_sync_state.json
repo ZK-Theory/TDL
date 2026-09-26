@@ -123,7 +123,7 @@
     "SKILL.md": "bfa53899ad55ff83e75839b8f28797bf027a7c38e5fcc67fd0c415d0a094be4f"
   },
   "tda-large-workflow-supervision": {
-    "SKILL.md": "c596974e1467d39f0c888c47358203d2c1f42dbe8b925a7c02618832660bf58e"
+    "SKILL.md": "6f45bf4a0f54782a9ba03eda4750db22ba0698a5a6f7f84aebaa17664657f5b9"
   },
   "tda-learning-scaffold": {
     "SKILL.md": "b0778f0c820139e718f67bf258e97d2dd02900a3e78126aaf97f5f81c46cebf8"
@@ -177,7 +177,7 @@
     "SKILL.md": "196ab58f1d44a3fc3d82d99a8e95cb1087c5917291adf1872a4c66eae37daa06"
   },
   "using-git-worktrees-extras": {
-    "SKILL.md": "38704ed006699d91b32930508c12ab56e1a4a4eeb971d3eaac30a13d1c32e5d9",
+    "SKILL.md": "0f1d483a9a93ccfb4cb92791d9447b21ec9f703c4db89858ce2dc4a55f3f4ee7",
     "agents/openai.yaml": "8f6b64afe9c1d5d729d83b90c31c356bc6ccfcf2ceb44f2aedc7de94e965024d"
   },
   "validate-topology": {

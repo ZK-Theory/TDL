@@ -168,6 +168,13 @@ in the same PR only if it is:
 - a defect in code the previous round added; or
 - a false durable claim reachable on the planned owner path.
 
+The rule decides where code lands, never whether a real defect is dropped. A
+finding that causes a reachable crash, corrupt write or incorrect result on the
+named capability stays active campaign work even when it predates the last
+round. It may move to a follow-up PR tracked in the campaign status, but it
+becomes a known limit only by a separate owner scope decision on that finding.
+Accepting the stopping rule in advance is not that decision.
+
 Everything else becomes a recorded known limit or a follow-up. In PR #291 this
 turned round 4 into dispositions only, saving roughly one ~3-hour
 fix-and-certify cycle. A known limit records a boundary the owner has accepted. A
