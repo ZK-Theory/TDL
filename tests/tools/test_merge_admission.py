@@ -179,6 +179,182 @@ def test_a_graphql_error_response_is_refused(config: dict[str, Any]) -> None:
 
 
 # --------------------------------------------------------------------------
+# producer states: a clean +1, quota, untriggered (obs 2026-09-17-merge-admission-
+# cannot-see-a-clean-codex-review, 2026-09-11-required-review-producer-is-quota-limited)
+# --------------------------------------------------------------------------
+
+FIRST_CHECK_STARTED = "2026-08-23T07:30:00Z"
+CODEX_BOT = "chatgpt-codex-connector[bot]"
+QUOTA_BODY = "You have reached your Codex usage limits for code reviews. You can see your limits in the dashboard."
+
+
+def _without_codex_review(snapshot: dict[str, Any], *, started_at: str | None = FIRST_CHECK_STARTED) -> dict[str, Any]:
+    """The candidate with every thread resolved and no Codex review object on it.
+
+    ``started_at`` stamps the candidate's check runs; ``None`` leaves them unstarted.
+    """
+    pull_request = _pull_request(snapshot)
+    for thread in pull_request["reviewThreads"]["nodes"]:
+        thread["isResolved"] = True
+    pull_request["reviews"]["nodes"] = [
+        review
+        for review in pull_request["reviews"]["nodes"]
+        if not (review["author"]["login"] == "chatgpt-codex-connector" and review["commit"]["oid"] == PR262_CANDIDATE)
+    ]
+    for context in _head_rollup(snapshot):
+        if context.get("__typename") == "CheckRun":
+            context["startedAt"] = started_at
+    pull_request["reactions"] = {"pageInfo": {"hasNextPage": False}, "nodes": []}
+    pull_request["comments"] = {"pageInfo": {"hasPreviousPage": False}, "nodes": []}
+    return snapshot
+
+
+def _react(snapshot: dict[str, Any], *, at: str, login: str = CODEX_BOT, content: str = "THUMBS_UP") -> dict[str, Any]:
+    _pull_request(snapshot)["reactions"]["nodes"].append(
+        {"content": content, "createdAt": at, "user": {"login": login}}
+    )
+    return snapshot
+
+
+def _comment(snapshot: dict[str, Any], *, at: str, body: str, login: str = "chatgpt-codex-connector") -> dict[str, Any]:
+    _pull_request(snapshot)["comments"]["nodes"].append({"createdAt": at, "body": body, "author": {"login": login}})
+    return snapshot
+
+
+def test_a_codex_plus_one_after_the_candidates_first_check_admits(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """Codex's clean signal is a reaction, not a review; one made after this head arrived is terminal."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z")
+    _thread_finality(snapshot, config)
+
+
+def test_a_stale_plus_one_from_an_earlier_head_still_blocks(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """The decided negative control: a +1 older than the candidate's first check describes another head."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
+    with pytest.raises(ValueError, match=r"\+1 predates this head.*@codex review"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_plus_one_cannot_be_bound_when_no_check_has_started(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """With no started check there is no lower bound on the push time, so the reaction binds to nothing."""
+    _react(_without_codex_review(snapshot, started_at=None), at="2026-08-23T07:35:12Z")
+    with pytest.raises(ValueError, match="no check run has started"):
+        _thread_finality(snapshot, config)
+
+
+def test_another_users_plus_one_is_not_a_codex_signal(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z", login="stephendor")
+    with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_non_thumbs_up_reaction_is_not_a_clean_signal(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z", content="EYES")
+    with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_codex_review_naming_another_commit_after_the_push_voids_the_plus_one(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """A later review of a different commit makes the reaction's target ambiguous; it must not admit."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z")
+    _pull_request(snapshot)["reviews"]["nodes"].append(
+        {
+            "state": "COMMENTED",
+            "submittedAt": "2026-08-23T07:36:00Z",
+            "author": {"login": "chatgpt-codex-connector"},
+            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
+        }
+    )
+    with pytest.raises(ValueError, match="names another commit"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_foreign_review_older_than_the_accepted_plus_one_does_not_void_it(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """A review of the previous commit that lands after this head's first check but before the +1 is older than
+    the signal being accepted; only a review after the +1 makes its target ambiguous."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:40:00Z")
+    _pull_request(snapshot)["reviews"]["nodes"].append(
+        {
+            "state": "COMMENTED",
+            "submittedAt": "2026-08-23T07:32:00Z",
+            "author": {"login": "chatgpt-codex-connector"},
+            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
+        }
+    )
+    _thread_finality(snapshot, config)
+
+
+def test_quota_on_this_head_outranks_a_stale_plus_one(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """An earlier head's +1 must not hide that this head hit the usage limit: the remedy differs."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
+    _comment(snapshot, at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
+    with pytest.raises(ValueError, match=r"usage limit.*waiver"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_comment_window_that_cannot_reach_this_heads_arrival_is_not_called_untriggered(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """More than 50 comments since the push: a quota reply may be in the unfetched part, so the state is unknown."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:50:00Z", body="a later discussion comment")
+    _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
+    with pytest.raises(ValueError, match="usage limit is unknown"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_comment_window_that_reaches_back_past_this_heads_arrival_is_complete(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """Earlier pages exist, but the fetched window already covers everything since the push."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:00:00Z", body="an older comment")
+    _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
+    with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_usage_limit_on_this_head_is_named_with_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """Quota is not 'still reviewing': the head will never be reviewed automatically."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
+    with pytest.raises(ValueError, match=r"usage limit.*@codex review.*waiver"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_usage_limit_on_an_earlier_head_does_not_label_this_one(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """A quota comment older than this head's first check was about another head: this one is untriggered."""
+    _comment(_without_codex_review(snapshot), at="2026-08-23T07:00:00Z", body=QUOTA_BODY)
+    with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, config)
+
+
+def test_an_untriggered_head_names_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    _without_codex_review(snapshot)
+    with pytest.raises(ValueError, match=r"has not reviewed or reacted on this head.*@codex review"):
+        _thread_finality(snapshot, config)
+
+
+def test_a_clean_plus_one_does_not_excuse_a_live_thread(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
+    """The +1 settles the producer; thread finality is still judged separately."""
+    _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z")
+    _pull_request(snapshot)["reviewThreads"]["nodes"][0].update({"isResolved": False, "isOutdated": False})
+    with pytest.raises(ValueError, match="unresolved non-outdated review thread"):
+        _thread_finality(snapshot, config)
+
+
+def test_the_admission_snapshot_requests_reactions_comments_and_check_start_times() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "reactions(first:100, content:THUMBS_UP)" in workflow
+    assert "comments(last:50){ pageInfo{hasPreviousPage}" in workflow
+    assert "startedAt" in workflow
+
+
+# --------------------------------------------------------------------------
 # platform-order (observation 01M0Q0WXJSCX5WJ69H2G9DG4E3)
 # --------------------------------------------------------------------------
 
@@ -759,7 +935,9 @@ def test_admission_and_sweep_jobs_can_read_workflow_run_identity() -> None:
     assert admission["permissions"].get("actions") in {"read", "write"}
     assert sweep["permissions"].get("actions") in {"read", "write"}
     body = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "databaseId name status conclusion completedAt" in body, "attempts cannot be ordered without databaseId"
+    assert (
+        "databaseId name status conclusion startedAt completedAt" in body
+    ), "attempts cannot be ordered without databaseId"
 
 
 def test_python_captures_strip_carriage_returns_on_windows() -> None:
@@ -825,6 +1003,66 @@ def _open_pull_request(
 def _sweep_payload(*pulls: dict[str, Any], truncated: bool = False) -> dict[str, Any]:
     """Return the sweep query response wrapping the given pull requests."""
     return {"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": truncated}, "nodes": list(pulls)}}}}
+
+
+PRODUCERS = ["chatgpt-codex-connector"]
+GATE_STARTED_AT = "2026-09-25T16:58:00Z"
+GATE_FAILED_AT = "2026-09-25T17:00:00Z"
+
+
+def _failed_then_reacted(
+    plus_one_at: str | None, login: str = CODEX_BOT, comment: tuple[str, str] | None = None
+) -> dict[str, Any]:
+    """An open PR, no live thread, whose admission run started at GATE_STARTED_AT and failed at GATE_FAILED_AT.
+
+    ``plus_one_at`` adds a +1 by ``login``; ``comment`` adds a producer comment (createdAt, body).
+    """
+    pull_request = _open_pull_request(live=0, conclusion="FAILURE")
+    gate = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"][0]
+    gate["startedAt"] = GATE_STARTED_AT
+    gate["completedAt"] = GATE_FAILED_AT
+    nodes = (
+        [] if plus_one_at is None else [{"content": "THUMBS_UP", "createdAt": plus_one_at, "user": {"login": login}}]
+    )
+    pull_request["reactions"] = {"pageInfo": {"hasNextPage": False}, "nodes": nodes}
+    comments = [] if comment is None else [{"createdAt": comment[0], "body": comment[1], "author": {"login": login}}]
+    pull_request["comments"] = {"nodes": comments}
+    return pull_request
+
+
+@pytest.mark.parametrize("plus_one_at", ["2026-09-25T17:05:00Z", "2026-09-25T16:59:00Z"], ids=["after", "during"])
+def test_a_plus_one_after_a_failed_admission_started_re_runs_it(config: dict[str, Any], plus_one_at: str) -> None:
+    """Reactions trigger no workflow. A +1 that landed while the run was still evaluating was not in its snapshot."""
+    listing = _sweep_payload(_failed_then_reacted(plus_one_at))
+    assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == [f"rerun {GATE_RUN_ID} 278"]
+
+
+def test_a_quota_reply_after_a_failed_admission_re_runs_it(config: dict[str, Any]) -> None:
+    """The quota reply is an issue comment, which triggers nothing; without a re-run its remedy never appears."""
+    pull_request = _failed_then_reacted(None, comment=("2026-09-25T17:05:00Z", QUOTA_BODY))
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config), producers=PRODUCERS) == [
+        f"rerun {GATE_RUN_ID} 278"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("plus_one_at", "login"),
+    [(None, CODEX_BOT), ("2026-09-25T16:55:00Z", CODEX_BOT), ("2026-09-25T17:05:00Z", "stephendor")],
+    ids=["no-plus-one", "plus-one-before-the-run", "someone-elses-plus-one"],
+)
+def test_the_sweep_does_not_re_run_without_a_newer_producer_signal(
+    config: dict[str, Any], plus_one_at: str | None, login: str
+) -> None:
+    """A signal the failed run already saw, or none at all, must not pile up re-runs."""
+    listing = _sweep_payload(_failed_then_reacted(plus_one_at, login, comment=("2026-09-25T17:05:00Z", "thanks")))
+    assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == []
+
+
+def test_the_sweep_snapshot_requests_reactions_comments_and_start_times() -> None:
+    sweep = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "reactions(first:100, content:THUMBS_UP){ pageInfo{hasNextPage}" in sweep
+    assert "comments(last:20){ nodes{ createdAt body author{login} } }" in sweep
+    assert "conclusion startedAt completedAt" in sweep
 
 
 def test_a_reopened_thread_behind_a_green_admission_check_is_re_run(config: dict[str, Any]) -> None:
