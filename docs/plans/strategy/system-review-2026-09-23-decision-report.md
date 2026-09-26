@@ -65,6 +65,12 @@ observation against current HEAD and the owning repository:
 1. **Delivery:** one PR per campaign, each on its own branch and worktree off
    `main`. This PR stays the decision record and carries the Campaign
    B-adjacent `sync_agent_skills.py` LF fix plus the reviewed skill edit.
+   As delivered, two slices were combined where they touch the same code, an
+   approved application of this rule rather than a deviation: G and I's
+   clean-signal item share #304 (both edit `check_merge_admission.py`), and
+   E's lessons share #307 with I's skill lessons. Campaign I's items therefore
+   land across #304, #305 and #307. The implementation table below is the
+   authoritative campaign-to-PR map.
 2. **Codex clean signal (G + I):** accept a Codex +1 reaction as terminal only
    when it was created after the candidate head's push and no Codex review names
    another commit. A reaction carries no commit oid, so this binding is weaker
@@ -748,8 +754,12 @@ re-verifying the prior packet's own delivery (Campaign H, item 4).
 ## Next steps
 
 Campaign decisions and dispatch are complete: all nine campaigns were approved and
-each is implemented in the PR named in "Implementation (2026-09-25)" above. Do not
-re-approve or re-dispatch them. What remains is the owner-action list in that
+their approved slices are in the PRs named in "Implementation (2026-09-25)" above.
+Do not re-approve or re-dispatch them. **One exception is still open work:**
+Campaign E's sixteen route/admission code gaps are DEFERRED, not done. #307 carries
+only E's lessons. The functional gaps stay open under the 06s Phase 4/5 D5 process,
+and the next production action is for that process to pick them up in its next
+sub-phase brief. Their observations stay DEFERRED in the log until then. Beyond that, what remains is the owner-action list in that
 section (the #300 guard mutation run, the #301 main-checkout CRLF repair, the #302
 worktree `core.hooksPath` unsets, code-owner review of #303 and #304, and the #307
 CONVENTIONS decision), merging in the stated order, and then flipping the "in
