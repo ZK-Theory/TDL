@@ -61,7 +61,7 @@ def test_identical_closing_stamps_on_two_ids_fail_unless_declared_a_batch(tmp_pa
     declared = _run(tmp_path, _obs("a", stamp + " Batch disposition.") + _obs("b", stamp + " Batch disposition."))
 
     assert borrowed.returncode == 1
-    assert "identical closing status on a, b" in borrowed.stderr
+    assert "identical closing text on a, b" in borrowed.stderr
     assert declared.returncode == 0, declared.stderr
 
 
@@ -82,9 +82,72 @@ def test_the_packet_ledger_is_computed_against_the_log(tmp_path: Path) -> None:
     assert "in the ledger but not OPEN: c" in result.stderr
 
 
-def test_a_complete_ledger_passes(tmp_path: Path) -> None:
+LEDGER_HEAD = "## Completeness ledger\n\n| Group | Count | IDs |\n|---|---:|---|\n"
+
+
+def _packet(tmp_path: Path, rows: str) -> str:
     packet = tmp_path / "packet.md"
-    packet.write_text("## Completeness ledger\n\n| A | 2 | a · b |\n", encoding="utf-8")
-    result = _run(tmp_path, _obs("a", "OPEN") + _obs("b", "OPEN — ESCALATED"), "--packet", str(packet))
+    packet.write_text(LEDGER_HEAD + rows, encoding="utf-8")
+    return str(packet)
+
+
+def test_a_complete_ledger_passes(tmp_path: Path) -> None:
+    packet = _packet(tmp_path, "| A | 2 | a · b |\n| **Total** | **2** | |\n")
+    result = _run(tmp_path, _obs("a", "OPEN") + _obs("b", "OPEN — ESCALATED"), "--packet", packet)
     assert result.returncode == 0, result.stderr
     assert "ledger matches the 2 OPEN observation(s)" in result.stdout
+
+
+def test_an_unknown_id_in_the_ledger_fails(tmp_path: Path) -> None:
+    """A typo or invented id was filtered out before comparison, so the ledger 'matched'."""
+    result = _run(tmp_path, _obs("a", "OPEN"), "--packet", _packet(tmp_path, "| A | 2 | a · typo-id |\n"))
+    assert result.returncode == 1
+    assert "not an observation id in the log: typo-id" in result.stderr
+
+
+def test_a_wrong_row_count_or_total_fails(tmp_path: Path) -> None:
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    row = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 99 | a · b |\n"))
+    total = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| **Total** | **3** | |\n"))
+    assert row.returncode == 1 and "declares '99' but lists 2" in row.stderr
+    assert total.returncode == 1 and "total 3 does not equal the 2 ids" in total.stderr
+
+
+def test_a_count_cell_is_not_read_as_a_numeric_id(tmp_path: Path) -> None:
+    """With legacy numeric id 1 OPEN, a row counting 1 must not stand in for it."""
+    result = _run(tmp_path, _obs("1", "OPEN") + _obs("a", "OPEN"), "--packet", _packet(tmp_path, "| A | 1 | a |\n"))
+    assert result.returncode == 1
+    assert "OPEN but missing from the ledger: 1" in result.stderr
+
+
+def test_an_empty_or_unparsable_log_fails(tmp_path: Path) -> None:
+    result = _run(tmp_path, "## Observation a: wrong heading level\n\n**Status:** OPEN\n")
+    assert result.returncode == 1
+    assert "no observations parsed" in result.stderr
+
+
+def test_an_observation_without_a_status_line_fails(tmp_path: Path) -> None:
+    result = _run(tmp_path, _obs("a", "OPEN") + "### Observation b: title\n\n**Stauts:** OPEN\n\n")
+    assert result.returncode == 1
+    assert "b: no **Status:** line" in result.stderr
+
+
+def test_identical_resolution_text_under_bare_statuses_fails(tmp_path: Path) -> None:
+    resolution = "**Resolution:** fixed by PR #283, and the records were refreshed across the phase.\n"
+    result = _run(tmp_path, _obs("a", "CLOSED", resolution) + _obs("b", "CLOSED", resolution))
+    assert result.returncode == 1
+    assert "identical closing text on a, b" in result.stderr
+
+
+def test_a_progress_note_is_not_closure_evidence(tmp_path: Path) -> None:
+    """An abandoned PR named in interim progress does not show the resolution happened."""
+    result = _run(tmp_path, _obs("a", "CLOSED", "**Progress:** tried PR #12, abandoned.\n"))
+    assert result.returncode == 1
+    assert "a: closing status names no checkable artifact" in result.stderr
+
+
+def test_a_digit_only_number_is_not_a_commit(tmp_path: Path) -> None:
+    dated = _run(tmp_path, _obs("a", "ACTIONED — completed on 20260925."))
+    commit = _run(tmp_path, _obs("a", "ACTIONED — landed in commit 1234567."))
+    assert dated.returncode == 1
+    assert commit.returncode == 0, commit.stderr
