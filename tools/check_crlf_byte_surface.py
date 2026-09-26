@@ -35,6 +35,8 @@ misclassifies 99 of the 160 committed PDFs as text.
 from __future__ import annotations
 
 import argparse
+import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -173,24 +175,80 @@ def worktree_violations(pathspecs: list[str], repo_root: Path) -> list[str]:
     executable surfaces (hook directories) the working tree itself must be checked.
     """
     paths = tracked_paths(pathspecs, repo_root)
-    skip = binary_declared(paths, repo_root, cached=False)
+    # Attributes come from the index, the policy the commit being validated carries. An unstaged
+    # working-tree `.gitattributes` edit declaring a hook `binary` must not exempt it.
+    skip = binary_declared(paths, repo_root, cached=True)
     return scan_paths([path for path in paths if path not in skip], repo_root, check_index=False)
 
 
-def remediation(violations: list[str]) -> list[str]:
-    """Return fix-up lines that act on the surface this gate reads: the working tree.
+VIOLATION = re.compile(r"(?P<path>.*): \d+ CRLF pair\(s\) in the (?P<surface>working tree|staged blob)")
 
-    `git add --renormalize` alone rewrites only the index blob, so the working-tree bytes this
-    gate reads stay CRLF and the gate fails again. Staging normalises the blob; rewriting the
-    file from the index then writes LF back to disk with the author's content intact.
+
+def fix_worktree(paths: list[str], repo_root: Path) -> list[str]:
+    """Rewrite CRLF to LF in the working-tree bytes of `paths`, in place; return the paths changed.
+
+    Only the working tree is written. The index, and with it any partial staging, is untouched,
+    and content other than line endings is preserved byte for byte.
     """
-    paths = sorted({line.split(": ", 1)[0] for line in violations})
+    changed: list[str] = []
+    for path in paths:
+        absolute = repo_root / path
+        if absolute.is_symlink() or not absolute.is_file():
+            continue
+        data = absolute.read_bytes()
+        if looks_binary(data) or CRLF not in data:
+            continue
+        absolute.write_bytes(data.replace(CRLF, b"\n"))
+        changed.append(path)
+    return changed
+
+
+def _same_apart_from_line_endings(path: str, repo_root: Path) -> bool:
+    """Whether the staged blob and the working-tree file differ only in CRLF versus LF."""
+    blob = index_bytes(path, repo_root)
+    absolute = repo_root / path
+    if blob is None or not absolute.is_file():
+        return False
+    return blob.replace(CRLF, b"\n") == absolute.read_bytes().replace(CRLF, b"\n")
+
+
+def remediation(violations: list[str], repo_root: Path) -> list[str]:
+    """Return fix-up commands that act on the surfaces this gate reads, one runnable command per line.
+
+    `git add --renormalize` alone rewrites only the index blob, so the working-tree bytes this gate
+    reads stay CRLF and the gate fails again. `--fix` rewrites the working tree in place instead,
+    leaving the index alone, so a partially staged file keeps exactly its staged selection. A
+    CRLF staged blob is re-staged only when the working copy holds nothing but the same content;
+    otherwise re-staging would sweep unstaged edits into the commit, so the hunks are left to the
+    author.
+    """
+    parsed = [match.groupdict() for match in map(VIOLATION.fullmatch, violations) if match]
+    worktree = sorted({v["path"] for v in parsed if v["surface"] == "working tree"})
+    staged = sorted({v["path"] for v in parsed if v["surface"] == "staged blob"})
     lines = [
         "Fix the producer, not just the file: on Windows `pathlib.Path.write_text` and "
         "`open(..., 'w')` translate \\n to \\r\\n unless you pass newline=''.",
-        "Then rewrite each working-tree file from the normalised index (keeps your content):",
+        "Then run (the index and any partial staging are left as they are):",
     ]
-    lines += [f"  git add {path} && rm {path} && git checkout -- {path}" for path in paths]
+    fixable = sorted(set(worktree) | set(staged))
+    lines.append(
+        "  "
+        + shlex.join(
+            [sys.executable, str(Path(__file__).resolve()), "--repo-root", str(repo_root), "--fix", "--", *fixable]
+        )
+    )
+    manual: list[str] = []
+    for path in staged:
+        if _same_apart_from_line_endings(path, repo_root):
+            lines.append("  " + shlex.join(["git", "-C", str(repo_root), "add", "--", path]))
+        else:
+            manual.append(path)
+    if manual:
+        lines.append(
+            "These staged blobs carry CRLF and their working copies hold other unstaged edits; after the "
+            "fix above, re-stage only the intended hunks with `git add -p`:"
+        )
+        lines += [f"  {shlex.quote(path)}" for path in manual]
     return lines
 
 
@@ -206,12 +264,22 @@ def main(argv: list[str] | None = None) -> int:
         help="Also scan the working-tree bytes of every tracked file under PATHSPEC, staged or not. Repeatable.",
     )
     parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Rewrite CRLF to LF in the working-tree bytes of the given paths, in place, and exit.",
+    )
+    parser.add_argument(
         "paths",
         nargs="*",
-        help="Explicit paths to scan. Default: the staged set. Used by the negative control.",
+        help="Explicit paths to scan (or, with --fix, to rewrite). Default: the staged set.",
     )
     args = parser.parse_args(argv)
     repo_root = args.repo_root.resolve()
+
+    if args.fix:
+        for path in fix_worktree(args.paths, repo_root):
+            print(f"rewrote {path} with LF line endings", file=sys.stderr)
+        return 0
 
     try:
         if args.paths:
@@ -230,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in violations:
             print(f"  {line}", file=sys.stderr)
         print("", file=sys.stderr)
-        for line in remediation(violations):
+        for line in remediation(violations, repo_root):
             print(line, file=sys.stderr)
         return 1
 

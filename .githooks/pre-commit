@@ -286,10 +286,11 @@ fi
 # normalises the index blob silently — it fixes the committed bytes and reports nothing, so the
 # producer keeps emitting CRLF and the working tree the contract validators hash stays wrong.
 # Normalisation hides the incident; this gate surfaces it. See tools/check_crlf_byte_surface.py.
-# The two --worktree pathspecs also scan every TRACKED hook script on disk, staged or not: a
-# CRLF-rewritten hook can read clean to `git status` while its broken shebang still executes
+# The --worktree pathspecs scan every TRACKED hook script on disk, staged or not, including
+# .codex/hooks, which .codex/hooks.json runs: a CRLF-rewritten hook can read clean to
+# `git status` while its broken shebang still executes
 # (obs 2026-09-08-shell-rewrite-crlf-on-tracked-hook).
-if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/check_crlf_byte_surface.py" --repo-root "$REPO_ROOT" --worktree .githooks --worktree .claude/hooks; then
+if ! "$MAIN_PYTHON" "$REPO_ROOT/tools/check_crlf_byte_surface.py" --repo-root "$REPO_ROOT" --worktree .githooks --worktree .claude/hooks --worktree .codex/hooks; then
   echo "" >&2
   echo "pre-commit: CRLF byte-surface gate FAILED — commit blocked." >&2
   exit 1

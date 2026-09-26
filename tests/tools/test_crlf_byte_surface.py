@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -253,6 +254,21 @@ def test_worktree_mode_passes_a_clean_tree_and_ignores_paths_outside_its_pathspe
     assert result.returncode == 0, result.stderr
 
 
+def _check(repo: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(repo)], capture_output=True, text=True, check=False
+    )
+
+
+def _apply_printed_commands(stderr: str, repo: Path) -> None:
+    """Run every command line the gate printed, exactly as printed (one command per indented line)."""
+    commands = [line[2:] for line in stderr.splitlines() if line.startswith("  ") and " CRLF pair" not in line]
+    assert commands, stderr
+    for command in commands:
+        completed = subprocess.run(shlex.split(command), cwd=repo, capture_output=True, text=True, check=False)
+        assert completed.returncode == 0, f"{command}: {completed.stderr}"
+
+
 def test_the_remediation_the_gate_prints_actually_clears_it(lf_repo: Path) -> None:
     """The advice must work against the surface the gate reads.
 
@@ -263,25 +279,60 @@ def test_the_remediation_the_gate_prints_actually_clears_it(lf_repo: Path) -> No
     target = lf_repo / "notes.md"
     target.write_bytes(b"one\r\ntwo\r\n")
     _git(lf_repo, "add", "notes.md")
-    blocked = subprocess.run(
-        [sys.executable, str(CHECKER), "--repo-root", str(lf_repo)], capture_output=True, text=True, check=False
-    )
+    blocked = _check(lf_repo)
     assert blocked.returncode == 1
-
     assert "git add --renormalize" not in blocked.stderr
-    assert "git add notes.md && rm notes.md && git checkout -- notes.md" in blocked.stderr
-    _git(lf_repo, "add", "notes.md")
-    target.unlink()
-    _git(lf_repo, "checkout", "--", "notes.md")
 
-    cleared = subprocess.run(
-        [sys.executable, str(CHECKER), "--repo-root", str(lf_repo)], capture_output=True, text=True, check=False
-    )
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    cleared = _check(lf_repo)
     assert cleared.returncode == 0, cleared.stderr
     assert target.read_bytes() == b"one\ntwo\n", "the author's content must survive the fix"
+
+
+def test_the_remediation_keeps_a_partially_staged_file_partial(lf_repo: Path) -> None:
+    """Staged `two`, unstaged `three`: the fix must not sweep `three` into the index."""
+    target = lf_repo / "notes.md"
+    target.write_bytes(b"one\ntwo\n")
+    _git(lf_repo, "add", "notes.md")
+    target.write_bytes(b"one\r\ntwo\r\nthree\r\n")
+    blocked = _check(lf_repo)
+    assert blocked.returncode == 1
+
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    assert _check(lf_repo).returncode == 0
+    assert _git(lf_repo, "show", ":notes.md") == "one\ntwo\n", "the staged selection must be unchanged"
+    assert target.read_bytes() == b"one\ntwo\nthree\n", "the unstaged edit must survive in the working tree"
+
+
+def test_the_printed_remediation_quotes_paths_with_spaces(lf_repo: Path) -> None:
+    target = lf_repo / "first pass" / "Report; notes.md"
+    target.parent.mkdir()
+    target.write_bytes(b"a\r\n")
+    _git(lf_repo, "add", "first pass/Report; notes.md")
+    blocked = _check(lf_repo)
+    assert blocked.returncode == 1
+
+    _apply_printed_commands(blocked.stderr, lf_repo)
+
+    assert _check(lf_repo).returncode == 0, "every printed command must act on the reported file"
+    assert target.read_bytes() == b"a\n"
+
+
+def test_an_unstaged_binary_declaration_does_not_exempt_a_hook(lf_repo: Path) -> None:
+    """Only the index's attributes (the commit's policy) may exempt a hook from the worktree scan."""
+    hook = lf_repo / ".githooks" / "post-commit"
+    hook.write_bytes(b"#!/bin/bash\r\necho ok\r\n")
+    _git(lf_repo, "add", ".githooks/post-commit")
+    (lf_repo / ".gitattributes").write_bytes(b"* text=auto eol=lf\n.githooks/** binary\n")
+
+    result = _run_worktree(lf_repo, ".githooks")
+
+    assert result.returncode == 1, result.stderr
 
 
 def test_pre_commit_scans_the_tracked_hook_directories_on_disk() -> None:
     """The mode only protects anything if the commit path runs it over the hook directories."""
     hook = HOOK.read_text(encoding="utf-8")
-    assert "--worktree .githooks --worktree .claude/hooks" in hook
+    assert "--worktree .githooks --worktree .claude/hooks --worktree .codex/hooks" in hook
