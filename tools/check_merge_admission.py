@@ -195,7 +195,10 @@ def _producer_state(
     the pull request when it has none (obs 2026-09-17-merge-admission-cannot-see-a-clean-codex-review).
     A reaction carries no commit oid, so it is bound to the candidate by time: it must be newer than
     the candidate's first check-run start, and no review by the producer may name another commit after
-    that moment. This binding is weaker than a review oid, by owner decision of 2026-09-25. A usage-limit
+    that moment. This binding is weaker than a review oid, by owner decision of 2026-09-25. Accepted
+    limit: a clean review of an earlier head that finishes after this head's first check started leaves
+    a +1 this rule cannot tell apart, and it admits a head Codex did not read (never one with findings,
+    which arrive as a review naming their commit). A usage-limit
     reply and an untriggered head are named separately, each with its remedy
     (obs 2026-09-11-required-review-producer-is-quota-limited).
     """
@@ -759,28 +762,38 @@ def _gate_run_id(run: Mapping[str, Any], *, gate: SweepGate, what: str) -> int:
     return run_id
 
 
-def _failed_gate_run_before_plus_one(
+def _failed_gate_run_before_producer_signal(
     pull_request: Mapping[str, Any], *, gate: SweepGate, producers: Sequence[str], what: str
 ) -> list[int]:
-    """Return the run id of a failed admission check that a producer's +1 arrived after.
+    """Return the run id of a failed admission check that a producer signal arrived after it started.
 
-    Codex's clean signal is a reaction, and reactions trigger no workflow, so a head whose admission
-    failed as untriggered before the +1 arrived would stay failed (Codex review on PR #304). The re-run
-    evaluates the same head again; the evaluator still decides whether the +1 binds to it. After the
-    re-run completes, the +1 is older than the new completion, so the sweep does not repeat itself.
+    Codex's clean signal is a reaction and its quota reply is an issue comment. Neither triggers this
+    workflow, so a head whose admission failed before either arrived would stay failed, or keep the
+    wrong remedy (Codex reviews on PR #304). The run's START is the bound, not its completion: a signal
+    landing while the run was still evaluating was not in its snapshot. The re-run evaluates the same
+    head again, and the evaluator still decides whether the signal binds to it. The re-run starts after
+    the signal, so the sweep does not repeat itself.
     """
     latest = _latest_gate_check(pull_request, gate=gate, what=what)
-    if latest is None or latest[0].get("conclusion") != "FAILURE" or not latest[0].get("completedAt"):
+    if latest is None or latest[0].get("conclusion") != "FAILURE" or not latest[0].get("startedAt"):
         return []
-    completed = _parse_timestamp(latest[0]["completedAt"], f"{what} {gate.check_run} completedAt")
+    started = _parse_timestamp(latest[0]["startedAt"], f"{what} {gate.check_run} startedAt")
     reactions = pull_request.get("reactions")
     if reactions is None:
         raise ValueError(f"{what}.reactions is absent; a clean +1 after the failed check cannot be ruled out")
     connection = _require_mapping(reactions, f"{what}.reactions")
     if not isinstance(connection.get("pageInfo"), Mapping) or connection["pageInfo"].get("hasNextPage") is not False:
         raise ValueError(f"{what}.reactions is truncated or missing pageInfo; reaction evidence is incomplete")
-    if any(at > completed for producer in producers for at in _producer_plus_ones(pull_request, producer)):
+    if any(at > started for producer in producers for at in _producer_plus_ones(pull_request, producer)):
         return [_gate_run_id(latest[1], gate=gate, what=what)]
+    comments = _require_mapping(pull_request.get("comments"), f"{what}.comments")
+    for comment in comments.get("nodes") or []:
+        if not isinstance(comment, Mapping) or _login((comment.get("author") or {}).get("login")) not in producers:
+            continue
+        body = str(comment.get("body") or "").lower()
+        created = _parse_timestamp(comment.get("createdAt"), f"{what} comment createdAt")
+        if created > started and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
+            return [_gate_run_id(latest[1], gate=gate, what=what)]
     return []
 
 
@@ -870,9 +883,9 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate, producers: Sequence
       check on its head, so the re-run replaces that success on the same commit.
 
     A pull request with no live thread whose latest admission check failed, and
-    which a configured producer +1'd after that failure completed, yields
+    which a configured producer +1'd, or answered with a usage limit, after that run started, yields
     ``rerun <workflow-run-id> <number>``: reactions trigger no workflow, so a
-    clean +1 arriving after the only evaluation would otherwise never be read.
+    signal arriving during or after the only evaluation would otherwise never be read.
 
     Anything else, including checks still running, yields nothing, so repeated
     sweeps do not pile up re-runs.
@@ -901,7 +914,7 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate, producers: Sequence
             if producers:
                 actions.extend(
                     f"rerun {run_id} {number}"
-                    for run_id in _failed_gate_run_before_plus_one(
+                    for run_id in _failed_gate_run_before_producer_signal(
                         pull_request, gate=gate, producers=producers, what=what
                     )
                 )

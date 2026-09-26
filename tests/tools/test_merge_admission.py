@@ -1006,44 +1006,63 @@ def _sweep_payload(*pulls: dict[str, Any], truncated: bool = False) -> dict[str,
 
 
 PRODUCERS = ["chatgpt-codex-connector"]
+GATE_STARTED_AT = "2026-09-25T16:58:00Z"
 GATE_FAILED_AT = "2026-09-25T17:00:00Z"
 
 
-def _failed_then_reacted(plus_one_at: str | None, login: str = CODEX_BOT) -> dict[str, Any]:
-    """An open PR, no live thread, whose admission check failed at GATE_FAILED_AT, with an optional +1."""
+def _failed_then_reacted(
+    plus_one_at: str | None, login: str = CODEX_BOT, comment: tuple[str, str] | None = None
+) -> dict[str, Any]:
+    """An open PR, no live thread, whose admission run started at GATE_STARTED_AT and failed at GATE_FAILED_AT.
+
+    ``plus_one_at`` adds a +1 by ``login``; ``comment`` adds a producer comment (createdAt, body).
+    """
     pull_request = _open_pull_request(live=0, conclusion="FAILURE")
     gate = pull_request["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]["nodes"][0]
+    gate["startedAt"] = GATE_STARTED_AT
     gate["completedAt"] = GATE_FAILED_AT
     nodes = (
         [] if plus_one_at is None else [{"content": "THUMBS_UP", "createdAt": plus_one_at, "user": {"login": login}}]
     )
     pull_request["reactions"] = {"pageInfo": {"hasNextPage": False}, "nodes": nodes}
+    comments = [] if comment is None else [{"createdAt": comment[0], "body": comment[1], "author": {"login": login}}]
+    pull_request["comments"] = {"nodes": comments}
     return pull_request
 
 
-def test_a_plus_one_after_a_failed_admission_re_runs_it(config: dict[str, Any]) -> None:
-    """Reactions trigger no workflow: without this, a clean +1 after the only evaluation is never read."""
-    listing = _sweep_payload(_failed_then_reacted("2026-09-25T17:05:00Z"))
+@pytest.mark.parametrize("plus_one_at", ["2026-09-25T17:05:00Z", "2026-09-25T16:59:00Z"], ids=["after", "during"])
+def test_a_plus_one_after_a_failed_admission_started_re_runs_it(config: dict[str, Any], plus_one_at: str) -> None:
+    """Reactions trigger no workflow. A +1 that landed while the run was still evaluating was not in its snapshot."""
+    listing = _sweep_payload(_failed_then_reacted(plus_one_at))
     assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == [f"rerun {GATE_RUN_ID} 278"]
+
+
+def test_a_quota_reply_after_a_failed_admission_re_runs_it(config: dict[str, Any]) -> None:
+    """The quota reply is an issue comment, which triggers nothing; without a re-run its remedy never appears."""
+    pull_request = _failed_then_reacted(None, comment=("2026-09-25T17:05:00Z", QUOTA_BODY))
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config), producers=PRODUCERS) == [
+        f"rerun {GATE_RUN_ID} 278"
+    ]
 
 
 @pytest.mark.parametrize(
     ("plus_one_at", "login"),
     [(None, CODEX_BOT), ("2026-09-25T16:55:00Z", CODEX_BOT), ("2026-09-25T17:05:00Z", "stephendor")],
-    ids=["no-plus-one", "plus-one-before-the-failure", "someone-elses-plus-one"],
+    ids=["no-plus-one", "plus-one-before-the-run", "someone-elses-plus-one"],
 )
-def test_the_sweep_does_not_re_run_without_a_newer_producer_plus_one(
+def test_the_sweep_does_not_re_run_without_a_newer_producer_signal(
     config: dict[str, Any], plus_one_at: str | None, login: str
 ) -> None:
-    """A +1 the failed run already saw, or no producer +1 at all, must not pile up re-runs."""
-    listing = _sweep_payload(_failed_then_reacted(plus_one_at, login))
+    """A signal the failed run already saw, or none at all, must not pile up re-runs."""
+    listing = _sweep_payload(_failed_then_reacted(plus_one_at, login, comment=("2026-09-25T17:05:00Z", "thanks")))
     assert sweep_actions(listing, gate=_sweep_gate(config), producers=PRODUCERS) == []
 
 
-def test_the_sweep_snapshot_requests_reactions_and_completion_times() -> None:
+def test_the_sweep_snapshot_requests_reactions_comments_and_start_times() -> None:
     sweep = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "reactions(first:100, content:THUMBS_UP){ pageInfo{hasNextPage}" in sweep
-    assert "conclusion completedAt" in sweep
+    assert "comments(last:20){ nodes{ createdAt body author{login} } }" in sweep
+    assert "conclusion startedAt completedAt" in sweep
 
 
 def test_a_reopened_thread_behind_a_green_admission_check_is_re_run(config: dict[str, Any]) -> None:
