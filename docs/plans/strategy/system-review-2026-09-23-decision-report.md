@@ -747,6 +747,10 @@ re-verifying the prior packet's own delivery (Campaign H, item 4).
 
 ## Next steps
 
-Check a box per campaign above (or reply with campaign letters to approve/defer/decline)
-and this packet's mapped observations get re-resolved against current HEAD and
-dispatched the same way the 2026-08-09 and 2026-08-26 packets were.
+Campaign decisions and dispatch are complete: all nine campaigns were approved and
+each is implemented in the PR named in "Implementation (2026-09-25)" above. Do not
+re-approve or re-dispatch them. What remains is the owner-action list in that
+section (the #300 guard mutation run, the #301 main-checkout CRLF repair, the #302
+worktree `core.hooksPath` unsets, code-owner review of #303 and #304, and the #307
+CONVENTIONS decision), merging in the stated order, and then flipping the "in
+review" observations to ACTIONED with their merge commits.

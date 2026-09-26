@@ -161,9 +161,15 @@ attributes actually mean, not the obvious signals:
   leftovers against the commit's `ls-tree` before deleting them by hand —
   they are usually tracked files or regenerable cache, not unique work.
 - Allowlist regenerable ignored caches (editor state, lint caches,
-  hook-receipt logs, scheduled-task locks) when judging "clean"; report any
-  other ignored-path content as a real finding instead of skipping it as
-  noise.
+  scheduled-task locks) when judging "clean"; report any other ignored-path
+  content as a real finding instead of skipping it as noise.
+- `.claude/hooks/hook-receipts.log` is not a cache. It is the only durable
+  record that the harness hooks ran or failed open in that worktree
+  (`_receipt-wrap.sh`), and it is ignored by `*.log`, so removal would delete
+  it silently. Before removing a worktree that holds a non-empty receipt log,
+  copy it out (for example to
+  `~/.claude/hook-receipts-archive/<worktree>-<date>.log`) and confirm the
+  copy's size matches; only then treat the log as clearable.
 - Re-derive the whole classification immediately before removing each
   worktree, not just its status — time passes between the classification
   pass and the removal pass, and another session can commit in between. A
