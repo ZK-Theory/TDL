@@ -88,6 +88,29 @@ def citations(text: str) -> list[tuple[str, list[list[str]]]]:
     return list(found.items())
 
 
+_OUTPUT_HEADING = re.compile(r"(?i)^#+\s*.*\b(outputs?|deliverables?|creates?|files to create|new files)\b")
+
+
+def planned_outputs(text: str) -> set[str]:
+    """Return the cited paths the brief declares the task will CREATE, which need not exist yet.
+
+    Declaration is explicit, never inferred from prose: a span followed by ``(new)``, or any span
+    under a heading naming outputs, deliverables or files to create. One declaration covers every
+    mention of that path.
+    """
+    planned: set[str] = set()
+    in_outputs = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("#"):
+            in_outputs = bool(_OUTPUT_HEADING.match(line.lstrip()))
+            continue
+        for match in _SPAN.finditer(line):
+            path = _normalise(match.group(1))
+            if path is not None and (in_outputs or line[match.end() :].lstrip().startswith("(new)")):
+                planned.add(path)
+    return planned
+
+
 def cited_paths(text: str) -> list[str]:
     """Return the distinct repository paths cited in backticks, in order of first mention."""
     return [path for path, _ in citations(text)]
@@ -159,12 +182,21 @@ def _path_shaped(repo_root: Path, ref: str, target: str) -> bool:
 
 
 def unresolved(
-    paths: list[str] | list[tuple[str, list[list[str]]]], repo_root: Path, ref: str, brief: Path | None = None
+    paths: list[str] | list[tuple[str, list[list[str]]]],
+    repo_root: Path,
+    ref: str,
+    brief: Path | None = None,
+    *,
+    planned: set[str] | frozenset[str] = frozenset(),
+    vault_root: Path | None = None,
 ) -> list[str]:
     """Return one problem line per path absent from ``ref``, naming the branches that do hold it.
 
     ``paths`` is either plain paths or :func:`citations` pairs; with pairs, a path is branch-qualified,
     and so acceptable, only when EVERY mention of it names on its own line a branch that holds it.
+    Paths in ``planned`` (see :func:`planned_outputs`) are outputs, not prerequisites, and are skipped.
+    A path that resolves under ``vault_root`` (the research vault, e.g. `04-Methods/...`) is not a
+    repository citation and is accepted.
     """
     if _git(repo_root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
         return [f"ref {ref!r} does not resolve to a commit; no citation can be checked against it"]
@@ -173,6 +205,8 @@ def unresolved(
     for item in paths:
         path, contexts = (item, [[]]) if isinstance(item, str) else item
         target = path.rstrip("/")
+        if path in planned or (vault_root is not None and (vault_root / target).exists()):
+            continue
         readings = [target]
         if directory is not None:
             readings.append(posixpath.normpath(posixpath.join(directory, target)))
@@ -220,22 +254,43 @@ def unresolved(
     return problems
 
 
+def default_vault_root(repo_root: Path) -> Path | None:
+    """Return the gitignored `vault/` junction to the research vault when this checkout has one."""
+    candidate = repo_root / "vault"
+    return candidate if candidate.is_dir() else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check a brief's cited repository paths resolve on the base ref.")
     parser.add_argument("brief", type=Path)
     parser.add_argument("--ref", default="origin/main")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--vault-root",
+        type=Path,
+        default=None,
+        help="Research vault root; vault-relative citations resolve here. Default: <repo-root>/vault if present.",
+    )
     args = parser.parse_args(argv)
 
-    cited = citations(args.brief.read_text(encoding="utf-8"))
-    problems = unresolved(cited, args.repo_root, args.ref, brief=args.brief)
+    text = args.brief.read_text(encoding="utf-8")
+    cited = citations(text)
+    problems = unresolved(
+        cited,
+        args.repo_root,
+        args.ref,
+        brief=args.brief,
+        planned=planned_outputs(text),
+        vault_root=args.vault_root or default_vault_root(args.repo_root),
+    )
     if problems:
         print(f"{len(problems)} cited path(s) do not resolve on {args.ref}:", file=sys.stderr)
         for line in problems:
             print(f"  {line}", file=sys.stderr)
         print(
             "Merge the source first, or name the branch holding it in backticks on the same line "
-            "(read `path` from branch `name`).",
+            "(read `path` from branch `name`). A file the task will create: mark it `path` (new), "
+            "or list it under an Outputs/Deliverables heading.",
             file=sys.stderr,
         )
         return 1

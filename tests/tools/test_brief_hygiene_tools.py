@@ -216,6 +216,45 @@ def test_an_ignored_pattern_does_not_hide_a_path_held_only_on_a_branch(repo: Pat
     assert "docs/handoff.md: absent from main; present on docs/handoff" in result.stderr
 
 
+def test_declared_outputs_need_not_exist_yet(repo: Path) -> None:
+    """A test the task will author is an output, not a prerequisite; the brief declares it explicitly."""
+    inline = _check(repo, _brief(repo, "Author the test in `tests/test_new.py` (new), then run it.\n"))
+    section = _check(repo, _brief(repo, "## Deliverables\n\n- `results/h2_2026-09-26.json`\n- `tests/test_new.py`\n"))
+    undeclared = _check(repo, _brief(repo, "Author the test in `tests/test_new.py`.\n"))
+
+    assert inline.returncode == 0, inline.stderr
+    assert section.returncode == 0, section.stderr
+    assert undeclared.returncode == 1, "an undeclared missing path is still a missing prerequisite"
+
+
+def test_vault_relative_citations_resolve_under_the_vault_root(repo: Path, tmp_path: Path) -> None:
+    vault = tmp_path / "vault"
+    (vault / "04-Methods").mkdir(parents=True)
+    (vault / "04-Methods" / "Computational-Log.md").write_text("log\n", newline="\n")
+    brief = _brief(repo, "Log it in `04-Methods/Computational-Log.md`.\n")
+
+    without = _check(repo, brief)
+    with_vault = subprocess.run(
+        [
+            sys.executable,
+            str(BRIEF_PATHS),
+            str(brief),
+            "--ref",
+            "main",
+            "--repo-root",
+            str(repo),
+            "--vault-root",
+            str(vault),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert without.returncode == 1
+    assert with_vault.returncode == 0, with_vault.stderr
+
+
 def test_an_invalid_ref_fails_even_with_no_citations(repo: Path) -> None:
     result = subprocess.run(
         [

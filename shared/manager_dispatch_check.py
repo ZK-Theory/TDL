@@ -300,10 +300,13 @@ def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     present only on an open PR branch. A Worker starts from the base ref, so a path it is told to
     read must exist there, or the brief must say which branch holds it.
     """
-    from tools.check_brief_paths import citations, unresolved
+    from tools.check_brief_paths import citations, default_vault_root, planned_outputs, unresolved
 
-    cited = citations(brief.read_text(encoding="utf-8"))
-    problems = unresolved(cited, repo_root, ref, brief=brief)
+    text = brief.read_text(encoding="utf-8")
+    cited = citations(text)
+    problems = unresolved(
+        cited, repo_root, ref, brief=brief, planned=planned_outputs(text), vault_root=default_vault_root(repo_root)
+    )
     if problems:
         return Check("brief-paths", False, f"{brief.name}: " + "; ".join(problems))
     return Check("brief-paths", True, f"{brief.name}: {len(cited)} cited path(s) resolve on {ref}")

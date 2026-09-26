@@ -183,7 +183,10 @@ dispatch. Close each of these before writing the brief:
   `manager_dispatch_check --brief <brief>`, which defaults to the workspace's
   HEAD and fails when no brief is given without a `--no-brief` reason). A path
   held only on an unmerged branch is cited with that branch in backticks on
-  the same line (read `path` from branch `name`).
+  the same line (read `path` from branch `name`). A file the task will
+  create is declared, not left to look missing: mark it `path` (new), or
+  list it under an Outputs/Deliverables heading. Vault paths resolve through
+  the `vault/` junction.
 - **Probes use the public entry point.** A design-pass probe that measures a planned
   public action goes through the entry point the public tests use, or states which
   entry point and which clock it used.
