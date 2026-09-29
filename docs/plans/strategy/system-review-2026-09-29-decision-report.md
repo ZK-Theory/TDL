@@ -15,8 +15,9 @@ non-TDL trees were read only.
 verify-then-fix campaign on a reviewed branch. It does not authorize direct changes to
 `main`, silent gate weakening, or acceptance without the named controls.
 
-**What this run changed.** It logged four observations, staged one skill edit outside the
-repo (not applied; see Campaign J), and wrote this packet. It made no skill edit, because no
+**What this run changed.** It logged four observations, archived 43 entries that were already
+closed, staged one skill edit outside the repo (not applied; see Campaign J), and wrote this
+packet. It made no skill edit, because no
 open SKILL-lane item was free of an owner decision. It left the other lanes (GATE, INVARIANT,
 PROCESS) and the other trees untouched: everything below is a recommendation.
 
@@ -395,7 +396,10 @@ log, and group R's rows come from each entry's own "fix in review: PR #NNN" stat
 `observation_log_lint.py` over the log, before this review's edits: `181 observation(s): 51
 OPEN`, no findings (no duplicate ids, no closing stamp without evidence, no identical borrowed
 text). After the four new entries: `185 observation(s): 55 OPEN`, no findings. The `--packet`
-check against this file is recorded in the PR description.
+check against this file passes (`ledger matches the 55 OPEN observation(s)`) before and after
+the archival pass. As a negative control, the same check against the 2026-09-23 packet's
+ledger fails: it names the three post-09-23 observations missing from it and the ACTIONED and
+DEFERRED items it still lists.
 
 The tool is not on `main`. Both runs used `tools/observation_log_lint.py` taken from
 `origin/pipe/observation-log-lint` (#306 head `f00970b8`), an unreviewed version (Campaign O).
@@ -485,5 +489,11 @@ statistical failure, so none is an invariant-battery item.
    simplification candidate raised twice before without a log entry).
 5. Staged one skill edit outside the repo (`~/.claude/skill-updates/2026-09-29/tda-resource-preflight/`),
    not applied.
-6. Updated `last-review-date.txt` to `2026-09-29`.
-7. Opened this packet as a pull request.
+6. Archived the 43 entries that were already ACTIONED, CLOSED or DECLINED and still held full
+   text, the first archival pass since 2026-09-01. The full text went verbatim to
+   `archive/log-2026-09-29.md`, leaving a one-line stub under each id. `log.md` shrank from
+   3,587 to 2,367 lines. The id order and the OPEN set are unchanged, the lint is clean and the
+   ledger still matches 55/55. The pre-archival log is kept at
+   `~/.claude/skill-updates/2026-09-29/log.md.before`. Nothing was re-dispositioned.
+7. Updated `last-review-date.txt` to `2026-09-29`.
+8. Opened this packet as a pull request.
