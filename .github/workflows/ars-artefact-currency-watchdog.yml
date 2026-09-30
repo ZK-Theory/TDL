@@ -83,3 +83,30 @@ jobs:
           python tools/check_workflow_liveness.py
           --workflows-json ci-workflow.json
           --target-path .github/workflows/ci.yml
+
+      # The two named checks above cover two workflows. Every other tracked workflow,
+      # including any added later, could sit disabled with nothing noticing, so this step
+      # derives the set from `git ls-files .github/workflows/` instead of a list. The
+      # endpoint is paginated; --paginate --slurp returns every page.
+      - name: Read every workflow state from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/workflows"
+          > all-workflows.json
+
+      # A PR or merge-queue run checks the BASE branch's workflow set: GitHub registers a
+      # workflow only once its file is on the default branch, so one the PR adds cannot be
+      # registered yet. The post-merge push run then checks it.
+      - name: Fail closed if any tracked workflow is inactive
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.merge_group.base_ref }}
+        run: |
+          ref_args=()
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            ref_args=(--tracked-ref FETCH_HEAD)
+          fi
+          python tools/check_workflow_liveness.py \
+            --workflows-json all-workflows.json \
+            --all-tracked "${ref_args[@]}"

@@ -15,7 +15,7 @@
     "SKILL.md": "3068e89e7d0b20ed982700c15f164b390edb915d54278ab54d648c7cf2b2b4e8"
   },
   "executing-plans-extras": {
-    "SKILL.md": "ac00ff404577696109c5fdf0e0117fe2e15b16c5dcb68921b976586b2f550bd7",
+    "SKILL.md": "5adf72546f4eca1498dad0282acf15833cf8e2fdf623bc528d7b03e9f361d338",
     "agents/openai.yaml": "272801ca770abf2b96c21e81b9823dcbe0e304218f6a147db591211163d7b34c"
   },
   "gh-address-comments-extras": {
@@ -93,7 +93,7 @@
     "SKILL.md": "a0e9a183143575b984bb8db48d847b32b2dc7a9cb1bec4b7939888cda633506a"
   },
   "tda-agent-safety-guardrails": {
-    "SKILL.md": "ab9aeb15f1e83cdd7de8d397fff05b008059c2a4ccb724b377512ca2c2bf0d3e"
+    "SKILL.md": "097c58afd10defc5b6d538f0042426f0ff1389aac0a879ef0cd5d510b51408f8"
   },
   "tda-codebase-design": {
     "SKILL.md": "6091a27d2ac11a08474d5d3a742e7d95b688bb87d81ed3b1b342b519f00c431c"
@@ -177,7 +177,7 @@
     "SKILL.md": "196ab58f1d44a3fc3d82d99a8e95cb1087c5917291adf1872a4c66eae37daa06"
   },
   "using-git-worktrees-extras": {
-    "SKILL.md": "0f1d483a9a93ccfb4cb92791d9447b21ec9f703c4db89858ce2dc4a55f3f4ee7",
+    "SKILL.md": "ac5461bb8924c8abb5458c9f1bcd4054a370e3dd5a74e3e4806979b4f7d90166",
     "agents/openai.yaml": "8f6b64afe9c1d5d729d83b90c31c356bc6ccfcf2ceb44f2aedc7de94e965024d"
   },
   "validate-topology": {
