@@ -157,6 +157,136 @@ def _review_commit(review: Mapping[str, Any]) -> str | None:
     return str(oid) if isinstance(oid, str) else None
 
 
+_USAGE_LIMIT_MARKERS = ("usage limit",)
+
+
+def _login(value: object) -> str:
+    """Normalise a login: GraphQL reports a bot's reactions as ``name[bot]`` and its reviews as ``name``."""
+    login = str(value or "")
+    return login[: -len("[bot]")] if login.endswith("[bot]") else login
+
+
+def _first_check_started(pull_request: Mapping[str, Any], candidate_sha: str) -> datetime | None:
+    """Return the earliest check-run start on the candidate: an upper bound on when this head was pushed.
+
+    GitHub no longer exposes a push timestamp. A check run on the candidate can only start after the
+    head was pushed, so a signal created after the earliest start is provably newer than the push.
+    """
+    nodes = _require_nodes(pull_request.get("commits"), "pullRequest.commits")
+    starts: list[datetime] = []
+    for node in nodes:
+        commit = _require_mapping(node.get("commit"), "pullRequest.commits.nodes[].commit")
+        if commit.get("oid") != candidate_sha:
+            continue
+        rollup = commit.get("statusCheckRollup")
+        contexts = rollup.get("contexts") if isinstance(rollup, Mapping) else None
+        for context in (contexts or {}).get("nodes") or [] if isinstance(contexts, Mapping) else []:
+            if isinstance(context, Mapping) and context.get("__typename") == "CheckRun" and context.get("startedAt"):
+                starts.append(_parse_timestamp(context["startedAt"], "CheckRun.startedAt"))
+    return min(starts) if starts else None
+
+
+def _producer_state(
+    pull_request: Mapping[str, Any], producer: str, candidate_sha: str, reviews: list[Mapping[str, Any]]
+) -> str | None:
+    """Return ``None`` when ``producer`` is terminal on the candidate, else a message naming its state.
+
+    Codex emits two terminal signals: a review object when it has findings, and only a +1 reaction on
+    the pull request when it has none (obs 2026-09-17-merge-admission-cannot-see-a-clean-codex-review).
+    A reaction carries no commit oid, so it is bound to the candidate by time: it must be newer than
+    the candidate's first check-run start, and no review by the producer may name another commit after
+    that moment. This binding is weaker than a review oid, by owner decision of 2026-09-25. Accepted
+    limit: a clean review of an earlier head that finishes after this head's first check started leaves
+    a +1 this rule cannot tell apart, and it admits a head Codex did not read (never one with findings,
+    which arrive as a review naming their commit). A usage-limit
+    reply and an untriggered head are named separately, each with its remedy
+    (obs 2026-09-11-required-review-producer-is-quota-limited).
+    """
+    if any(_login(_review_login(r)) == producer and _review_commit(r) == candidate_sha for r in reviews):
+        return None
+    arrived = _first_check_started(pull_request, candidate_sha)
+    plus_ones = _producer_plus_ones(pull_request, producer)
+    current = [at for at in plus_ones if arrived is not None and at > arrived]
+    if current:
+        # Only a foreign review submitted after the accepted +1 makes its target ambiguous; one submitted
+        # between this head's arrival and the +1 is older than the signal being accepted.
+        accepted = max(current)
+        later_foreign = [
+            r
+            for r in reviews
+            if _login(_review_login(r)) == producer
+            and _review_commit(r) != candidate_sha
+            and r.get("submittedAt")
+            and _parse_timestamp(r["submittedAt"], "review submittedAt") > accepted
+        ]
+        if not later_foreign:
+            return None
+        return (
+            f"{producer} left a +1 after this head arrived, but a later review of theirs names another commit, "
+            "so the reaction's target is ambiguous; comment '@codex review' for a review of this head"
+        )
+    # No current +1. Quota on this head is checked before any stale-reaction diagnosis: it changes the
+    # remedy (wait for the reset or record a waiver) whatever an earlier head received.
+    quota = _quota_state(pull_request, producer, arrived)
+    if quota is not None:
+        return quota
+    if plus_ones and arrived is None:
+        return (
+            f"{producer} left a +1, but no check run has started on the candidate, so the reaction cannot be "
+            "bound to this head; wait for CI to start, then re-run admission"
+        )
+    if plus_ones:
+        return (
+            f"{producer}'s +1 predates this head (its first check started {arrived.isoformat()}), so it "
+            "describes an earlier head; comment '@codex review' so this head is reviewed"
+        )
+    return f"{producer} has not reviewed or reacted on this head; comment '@codex review' to request a review"
+
+
+def _producer_plus_ones(pull_request: Mapping[str, Any], producer: str) -> list[datetime]:
+    """Return the creation times of ``producer``'s +1 reactions on the pull request."""
+    reactions = pull_request.get("reactions")
+    return [
+        _parse_timestamp(reaction.get("createdAt"), "reaction createdAt")
+        for reaction in (_require_nodes(reactions, "pullRequest.reactions") if reactions is not None else [])
+        if reaction.get("content") == "THUMBS_UP" and _login((reaction.get("user") or {}).get("login")) == producer
+    ]
+
+
+def _quota_state(pull_request: Mapping[str, Any], producer: str, arrived: datetime | None) -> str | None:
+    """Name a usage-limit reply on this head, or refuse when the comment window cannot rule one out.
+
+    The snapshot holds the last 50 comments. When earlier ones exist and even the oldest fetched comment
+    is newer than this head's arrival, a quota reply could sit in the unfetched part, so the state is
+    reported unknown rather than guessed as untriggered.
+    """
+    comments = pull_request.get("comments")
+    if comments is None or arrived is None:
+        return None
+    connection = _require_mapping(comments, "pullRequest.comments")
+    nodes = [node for node in connection.get("nodes") or [] if isinstance(node, Mapping)]
+    for comment in nodes:
+        if _login((comment.get("author") or {}).get("login")) != producer:
+            continue
+        created = _parse_timestamp(comment.get("createdAt"), "comment createdAt")
+        body = str(comment.get("body") or "").lower()
+        if created > arrived and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
+            return (
+                f"{producer} hit its usage limit on this head ({created.isoformat()}) and will not review it "
+                "automatically; comment '@codex review' once the quota resets, or record an owner waiver"
+            )
+    page_info = connection.get("pageInfo")
+    if not isinstance(page_info, Mapping) or not isinstance(page_info.get("hasPreviousPage"), bool):
+        raise ValueError("pullRequest.comments is missing pageInfo.hasPreviousPage; comment completeness is unknown")
+    oldest = min((_parse_timestamp(c.get("createdAt"), "comment createdAt") for c in nodes), default=None)
+    if page_info["hasPreviousPage"] and (oldest is None or oldest > arrived):
+        return (
+            f"more comments arrived on this head than the snapshot holds, so whether {producer} replied with a "
+            "usage limit is unknown; read the pull request's comments since this head before choosing a remedy"
+        )
+    return None
+
+
 def evaluate_thread_finality(
     payload: Mapping[str, Any],
     *,
@@ -165,6 +295,9 @@ def evaluate_thread_finality(
 ) -> None:
     """Admit only when every producer is terminal and no live thread remains.
 
+    A producer is terminal on the candidate when it submitted a review naming the candidate, or when
+    it left a +1 reaction provably newer than the candidate (see :func:`_producer_state`).
+
     Args:
         payload: Raw ``gh api graphql`` response for the pull request.
         candidate_sha: The exact merge candidate the evidence must describe.
@@ -172,19 +305,21 @@ def evaluate_thread_finality(
 
     Raises:
         ValueError: If the evidence is stale, truncated, malformed, a configured
-            producer has not reached a terminal state on the candidate, or any
-            unresolved non-outdated review thread remains.
+            producer has not reached a terminal state on the candidate (the
+            message names the state and its remedy), or any unresolved
+            non-outdated review thread remains.
     """
     pull_request = _pull_request(payload)
     _assert_candidate(pull_request, candidate_sha)
 
     reviews = _review_rows(pull_request)
-    terminal = {_review_login(review) for review in reviews if _review_commit(review) == candidate_sha}
-    pending = [producer for producer in review_producers if producer not in terminal]
+    pending = [
+        state
+        for producer in sorted(review_producers)
+        if (state := _producer_state(pull_request, producer, candidate_sha, reviews)) is not None
+    ]
     if pending:
-        raise ValueError(
-            "review producers have not reached a terminal state on the candidate: " + ", ".join(sorted(pending))
-        )
+        raise ValueError("review producers have not reached a terminal state on the candidate: " + "; ".join(pending))
 
     threads = _require_nodes(pull_request.get("reviewThreads"), "pullRequest.reviewThreads")
     for index, thread in enumerate(threads):
@@ -614,13 +749,65 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
     failing re-run already reflects the live thread, and re-running the old
     success would be noise (Codex review 3990012209).
     """
+    latest = _latest_gate_check(pull_request, gate=gate, what=what)
+    if latest is None or latest[0].get("conclusion") != "SUCCESS":
+        return []
+    return [_gate_run_id(latest[1], gate=gate, what=what)]
+
+
+def _gate_run_id(run: Mapping[str, Any], *, gate: SweepGate, what: str) -> int:
+    run_id = run.get("databaseId")
+    if not isinstance(run_id, int) or isinstance(run_id, bool):
+        raise ValueError(f"{what}: a {gate.check_run} check carries no workflow run id, so it cannot be re-run")
+    return run_id
+
+
+def _failed_gate_run_before_producer_signal(
+    pull_request: Mapping[str, Any], *, gate: SweepGate, producers: Sequence[str], what: str
+) -> list[int]:
+    """Return the run id of a failed admission check that a producer signal arrived after it started.
+
+    Codex's clean signal is a reaction and its quota reply is an issue comment. Neither triggers this
+    workflow, so a head whose admission failed before either arrived would stay failed, or keep the
+    wrong remedy (Codex reviews on PR #304). The run's START is the bound, not its completion: a signal
+    landing while the run was still evaluating was not in its snapshot. The re-run evaluates the same
+    head again, and the evaluator still decides whether the signal binds to it. The re-run starts after
+    the signal, so the sweep does not repeat itself.
+    """
+    latest = _latest_gate_check(pull_request, gate=gate, what=what)
+    if latest is None or latest[0].get("conclusion") != "FAILURE" or not latest[0].get("startedAt"):
+        return []
+    started = _parse_timestamp(latest[0]["startedAt"], f"{what} {gate.check_run} startedAt")
+    reactions = pull_request.get("reactions")
+    if reactions is None:
+        raise ValueError(f"{what}.reactions is absent; a clean +1 after the failed check cannot be ruled out")
+    connection = _require_mapping(reactions, f"{what}.reactions")
+    if not isinstance(connection.get("pageInfo"), Mapping) or connection["pageInfo"].get("hasNextPage") is not False:
+        raise ValueError(f"{what}.reactions is truncated or missing pageInfo; reaction evidence is incomplete")
+    if any(at > started for producer in producers for at in _producer_plus_ones(pull_request, producer)):
+        return [_gate_run_id(latest[1], gate=gate, what=what)]
+    comments = _require_mapping(pull_request.get("comments"), f"{what}.comments")
+    for comment in comments.get("nodes") or []:
+        if not isinstance(comment, Mapping) or _login((comment.get("author") or {}).get("login")) not in producers:
+            continue
+        body = str(comment.get("body") or "").lower()
+        created = _parse_timestamp(comment.get("createdAt"), f"{what} comment createdAt")
+        if created > started and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
+            return [_gate_run_id(latest[1], gate=gate, what=what)]
+    return []
+
+
+def _latest_gate_check(
+    pull_request: Mapping[str, Any], *, gate: SweepGate, what: str
+) -> tuple[Mapping[str, Any], Mapping[str, Any]] | None:
+    """Return (check run, workflow run) for the head's latest admission check attempt, or None."""
     commits = _require_nodes(pull_request.get("commits"), f"{what}.commits")
     if len(commits) != 1:
         raise ValueError(f"{what}: expected exactly one tip commit, got {len(commits)}")
     commit = _require_mapping(commits[0].get("commit"), f"{what} head commit")
     rollup = commit.get("statusCheckRollup")
     if rollup is None:
-        return []
+        return None
     contexts = _require_nodes(_require_mapping(rollup, f"{what} statusCheckRollup").get("contexts"), f"{what} contexts")
     latest: Mapping[str, Any] | None = None
     latest_run: Mapping[str, Any] | None = None
@@ -637,12 +824,9 @@ def _green_gate_runs(pull_request: Mapping[str, Any], *, gate: SweepGate, what: 
             raise ValueError(f"{what}: a {gate.check_run} check carries no databaseId; its latest attempt is unknown")
         if latest is None or check_id > latest["databaseId"]:
             latest, latest_run = context, run
-    if latest is None or latest_run is None or latest.get("conclusion") != "SUCCESS":
-        return []
-    run_id = latest_run.get("databaseId")
-    if not isinstance(run_id, int) or isinstance(run_id, bool):
-        raise ValueError(f"{what}: a green {gate.check_run} check carries no workflow run id, so it cannot be re-run")
-    return [run_id]
+    if latest is None or latest_run is None:
+        return None
+    return latest, latest_run
 
 
 SweepListing = Mapping[str, Any] | Sequence[Mapping[str, Any]]
@@ -686,7 +870,7 @@ def _paginated_pull_requests(listing: SweepListing) -> list[Mapping[str, Any]]:
     return pulls
 
 
-def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
+def sweep_actions(payload: SweepListing, *, gate: SweepGate, producers: Sequence[str] = ()) -> list[str]:
     """Return what a scheduled sweep must do for open pull requests with live threads.
 
     Reopening a resolved thread (``unresolveReviewThread``) emits no Actions
@@ -698,14 +882,19 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
     - ``rerun <workflow-run-id> <number>`` for each currently green admission
       check on its head, so the re-run replaces that success on the same commit.
 
-    Pull requests with no live thread, and admission checks that are already
-    failing or still running, need nothing and yield nothing, so repeated sweeps
-    do not pile up re-runs.
+    A pull request with no live thread whose latest admission check failed, and
+    which a configured producer +1'd, or answered with a usage limit, after that run started, yields
+    ``rerun <workflow-run-id> <number>``: reactions trigger no workflow, so a
+    signal arriving during or after the only evaluation would otherwise never be read.
+
+    Anything else, including checks still running, yields nothing, so repeated
+    sweeps do not pile up re-runs.
 
     Args:
         payload: ``gh api graphql`` response listing open pull requests, or the
             list of page responses from ``--paginate --slurp``.
         gate: The admission check to re-run.
+        producers: Review producers whose +1 re-runs a failed admission check.
 
     Returns:
         Action lines in pull-request order.
@@ -722,6 +911,13 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate) -> list[str]:
             raise ValueError("a repository.pullRequests node is missing its number")
         what = f"pull request #{number}"
         if _live_thread_count(pull_request, what) == 0:
+            if producers:
+                actions.extend(
+                    f"rerun {run_id} {number}"
+                    for run_id in _failed_gate_run_before_producer_signal(
+                        pull_request, gate=gate, producers=producers, what=what
+                    )
+                )
             continue
         pull_request_id = pull_request.get("id")
         if not isinstance(pull_request_id, str) or not pull_request_id:
@@ -844,7 +1040,8 @@ def main(argv: list[str] | None = None) -> int:
             listing = json.loads(args.snapshot.read_text(encoding="utf-8"))
             if not isinstance(listing, (Mapping, list)):
                 raise ValueError("--snapshot must contain a JSON object or a list of page objects")
-            verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config)))
+            producers = _string_list(_section(config, "thread_finality"), "review_producers")
+            verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config), producers=producers))
         elif args.gate == "queue-disposition":
             verdict = queue_disposition(
                 _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")
