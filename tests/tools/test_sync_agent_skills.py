@@ -381,3 +381,14 @@ def test_load_state_malformed_json_exits_2(
     assert exc_info.value.code == 2
     err = capsys.readouterr().err
     assert "malformed state file" in err
+
+
+def test_save_state_writes_lf_only_bytes(tmp_path: Path) -> None:
+    """The state file is on the LF-canonical surface; Windows text mode must not add CR."""
+    state_path = tmp_path / "skill_sync_state.json"
+
+    sas._save_state(state_path, {"skill-a": {"SKILL.md": "0" * 64}, "skill-b": {"SKILL.md": "1" * 64}})
+
+    data = state_path.read_bytes()
+    assert b"\r" not in data
+    assert data.endswith(b"}\n")
