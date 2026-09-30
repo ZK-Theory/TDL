@@ -45,3 +45,5 @@ This installs `.claude/hooks/git-commit-msg.sh` as `.git/hooks/commit-msg` and m
 - Before committing any change, choose the prefix that matches the work type.
 - Use branch names that reflect the task category.
 - Keep vault-related workflow decisions in sync with `CLAUDE.md` and `.claude/instructions/workflow.instructions.md`.
+- Put `.github/workflows/*` edits in their own PR unless the workflow change is the PR's subject. A store or code fix that also changes CI selection is refused by platform-order only after it has been built and reviewed (PR #283).
+- Merge admission needs Codex to reach a terminal state on the exact head: a review naming the head, or a +1 reaction left after the head's first check started. If the gate reports the head untriggered, or reports a stale +1 or a usage limit, comment `@codex review` (after the quota resets); record an owner waiver rather than bypass the gate. A +1 that arrives after the check failed triggers nothing itself; the 5-minute merge-admission sweep re-runs the check once it sees it.
