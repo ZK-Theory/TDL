@@ -11,6 +11,9 @@ from __future__ import annotations
 
 import copy
 import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -1245,6 +1248,39 @@ def test_the_sweep_workflow_runs_on_a_schedule_and_acts() -> None:
     assert "dequeuePullRequest" in body
     assert 'gh run rerun "$target"' in body
     assert "databaseId file{path}" in body
+
+
+def _bash() -> str:
+    """Resolve Git's bash rather than the WSL launcher stub, failing if none exists."""
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if Path(candidate).exists():
+            return candidate
+    found = shutil.which("bash")
+    if not found or "system32" in found.lower():
+        pytest.fail("no usable bash: the workflow scripts cannot be syntax-checked, and must not silently skip")
+    return found
+
+
+@pytest.mark.parametrize("workflow_path", [WORKFLOW_PATH, SWEEP_WORKFLOW_PATH], ids=["admission", "sweep"])
+def test_every_workflow_run_script_is_valid_bash(workflow_path: Path) -> None:
+    """The scripts are only ever executed on GitHub, so nothing local noticed a quoting break.
+
+    An apostrophe in a comment inside the single-quoted GraphQL query ended the string early, and
+    every admission run died with a bash syntax error (found 2026-09-30 by re-running the check on
+    PR #304). String assertions on the YAML cannot see that; `bash -n` on each script can.
+    """
+    jobs = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))["jobs"]
+    scripts = [
+        (f"{job_name} / {step.get('name')}", step["run"])
+        for job_name, job in jobs.items()
+        for step in job["steps"]
+        if "run" in step
+    ]
+    assert scripts
+    for name, script in scripts:
+        rendered = re.sub(r"\$\{\{.*?\}\}", "EXPR", script)
+        result = subprocess.run([_bash(), "-n"], input=rendered, capture_output=True, text=True, encoding="utf-8")
+        assert result.returncode == 0, f"{workflow_path.name} step {name!r} is not valid bash: {result.stderr}"
 
 
 def test_config_is_a_shallow_copy_not_shared(config: dict[str, Any], snapshot: dict[str, Any]) -> None:
