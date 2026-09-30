@@ -150,7 +150,8 @@ exit 0
     # (ruff) goes through the pre-commit framework, not MAIN_PYTHON, so it is absent here.
     assert invocations == [
         f"{_msys_path(worktree)}/tools/sync_agent_skills.py --check",
-        f"{_msys_path(worktree)}/tools/check_crlf_byte_surface.py --repo-root {_msys_path(worktree)}",
+        f"{_msys_path(worktree)}/tools/check_crlf_byte_surface.py --repo-root {_msys_path(worktree)}"
+        " --worktree .githooks --worktree .claude/hooks --worktree .codex/hooks",
         f"{_msys_path(worktree)}/.claude/hooks/run_staged_contract_gate.py --repo-root {_msys_path(worktree)} --",
     ]
 
