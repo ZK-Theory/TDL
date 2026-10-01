@@ -701,6 +701,7 @@ def test_sources_are_the_candidate_cited_registrations_plus_accepted_corrections
         spec_result._sources(candidate, projection, events, streams, context)
 
 
+@pytest.mark.slow
 def test_public_project_use_result_is_pending_until_independently_accepted(bound_result, tmp_path, capsys):
     fixture = bound_result
     coordinator, grants = fixture.coordinator, fixture.grants_project_use
@@ -831,6 +832,7 @@ def test_public_project_use_result_is_pending_until_independently_accepted(bound
     assert json.loads(replayed.stdout) == output
 
 
+@pytest.mark.slow
 def test_completed_project_use_actions_conflict_unless_the_invocation_repeats_a_committed_effect(
     bound_result, tmp_path, capsys
 ):
@@ -865,6 +867,7 @@ def test_completed_project_use_actions_conflict_unless_the_invocation_repeats_a_
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_path, capsys):
     fixture = bound_result
     coordinator, grants = fixture.coordinator, fixture.grants_project_use
@@ -1027,6 +1030,7 @@ def test_project_use_refusals_precede_every_durable_mutation(bound_result, tmp_p
             assert receipt.status == "accepted", "admission is expected to accept use authority under the same grant"
 
 
+@pytest.mark.slow
 def test_a_decision_is_refused_for_a_task_amended_after_its_attempts_dispatch(bound_amended_result, tmp_path, capsys):
     """The closure Attempt ran the revision it was dispatched on, so an amended Task cannot lend it another."""
     fixture = bound_amended_result
@@ -1045,6 +1049,7 @@ def test_a_decision_is_refused_for_a_task_amended_after_its_attempts_dispatch(bo
     assert coordinator.status(register_intent())["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_project_use_registration_refuses_a_ledger_that_moved_after_derivation(
     bound_result, tmp_path, capsys, monkeypatch
 ):
@@ -1122,6 +1127,7 @@ def _rebind(events, fixture, document):
     return [e for e in events if e["global_position"] <= registration["global_position"]]
 
 
+@pytest.mark.slow
 def test_foreign_hash_only_misbound_and_unrecognised_decision_evidence_is_rejected(bound_result, tmp_path, capsys):
     fixture = bound_result
     coordinator = fixture.coordinator

@@ -81,7 +81,6 @@ from research_system.command.reducers import reduce_artefact
 from research_system.discovery.accepted_w11 import ACCEPTED, CATALOGUE_STREAM_ID
 from research_system.discovery.assay_authority import assay_reconstruction_sha256
 from research_system.discovery.commands import discovery_resolve_transaction_ids
-from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.routes import DISCOVERY_ROW_ROUTES, shared_event_partition
 from research_system.discovery.rules import (
     _aggregate_content_hash,
@@ -93,11 +92,11 @@ from research_system.discovery.rules import (
     _spike_verdict_matches,
     _valid_spike_promotion_option,
 )
+from research_system.discovery.spec_replay import replay, replay_discovery
 from research_system.discovery.spec_result import _BINDING_EVENTS, _event_ref
 from research_system.discovery.spec_source import SOURCE_REF_PREFIX, registration_ref, source_ids
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.methods.registration import _stable_command_id
-from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 
 GENESIS = "bootstrap_genesis"

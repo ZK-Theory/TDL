@@ -206,6 +206,7 @@ def test_the_spike_return_is_one_closed_record_for_both_outcomes():
         assert not intent.is_valid(invalid), invalid
 
 
+@pytest.mark.slow
 def test_public_spec_02_path_reaches_accepted_project_use(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
@@ -327,6 +328,7 @@ def test_public_spec_02_path_reaches_accepted_project_use(tmp_path, monkeypatch,
     assert decision["intent"]["disposition"] == "retain_experimental_benchmark"
 
 
+@pytest.mark.slow
 def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     candidate_id, _ = _promoted(bound, tmp_path, capsys, source_repo, monkeypatch)
@@ -408,6 +410,7 @@ def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypa
     assert _replay(bound.coordinator)["candidates"][candidate_id]["status"] == "parked"
 
 
+@pytest.mark.slow
 def test_public_spec_02_partial_path_ends_at_a_partial_review(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
@@ -718,6 +721,7 @@ def _selection(bound, candidate_id: str, option: str, triggers: list[str]) -> st
     return _built_direct(bound, "ResolveDecision", DECISION, build, OWNER, subject=DECISION, human=True)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("store", ("verdict", "review", "proposal"))
 def test_admission_accepts_the_spike_outcome_collapses_the_route_refuses(store, tmp_path, monkeypatch, capsys):
     """Each relation the route refuses is one inherited admission records; one store per started Spike."""

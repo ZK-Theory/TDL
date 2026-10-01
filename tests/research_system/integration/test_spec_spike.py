@@ -344,6 +344,7 @@ def _spec_02_states(coordinator, candidate_id: str) -> dict:
     }
 
 
+@pytest.mark.slow
 def test_public_spec_02_path_starts_the_approved_spike(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
@@ -457,6 +458,7 @@ def test_public_spec_02_path_starts_the_approved_spike(tmp_path, monkeypatch, ca
     assert _spec_02_states(coordinator, candidate_id) == completed
 
 
+@pytest.mark.slow
 def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     candidate_id, _ = _promoted(bound, tmp_path, capsys, source_repo, monkeypatch)
@@ -713,6 +715,7 @@ def _direct_promoted(bound, number: int) -> tuple[str, str]:
     return candidate_id, assay_id
 
 
+@pytest.mark.slow
 def test_admission_accepts_the_spike_planning_collapses_the_route_refuses(tmp_path, monkeypatch, capsys):
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
