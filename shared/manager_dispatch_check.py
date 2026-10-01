@@ -30,7 +30,12 @@ Usage::
         --branch run/b9-b10-recompute --mode parallel \\
         --expected-base <required-prerequisite-ref> \\
         --state-manifest contracts/manifests/dispatch-state/panel-statistics.yaml \\
-        --provenance-manifest contracts/manifests/input-provenance/b9-om-gmm-inputs.yaml
+        --provenance-manifest contracts/manifests/input-provenance/b9-om-gmm-inputs.yaml \\
+        --brief .apm/bus/panel-statistics-agent/draft-task.md
+
+Every cited path in the brief must resolve on the commit the Worker starts from (the workspace's
+HEAD unless ``--brief-ref`` says otherwise). With no brief file, ``--no-brief '<reason>'`` records
+why; omitting both fails the ``brief-paths`` check.
 
 Exit codes:
     0 — every applicable prerequisite passed; the Task is dispatch-ready.
@@ -44,6 +49,7 @@ import argparse
 import ast
 import os
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -245,6 +251,35 @@ def check_contracts(workspace: Path) -> Check:
     return Check("contracts", proc.returncode == 0, msg)
 
 
+def _hookspath_remedy(workspace: Path) -> str:
+    """Return the command clearing a foreign core.hooksPath in the scope that set it.
+
+    Mirrors ``hookspath_remedy`` in ``.claude/hooks/install-git-hooks.py``: ``--worktree`` edits
+    only config.worktree, and the local scope is reset to ``.githooks`` rather than unset. A global
+    or system value is overridden locally, never removed for every other repository.
+    """
+    scope = (
+        subprocess.run(
+            ["git", "config", "--show-scope", "--get", "core.hooksPath"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        .stdout.split("\t", 1)[0]
+        .strip()
+    )
+    fixes = {
+        "worktree": ["--worktree", "--unset", "core.hooksPath"],
+        "local": ["--local", "core.hooksPath", ".githooks"],
+        "global": ["--local", "core.hooksPath", ".githooks"],
+        "system": ["--local", "core.hooksPath", ".githooks"],
+    }
+    if scope in fixes:
+        return shlex.join(["git", "-C", str(workspace), "config", *fixes[scope]])
+    return f"core.hooksPath comes from scope '{scope or 'unknown'}' (a -c option or GIT_CONFIG_* variable); remove it there"
+
+
 def check_hook_gate(workspace: Path) -> Check:
     """Assert the Worker's commit-time contract gate is actually live in workspace.
 
@@ -277,6 +312,23 @@ def check_hook_gate(workspace: Path) -> Check:
 
     hook = hooks_dir / "pre-commit"
     where = f"core.hooksPath={configured or '(unset)'} -> {hook}"
+    toplevel = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout.strip()
+    # Present-and-executable is not enough: an absolute per-worktree core.hooksPath runs another
+    # checkout's hook bytes (obs 2026-09-17-worktree-scoped-hookspath-runs-main-checkout-hooks).
+    if toplevel and not hooks_dir.resolve().is_relative_to(Path(toplevel).resolve()):
+        return Check(
+            "hook-gate",
+            False,
+            f"active hooks resolve outside this workspace ({where}; toplevel {toplevel}) — the "
+            f"Worker's commits would run another checkout's hooks, not this branch's. Fix before "
+            f"dispatch, in the scope that set it: {_hookspath_remedy(workspace)}",
+        )
     if not hook.is_file():
         return Check(
             "hook-gate",
@@ -286,6 +338,55 @@ def check_hook_gate(workspace: Path) -> Check:
             f"uv run python .claude/hooks/install-git-hooks.py",
         )
     return Check("hook-gate", True, f"pre-commit live ({where})")
+
+
+def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
+    """Assert every repository path the brief cites resolves on ``ref``.
+
+    Obs 2026-09-14-handoff-cited-at-a-path-only-an-unmerged-pr-contains: a dispatch cited a handoff
+    present only on an open PR branch. A Worker starts from the base ref, so a path it is told to
+    read must exist there, or the brief must say which branch holds it.
+    """
+    from tools.check_brief_paths import citations, default_vault_root, planned_outputs, unresolved
+
+    text = brief.read_text(encoding="utf-8")
+    cited = citations(text)
+    problems = unresolved(
+        cited, repo_root, ref, brief=brief, planned=planned_outputs(text), vault_root=default_vault_root(repo_root)
+    )
+    if problems:
+        return Check("brief-paths", False, f"{brief.name}: " + "; ".join(problems))
+    return Check("brief-paths", True, f"{brief.name}: {len(cited)} cited path(s) resolve on {ref}")
+
+
+def brief_checks(briefs: list[str], no_brief: str | None, repo_root: Path, ref: str) -> list[Check]:
+    """Check every brief, or record why none is checked; silence is not an option at the dispatch seam.
+
+    Without this, a dispatch run with no ``--brief`` passes having checked nothing (Codex review on
+    PR #305). The brief is checked as drafted, before the Task Prompt goes to the bus.
+    """
+    if briefs:
+        return [check_brief_paths(Path(brief), repo_root, ref) for brief in briefs]
+    if no_brief and no_brief.strip():
+        return [Check("brief-paths", True, f"no brief checked, by stated reason: {no_brief.strip()}")]
+    return [
+        Check(
+            "brief-paths",
+            False,
+            "no brief checked: pass --brief <drafted Task Prompt or handoff> (draft it before this gate), "
+            "or --no-brief '<reason>' when the dispatch has no brief file",
+        )
+    ]
+
+
+def workspace_head(workspace: Path) -> str:
+    """Return the commit the Worker starts from: the workspace's HEAD."""
+    head = subprocess.run(
+        ["git", "rev-parse", "--verify", "HEAD"], cwd=workspace, capture_output=True, text=True, check=False
+    )
+    if head.returncode != 0 or not head.stdout.strip():
+        raise ValueError(f"cannot resolve HEAD in {workspace}; pass --brief-ref explicitly")
+    return head.stdout.strip()
 
 
 def check_provenance(manifests: list[Path], repo_root: Path, proj_root: Path) -> list[Check]:
@@ -643,6 +744,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Dir to run the contract gate in (default: the branch worktree, else PROJ_ROOT).",
     )
     p.add_argument("--state-manifest", required=True, help="Tracked task-state manifest (YAML).")
+    p.add_argument(
+        "--brief",
+        action="append",
+        default=[],
+        help="Task brief or handoff to check: every cited repo path must resolve on --brief-ref. Repeatable. "
+        "Required unless --no-brief gives a reason.",
+    )
+    p.add_argument("--no-brief", default=None, metavar="REASON", help="Dispatch with no brief file, and why.")
+    p.add_argument(
+        "--brief-ref",
+        default=None,
+        help="Ref a dispatched Worker starts from. Default: the workspace's HEAD, the commit it actually starts on.",
+    )
     return p.parse_args(argv)
 
 
@@ -668,6 +782,12 @@ def main(argv: list[str] | None = None) -> int:
     if not state_path.is_absolute():
         state_path = workspace / state_path
     checks.extend(check_state_manifest(state_path, workspace, proj_root))
+    try:
+        brief_ref = args.brief_ref or workspace_head(workspace)
+    except ValueError as exc:
+        checks.append(Check("brief-paths", False, str(exc)))
+    else:
+        checks.extend(brief_checks(args.brief, args.no_brief, proj_root, brief_ref))
 
     print(render(args.agent, args.branch, args.mode, checks))
     if all(c.ok for c in checks):
