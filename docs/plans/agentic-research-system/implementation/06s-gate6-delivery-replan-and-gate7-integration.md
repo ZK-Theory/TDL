@@ -574,6 +574,10 @@ table:
     PASS (W11 §4.5);
   - the complete public path reaches an accepted project-use result that records the Spike;
   - the stuck start (PR #298 known limit 7) is asserted in 4b-2b, as Stephen decided on 2026-09-24.
+- **Test-cost decisions (P-058, 2026-10-01).** Measured first: the route's cost is ledger
+  replay repeated within one invocation, not git. 4b-2b adds a replay cache for one coordinator
+  operation. Schema-validator reuse is a separate PR. Certification runs between 02:00 and
+  11:00 on 8 workers, under a 60-minute group budget and a 5-hour packet budget.
 
 ### Phase 5 — Owner-gated live proof and closure
 
@@ -605,6 +609,11 @@ and the live store stays historical evidence and is not appended to.
   with the code and environment identities its manifests will record. Amended again on
   2026-09-16 (round 3): the Task names only the SPEC-01 Candidate, and its Attempt stays
   running until the operator return is registered.
+
+**Amended by P-058 (2026-10-01).** **Phase 5 prep** accounts for the cost of each live
+invocation. The fresh store's ledger is about as long as the test stores', so an `advance`
+costs about what the tests measure. The store binding's revalidation, which re-checks the
+whole schema catalogue about five times per invocation, stays unchanged under D5.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.

@@ -2057,6 +2057,56 @@ accepted every recommendation.
   outcome-to-next-step mapping after a FAIL without a triggered kill condition; and OR-019
   closes the Attempt as Partial, so its Task reaches no project-use result.
 
+**Test-cost decisions (2026-10-01):** the certifying packet for 4b-2b's candidate `bd5c971e`
+needed about a day of Stephen's machine, with single tests running for hours. Stephen stopped it
+on 2026-09-26. The route tests' cost had grown with every sub-phase since #291 and was recorded
+as a known limit, not escalated. It was measured before any fix was chosen.
+- **Measured.** These runs used scratch stores at `bd5c971e`, each one process, or eight on the
+  machine's eight performance cores. The simulated caches wrapped functions from outside the
+  code.
+  - The public SPEC-01 path test alone took 16m47s for 31 CLI invocations, on a ledger of at most
+    89 events. The cost of an invocation grew from 5 s to 115 s. Git was a flat 2.5 s per
+    invocation, 8% of the test.
+  - Replay was 78% of the time: 895 ledger replays, and 75% of their time repeated an event
+    list the same invocation had already replayed. Every replay re-loads every owner
+    administration decision from the object store (33,181 loads in the test), and
+    `SchemaRegistry.validate` rebuilds its reference registry and validator on each of its
+    152,875 calls.
+  - A replay cache for the route's own calls, one invocation's lifetime, plus validator
+    reuse, both simulated, cut the SPEC-02 refusals test from 7,395 s to 873 s of CPU (2h12m
+    to 17.6 minutes), the complete SPEC-02 path from 5,531 s to 2,219 s, and the SPEC-01 path
+    from 1,137 s to 608 s. Every assertion passed under each.
+  - Also loading each owner decision once per invocation took only 2 more points off the
+    SPEC-02 path.
+  - With both fixes simulated, the next cost is the store binding's revalidation. It runs about
+    five times per invocation, and each run re-checks the whole schema catalogue against the
+    bound Git subject: `git archive`, then a byte comparison of every schema file, 1.3 s each,
+    about 37% of what remains.
+- **Decisions (Stephen accepted every recommendation, 2026-10-01).**
+  1. **A route-side replay cache, in 4b-2b as its own commit.** Within one coordinator
+     operation (`status`, `advance` or `result`), the route replays an identical event list
+     once. The cache is keyed by the list's exact canonical bytes and the replay options,
+     every caller receives its own copy, and it ends with the operation. Admission, the
+     command service and the authority resolver keep their own replays, so no check moves
+     out from under the writer lock.
+  2. **Schema-validator reuse** in `SchemaRegistry.validate` goes in a separate PR, because it
+     is platform code outside P-058. 4b-2b does not depend on it.
+  3. **The owner-decision re-load stays.** Loading each decision once would weaken a
+     deliberate re-load for 2 points.
+  4. **The binding's schema-catalogue re-check stays (D5).** It is recorded as a Phase 5 prep
+     cost. Phase 5 runs on a fresh store (P-058, 2026-09-14), whose ledger is about as long as
+     the test stores', so live invocations cost about what the tests measure.
+  5. **Test restructuring is deferred**: a shared starting state, and mutation controls aimed
+     at smaller tests. It is revisited only if a budget fails.
+  6. **A time budget.**
+     - Certification runs only between 02:00 and 11:00, on 8 workers.
+     - A group over 60 minutes fails the packet's budget. The runner records the breach and
+       lets the group finish, so its evidence stands.
+     - The whole packet takes 5 hours or less.
+     - A test whose time rises by more than 25% from one sub-phase to the next goes in that
+       PR's decision table.
+     - The public-route tests that take minutes are marked `slow`.
+
 ## Decision protocol
 
 Each future decision entry must record:
