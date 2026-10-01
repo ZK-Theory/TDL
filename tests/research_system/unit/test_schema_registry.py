@@ -9,6 +9,7 @@ import pytest
 
 from jsonschema import Draft202012Validator, FormatChecker
 
+from research_system import schema_registry as registry_module
 from research_system.errors import SchemaError
 from research_system.operations.resources import (
     RESOURCE_GRANT_V1_1_SCHEMA_ID,
@@ -1066,3 +1067,110 @@ def test_runtime_schema_registry_cache_is_scoped_to_the_verified_catalogue_gener
 
     assert same is first
     assert successor is not first
+
+
+def _write_schemas(root: Path, schemas: dict[str, dict]) -> None:
+    root.mkdir()
+    for name, schema in schemas.items():
+        (root / f"{name}.schema.json").write_bytes(
+            json.dumps({"$schema": "https://json-schema.org/draft/2020-12/schema", **schema}).encode("utf-8")
+        )
+
+
+def _versioned(schema_id: str, version: str) -> dict:
+    return {
+        "$id": schema_id,
+        "type": "object",
+        "properties": {"schema_version": {"const": version}},
+        "required": ["schema_version"],
+        "additionalProperties": False,
+    }
+
+
+def test_validate_builds_one_validator_per_exact_schema_identity(tmp_path: Path, monkeypatch) -> None:
+    """Validation reuses one validator per exact schema bytes (P-058 test-cost decision 2, 2026-10-01).
+
+    Measured on the SPEC route, rebuilding the reference registry and validator on each of 152,875
+    validations took about 196 s of a 1,572 s profiled test.
+    """
+    schema_id = "ars://test/reused"
+    _write_schemas(tmp_path / "schemas", {"v1": _versioned(schema_id, "1.0.0"), "v2": _versioned(schema_id, "2.0.0")})
+    registry = SchemaRegistry(tmp_path / "schemas")
+    built: list[str] = []
+    real = registry_module._ImmutableSchemaValidator
+
+    def counting(schema, **kwargs):
+        built.append(schema["properties"]["schema_version"]["const"])
+        return real(schema, **kwargs)
+
+    monkeypatch.setattr(registry_module, "_ImmutableSchemaValidator", counting)
+    for _ in range(3):
+        registry.validate(schema_id, {"schema_version": "1.0.0"}, schema_version="1.0.0")
+    registry.validate(schema_id, {"schema_version": "2.0.0"}, schema_version="2.0.0")
+
+    assert built == ["1.0.0", "2.0.0"]
+
+
+def test_a_reused_validator_reports_each_values_own_errors(tmp_path: Path) -> None:
+    schema_id = "ars://test/reused"
+    _write_schemas(tmp_path / "schemas", {"v1": _versioned(schema_id, "1.0.0")})
+    registry = SchemaRegistry(tmp_path / "schemas")
+
+    registry.validate(schema_id, {"schema_version": "1.0.0"}, schema_version="1.0.0")
+    with pytest.raises(SchemaError, match="extra"):
+        registry.validate(schema_id, {"schema_version": "1.0.0", "extra": 1}, schema_version="1.0.0")
+    with pytest.raises(SchemaError, match="schema_version"):
+        registry.validate(schema_id, {}, schema_version="1.0.0")
+    registry.validate(schema_id, {"schema_version": "1.0.0"}, schema_version="1.0.0")
+
+
+def test_superseded_bytes_keep_their_own_validator(tmp_path: Path) -> None:
+    """Validating against superseded bytes first must not let the current schema accept what it forbids."""
+    schema_id = "ars://test/collided-version"
+    current = _versioned(schema_id, "1.0.0")
+    superseded = deepcopy(current)
+    superseded["properties"]["temporary_field"] = {"type": "string"}
+    current_raw = json.dumps(current, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_raw = json.dumps(superseded, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    superseded_sha256 = sha256(superseded_raw).hexdigest()
+    (tmp_path / "current.schema.json").write_bytes(current_raw)
+    (tmp_path / "history").mkdir()
+    archive_ref = f"history/sha256-{superseded_sha256}.json"
+    (tmp_path / archive_ref).write_bytes(superseded_raw)
+    manifest = {
+        "schema_id": "ars://core/schema-identity-history",
+        "schema_version": "1.0.0",
+        "aliases": [
+            {
+                "schema_id": schema_id,
+                "schema_version": "1.0.0",
+                "raw_bytes_sha256": superseded_sha256,
+                "archive_ref": archive_ref,
+            }
+        ],
+    }
+    (tmp_path / "schema-identity-history.json").write_bytes(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    )
+    registry = SchemaRegistry(tmp_path)
+    value = {"schema_version": "1.0.0", "temporary_field": "kept"}
+
+    registry.validate(schema_id, value, expected_sha256=superseded_sha256)
+    with pytest.raises(SchemaError, match="temporary_field"):
+        registry.validate(schema_id, value)
+    registry.validate(schema_id, value, expected_sha256=superseded_sha256)
+
+
+def test_registries_do_not_share_validators(tmp_path: Path) -> None:
+    """Identical schema bytes resolve their references against their own registry's catalogue."""
+    outer = {"$id": "ars://test/outer", "type": "object", "properties": {"inner": {"$ref": "ars://test/inner"}}}
+    _write_schemas(tmp_path / "text", {"outer": outer, "inner": {"$id": "ars://test/inner", "type": "string"}})
+    _write_schemas(tmp_path / "number", {"outer": outer, "inner": {"$id": "ars://test/inner", "type": "integer"}})
+    text, number = SchemaRegistry(tmp_path / "text"), SchemaRegistry(tmp_path / "number")
+
+    text.validate("ars://test/outer", {"inner": "word"})
+    with pytest.raises(SchemaError, match="integer"):
+        number.validate("ars://test/outer", {"inner": "word"})
+    number.validate("ars://test/outer", {"inner": 3})
+    with pytest.raises(SchemaError, match="string"):
+        text.validate("ars://test/outer", {"inner": 3})
