@@ -244,11 +244,14 @@ def unresolved(
             continue
         last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", *readings).stdout.strip()
         if not last:
-            if _git(repo_root, "check-ignore", "-q", "--no-index", target).returncode == 0:
+            # Every reading is tried, as for refs: an ignored file beside the brief is ignored by a rule
+            # for ITS path, which the root reading would never match.
+            ignored = [r for r in readings if _git(repo_root, "check-ignore", "-q", "--no-index", r).returncode == 0]
+            if ignored:
                 # Never tracked and ignored (data, .env): no ref can hold it, so check the checkout
                 # the Worker reads from. Ignored patterns such as `docs/*` also cover force-added
                 # tracked files, which is why this runs only once no branch has ever held the path.
-                if not (repo_root / target).exists():
+                if not any((repo_root / r).exists() for r in ignored):
                     problems.append(f"{path}: git-ignored, never tracked, and not present in {repo_root}")
                 continue
             problems.append(f"{path}: absent from {ref} and from every branch")

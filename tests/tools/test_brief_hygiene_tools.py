@@ -445,3 +445,25 @@ def test_every_branch_holding_the_path_is_named_not_only_those_containing_its_la
 
     assert result.returncode == 1
     assert "alpha" in result.stderr and "beta" in result.stderr, result.stderr
+
+
+def test_an_ignored_citation_is_checked_against_every_reading(repo: Path) -> None:
+    """The ignore and existence tests used the root reading alone, so an ignored file beside the brief failed.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    brief = repo / "docs" / "notes" / "brief.md"
+    brief.parent.mkdir()
+    (repo / ".gitignore").write_text("docs/notes/*.csv\n", newline="\n")
+    brief.write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "brief and ignore rule")
+    brief.write_text("Input: `local-data.csv`.\n", newline="\n")
+
+    missing = _check(repo, brief)
+    (repo / "docs" / "notes" / "local-data.csv").write_text("x\n", newline="\n")
+    present = _check(repo, brief)
+
+    assert missing.returncode == 1
+    assert "git-ignored, never tracked, and not present" in missing.stderr, missing.stderr
+    assert present.returncode == 0, present.stderr
