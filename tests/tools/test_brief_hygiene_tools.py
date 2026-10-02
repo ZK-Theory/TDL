@@ -406,3 +406,42 @@ def test_branch_qualification_is_tried_before_the_suffix_suggestion(repo: Path) 
     assert qualified.returncode == 0, qualified.stderr
     assert unqualified.returncode == 1
     assert "cite the full path (vendor/docs/h2.md)" in unqualified.stderr, "the suggestion survives, last"
+
+
+def test_branch_discovery_reads_the_brief_relative_reading(repo: Path) -> None:
+    """The branch lookup used the root reading alone, so a brief-relative citation was 'on no branch at all'.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    brief = repo / "docs" / "notes" / "brief.md"
+    brief.parent.mkdir()
+    brief.write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "brief")
+    _git(repo, "checkout", "-q", "-b", "docs/notes-branch")
+    (repo / "docs" / "notes" / "sub").mkdir()
+    (repo / "docs" / "notes" / "sub" / "h3.md").write_text("beside the brief\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "h3 beside the brief, on a branch")
+    _git(repo, "checkout", "-q", "main")
+    brief.write_text("Read `sub/h3.md`.\n", newline="\n")
+
+    result = _check(repo, brief)
+
+    assert result.returncode == 1
+    assert "sub/h3.md: absent from main; present on docs/notes-branch" in result.stderr, result.stderr
+
+
+def test_every_branch_holding_the_path_is_named_not_only_those_containing_its_last_commit(repo: Path) -> None:
+    """``branch --contains <last commit>`` named only branches descended from the newest touch of the path."""
+    for name in ("alpha", "beta"):
+        _git(repo, "checkout", "-q", "-b", name, "main")
+        (repo / "docs" / "d.md").write_text(f"written on {name}\n", newline="\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "--no-verify", "-m", f"d on {name}")
+    _git(repo, "checkout", "-q", "main")
+
+    result = _check(repo, _brief(repo, "Read `docs/d.md`.\n"))
+
+    assert result.returncode == 1
+    assert "alpha" in result.stderr and "beta" in result.stderr, result.stderr

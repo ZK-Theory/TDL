@@ -166,6 +166,13 @@ def _suffix_matches(repo_root: Path, ref: str, target: str) -> list[str]:
     return [line for line in _tree(repo_root, ref) if line.endswith("/" + target)]
 
 
+def _branch_tips(repo_root: Path) -> list[str]:
+    """Return every local and remote-tracking branch name, symbolic ``HEAD`` refs excluded."""
+    refs = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").stdout.split()
+    names = [ref.removeprefix("refs/heads/").removeprefix("refs/remotes/") for ref in refs]
+    return sorted(name for name in names if name != "HEAD" and not name.endswith("/HEAD"))
+
+
 def _top_level(repo_root: Path, ref: str) -> set[str]:
     return {line.split("/", 1)[0] for line in _tree(repo_root, ref)}
 
@@ -235,7 +242,7 @@ def unresolved(
                 f"({', '.join(suggestions[:3])})"
             )
             continue
-        last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", target).stdout.strip()
+        last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", *readings).stdout.strip()
         if not last:
             if _git(repo_root, "check-ignore", "-q", "--no-index", target).returncode == 0:
                 # Never tracked and ignored (data, .env): no ref can hold it, so check the checkout
@@ -246,10 +253,13 @@ def unresolved(
                 continue
             problems.append(f"{path}: absent from {ref} and from every branch")
             continue
+        # Every branch whose tip holds ANY reading: asking only for branches that contain the newest
+        # commit touching the path missed divergent branches, and the root reading alone missed a path
+        # the brief cites relative to itself. A later deletion leaves nothing to read, so tips decide.
         branches = [
             name
-            for name in _git(repo_root, "branch", "-a", "--contains", last, "--format=%(refname:short)").stdout.split()
-            if name != ref and _exists(repo_root, name, target)  # a later deletion leaves nothing to read
+            for name in _branch_tips(repo_root)
+            if name != ref and any(_exists(repo_root, name, reading) for reading in readings)
         ]
         where = ", ".join(branches) if branches else f"no branch tip (last touched in commit {last[:12]})"
         problems.append(f"{path}: absent from {ref}; present on {where}")
