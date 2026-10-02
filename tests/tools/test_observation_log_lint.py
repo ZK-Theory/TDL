@@ -232,3 +232,29 @@ def test_a_status_inside_a_fenced_example_is_not_the_status(tmp_path: Path) -> N
     resolution = _run(tmp_path, quoted_resolution)
     assert resolution.returncode == 1
     assert "c: closing status names no checkable artifact" in resolution.stderr
+
+
+def test_escalated_and_partially_statuses_count_as_open(tmp_path: Path) -> None:
+    """A standalone ESCALATED or PARTIALLY entry was in no ledger: only a leading OPEN counted as open.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): the owner default is that a
+    status beginning ESCALATED or PARTIALLY is still open work, so it must reach every ledger.
+    """
+    log = (
+        _obs("a", "ESCALATED — owner decision pending.")
+        + _obs("b", "PARTIALLY ADDRESSED — AWAITING OWNER DECISION (2026-09-08).")
+        + _obs("c", "**OPEN**")
+        + _obs("d", "ACTIONED — fixed in PR #1.")
+        + _obs("e", "DEFERRED — external.")
+    )
+    counted = _run(tmp_path, log)
+    assert counted.returncode == 0, counted.stderr
+    assert "5 observation(s): 3 OPEN" in counted.stdout
+
+    short = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | b · c |\n| **Total** | **2** | |\n"))
+    assert short.returncode == 1
+    assert "OPEN but missing from the ledger: a" in short.stderr
+
+    whole = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 3 | a · b · c |\n| **Total** | **3** | |\n"))
+    assert whole.returncode == 0, whole.stderr
+    assert "ledger matches the 3 OPEN observation(s)" in whole.stdout

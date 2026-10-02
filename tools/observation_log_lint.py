@@ -21,6 +21,9 @@ Checks:
   nothing. DEFERRED is exempt: it claims no fix.
 * **Identical closing text.** The same substantive Status or Resolution text on two ids is the
   borrowing shape, unless the text declares itself a ``batch disposition``.
+* **OPEN means open work.** A status beginning OPEN, ESCALATED or PARTIALLY is in the OPEN set (owner
+  default): an escalated entry awaits a decision and a partial one is half done, so neither may drop out
+  of a ledger. DEFERRED claims no fix and stays outside it.
 * **Completeness ledger** (``--packet``). The IDs column of the packet's "Completeness ledger"
   table must equal the log's OPEN set, computed rather than assembled (obs
   2026-09-01-completeness-ledger-missed-six-live-items: a hand ledger was wrong by six). Unknown,
@@ -54,6 +57,9 @@ _RESOLUTION = re.compile(r"(?ms)^\*\*(?:Resolution|Closed)[^*]*:\*\*(.*?)(?=\n\s
 
 
 _STATUSES = ("OPEN", "ACTIONED", "CLOSED", "DECLINED", "DEFERRED", "ESCALATED", "PARTIALLY")
+# Open work: a status that has not been resolved. ESCALATED (an owner decision is awaited) and
+# PARTIALLY (half the work is done) count (owner default from the 2026-10-02 dispatch): DEFERRED does not.
+_OPEN_STATUSES = ("OPEN", "ESCALATED", "PARTIALLY")
 _HEADING = "### Observation "
 
 
@@ -141,8 +147,20 @@ def _entries(blocks: list[str]) -> list[tuple[str, str, str]]:
     return entries
 
 
+def status_word(status: str) -> str:
+    """Return the leading status word upper-cased, ignoring bold markers (``**OPEN**``); "" when there is none."""
+    word = re.match(r"[*\s]*([A-Za-z]+)", status)
+    return word.group(1).upper() if word else ""
+
+
 def is_open(status: str) -> bool:
-    return status.upper().startswith("OPEN")
+    """True for a status that is still open work: OPEN, and (owner default) ESCALATED or PARTIALLY.
+
+    Only a leading OPEN counted before, so a standalone ESCALATED or PARTIALLY entry (an owner decision
+    awaited, or half the work done) reached no ledger and no OPEN count: obs
+    2026-09-30-system-review-prs-stopping-rule-follow-ups.
+    """
+    return status_word(status) in _OPEN_STATUSES
 
 
 def lint(entries: list[tuple[str, str, str]]) -> list[str]:
@@ -153,12 +171,11 @@ def lint(entries: list[tuple[str, str, str]]) -> list[str]:
             # Neither OPEN nor closed, so it would silently drop out of every ledger.
             problems.append(f"{ident}: no **Status:** line")
             continue
-        word = re.match(r"[*\s]*([A-Za-z]+)", status)
-        if not word or word.group(1).upper() not in _STATUSES:
+        if status_word(status) not in _STATUSES:
             # A misspelt status (`OPEM`) is neither OPEN nor closed, so it would drop out of the ledger.
             problems.append(f"{ident}: unrecognised status {status[:40]!r}; expected one of {', '.join(_STATUSES)}")
             continue
-        if not status.upper().startswith(_CLOSING):
+        if status_word(status) not in _CLOSING:
             continue
         resolutions = [text.strip() for text in _RESOLUTION.findall(block)]
         if not _ARTIFACT.search(" ".join([status, *resolutions])):
