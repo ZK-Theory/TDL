@@ -99,6 +99,12 @@
             "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/handoff-surface.sh",
             "timeout": 10,
             "statusMessage": "Surfacing recent handoffs..."
+          },
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/hook_currency.py\" --session-start",
+            "timeout": 10,
+            "statusMessage": "Checking the hook tree in force is the merged one..."
           }
         ]
       }

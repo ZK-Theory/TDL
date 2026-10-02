@@ -340,6 +340,32 @@ def check_hook_gate(workspace: Path) -> Check:
     return Check("hook-gate", True, f"pre-commit live ({where})")
 
 
+def check_hook_currency(workspace: Path, waiver: str | None = None) -> Check:
+    """Assert the workspace's hook tree has every hook change merged on the integration branch.
+
+    Obs 2026-10-02-merged-gates-not-live-in-the-main-checkout: ``hook-gate`` confirms a hook is wired,
+    not that it is the merged one, so a checkout behind ``origin/main`` passed while running pre-merge
+    hooks. A missing hook-touching commit FAILS, like the foreign-hooks case above: a Worker commit
+    on stale hooks bypasses the merged gates as silently as a hook that never ran. The one false
+    positive is a deliberately old base (a stack on an unmerged prerequisite), which
+    ``--allow-stale-hooks '<reason>'`` records as an advisory. A check that cannot reach a verdict
+    (no remote, no reference) is an advisory, not a failure. It reads the last-fetched remote ref, so
+    ``git fetch`` first for a current answer.
+    """
+    from tools.hook_currency import STALE, UNVERIFIED, check
+
+    result = check(workspace)
+    if result.status == STALE:
+        if waiver and waiver.strip():
+            return Check("hook-currency", True, f"{result.message} WAIVED: {waiver.strip()}", advisory=True)
+        return Check(
+            "hook-currency",
+            False,
+            f"{result.message} Fix before dispatch, or record why not with --allow-stale-hooks '<reason>'.",
+        )
+    return Check("hook-currency", True, result.message, advisory=result.status == UNVERIFIED)
+
+
 def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     """Assert every repository path the brief cites resolves on ``ref``.
 
@@ -753,6 +779,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--no-brief", default=None, metavar="REASON", help="Dispatch with no brief file, and why.")
     p.add_argument(
+        "--allow-stale-hooks",
+        default=None,
+        metavar="REASON",
+        help="Dispatch although the workspace lacks a merged hook change, and why (recorded as an advisory).",
+    )
+    p.add_argument(
         "--brief-ref",
         default=None,
         help="Ref a dispatched Worker starts from. Default: the workspace's HEAD, the commit it actually starts on.",
@@ -775,6 +807,7 @@ def main(argv: list[str] | None = None) -> int:
     checks.append(check_branch_ancestry(workspace, args.expected_base))
     checks.append(check_contracts(workspace))
     checks.append(check_hook_gate(workspace))
+    checks.append(check_hook_currency(workspace, args.allow_stale_hooks))
 
     manifests = [Path(m) for m in args.provenance_manifest]
     checks.extend(check_provenance(manifests, repo_root, proj_root))
