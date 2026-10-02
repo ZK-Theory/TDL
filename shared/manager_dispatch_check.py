@@ -329,6 +329,16 @@ def check_hook_gate(workspace: Path) -> Check:
             f"Worker's commits would run another checkout's hooks, not this branch's. Fix before "
             f"dispatch, in the scope that set it: {_hookspath_remedy(workspace)}",
         )
+    # In-tree is not enough either: an unset core.hooksPath makes git read the untracked, per-clone
+    # .git/hooks, so a legacy hook there would verify as live although no commit ever reviewed it.
+    if toplevel and hooks_dir.resolve() != (Path(toplevel) / ".githooks").resolve():
+        return Check(
+            "hook-gate",
+            False,
+            f"active hook directory is not the tracked .githooks directory ({where}) — hooks "
+            f"there are not versioned or reviewed. Fix before dispatch: "
+            f"uv run python .claude/hooks/install-git-hooks.py --install",
+        )
     if not hook.is_file():
         return Check(
             "hook-gate",
