@@ -155,13 +155,17 @@ any test run expected to exceed ~30 minutes:
 1. Time one test alone and profile it: which stage dominates (lineage replay
    through the public CLI, subprocess git, fixture setup)? Do not scale out
    before this measurement exists.
-2. Compare against the previous PR's time for the same group. Growth, or any
-   test past ~30 minutes, goes into the PR's decision table with options, such
-   as a shared prefix fixture that builds a route once and copies the store,
-   mutation controls aimed at focused tests rather than whole refusal batteries,
-   or a route-side fix. It never goes into a known-limits list.
-3. If Stephen has set a wall-time budget for the group or packet, the runner
-   enforces it by failing. A budget recorded only as a note is not a budget.
+2. Compare against the previous PR's time for the same group. A rise past the
+   owner's recorded threshold, a breach of a recorded group or packet budget, or
+   no recorded budget for a run this long goes into the PR's decision table with
+   options, such as a shared prefix fixture that builds a route once and copies
+   the store, mutation controls aimed at focused tests rather than whole refusal
+   batteries, or a route-side fix. It never goes into a known-limits list.
+3. Read the budgets and the rise threshold from the owner's record (for the SPEC
+   route, the P-058 test-cost decisions of 2026-10-01). Do not copy their numbers
+   into a plan or a skill; the owner may revise them. The runner enforces the
+   budget with a check that fails. A budget recorded only as a note is not a
+   budget.
 4. When a run is legitimately long after that decision, make it resumable
    rather than trying to detach it from the session (WMI- and Start-Process-
    launched children died within seconds of the tool call returning). Each group
@@ -217,7 +221,8 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 - [ ] Memory-per-worker × workers checked against the machine; disk checked.
 - [ ] Preflight record written.
 - [ ] For a test or certification run: one test timed alone and profiled before
-      scale-out, and any growth over the previous PR raised as a decision.
+      scale-out, and any rise past the owner's recorded threshold or breach of a
+      recorded budget raised as a decision.
 
 ## Escalate Or Stop When
 

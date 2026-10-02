@@ -179,10 +179,10 @@ Everything else becomes a recorded known limit or a follow-up. In PR #291 this
 turned round 4 into dispositions only, saving roughly one ~3-hour
 fix-and-certify cycle. A known limit records a boundary the owner has accepted. A
 divergence from an accepted specification is not a known limit; raise it as an
-owner decision. A test-group or certification-packet time that grew since the
-previous PR, or any test past about 30 minutes, is never a known limit; it goes
-into the PR's decision table with options (see `tda-resource-preflight`, Long Test
-Runs).
+owner decision. A test-group or certification-packet time that rises past the
+owner's recorded threshold, or breaches a recorded group or packet budget
+(currently P-058, 2026-10-01), is never a known limit; it goes into the PR's
+decision table with options (see `tda-resource-preflight`, Long Test Runs).
 
 ## Exact-State Record
 
