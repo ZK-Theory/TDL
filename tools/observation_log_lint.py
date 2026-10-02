@@ -8,6 +8,8 @@ Checks:
 
 * **A parse that finds nothing fails**, as does an observation with no ``**Status:**`` line: either
   would otherwise drop out of every ledger silently.
+* **An unterminated code fence fails**, naming the line that opened it. It would otherwise turn every
+  later heading into quoted code and drop every later observation; the later entries are still counted.
 * **Duplicate ids.** Concurrent sessions have collided on plain-integer numbering before.
 * **Evidence-free closing stamps.** An ACTIONED/CLOSED/DECLINED status must name something a
   reader can check (a commit, PR, Jira key, file path or archive) on its Status line or in a
@@ -53,25 +55,83 @@ _STATUSES = ("OPEN", "ACTIONED", "CLOSED", "DECLINED", "DEFERRED", "ESCALATED", 
 _HEADING = "### Observation "
 
 
-def _blocks(log_text: str) -> list[str]:
-    """Split the log at observation headings that sit outside fenced code, so a quoted template is not an entry."""
+_FENCE = re.compile(r"\s*(`{3,}|~{3,})(.*)$")
+
+
+def _fence_opener(line: str) -> str | None:
+    """Return the fence run (``` or ~~~, any length of three or more) that opens a fenced block on this line."""
+    match = _FENCE.match(line.rstrip("\r\n"))
+    if match and not (match.group(1)[0] == "`" and "`" in match.group(2)):
+        return match.group(1)
+    return None
+
+
+def _closes_fence(line: str, opener: str) -> bool:
+    """A fence closes only on the same character, at least as long as the opener, with no text after it."""
+    match = _FENCE.match(line.rstrip("\r\n"))
+    return bool(
+        match and match.group(1)[0] == opener[0] and len(match.group(1)) >= len(opener) and not match.group(2).strip()
+    )
+
+
+def _split(lines: list[str], ignored: set[int]) -> tuple[list[str], int | None]:
+    """Split at observation headings outside fenced code; also return the line index of a fence left open, if any."""
     blocks: list[list[str]] = []
-    fence: str | None = None
-    for line in log_text.splitlines(keepends=True):
-        marker = re.match(r"\s*(```|~~~)", line)
-        if marker:
-            fence = None if fence == marker.group(1) else (fence or marker.group(1))
-        if fence is None and not marker and line.startswith(_HEADING):
+    opener: str | None = None
+    opened_at = 0
+    for index, line in enumerate(lines):
+        if opener is not None:
+            if _closes_fence(line, opener):
+                opener = None
+            if blocks:
+                blocks[-1].append(line)
+            continue
+        found = None if index in ignored else _fence_opener(line)
+        if found:
+            opener, opened_at = found, index
+        if not found and line.startswith(_HEADING):
             blocks.append([line[len(_HEADING) :]])
         elif blocks:
             blocks[-1].append(line)
-    return ["".join(block) for block in blocks]
+    return ["".join(block) for block in blocks], (opened_at if opener is not None else None)
+
+
+def scan(log_text: str) -> tuple[list[str], list[str]]:
+    """Split the log into observation blocks; also return a problem for every fence that is never closed.
+
+    An unclosed fence made every later heading look like quoted code, so every later observation
+    dropped out of the parse, the OPEN count and every ledger, silently. Each unterminated opener is
+    reported with its line number, then the log is split again with that opener read as plain text,
+    so the observations after it are still counted.
+    """
+    lines = log_text.splitlines(keepends=True)
+    problems: list[str] = []
+    ignored: set[int] = set()
+    while True:
+        blocks, opened_at = _split(lines, ignored)
+        if opened_at is None:
+            return blocks, problems
+        ignored.add(opened_at)
+        shown = lines[opened_at].strip()[:30]
+        problems.append(
+            f"unterminated fence {shown!r} opened at log line {opened_at + 1}: every observation after it "
+            "would read as quoted code; close it, or the earlier fence that should have closed"
+        )
+
+
+def _blocks(log_text: str) -> list[str]:
+    """Split the log at observation headings that sit outside fenced code, so a quoted template is not an entry."""
+    return scan(log_text)[0]
 
 
 def parse(log_text: str) -> list[tuple[str, str, str]]:
     """Return (id, status line, whole block) for every observation in order; the status is "" when absent."""
+    return _entries(_blocks(log_text))
+
+
+def _entries(blocks: list[str]) -> list[tuple[str, str, str]]:
     entries: list[tuple[str, str, str]] = []
-    for block in _blocks(log_text):
+    for block in blocks:
         heading = block.split("\n", 1)[0]
         ident = re.split(r":\s", heading, maxsplit=1)[0].strip().strip("[]").rstrip(":")
         status = re.search(r"(?m)^\*\*Status:\*\*\s*(.*)$", block)
@@ -181,14 +241,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--packet", type=Path, help="Review packet whose Completeness ledger must equal the OPEN set.")
     args = parser.parse_args(argv)
 
-    entries = parse(args.log.read_text(encoding="utf-8"))
+    blocks, fence_problems = scan(args.log.read_text(encoding="utf-8"))
+    entries = _entries(blocks)
     if not entries:
         # An empty, truncated or re-formatted log must not read as a clean one.
         print(
             f"ERROR: no observations parsed from {args.log}; the log is empty or its headings changed", file=sys.stderr
         )
         return 1
-    problems = lint(entries)
+    problems = fence_problems + lint(entries)
     known = {ident for ident, _, _ in entries}
     open_ids = {ident for ident, status, _ in entries if is_open(status)}
     print(f"{len(entries)} observation(s): {len(open_ids)} OPEN")

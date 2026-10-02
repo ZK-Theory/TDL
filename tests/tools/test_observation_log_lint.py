@@ -189,3 +189,20 @@ def test_a_digit_only_number_is_not_a_commit(tmp_path: Path) -> None:
     commit = _run(tmp_path, _obs("a", "ACTIONED — landed in commit 1234567."))
     assert dated.returncode == 1
     assert commit.returncode == 0, commit.stderr
+
+
+def test_an_unterminated_fence_fails_loudly_and_keeps_the_later_observations(tmp_path: Path) -> None:
+    """An unclosed fence made every later heading look like quoted code, so the lint dropped them all.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): the later entries vanished
+    from the parse, the OPEN count and every ledger, and the lint still exited 0.
+    """
+    log = (
+        _obs("a", "OPEN", "Quote:\n\n```markdown\nan example that is never closed\n")
+        + _obs("b", "OPEN")
+        + _obs("c", "OPEN")
+    )
+    result = _run(tmp_path, log)
+    assert result.returncode == 1, result.stdout
+    assert "unterminated" in result.stderr and "```" in result.stderr
+    assert "3 observation(s): 3 OPEN" in result.stdout
