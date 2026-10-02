@@ -161,11 +161,13 @@ any test run expected to exceed ~30 minutes:
    options, such as a shared prefix fixture that builds a route once and copies
    the store, mutation controls aimed at focused tests rather than whole refusal
    batteries, or a route-side fix. It never goes into a known-limits list.
-3. Read the budgets and the rise threshold from the owner's record (for the SPEC
-   route, the P-058 test-cost decisions of 2026-10-01). Do not copy their numbers
-   into a plan or a skill; the owner may revise them. The runner enforces the
-   budget with a check that fails. A budget recorded only as a note is not a
-   budget.
+3. Read the budgets and the rise threshold from the owner's record, not from this
+   skill: the owner may revise them. The current record is P-058 (2026-10-01)
+   plus Stephen's additions of 2026-10-02: 10 minutes a test, 60 minutes a group,
+   5 hours a packet, 6 hours for the nightly full suite, and a decision-table
+   entry when a test's time rises more than 25% between sub-phases. The runner
+   enforces each budget with a check that fails. A budget recorded only as a
+   note is not a budget.
 4. When a run is legitimately long after that decision, make it resumable
    rather than trying to detach it from the session (WMI- and Start-Process-
    launched children died within seconds of the tool call returning). Each group

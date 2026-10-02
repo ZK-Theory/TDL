@@ -181,7 +181,7 @@ fix-and-certify cycle. A known limit records a boundary the owner has accepted. 
 divergence from an accepted specification is not a known limit; raise it as an
 owner decision. A test-group or certification-packet time that rises past the
 owner's recorded threshold, or breaches a recorded group or packet budget
-(currently P-058, 2026-10-01), is never a known limit; it goes into the PR's
+(currently P-058 plus Stephen's additions of 2026-10-02), is never a known limit; it goes into the PR's
 decision table with options (see `tda-resource-preflight`, Long Test Runs).
 
 ## Exact-State Record
