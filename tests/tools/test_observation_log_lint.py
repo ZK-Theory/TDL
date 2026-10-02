@@ -288,3 +288,20 @@ def test_the_total_row_is_identified_by_its_label(tmp_path: Path) -> None:
         tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| B | 0 | |\n| **Total** | **2** | |\n")
     )
     assert empty_group.returncode == 0, empty_group.stderr
+
+
+def test_a_progress_field_next_to_the_resolution_is_not_closure_evidence(tmp_path: Path) -> None:
+    """The Resolution paragraph was captured up to the next blank line, so an adjacent field ran into it.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): a ``**Progress:**`` line
+    written directly under ``**Resolution:**`` was read as part of the resolution, so the abandoned PR
+    it names counted as the artifact that closed the entry.
+    """
+    adjacent = "**Resolution:** done, as agreed.\n**Progress:** tried PR #12, abandoned.\n"
+    result = _run(tmp_path, _obs("a", "CLOSED", adjacent))
+    assert result.returncode == 1
+    assert "a: closing status names no checkable artifact" in result.stderr
+
+    own_line = "**Resolution:** fixed in PR #12.\n**Progress:** tried PR #11 first.\n"
+    kept = _run(tmp_path, _obs("b", "CLOSED", own_line))
+    assert kept.returncode == 0, kept.stderr

@@ -54,7 +54,9 @@ _ARTIFACT = re.compile(
 _SUBSTANTIVE = 40
 # Only the paragraphs that state the closure are evidence for it. A Progress paragraph records interim
 # work, which may name an abandoned PR; it does not show that the resolution happened.
-_RESOLUTION = re.compile(r"(?ms)^\*\*(?:Resolution|Closed)[^*]*:\*\*(.*?)(?=\n\s*\n|\Z)")
+# The capture ends at a blank line or at the next ``**Field:**`` line, so an adjacent Progress field
+# written directly under the Resolution is not read as part of it.
+_RESOLUTION = re.compile(r"(?ms)^\*\*(?:Resolution|Closed)[^*]*:\*\*(.*?)(?=\n\s*\n|\n\*\*[^*\n]+:\*\*|\Z)")
 
 
 _STATUSES = ("OPEN", "ACTIONED", "CLOSED", "DECLINED", "DEFERRED", "ESCALATED", "PARTIALLY")
