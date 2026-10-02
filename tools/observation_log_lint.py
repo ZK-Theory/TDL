@@ -47,7 +47,8 @@ _CLOSING = ("ACTIONED", "CLOSED", "DECLINED")
 _ARTIFACT = re.compile(
     r"github\.com/[\w.-]+/[\w.-]+/(?:pull|commit|issues)/\w+"
     r"|\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b|\bcommit\s+`?[0-9a-f]{7,40}\b|#\d+|\b[A-Z][A-Z0-9]+-\d+\b|archive/log-"
-    r"|[\w-]+(?:/[\w.-]+)+\.[A-Za-z0-9]{1,5}\b|\b[\w-]+\.(?:py|ps1|md|sh|yml|yaml|json|toml|txt|ts|js|lean|tex)\b"
+    r"|[\w-]+(?:/[\w.-]+)+\.[A-Za-z0-9]{1,12}\b"
+    r"|\b[\w-]+\.(?:py|ps1|md|sh|yml|yaml|json|toml|txt|ts|js|lean|tex|parquet|csv|pkl|ipynb)\b"
 )
 # A bare status word ("CLOSED", "ACTIONED (2026-09-09)") is not borrowable text; the borrowed
 # stamps were full sentences. Only substantive closing text is compared across ids.

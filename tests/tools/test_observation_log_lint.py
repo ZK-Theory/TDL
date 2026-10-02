@@ -305,3 +305,16 @@ def test_a_progress_field_next_to_the_resolution_is_not_closure_evidence(tmp_pat
     own_line = "**Resolution:** fixed in PR #12.\n**Progress:** tried PR #11 first.\n"
     kept = _run(tmp_path, _obs("b", "CLOSED", own_line))
     assert kept.returncode == 0, kept.stderr
+
+
+def test_a_file_with_a_long_extension_is_closure_evidence(tmp_path: Path) -> None:
+    """A path ending in ``.parquet`` named a real artifact but the extension pattern stopped at five characters.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306).
+    """
+    pathed = _run(tmp_path, _obs("a", "CLOSED", "**Resolution:** wrote `results/p01/h1_2026-09-30.parquet`.\n"))
+    bare = _run(tmp_path, _obs("b", "CLOSED", "**Resolution:** regenerated h1_table.parquet from the script.\n"))
+    assert pathed.returncode == 0, pathed.stderr
+    assert bare.returncode == 0, bare.stderr
+    nothing = _run(tmp_path, _obs("c", "CLOSED", "**Resolution:** it was sorted out, see the notes.\n"))
+    assert nothing.returncode == 1, "positive control: prose naming no artifact must still fail"
