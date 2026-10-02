@@ -220,18 +220,20 @@ def unresolved(
             continue
         if "/" not in target and _basename_on_ref(repo_root, ref, target):
             continue
-        if "/" in target and (suggestions := _suffix_matches(repo_root, ref, target)):
-            problems.append(
-                f"{path}: not at the repository root or beside the brief on {ref}; cite the full path "
-                f"({', '.join(suggestions[:3])})"
-            )
-            continue
 
         def qualified(context: list[str], readings: list[str] = readings) -> bool:
             named = [c for c in context if _is_ref_or_namespace(repo_root, c)]
             return any(_exists(repo_root, c.rstrip("/"), reading) for c in named for reading in readings)
 
+        # Before the suffix suggestion: a mention that names the branch holding the path is correct, and
+        # a same-named file elsewhere on the ref must not turn it into a "cite the full path" refusal.
         if all(qualified(context) for context in contexts):
+            continue
+        if "/" in target and (suggestions := _suffix_matches(repo_root, ref, target)):
+            problems.append(
+                f"{path}: not at the repository root or beside the brief on {ref}; cite the full path "
+                f"({', '.join(suggestions[:3])})"
+            )
             continue
         last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", target).stdout.strip()
         if not last:

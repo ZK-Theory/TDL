@@ -382,3 +382,27 @@ def test_the_dispatch_gate_reports_an_unreadable_brief_as_a_failed_check(repo: P
 
     assert not check.ok
     assert "cannot read brief" in check.detail
+
+
+def test_branch_qualification_is_tried_before_the_suffix_suggestion(repo: Path) -> None:
+    """A citation that names the branch holding it was rejected because a same-named file lives deeper on main.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): the suffix suggestion ran
+    first and ``continue``d, so the branch-qualified reading never got a turn.
+    """
+    (repo / "vendor" / "docs").mkdir(parents=True)
+    (repo / "vendor" / "docs" / "h2.md").write_text("vendored\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "vendored copy on main")
+    _git(repo, "checkout", "-q", "docs/handoff")
+    (repo / "docs" / "h2.md").write_text("second handoff\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "h2 on the branch")
+    _git(repo, "checkout", "-q", "main")
+
+    qualified = _check(repo, _brief(repo, "Read `docs/h2.md` from branch `docs/handoff`.\n"))
+    unqualified = _check(repo, _brief(repo, "Read `docs/h2.md`.\n"))
+
+    assert qualified.returncode == 0, qualified.stderr
+    assert unqualified.returncode == 1
+    assert "cite the full path (vendor/docs/h2.md)" in unqualified.stderr, "the suggestion survives, last"
