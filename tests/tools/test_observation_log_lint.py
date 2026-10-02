@@ -170,7 +170,7 @@ def test_a_pull_request_url_is_closure_evidence(tmp_path: Path) -> None:
 
 def test_headings_inside_fenced_code_are_not_observations(tmp_path: Path) -> None:
     fenced = "Template:\n\n```markdown\n### Observation fake: example\n\n**Status:** OPEN\n```\n"
-    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    packet = _packet(tmp_path, "| A | 1 | a |\n| **Total** | **1** | |\n")
     result = _run(tmp_path, _obs("a", "OPEN", fenced), "--packet", packet)
     assert result.returncode == 0, result.stderr
     assert "1 observation(s): 1 OPEN" in result.stdout
@@ -178,7 +178,7 @@ def test_headings_inside_fenced_code_are_not_observations(tmp_path: Path) -> Non
 
 def test_an_unrecognised_status_fails(tmp_path: Path) -> None:
     """`OPEM` is neither OPEN nor closed, so it vanished from the ledger while the lint passed."""
-    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    packet = _packet(tmp_path, "| A | 1 | a |\n| **Total** | **1** | |\n")
     result = _run(tmp_path, _obs("a", "OPEN") + _obs("b", "OPEM"), "--packet", packet)
     assert result.returncode == 1
     assert "b: unrecognised status" in result.stderr
@@ -258,3 +258,33 @@ def test_escalated_and_partially_statuses_count_as_open(tmp_path: Path) -> None:
     whole = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 3 | a · b · c |\n| **Total** | **3** | |\n"))
     assert whole.returncode == 0, whole.stderr
     assert "ledger matches the 3 OPEN observation(s)" in whole.stdout
+
+
+def test_a_ledger_without_a_total_row_fails(tmp_path: Path) -> None:
+    """The Total was checked only when present, so a ledger that simply omitted it passed.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): a hand-assembled count was
+    the failure this ledger exists to end, and the row that states the count was optional.
+    """
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    bare = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n"))
+    assert bare.returncode == 1
+    assert "no Total row" in bare.stderr
+
+
+def test_the_total_row_is_identified_by_its_label(tmp_path: Path) -> None:
+    """Any row with a count and no ids was read as the Total, whatever it was called."""
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    mislabelled = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| Grand sum | 2 | |\n"))
+    assert mislabelled.returncode == 1
+    assert "no Total row" in mislabelled.stderr
+    assert "ledger row 'Grand sum' declares '2' but lists 0 id(s)" in mislabelled.stderr
+
+    listing = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 1 | a |\n| **Total** | **2** | b |\n"))
+    assert listing.returncode == 1
+    assert "Total row lists ids" in listing.stderr
+
+    empty_group = _run(
+        tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| B | 0 | |\n| **Total** | **2** | |\n")
+    )
+    assert empty_group.returncode == 0, empty_group.stderr

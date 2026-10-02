@@ -27,7 +27,8 @@ Checks:
 * **Completeness ledger** (``--packet``). The IDs column of the packet's "Completeness ledger"
   table must equal the log's OPEN set, computed rather than assembled (obs
   2026-09-01-completeness-ledger-missed-six-live-items: a hand ledger was wrong by six). Unknown,
-  repeated and missing ids are named, and each row's Count, and the Total, must match its ids.
+  repeated and missing ids are named, and each row's Count, and the Total, must match its ids. The
+  table must end with one row labelled Total: a ledger that omits it states no count to check.
 
 Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md]
 """
@@ -205,7 +206,8 @@ def parse_ledger(packet_text: str) -> tuple[list[str], list[str]]:
     """Return (every id listed in the ledger's IDs column, in order, problems with the table itself).
 
     Only the IDs column is read, so counts and group names are never mistaken for ids. Each row's
-    Count must equal the ids it lists, and a Total row (a Count with no ids) must equal their sum.
+    Count must equal the ids it lists, and the row labelled Total (a Count with no ids) must be present,
+    last, and equal their sum.
     """
     match = re.search(r"(?ms)^#+\s*Completeness ledger\s*$(.*?)(?=^#+\s|\Z)", packet_text)
     if not match:
@@ -229,17 +231,23 @@ def parse_ledger(packet_text: str) -> tuple[list[str], list[str]]:
         position += 1
         ids = [t.strip("`") for t in re.split(r"[\s·,]+", cells[id_col] if id_col < len(cells) else "") if t.strip("`")]
         count = _count(cells[count_col]) if count_col < len(cells) else None
-        if not ids:
+        if re.sub(r"[*`\s]", "", cells[0]).lower() == "total":
+            # The Total is the row labelled Total. Any row with a count and no ids was read as one,
+            # whatever it was called, and an unlabelled omission passed as a ledger with no Total.
+            if ids:
+                problems.append("the ledger's Total row lists ids; it must state only the count")
             totals.append((position, count))
             continue
         if count != len(ids):
             problems.append(f"ledger row {cells[0]!r} declares {cells[count_col]!r} but lists {len(ids)} id(s)")
         listed += ids
     # One Total, as the last row, checked against every id listed: a Total placed mid-table was
-    # compared only with the rows above it.
-    if len(totals) > 1:
+    # compared only with the rows above it. A ledger with no Total row stated no count to check.
+    if not totals:
+        problems.append("the ledger has no Total row; end the table with a row labelled Total giving the id count")
+    elif len(totals) > 1:
         problems.append(f"the ledger has {len(totals)} Total rows; expected one")
-    elif totals:
+    else:
         where, declared = totals[0]
         if where != position:
             problems.append("the ledger's Total row is not its last row")
