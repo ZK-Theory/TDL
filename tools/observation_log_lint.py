@@ -10,6 +10,8 @@ Checks:
   would otherwise drop out of every ledger silently.
 * **An unterminated code fence fails**, naming the line that opened it. It would otherwise turn every
   later heading into quoted code and drop every later observation; the later entries are still counted.
+* **Fenced text is never a field.** A ``**Status:**`` or ``**Resolution:**`` inside a code fence is a
+  quoted example; it is dropped before the fields are read.
 * **Duplicate ids.** Concurrent sessions have collided on plain-integer numbering before.
 * **Evidence-free closing stamps.** An ACTIONED/CLOSED/DECLINED status must name something a
   reader can check (a commit, PR, Jira key, file path or archive) on its Status line or in a
@@ -80,16 +82,16 @@ def _split(lines: list[str], ignored: set[int]) -> tuple[list[str], int | None]:
     opener: str | None = None
     opened_at = 0
     for index, line in enumerate(lines):
+        # Fenced lines (the fences included) are quoted text, not fields of the entry: left in the block,
+        # a quoted ``**Status:**`` or ``**Resolution:**`` was read as the entry's own.
         if opener is not None:
             if _closes_fence(line, opener):
                 opener = None
-            if blocks:
-                blocks[-1].append(line)
             continue
         found = None if index in ignored else _fence_opener(line)
         if found:
             opener, opened_at = found, index
-        if not found and line.startswith(_HEADING):
+        elif line.startswith(_HEADING):
             blocks.append([line[len(_HEADING) :]])
         elif blocks:
             blocks[-1].append(line)

@@ -206,3 +206,29 @@ def test_an_unterminated_fence_fails_loudly_and_keeps_the_later_observations(tmp
     assert result.returncode == 1, result.stdout
     assert "unterminated" in result.stderr and "```" in result.stderr
     assert "3 observation(s): 3 OPEN" in result.stdout
+
+
+def test_a_status_inside_a_fenced_example_is_not_the_status(tmp_path: Path) -> None:
+    """The first ``**Status:**`` in the block was read, quoted examples included.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): an entry that quotes the
+    observation template before its own Status line was counted OPEN, and an entry with no real Status
+    line took the quoted one instead of failing.
+    """
+    example = "Template:\n\n```markdown\n**Status:** OPEN\n```\n"
+    quoted_first = f"### Observation a: title\n\n{example}\n**Status:** ACTIONED — fixed in PR #306.\n\n"
+    only_quoted = f"### Observation b: title\n\n**Stauts:** OPEN\n\n{example}\n"
+    quoted_resolution = (
+        "### Observation c: title\n\n**Status:** CLOSED\n\n```\n**Resolution:** fixed in PR #12.\n```\n\n"
+    )
+
+    first = _run(tmp_path, quoted_first)
+    assert first.returncode == 0, first.stderr
+    assert "1 observation(s): 0 OPEN" in first.stdout
+
+    missing = _run(tmp_path, only_quoted)
+    assert missing.returncode == 1 and "b: no **Status:** line" in missing.stderr
+
+    resolution = _run(tmp_path, quoted_resolution)
+    assert resolution.returncode == 1
+    assert "c: closing status names no checkable artifact" in resolution.stderr
