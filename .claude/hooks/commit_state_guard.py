@@ -35,7 +35,7 @@ command's text, not its control flow, so a git call that never ran (``true || gi
 status``) still records the branch. Evaluating the shell is out of scope for this
 backstop; pre-commit gate -1 refuses a commit on main regardless.
 
-Also denied: ``--no-verify`` (or ``git commit -n``), which would skip the pre-commit
+Also denied: ``--no-verify`` (or ``git commit -n``) and ``git -c core.hooksPath=...``, which would skip the pre-commit
 gates, and a Bash commit backgrounded with ``&``, whose status the shell never reports.
 Detached HEADs are recorded with their commit, so two detached states differ.
 
@@ -69,6 +69,7 @@ GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--s
 BRANCH_MOVERS = {"checkout", "switch"}
 CHANGE_DIR = {"cd", "Set-Location", "pushd", "sl", "chdir"}
 OVERRIDE = re.compile(r"TDL_ALLOW_MAIN_COMMIT\s*=|env:TDL_ALLOW_MAIN_COMMIT", re.IGNORECASE)
+HOOKSPATH = re.compile(r"core\.hookspath", re.IGNORECASE)
 SET_PIPEFAIL = re.compile(r"([-+])[a-zA-Z]*o")
 
 PIPE_REASON = (
@@ -198,6 +199,9 @@ def git_call(segment: list[str]) -> tuple[str | None, list[str], str | None, lis
                 git_dir = value
             elif token == "--work-tree":
                 work_tree = value
+            elif token in ("-c", "--config-env") and value is not None:
+                # Kept, not dropped: `-c core.hooksPath=X` is a hooks bypass (see bypasses_hooks).
+                options.append(f"{token} {value}")
             index += 2
             continue
         if token.startswith("-"):
@@ -311,8 +315,17 @@ def moves_branch(call: GitCall) -> bool:
 
 
 def bypasses_hooks(call: GitCall) -> bool:
-    """Whether a git call skips the git hooks: ``--no-verify`` anywhere, or ``-n`` on a commit."""
+    """Whether a git call skips the git hooks.
+
+    ``--no-verify`` anywhere, ``-n`` on a commit, or a ``-c``/``--config-env`` that sets
+    ``core.hooksPath``: pointing it elsewhere runs none of the tracked ``.githooks``, the same
+    bypass by another route (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups). Known limit:
+    ``GIT_CONFIG_COUNT``/``GIT_CONFIG_KEY_n`` environment assignments are stripped before the
+    command is read and are not seen.
+    """
     if "--no-verify" in call.args:
+        return True
+    if any(HOOKSPATH.search(option) for option in call.options):
         return True
     if call.subcommand != "commit":
         return False
