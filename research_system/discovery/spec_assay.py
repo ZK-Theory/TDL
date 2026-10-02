@@ -1161,8 +1161,9 @@ def _spike_return(
     the Partial return a PARTIAL one. The route derives the verdict's Spike, Candidate, Assay, plan and Attempt
     references and runs admission's own verdict rule before registration, so a verdict admission would refuse is
     refused before any durable mutation. Admission does not check which Attempt produced the cited artefacts, so
-    the route requires every one to come from the Spike's own Attempt; a validation artefact may come from an
-    independent validator. A Partial return is held to a live Lease at its own recorded moment.
+    the route requires every one, in the artefact refs and as any predicate's or kill condition's evidence, to come
+    from the Spike's own Attempt; a validation artefact may come from an independent validator. A Partial return
+    is held to a live Lease at its own recorded moment.
     """
     partial = action == RETURN_02_PARTIAL
     verdict = evidence.get("verdict")
@@ -1208,6 +1209,15 @@ def _spike_return(
     for ref in artifact["artefact_refs"]:
         if ((streams.get(ref["id"]) or {}).get("manifest") or {}).get("attempt_id") != spike.get("attempt_id"):
             raise IntegrityError(f"{action} verdict may cite only artefacts from the Spike's own Attempt: {ref['id']}")
+    # Admission accepts a predicate's evidence when it is a portfolio record or any registered artefact, so every
+    # artefact a predicate or kill condition cites must come from the Spike's own Attempt too (PR #309 review).
+    for result in [*artifact["success_predicates"], *artifact["failure_predicates"], *artifact["kill_conditions"]]:
+        for ref in result["evidence_refs"]:
+            cited = streams.get(ref["id"])
+            if cited is not None and ((cited.get("manifest") or {}).get("attempt_id") != spike.get("attempt_id")):
+                raise IntegrityError(
+                    f"{action} verdict predicates may cite only artefacts from the Spike's own Attempt: {ref['id']}"
+                )
     document = {
         "schema_id": SPEC_02_RETURN_SCHEMA_ID,
         "schema_version": "1.0.0",

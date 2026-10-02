@@ -2025,7 +2025,9 @@ accepted every recommendation.
      and runs admission's own verdict rule before registration.
   2. **The cited evidence comes from the Spike's own Attempt.** Every `artefact_refs` entry must
      name the Spike's Attempt in its registered manifest. `validation_refs` keep admission's
-     type check only, so an independent validator may be cited.
+     type check only, so an independent validator may be cited. Every artefact that a success
+     predicate, failure predicate or kill condition cites as evidence must name the Spike's Attempt
+     too; a predicate may still cite a portfolio record (PR #309 review, 2026-10-02, Codex P1).
   3. **A Partial return needs a live Lease.** Both Partial rows are held to a Lease that is live
      at their trusted submission time, the rule the start rows have, and re-deriving a recorded
      row consults no clock. The complete return needs no Lease. **Known limit:** a Lease that

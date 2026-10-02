@@ -351,9 +351,19 @@ def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypa
     failed["failure_predicates"][0]["status"] = "failed"
     assert "would not be admitted" in _invoke(bound, tmp_path, capsys, complete, register, OWNER, evidence=failed,
                                               refused=True)  # fmt: skip
-    # Every artefact the verdict cites comes from the Spike's own Attempt (P-058, 2026-09-25).
-    assert "Spike's own Attempt" in _invoke(bound, tmp_path, capsys, complete, register, OWNER,
-                                            evidence=spike_evidence(artefact=FOREIGN), refused=True)  # fmt: skip
+    # Every artefact the verdict cites comes from the Spike's own Attempt (P-058, 2026-09-25): its artefact refs,
+    # and each artefact a success predicate, failure predicate or kill condition cites as evidence (PR #309 review).
+    # Admission accepts any registered artefact in either place. Each case borrows in one place only, so each check
+    # is the only one that can refuse it.
+    borrowed = spike_evidence()
+    borrowed["artefact_refs"] = [_evidence_ref(FOREIGN)]
+    assert "Spike's own Attempt" in _invoke(bound, tmp_path, capsys, complete, register, OWNER, evidence=borrowed,
+                                            refused=True)  # fmt: skip
+    for predicates in ("success_predicates", "failure_predicates", "kill_conditions"):
+        borrowed = spike_evidence()
+        borrowed[predicates][0]["evidence_refs"] = [_evidence_ref(FOREIGN)]
+        assert "Spike's own Attempt" in _invoke(bound, tmp_path, capsys, complete, register, OWNER,
+                                                evidence=borrowed, refused=True)  # fmt: skip
     missing = {key: value for key, value in evidence.items() if key != "limitations"}
     assert "evidence fields are not exact" in _invoke(bound, tmp_path, capsys, complete, register, OWNER,
                                                       evidence=missing, refused=True)  # fmt: skip
@@ -727,8 +737,9 @@ def test_admission_accepts_the_spike_outcome_collapses_the_route_refuses(store, 
     """Each relation the route refuses is one inherited admission records; one store per started Spike."""
     bound, candidate_id = _control_store(tmp_path, monkeypatch, capsys)
     if store == "verdict":
-        # The owner, not the prospective producer, records a verdict citing another Attempt's artefact; the owner
-        # requests its review; the outcome reviewer proposes; and the owner parks with no revisit trigger.
+        # The owner, not the prospective producer, records a verdict citing another Attempt's artefact, in its
+        # artefact refs and as every predicate's evidence; the owner requests its review; the outcome reviewer
+        # proposes; and the owner parks with no revisit trigger.
         foreign = spike_evidence(artefact=FOREIGN)
         assert _verdict(bound, candidate_id, OWNER, foreign, human=True) == "accepted"
         assert _review_request(bound, candidate_id, OWNER, human=True) == "accepted"
