@@ -316,6 +316,7 @@ def _save_state(state_path: Path, state: dict[str, dict[str, str]]) -> None:
     state_path.write_text(
         json.dumps(state, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

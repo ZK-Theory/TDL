@@ -2,7 +2,7 @@
 name: tda-agent-safety-guardrails
 description: Use when configuring or reviewing agent safety boundaries in TDL — git operation rules, hook coverage, file-write boundaries, result-artifact protection, or destructive-command handling for Claude Code and Codex.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: optional
   lanes: []
   roles:
@@ -56,6 +56,27 @@ tier 2 skill first.
 - For an autonomous dispatch: does the prompt bound scope with hard stops,
   state blocking gates, and repeat the `results/` provenance rule?
 
+## Line Endings On Executable And Classified Files
+
+`git status` and `.gitattributes` normalise at the index, not the working
+tree, so neither is evidence about the bytes on disk.
+
+- After any shell rewrite of a tracked hook or script (`sed ... > file`,
+  `grep ... > file`, a redirect), count its CRLF bytes directly. Repair with
+  `uv run python tools/check_crlf_byte_surface.py --fix -- <p>`, which
+  rewrites only the working-tree bytes and leaves the index, and any partial
+  staging, alone. `git checkout HEAD -- <p>` alone is a no-op when the index
+  already matches, and `git add --renormalize` alone fixes only the index.
+  Do not stage the whole file to repair it: that sweeps unstaged edits in.
+- Pre-commit runs the CRLF gate with `--worktree .githooks --worktree
+  .claude/hooks --worktree .codex/hooks`, so a CRLF hook on disk blocks every
+  commit until repaired, even when `git status` is clean.
+- When a classification decides which files may be modified or reverted (for
+  example, "which of these 2,000 dirty files have real edits"), compare bytes
+  or use a content diff. Never use a name-only listing: `git diff --name-only`
+  silently discards content flags such as `--ignore-cr-at-eol` and reports
+  every drift-only file as changed.
+
 ## Self-Test Prompts
 
 - *A hook is blocking a legitimate commit and the agent proposes
@@ -82,3 +103,20 @@ tier 2 skill first.
 Do not infer purity from names such as `validate`, `check`, or `ensure`. Before probing any helper, perform static inspection, a dry-run execution, or isolated sandboxing to determine whether it creates targets, writes directories, mutates registries, or acquires locks, and classify those effects before authorising the call.
 
 Before delivery, re-read the active guardrails and verify that every invoked helper's observed effects match its authorised phase and ownership boundary.
+
+## Testing Hooks And Gates
+
+- **A hook test drives the real hook** (the script under the same bash the harness uses)
+  and fails, not skips, when that bash is missing. CI runs the hook suites in
+  `admission-controls`, which refuses a JUnit report containing a skip or zero tests.
+- **Capture to files, never pipes, and always set a hard timeout** when a hook backgrounds
+  work. On Windows a backgrounded grandchild inherits the pipe handles, so
+  `capture_output=True` waits for that child to exit and the test deadlocks; a positive
+  control whose stand-in exits in milliseconds never shows it.
+- **Prove a new control discriminates.** Run `tools/mutation_check.py` with a mutant that
+  disables the rule the control guards and confirm it is CAUGHT. Where editing the guard is
+  not permitted, at least assert both directions (a deny case and an allow case) against
+  the same hook, and record the missing mutation run as a known gap.
+- **A pinned expectation of a gate's exact behaviour is updated in the same change as the
+  gate.** A hook test that pins the gate list went stale when a gate was added because
+  nothing ran it; it now runs in CI, so the miss fails the PR instead of rotting.

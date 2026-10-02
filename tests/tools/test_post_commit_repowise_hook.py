@@ -120,12 +120,13 @@ def _run_hook(repo: Path, env: dict[str, str]) -> subprocess.CompletedProcess[st
     # Windows that child inherits the Win32 pipe handles even though the hook redirects
     # its own descriptors to /dev/null. `capture_output=True` then waits for pipe EOF,
     # i.e. for the UPDATER to exit — so a test that holds the updater open until after
-    # the hook returns deadlocks. Files have no EOF to wait for.
+    # the hook returns deadlocks. Files have no EOF to wait for. The hard timeout turns any
+    # remaining hang into a named failure instead of a stalled CI lane.
     index = len(list(repo.parent.glob("hook-run-*.out")))
     out_path, err_path = repo.parent / f"hook-run-{index}.out", repo.parent / f"hook-run-{index}.err"
     with out_path.open("wb") as out, err_path.open("wb") as err:
         completed = subprocess.run(
-            [str(git_bash), _msys_path(HOOK)], cwd=repo, env=env, stdout=out, stderr=err, check=False
+            [str(git_bash), _msys_path(HOOK)], cwd=repo, env=env, stdout=out, stderr=err, check=False, timeout=120
         )
     return subprocess.CompletedProcess(
         completed.args,

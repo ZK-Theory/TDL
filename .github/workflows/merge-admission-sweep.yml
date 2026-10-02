@@ -12,6 +12,18 @@ name: Merge Admission Sweep
 #     is re-run, so current thread state replaces the stale success on the same
 #     commit.
 #
+# Reactions and issue comments trigger no workflow either, and Codex's clean signal
+# is a +1 reaction and its quota reply a comment. A pull request with no live thread
+# whose admission check failed, and which a review producer +1'd or answered with a
+# usage limit after that run STARTED, gets that run re-run, so the signal is read on
+# the same head (Codex reviews on PR #304). The re-run starts after the signal, so it
+# is not repeated.
+#
+# Known limit: `gh run rerun` replays the original event, so a run from before the
+# gate change reached main re-runs with the evaluator of its original base commit.
+# This affects only pull requests opened before that merge; a push to them, or a
+# fresh `@codex review`, starts a run on the current gate.
+#
 # The window is the cron interval plus GitHub's best-effort scheduling delay,
 # typically 5-10 minutes. Chosen by Stephen on 2026-09-11 over relying on the
 # queue-time check alone. Scheduled workflows run only from the default branch,
@@ -89,13 +101,15 @@ jobs:
                       id
                       mergeQueueEntry{ id }
                       reviewThreads(first:100){ pageInfo{hasNextPage} nodes{ isResolved isOutdated } }
+                      reactions(first:100, content:THUMBS_UP){ pageInfo{hasNextPage} nodes{ content createdAt user{login} } }
+                      comments(last:20){ nodes{ createdAt body author{login} } }
                       commits(last:1){
                         pageInfo{hasNextPage}
                         nodes{ commit{ oid statusCheckRollup{ contexts(first:50){
                           pageInfo{hasNextPage}
                           nodes{
                             __typename
-                            ... on CheckRun{ databaseId name status conclusion checkSuite{ workflowRun{ databaseId file{path} } } }
+                            ... on CheckRun{ databaseId name status conclusion startedAt completedAt checkSuite{ workflowRun{ databaseId file{path} } } }
                           }
                         } } } }
                       }
@@ -123,7 +137,7 @@ jobs:
                 ;;
               rerun)
                 gh run rerun "$target"
-                echo "::warning::Re-ran merge-admission run ${target} for PR #${number}: a live review thread outlived its success."
+                echo "::warning::Re-ran merge-admission run ${target} for PR #${number}: a live thread outlived its success, or a producer +1 arrived after its failure."
                 ;;
               *)
                 echo "BLOCKED: unknown sweep action '${action}'" >&2

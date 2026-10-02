@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: core
   lanes:
     - output-provenance
@@ -139,3 +139,53 @@ internals, so they survive refactors.
 - Bind recovery markers to the complete validated command and resolved schema identity, and bind rollback to the exact object generation owned by that attempt. A different command committing the same target is a mandatory no-delete control.
 - Treat visible filesystem generations as untrusted after a failed directory flush. A retry must re-establish durability before interpreting or advancing them, including on native Windows.
 - For multi-resource cleanup, preserve the primary safety error, attempt every cleanup, and retain retryable ownership state for any close that failed. Test doubles must conform to the real lock/fence ownership record.
+
+## Admission, evaluator and route controls
+
+Lessons from Gate 6 Phases 2–4, where each boundary checked less than its
+role name or contract claimed:
+
+- **A negative control names the layer that must refuse.** State the exact layer
+  expected to refuse, the signal that identifies it (error type and message),
+  and what is held constant so nothing upstream refuses first. A control refused
+  by a pre-check upstream proves nothing about the boundary it names.
+- **Construction and evaluation get a correspondence table.** For every field a
+  generator constructs and an evaluator binds, write one row naming the
+  construction rule, the evaluator check, and one negative control. An evaluator
+  that re-validates only the fields it would itself have set wrongly trusts the
+  rest.
+- **Refusals precede the first irreversible effect.** For a multi-effect action,
+  list which refusal must fire before which durable write. A correct refusal
+  placed after a durable mutation strands the subject.
+- **Removing a guard re-audits what it protected.** List every branch that was
+  unreachable while the guard stood, and add a negative test for each newly
+  reachable input. A dead branch made live reports silent success.
+- **A borrowed derivation is re-asserted field by field.** When code copies a
+  merged derivation (provenance, identities, windows), compare every borrowed
+  field against the record it names. When one route accepts another route's
+  effect as evidence, call that route's own completion evaluator over the same
+  ledger prefix rather than restating a subset of it. The decisive negative sits
+  at the owning route's identity and differs only in a field the full check
+  covers.
+- **A hash-bound rule reference is not rule evaluation.** When a record names an
+  algorithm or rule by hash, find and exercise the code that runs it. If nothing
+  runs it, the reference only attests which rule someone meant.
+- **Re-derivation consults no clock.** Verifying a recorded fact takes no time
+  input by default. Before using any event field as a time basis, establish which
+  clock writes it: a fixture that pins a coordinator clock but not the ledger's is
+  a two-clock store.
+- **Admission checks run where admission's lock is held.** A precondition that
+  spans several streams and is evaluated on a snapshot outside the writer lock can
+  be invalidated before the write.
+- **Merging same-named helpers diffs their behaviour.** When a split or merge
+  removes one copy of a helper, compare its defaults and flags with the
+  survivor's, not just the call sites. Record which symbol each caller resolved to
+  at each commit.
+- **A bounded expectation is singular in code.** One module-level table imported
+  by the one test that asserts it. Two literal copies turn "update the contract"
+  into "find every copy", and the miss surfaces only in the most expensive run.
+- **A red run is red for the asserted reason.** A red run passes only when the
+  expected assertion or refusal text appears in the failure. Exit 1 is shared by a
+  failing test, a test that never ran, and a missing interpreter, so confirm the
+  test executed (JUnit `tests >= 1`, or the run's final summary line) before
+  reading its exit code.
