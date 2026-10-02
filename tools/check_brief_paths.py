@@ -166,6 +166,19 @@ def _suffix_matches(repo_root: Path, ref: str, target: str) -> list[str]:
     return [line for line in _tree(repo_root, ref) if line.endswith("/" + target)]
 
 
+def _in_vault(vault_root: Path, target: str) -> bool:
+    """Whether ``target`` names an existing file inside the vault; a path that leaves the vault never does.
+
+    ``vault_root / "../x"`` exists whenever ``x`` sits beside the vault, so without this a ``..``
+    citation was satisfied by any file on disk. The path is normalised lexically, not resolved, so a
+    symlink inside the vault (the vault's CONVENTIONS.md) still counts as in it.
+    """
+    normal = posixpath.normpath(target)
+    if normal == ".." or normal.startswith("../") or posixpath.isabs(normal):
+        return False
+    return (vault_root / normal).exists()
+
+
 def _branch_tips(repo_root: Path) -> list[str]:
     """Return every local and remote-tracking branch name, symbolic ``HEAD`` refs excluded."""
     refs = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").stdout.split()
@@ -212,7 +225,7 @@ def unresolved(
     for item in paths:
         path, contexts = (item, [[]]) if isinstance(item, str) else item
         target = path.rstrip("/")
-        if path in planned or (vault_root is not None and (vault_root / target).exists()):
+        if path in planned or (vault_root is not None and _in_vault(vault_root, target)):
             continue
         readings = [target]
         if directory is not None:

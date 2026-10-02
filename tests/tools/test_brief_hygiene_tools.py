@@ -467,3 +467,30 @@ def test_an_ignored_citation_is_checked_against_every_reading(repo: Path) -> Non
     assert missing.returncode == 1
     assert "git-ignored, never tracked, and not present" in missing.stderr, missing.stderr
     assert present.returncode == 0, present.stderr
+
+
+def test_a_vault_citation_cannot_escape_the_vault_root(repo: Path, tmp_path: Path) -> None:
+    """``vault_root / "../x"`` resolved outside the vault, so any file on disk satisfied a vault citation.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    vault = tmp_path / "vault"
+    (vault / "04-Methods").mkdir(parents=True)
+    (vault / "04-Methods" / "log.md").write_text("log\n", newline="\n")
+    (tmp_path / "outside.md").write_text("not in the vault\n", newline="\n")
+
+    def run(text: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(BRIEF_PATHS), str(_brief(repo, text)), "--ref", "main", "--repo-root", str(repo)]
+            + ["--vault-root", str(vault)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    escaping = run("Read `../outside.md` and `04-Methods/../../outside.md`.\n")
+    inside = run("Read `04-Methods/log.md` and `04-Methods/../04-Methods/log.md`.\n")
+
+    assert escaping.returncode == 1, escaping.stdout
+    assert "outside.md" in escaping.stderr
+    assert inside.returncode == 0, inside.stderr
