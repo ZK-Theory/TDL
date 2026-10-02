@@ -68,7 +68,18 @@ WRAPPERS = {"command", "env", "exec", "time", "nohup", "builtin"}
 GIT_VALUE_OPTIONS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env"}
 BRANCH_MOVERS = {"checkout", "switch"}
 CHANGE_DIR = {"cd", "Set-Location", "pushd", "sl", "chdir"}
-OVERRIDE = re.compile(r"TDL_ALLOW_MAIN_COMMIT\s*=|env:TDL_ALLOW_MAIN_COMMIT", re.IGNORECASE)
+OVERRIDE_NAME = "TDL_ALLOW_MAIN_COMMIT"
+OVERRIDE_ASSIGNMENT = re.compile(rf"{OVERRIDE_NAME}\+?=", re.IGNORECASE)
+# Commands whose arguments are themselves a command line or a script: the guard cannot see inside, so
+# a mention of the override there is refused (an ``echo`` or a commit message that names it is not).
+SHELL_STRING_RUNNERS = {
+    "bash", "sh", "zsh", "dash", "ksh", "pwsh", "powershell", "cmd", "eval", "python", "python3", "uv", "xargs", "wsl",
+}  # fmt: skip
+# Commands that set a variable from their arguments (``export NAME=1``, ``Set-Item env:NAME 1``).
+VARIABLE_SETTERS = {
+    "export", "declare", "typeset", "readonly", "local", "set", "setx", "set-item", "si", "new-item", "ni",
+    "set-content", "sc", "set-variable", "sv",
+}  # fmt: skip
 HOOKSPATH = re.compile(r"core\.hookspath", re.IGNORECASE)
 SET_PIPEFAIL = re.compile(r"([-+])[a-zA-Z]*o")
 
@@ -277,6 +288,37 @@ def walk(parsed: list[Statement], cwd: str) -> list[GitCall]:
     return calls
 
 
+def sets_override(parsed: list[Statement]) -> bool:
+    """Whether any command sets ``TDL_ALLOW_MAIN_COMMIT`` (as opposed to merely naming it).
+
+    The deny searched the raw command text, so an ``echo``, a ``grep`` or a commit message that
+    named the variable was blocked (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups).
+    A setting is an assignment ahead of the command (``NAME=1 git ...``, ``env NAME=1 ...``), the
+    arguments of a variable-setting command (``export``, ``declare``, ``Set-Item``), a PowerShell
+    ``$env:NAME`` assignment, or any mention inside a command that runs a string as a command line.
+    """
+    name = OVERRIDE_NAME.lower()
+    for statement in parsed:
+        for segment in statement.segments:
+            words, _ = _strip_prefixes(segment)
+            prefix = segment[: len(segment) - len(words)]
+            if any(OVERRIDE_ASSIGNMENT.match(token) for token in prefix):
+                return True
+            if not words:
+                continue
+            command = Path(words[0].replace("\\", "/")).name.lower().removesuffix(".exe")
+            mentioned = [token.lower() for token in words[1:] if name in token.lower()]
+            if words[0].lower().startswith(f"$env:{name}"):
+                return True
+            if command in VARIABLE_SETTERS and mentioned:
+                return True
+            if command in SHELL_STRING_RUNNERS and mentioned:
+                return True
+            if command.startswith("[environment]::setenvironmentvariable") and (mentioned or name in command):
+                return True
+    return False
+
+
 def pipefail_before(parsed: list[Statement], statement: int) -> bool:
     """Whether ``set`` statements ahead of ``statement`` leave pipefail on."""
     enabled = False
@@ -424,7 +466,7 @@ def decide(payload: dict) -> dict | None:
                 save(found[1], found[0])
         return None
 
-    if OVERRIDE.search(command):
+    if sets_override(parsed):
         return emit("deny", OVERRIDE_REASON)
     if any(bypasses_hooks(call) for call in calls):
         return emit("deny", NO_VERIFY_REASON)

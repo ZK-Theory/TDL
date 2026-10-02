@@ -386,3 +386,37 @@ def test_other_git_config_overrides_are_not_a_hooks_bypass(repo: Path) -> None:
     """Positive control: an unrelated ``-c`` setting, and a message that names the option, stay allowed."""
     assert _pre("git -c user.name=a commit -m x", repo) == "allow"
     assert _pre('git commit -m "document core.hooksPath handling"', repo) == "allow"
+
+
+@pytest.mark.parametrize(
+    ("command", "tool"),
+    [
+        ("env TDL_ALLOW_MAIN_COMMIT=1 git commit -m x", "Bash"),
+        ("FOO=1 TDL_ALLOW_MAIN_COMMIT=1 git commit -m x", "Bash"),
+        ("declare -x TDL_ALLOW_MAIN_COMMIT=1", "Bash"),
+        ('bash -c "TDL_ALLOW_MAIN_COMMIT=1 git commit -m x"', "Bash"),
+        ("$env:TDL_ALLOW_MAIN_COMMIT='1'; git commit -m x", "PowerShell"),
+        ("Set-Item env:TDL_ALLOW_MAIN_COMMIT 1", "PowerShell"),
+        ("pwsh -Command \"$env:TDL_ALLOW_MAIN_COMMIT='1'; git commit -m x\"", "PowerShell"),
+    ],
+)
+def test_every_way_of_setting_the_override_is_still_refused(command: str, tool: str, repo: Path) -> None:
+    """The text match is replaced by one that reads the command, so the ways of setting it must stay covered."""
+    assert _pre(command, repo, tool=tool) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'echo "TDL_ALLOW_MAIN_COMMIT=1 is the owner exception"',
+        'git commit -m "document TDL_ALLOW_MAIN_COMMIT=1 for the owner"',
+        "grep -n TDL_ALLOW_MAIN_COMMIT .githooks/pre-commit",
+        "git log --grep=TDL_ALLOW_MAIN_COMMIT= --oneline",
+    ],
+)
+def test_a_command_that_only_mentions_the_override_is_not_refused(command: str, repo: Path) -> None:
+    """The deny matched raw text, so an echo, a grep or a commit message that named the variable was blocked.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #300).
+    """
+    assert _pre(command, repo) == "allow"
