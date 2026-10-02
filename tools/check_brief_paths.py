@@ -273,7 +273,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    text = args.brief.read_text(encoding="utf-8")
+    try:
+        text = args.brief.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # A mistyped path or a non-UTF-8 file is a failed check a dispatch can read, not a traceback.
+        print(f"ERROR: cannot read brief {args.brief}: {exc}", file=sys.stderr)
+        return 1
     cited = citations(text)
     problems = unresolved(
         cited,

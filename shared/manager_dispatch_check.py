@@ -359,7 +359,10 @@ def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     """
     from tools.check_brief_paths import citations, default_vault_root, planned_outputs, unresolved
 
-    text = brief.read_text(encoding="utf-8")
+    try:
+        text = brief.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return Check("brief-paths", False, f"cannot read brief {brief}: {exc}")
     cited = citations(text)
     problems = unresolved(
         cited, repo_root, ref, brief=brief, planned=planned_outputs(text), vault_root=default_vault_root(repo_root)

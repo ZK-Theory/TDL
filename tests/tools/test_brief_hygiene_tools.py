@@ -355,3 +355,30 @@ def test_a_file_new_since_the_base_is_reported_not_skipped(repo: Path) -> None:
 
     assert result.returncode == 1
     assert "NEW         tools/b.py" in result.stdout
+
+
+def test_an_unreadable_brief_is_a_failed_check_not_a_traceback(repo: Path) -> None:
+    """A mistyped path or a non-UTF-8 file raised from ``read_text`` and printed a traceback.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): the failure must be a check
+    result a dispatch can read, naming the file.
+    """
+    missing = _check(repo, repo.parent / "no-such-brief.md")
+    binary = repo.parent / "binary-brief.md"
+    binary.write_bytes(b"\xff\xfe\x00 not utf-8 \x80")
+    undecodable = _check(repo, binary)
+
+    for result, name in ((missing, "no-such-brief.md"), (undecodable, "binary-brief.md")):
+        assert result.returncode == 1, result.stderr
+        assert "Traceback" not in result.stderr, result.stderr
+        assert "cannot read brief" in result.stderr and name in result.stderr
+
+
+def test_the_dispatch_gate_reports_an_unreadable_brief_as_a_failed_check(repo: Path) -> None:
+    """The same unreadable brief must fail the named dispatch check, not raise through the Manager's run."""
+    from shared.manager_dispatch_check import check_brief_paths
+
+    check = check_brief_paths(repo.parent / "no-such-brief.md", repo, "main")
+
+    assert not check.ok
+    assert "cannot read brief" in check.detail
