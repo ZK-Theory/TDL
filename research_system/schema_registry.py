@@ -1397,6 +1397,9 @@ class SchemaRegistry:
             for schema_id, versions in self._schemas_by_id.items()
             if len(versions) == 1
         )
+        # One validator per exact schema bytes, built on first use. Everything a validator reads is
+        # fixed above, so a registry never needs to rebuild one (P-058 test-cost decision 2).
+        self._validators: dict[tuple[str, str | None, str], Any] = {}
         self._active_bindings = frozenset(active_bindings)
         self._command_bindings: dict[str, SchemaBinding] = {}
         self._policy_action_bindings: dict[str, SchemaBinding] = {}
@@ -1478,22 +1481,22 @@ class SchemaRegistry:
             Exact raw-source identity of the schema used for validation.
         """
         entry = self._resolve_exact_identity(schema_id, schema_version, expected_sha256)
-        current = self._schemas[(entry.schema_id, entry.schema_version)]
-        resource = (
-            self._schema_resources[(entry.schema_id, entry.schema_version)]
-            if current.raw_bytes_sha256 == entry.raw_bytes_sha256
-            else self._historical_schema_resources[(entry.schema_id, entry.schema_version, entry.raw_bytes_sha256)]
-        )
-        validation_registry = self._reference_registry.with_resource(entry.schema_id, resource)
+        key = (entry.schema_id, entry.schema_version, entry.raw_bytes_sha256)
         try:
-            errors = sorted(
-                _ImmutableSchemaValidator(
+            validator = self._validators.get(key)
+            if validator is None:
+                current = self._schemas[(entry.schema_id, entry.schema_version)]
+                resource = (
+                    self._schema_resources[(entry.schema_id, entry.schema_version)]
+                    if current.raw_bytes_sha256 == entry.raw_bytes_sha256
+                    else self._historical_schema_resources[key]
+                )
+                validator = self._validators[key] = _ImmutableSchemaValidator(
                     entry.parsed,
                     format_checker=Draft202012Validator.FORMAT_CHECKER,
-                    registry=validation_registry,
-                ).iter_errors(value),
-                key=lambda error: list(error.absolute_path),
-            )
+                    registry=self._reference_registry.with_resource(entry.schema_id, resource),
+                )
+            errors = sorted(validator.iter_errors(value), key=lambda error: list(error.absolute_path))
         except Unresolvable as exc:
             raise SchemaError(f"schema reference is ambiguous or unavailable: {exc.ref}") from exc
         if errors:
