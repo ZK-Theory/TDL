@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.4.0"
+  version: "1.4.1"
   tier: optional
   lanes: []
   roles:
@@ -179,7 +179,10 @@ Everything else becomes a recorded known limit or a follow-up. In PR #291 this
 turned round 4 into dispositions only, saving roughly one ~3-hour
 fix-and-certify cycle. A known limit records a boundary the owner has accepted. A
 divergence from an accepted specification is not a known limit; raise it as an
-owner decision.
+owner decision. A test-group or certification-packet time that grew since the
+previous PR, or any test past about 30 minutes, is never a known limit; it goes
+into the PR's decision table with options (see `tda-resource-preflight`, Long Test
+Runs).
 
 ## Exact-State Record
 
