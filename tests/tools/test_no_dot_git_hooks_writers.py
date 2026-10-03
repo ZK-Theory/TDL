@@ -14,23 +14,61 @@ tooling, derived from git rather than listed by hand.
 
 from __future__ import annotations
 
+import ast
 import re
 import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCANNED = [".claude/hooks", ".codex", ".githooks", ".github", "tools", "shared", "research_system"]
-# Readers only: they resolve or inspect the hooks directory, they never write into it.
-ALLOWED = {".claude/hooks/install-git-hooks.py", "shared/manager_dispatch_check.py"}
+# Read sites only, matched as substrings of the stripped line: each resolves or inspects the hooks
+# directory and never writes into it. The rest of these two files is scanned like any other file, so a
+# write added to either is seen (they were skipped whole before).
+ALLOWED_LINES: dict[str, tuple[str, ...]] = {
+    ".claude/hooks/install-git-hooks.py": (
+        'return configured, REPO_ROOT / ".git" / "hooks"',
+        'shadowed_dir = REPO_ROOT / ".git" / "hooks"',
+        "WARNING: .git/hooks contains",
+    ),
+    "shared/manager_dispatch_check.py": ('hooks_dir = Path(configured) if configured else Path(".git/hooks")',),
+}
 PATTERN = re.compile(r"""\.git[/\\]hooks|["']\.git["']\s*/\s*["']hooks["']""")
 
 
-def references_in_code(text: str) -> list[int]:
-    """Return 1-based line numbers of non-comment lines that reference .git/hooks."""
+def _docstring_lines(text: str) -> set[int]:
+    """Line numbers covered by module, class and function docstrings: prose, not code."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return set()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)) and node.body:
+            first = node.body[0]
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
+                lines.update(range(first.lineno, (first.end_lineno or first.lineno) + 1))
+    return lines
+
+
+def references_in_code(text: str, path: str = "") -> list[int]:
+    """Return 1-based line numbers of code lines that reference .git/hooks.
+
+    Comments and (for Python) docstrings are prose. A line is also skipped when it is one of the
+    ``ALLOWED_LINES`` read sites of ``path``.
+    """
+    prose = _docstring_lines(text) if path.endswith(".py") or not path else set()
+    allowed = ALLOWED_LINES.get(path, ())
     return [
         number
         for number, line in enumerate(text.splitlines(), start=1)
-        if PATTERN.search(line) and not line.lstrip().startswith(("#", "//"))
+        if PATTERN.search(line)
+        and not line.lstrip().startswith(("#", "//"))
+        and number not in prose
+        and not any(site in line for site in allowed)
     ]
 
 
@@ -40,13 +78,11 @@ def violations(repo_root: Path) -> list[str]:
     ).stdout
     found: list[str] = []
     for path in (chunk.decode("utf-8") for chunk in out.split(b"\x00") if chunk):
-        if path in ALLOWED:
-            continue
         try:
             text = (repo_root / path).read_text(encoding="utf-8")
         except (UnicodeDecodeError, FileNotFoundError):
             continue
-        found += [f"{path}:{line}" for line in references_in_code(text)]
+        found += [f"{path}:{line}" for line in references_in_code(text, path)]
     return found
 
 
@@ -66,3 +102,40 @@ def test_the_scanner_flags_the_deleted_installer_shape() -> None:
 def test_the_scanner_ignores_comments() -> None:
     """Positive control: explaining the incident in a comment is not a write."""
     assert references_in_code("# anything placed in .git/hooks/ is ignored\n  # .git/hooks again\n") == []
+
+
+def _repo_with(tmp_path: Path, files: dict[str, str]) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    for name, text in files.items():
+        path = repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8", newline="\n")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    return repo
+
+
+def test_a_writer_inside_an_allowlisted_installer_is_still_flagged(tmp_path: Path) -> None:
+    """The two reader files were skipped whole, so a write added to either went unseen.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): only the read sites are
+    allowed, line for line; anything else in those files is scanned like any other file.
+    """
+    installer = chr(10).join(
+        [
+            "import shutil",
+            "",
+            "",
+            "def active(configured, REPO_ROOT):",
+            '    return configured, REPO_ROOT / ".git" / "hooks"',  # an allowed read site, verbatim
+            "",
+            "",
+            "def install(src, root):",
+            '    shutil.copy2(src, root / ".git" / "hooks" / "pre-commit")',
+            "",
+        ]
+    )
+    repo = _repo_with(tmp_path, {".claude/hooks/install-git-hooks.py": installer})
+
+    assert violations(repo) == [".claude/hooks/install-git-hooks.py:9"]
