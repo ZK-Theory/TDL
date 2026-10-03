@@ -35,7 +35,6 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     REPO_ROOT,
-    claim_dispatch_command,
     create_task_command,
 )
 
@@ -939,12 +938,12 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
-    unrelated = claim_dispatch_command(
-        CMD_RETRY,
-        "actor-a",
-        REUSED_TASK_ID,
-        expected_version=0,
-    )
+    # The generic ClaimDispatch this test used is no longer admissible (#212). The unrelated
+    # command is now a different-keyed revocation that the store refuses on its merits; its
+    # stored receipt still owns CMD_RETRY, which is the reuse under test.
+    unrelated = _revoke_command(CMD_RETRY)
+    unrelated["idempotency_key"] = "unrelated-reused-command-id"
+    unrelated["expected_stream_version"] = 2
     unrelated_service = CommandService(
         control_root,
         EventLedger(control_root, PROJECT_ID, schemas),
@@ -954,7 +953,8 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         authority_resolver=_resolver(control_root, PROJECT_ID, identity),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
-    assert unrelated_service.submit(unrelated).status == "accepted"
+    unrelated_receipt = unrelated_service.submit(unrelated)
+    assert ReceiptStore(control_root).load(CMD_RETRY) == unrelated_receipt
 
     with pytest.raises(ConflictError, match="command ID"):
         service.submit(_revoke_command(CMD_RETRY))
