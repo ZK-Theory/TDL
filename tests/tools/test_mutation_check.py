@@ -128,3 +128,28 @@ def test_a_stale_pyc_matching_the_sources_size_and_mtime_is_not_trusted(toy: Pat
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "CAUGHT    add-to-sub" in result.stdout
+
+
+def test_the_restore_does_not_overwrite_an_edit_made_during_the_run(toy: Path) -> None:
+    """The restore wrote the original bytes unconditionally, silently discarding another session's edit.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): the target is a live source
+    file. If it no longer holds the mutant bytes the tool wrote, someone else changed it, and
+    restoring would destroy that change.
+    """
+    (toy / "test_meddle.py").write_text(
+        "from pathlib import Path\n\n\ndef test_meddle():\n"
+        "    source = Path(__file__).parent / 'calc.py'\n"
+        "    text = source.read_text()\n"
+        "    if 'a - b' in text:\n"
+        "        source.write_text(text + '# concurrent edit' + chr(10))\n",
+        newline="\n",
+    )
+    args = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy)]
+    args += ["--mutant", "add-to-sub", "return a + b", "return a - b", "--", "test_calc.py", "test_meddle.py"]
+
+    result = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "changed during the run" in result.stderr
+    assert "# concurrent edit" in (toy / "calc.py").read_text(), "the other session's edit must survive"

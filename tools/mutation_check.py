@@ -29,6 +29,8 @@ Guarantees learned the hard way (obs 2026-09-11-mutation-harness-stale-bytecode)
 * **The restore is verified.** Original bytes are restored after every mutant (also on
   error), checked by SHA-256, and the baseline is re-run at the end: a harness that never
   checks its own restore cannot tell a caught mutant from a stale one.
+* **The restore never overwrites another edit.** The original is written back only if the file still
+  holds the mutant bytes this tool wrote; otherwise the tool exits 2 and leaves the file alone.
 """
 
 from __future__ import annotations
@@ -51,6 +53,19 @@ def clear_bytecode(target: Path) -> None:
     if cache_dir.is_dir():
         for cached in cache_dir.glob(f"{target.stem}.*.pyc"):
             cached.unlink()
+
+
+def restore(target: Path, mutant: bytes, original: bytes) -> bool:
+    """Put ``original`` back only if ``target`` still holds the ``mutant`` bytes this tool wrote.
+
+    The target is a live source file. If its bytes are no longer the mutant, another session edited
+    it during the run, and an unconditional restore would silently destroy that edit (Codex review
+    of PR #303). Returns whether the file held the mutant, and so was restored.
+    """
+    if target.read_bytes() != mutant:
+        return False
+    target.write_bytes(original)
+    return True
 
 
 def run_selection(target: Path, cwd: Path, pytest_args: list[str]) -> int:
@@ -86,6 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     results: list[tuple[str, str]] = []
+    held: bytes | None = None
     try:
         for name, old, new in args.mutant:
             count = text.count(old)
@@ -93,11 +109,22 @@ def main(argv: list[str] | None = None) -> int:
                 reason = "anchor not found" if count == 0 else f"anchor occurs {count} times"
                 results.append((name, f"ANCHOR    {name}: {reason} (must occur exactly once)"))
                 continue
-            target.write_bytes(text.replace(old, new, 1).encode("utf-8"))
+            mutant = text.replace(old, new, 1).encode("utf-8")
+            target.write_bytes(mutant)
+            held = mutant
             try:
                 code = run_selection(target, cwd, pytest_args)
             finally:
-                target.write_bytes(original)
+                if not restore(target, mutant, original):
+                    held = None
+            if held is None:
+                print(
+                    f"ERROR: {target} changed during the run of {name} and no longer holds the mutant bytes; "
+                    "it was NOT restored, because that would overwrite another edit. Reconcile it by hand.",
+                    file=sys.stderr,
+                )
+                return 2
+            held = None
             if _sha256(target.read_bytes()) != original_sha:
                 print(f"ERROR: restore after {name} did not reproduce the original bytes.", file=sys.stderr)
                 return 2
@@ -110,7 +137,8 @@ def main(argv: list[str] | None = None) -> int:
                     (name, f"ERROR     {name}: pytest exit {code} (collection or usage error, not a caught mutant)")
                 )
     finally:
-        target.write_bytes(original)
+        if held is not None:
+            restore(target, held, original)
         clear_bytecode(target)
 
     for _, line in results:
