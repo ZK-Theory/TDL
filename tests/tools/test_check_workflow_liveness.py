@@ -139,3 +139,51 @@ def test_a_pull_request_run_checks_the_base_branch_workflow_set(tmp_path: Path) 
 
     assert head_run.returncode == 1 and f"{TRACKED[1]}: not registered" in head_run.stderr
     assert base_run.returncode == 0, base_run.stderr
+
+
+# Watchdog of the watchdog (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups, PR #302): the
+# watchdog is a scheduled workflow, and a schedule that stops firing (a disabled workflow, the
+# 60-day inactivity pause) emits nothing. ci.yml runs on every pull request and push, an independent
+# trigger, and asserts the watchdog's latest scheduled run is recent.
+NOW = "2026-10-03T12:00:00Z"
+
+
+def _run_recent(payload: object, tmp_path: Path, *, max_age_hours: int = 72) -> subprocess.CompletedProcess[str]:
+    response = tmp_path / "runs.json"
+    response.write_text(json.dumps(payload), encoding="utf-8")
+    args = [sys.executable, str(SCRIPT), "--latest-run-json", str(response)]
+    args += ["--max-age-hours", str(max_age_hours), "--now", NOW]
+    return subprocess.run(args, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
+
+
+def _runs(*created: str) -> dict[str, object]:
+    return {"total_count": len(created), "workflow_runs": [{"created_at": c, "event": "schedule"} for c in created]}
+
+
+def test_a_recent_scheduled_run_passes(tmp_path: Path) -> None:
+    result = _run_recent(_runs("2026-10-02T16:00:00Z"), tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert "latest scheduled run" in result.stdout
+
+
+def test_a_stale_scheduled_run_fails_closed(tmp_path: Path) -> None:
+    result = _run_recent(_runs("2026-09-28T04:17:00Z"), tmp_path)
+
+    assert result.returncode == 1
+    assert "latest scheduled run" in result.stderr and "older than 72h" in result.stderr
+
+
+def test_a_watchdog_that_never_ran_on_its_schedule_fails_closed(tmp_path: Path) -> None:
+    """An empty run list is the dead-schedule case itself, and must not read as healthy."""
+    result = _run_recent(_runs(), tmp_path)
+
+    assert result.returncode == 1
+    assert "never run on its schedule" in result.stderr
+
+
+def test_a_malformed_run_response_fails_closed(tmp_path: Path) -> None:
+    for payload in ({"workflow_runs": [{"event": "schedule"}]}, {"runs": []}, []):
+        result = _run_recent(payload, tmp_path)
+        assert result.returncode == 1, payload
+        assert "Traceback" not in result.stderr
