@@ -187,3 +187,19 @@ def test_a_malformed_run_response_fails_closed(tmp_path: Path) -> None:
         result = _run_recent(payload, tmp_path)
         assert result.returncode == 1, payload
         assert "Traceback" not in result.stderr
+
+
+def test_ci_asserts_the_watchdogs_own_schedule_is_still_firing() -> None:
+    """ci.yml runs on every pull request and push, so it can see the watchdog's silence; the watchdog cannot."""
+    import yaml
+
+    ci = yaml.load((REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    job = ci["jobs"].get("watchdog-schedule-liveness")
+    assert job is not None, "ci.yml has no watchdog-schedule-liveness job"
+    assert job["runs-on"].startswith("windows")
+    assert "continue-on-error" not in job and "if" not in job, "a blocking, unconditional job"
+    assert job["permissions"]["actions"] == "read"
+    scripts = " ".join(step.get("run", "") for step in job["steps"])
+    assert "actions/workflows/ars-artefact-currency-watchdog.yml/runs" in scripts
+    assert "event=schedule" in scripts
+    assert "tools/check_workflow_liveness.py" in scripts and "--latest-run-json" in scripts
