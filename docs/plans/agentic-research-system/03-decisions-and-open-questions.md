@@ -1995,6 +1995,49 @@ on the SPEC-02 start, under the stopping rule Stephen accepted for #298 on 2026-
     `5f78e5d0` rather than the latest round, and `# fmt: skip` is the house idiom that keeps
     them. Recorded as a follow-up, not a fix in this PR.
 
+### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
+
+**Date:** 2026-10-03<br>
+**Status:** Accepted by Stephen (in-session approval of the triage recommendations,
+2026-10-03; confirmed at PR review)<br>
+**Context:** A full research_system run at `54808984` found 195 failures on main that no CI lane
+saw. Three protected surfaces had gone red because later work changed bytes they pin, without
+the matching owner re-acceptance. None of the drifts changes accepted semantics; each is
+re-accepted here at exact bytes.<br>
+**Decision:**
+- **T2 line-ending control artifact.** `.gitattributes` moves from Git blob
+  `2c71799535efcdf46828e7b94ebce4f7293a6586` to `8213d721e44bc28b89079cddd5bd573a5dedaaf8`,
+  raw SHA-256 `655d2ac34f4ea214c7f0c8c2de04784b9b13d490e350713df8e4edf4127f520f`
+  (#274 and #275, 2026-09-08: whole-repo `eol=lf` with binaries declared). This updates
+  `.research-system/contracts/wp6-2-t2-schema-identities.yaml`.
+- **T2 validator seals.** The same manifest seals its own validators.
+  `wp6_2_t2_authority_validation.py` and `wp6_2_t2_expectations.py` were edited at
+  `3f82c8df` (2026-08-09) without refreshing their seals, and `wp6_2_t2_expectations.py` is
+  edited again by this decision. Both seals are refreshed to the committed bytes.
+- **T2 protected WP6.1 trees.** `PROTECTED_TREE_IDENTITIES` becomes commands
+  `8a86a0c4921343e6a3afca3f491fad33e9a8a10f` and events
+  `058c1d5ddcb9d249916977f12b11768b6d15de0f`. The only edits to protected paths since
+  `START_REVISION` are the already-authorized context-packet successors (#222). Two files
+  added under protected globs are authorized: `tests/research_system/contracts/test_wp6_1_c1_campaign_census.py`
+  (#212) and `.research-system/contracts/wp6-1-artifact-roles.yaml` (#281). Neither changes
+  accepted bytes.
+- **06h append census.** `accounted_base` must be an ancestor of HEAD. Equality with
+  today's merge-base held only on the authoring branch. Two append sites are classified:
+  `EventLedger._append_binding_repair_from_validated_service` as
+  `guarded_binding_repair_service_producer` (#265; injected one-shot by `binding_guard`, like
+  the release and scoped-authority continuations), and `DiscoveryRuntime._submit_authorized` as
+  `discovery_command_producer` (#248; appends under the three-root `CompositeWriterLock`
+  after scoped-authority resolution, with full command provenance). The accounted runtime
+  binding set grows from 218 (`96ac13de...`) to 261
+  (`70a6bf2fc871a83db78876d8aad6aa72bb87babc27e08d9f8f626359413e45a6`). The 43 added rows are
+  26 WP6.6 Discovery commands and 13 of their events, plus 4 Gate 6 binding-repair
+  command/event bindings; no row was removed.<br>
+**Binding:** `test_wp6_2_t2_authority_contract.py`, `test_wp6_2_live_issue_contract.py` and
+`smoke/test_wp6_1_06h_append_path_closure.py` check every value above at exact bytes.<br>
+**Boundary:** This re-accepts recorded bytes only. It activates nothing, changes no schema or
+runtime behaviour, and does not touch the WP6.3 private assurance pack (handled separately by
+restoring the pinned skill bytes) or any external control store.
+
 ## Decision protocol
 
 Each future decision entry must record:
