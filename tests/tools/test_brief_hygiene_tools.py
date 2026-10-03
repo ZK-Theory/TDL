@@ -514,3 +514,20 @@ def test_a_type_comment_change_is_not_equivalent(repo: Path) -> None:
     assert changed.returncode == 1, changed.stdout
     assert "CHANGED     tools/t.py" in changed.stdout
     assert unchanged.returncode == 0, "positive control: the identical comment is still equivalent"
+
+
+def test_a_subheading_under_deliverables_stays_inside_the_output_section(repo: Path) -> None:
+    """Any heading ended the section, so paths listed under a ``###`` subheading were refused as prerequisites.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305). A heading of the same or a
+    higher level still ends it.
+    """
+    nested = (
+        "## Deliverables\n\n### Result files\n\n- `results/h2_2026-09-26.json`\n\n#### Tests\n\n- `tests/test_new.py`\n"
+    )
+    ended = "## Deliverables\n\n- `results/h2.json`\n\n## Context\n\nSee `results/never.json`.\n"
+
+    assert _check(repo, _brief(repo, nested)).returncode == 0
+    after = _check(repo, _brief(repo, ended))
+    assert after.returncode == 1, "positive control: a same-level heading ends the output section"
+    assert "results/never.json" in after.stderr and "results/h2.json" not in after.stderr

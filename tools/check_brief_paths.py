@@ -100,9 +100,17 @@ def planned_outputs(text: str) -> set[str]:
     """
     planned: set[str] = set()
     in_outputs = False
+    outputs_level = 0  # the level of the heading that opened the section
     for line in text.splitlines():
         if line.lstrip().startswith("#"):
-            in_outputs = bool(_OUTPUT_HEADING.match(line.lstrip()))
+            heading = line.lstrip()
+            level = len(heading) - len(heading.lstrip("#"))
+            if _OUTPUT_HEADING.match(heading):
+                in_outputs, outputs_level = True, level
+            elif in_outputs and level <= outputs_level:
+                # Only a heading of the same or a higher level ends the section: a subheading
+                # (### Result files under ## Deliverables) is still inside it.
+                in_outputs = False
             continue
         for match in _SPAN.finditer(line):
             path = _normalise(match.group(1))
