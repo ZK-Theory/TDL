@@ -494,3 +494,23 @@ def test_a_vault_citation_cannot_escape_the_vault_root(repo: Path, tmp_path: Pat
     assert escaping.returncode == 1, escaping.stdout
     assert "outside.md" in escaping.stderr
     assert inside.returncode == 0, inside.stderr
+
+
+def test_a_type_comment_change_is_not_equivalent(repo: Path) -> None:
+    """Type comments are annotations to type checkers, and ``ast.parse`` drops them unless asked to keep them.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): a formatter or codemod that
+    rewrote ``# type: int`` to ``# type: str`` was reported EQUIVALENT.
+    """
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[int]\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "typed")
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[str]\n", newline="\n")
+
+    changed = _equivalence(repo, "tools/t.py")
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[int]\n", newline="\n")
+    unchanged = _equivalence(repo, "tools/t.py")
+
+    assert changed.returncode == 1, changed.stdout
+    assert "CHANGED     tools/t.py" in changed.stdout
+    assert unchanged.returncode == 0, "positive control: the identical comment is still equivalent"

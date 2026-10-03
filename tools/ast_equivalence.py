@@ -24,7 +24,9 @@ from pathlib import Path
 
 
 def _dump(source: str) -> str:
-    return ast.dump(ast.parse(source), include_attributes=False)
+    # type_comments=True keeps `# type: int` comments in the tree; without it a change to one, which
+    # type checkers read as an annotation, compared EQUIVALENT.
+    return ast.dump(ast.parse(source, type_comments=True), include_attributes=False)
 
 
 def classify(path: str, base: str) -> str:
