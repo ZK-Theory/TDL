@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import os
 import subprocess
 import sys
@@ -51,10 +52,15 @@ def _sha256(data: bytes) -> str:
 
 def clear_bytecode(target: Path) -> None:
     """Delete every cached bytecode file for ``target``, whatever interpreter tag wrote it."""
-    cache_dir = target.parent / "__pycache__"
-    if cache_dir.is_dir():
-        for cached in cache_dir.glob(f"{target.stem}.*.pyc"):
-            cached.unlink()
+    # Beside the source, and wherever the interpreter puts bytecode when PYTHONPYCACHEPREFIX is set:
+    # then it is read from <prefix>/<source dir>, and clearing only __pycache__ left it trusted.
+    directories = {target.parent / "__pycache__"}
+    if os.environ.get("PYTHONPYCACHEPREFIX") or sys.pycache_prefix:
+        directories.add(Path(importlib.util.cache_from_source(str(target))).parent)
+    for cache_dir in directories:
+        if cache_dir.is_dir():
+            for cached in cache_dir.glob(f"{target.stem}.*.pyc"):
+                cached.unlink()
 
 
 def restore(target: Path, mutant: bytes, original: bytes) -> bool:

@@ -176,3 +176,34 @@ def test_a_mutant_that_hangs_is_stopped_by_the_per_selection_timeout(toy: Path) 
     baseline = subprocess.run(slow, capture_output=True, text=True, timeout=240, check=False)
     assert baseline.returncode == 2, baseline.stdout + baseline.stderr
     assert "timed out" in baseline.stderr
+
+
+def test_a_stale_pyc_under_pythonpycacheprefix_is_not_trusted(toy: Path, tmp_path: Path, monkeypatch) -> None:
+    """With ``PYTHONPYCACHEPREFIX`` set, bytecode lives under the prefix, not beside the source.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): the harness deleted only
+    ``<dir>/__pycache__``, so a stale same-size, same-mtime .pyc under the prefix was still read.
+    """
+    import importlib.util
+    import os
+    import py_compile
+
+    prefix = tmp_path / "pycache-prefix"
+    monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
+    monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
+    source = toy / "calc.py"
+    original = source.read_bytes()
+    stamp = source.stat().st_mtime
+    source.write_bytes(original.replace(b"return a > b", b"return a < b"))
+    os.utime(source, (stamp, stamp))
+    cached = Path(importlib.util.cache_from_source(str(source)))
+    py_compile.compile(str(source), cfile=str(cached), doraise=True)
+    source.write_bytes(original)
+    os.utime(source, (stamp, stamp))
+    assert cached.exists() and prefix in cached.parents, "fixture must plant the stale bytecode under the prefix"
+
+    result = _run(toy, ("add-to-sub", "return a + b", "return a - b"))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CAUGHT    add-to-sub" in result.stdout
+    assert not cached.exists(), "the harness must clear the prefixed bytecode too"
