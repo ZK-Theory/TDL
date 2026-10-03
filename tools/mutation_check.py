@@ -31,6 +31,8 @@ Guarantees learned the hard way (obs 2026-09-11-mutation-harness-stale-bytecode)
   checks its own restore cannot tell a caught mutant from a stale one.
 * **The restore never overwrites another edit.** The original is written back only if the file still
   holds the mutant bytes this tool wrote; otherwise the tool exits 2 and leaves the file alone.
+* **Every selection is bounded.** ``--timeout`` (default 900 s) stops a run that outlasts it. A mutant
+  that hangs counts as CAUGHT and says so; a baseline that times out exits 2.
 """
 
 from __future__ import annotations
@@ -68,12 +70,21 @@ def restore(target: Path, mutant: bytes, original: bytes) -> bool:
     return True
 
 
-def run_selection(target: Path, cwd: Path, pytest_args: list[str]) -> int:
-    """Run the pytest selection with bytecode fully disabled; return pytest's exit code."""
+def run_selection(target: Path, cwd: Path, pytest_args: list[str], timeout: float | None = None) -> int | None:
+    """Run the pytest selection with bytecode fully disabled; return pytest's exit code.
+
+    Returns None when the selection outran ``timeout`` seconds: a mutant can loop forever, and an
+    unbounded run let one hang stall the whole check (Codex review of PR #303).
+    """
     clear_bytecode(target)
     env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     command = [sys.executable, "-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "-o", "addopts=", *pytest_args]
-    return subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True, check=False).returncode
+    try:
+        return subprocess.run(
+            command, cwd=cwd, env=env, capture_output=True, text=True, check=False, timeout=timeout
+        ).returncode
+    except subprocess.TimeoutExpired:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,6 +96,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Prove each named mutant is caught by a pytest selection.")
     parser.add_argument("--target", type=Path, required=True, help="Source file to mutate (relative to --cwd).")
     parser.add_argument("--cwd", type=Path, default=Path.cwd(), help="Directory to run pytest from.")
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=900.0,
+        help="Seconds allowed for each pytest selection (default 900). A mutant that outruns it counts as caught.",
+    )
     parser.add_argument("--mutant", nargs=3, action="append", default=[], metavar=("NAME", "OLD", "NEW"), required=True)
     args = parser.parse_args(argv)
     if not pytest_args:
@@ -96,7 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     original_sha = _sha256(original)
     text = original.decode("utf-8")
 
-    if run_selection(target, cwd, pytest_args) != 0:
+    baseline = run_selection(target, cwd, pytest_args, args.timeout)
+    if baseline is None:
+        print(f"ERROR: the baseline timed out after {args.timeout:g}s; raise --timeout.", file=sys.stderr)
+        return 2
+    if baseline != 0:
         print("ERROR: the baseline is not green; no mutant can be judged against it.", file=sys.stderr)
         return 2
 
@@ -113,7 +134,7 @@ def main(argv: list[str] | None = None) -> int:
             target.write_bytes(mutant)
             held = mutant
             try:
-                code = run_selection(target, cwd, pytest_args)
+                code = run_selection(target, cwd, pytest_args, args.timeout)
             finally:
                 if not restore(target, mutant, original):
                     held = None
@@ -128,7 +149,9 @@ def main(argv: list[str] | None = None) -> int:
             if _sha256(target.read_bytes()) != original_sha:
                 print(f"ERROR: restore after {name} did not reproduce the original bytes.", file=sys.stderr)
                 return 2
-            if code == 1:
+            if code is None:
+                results.append((name, f"CAUGHT    {name}: timed out after {args.timeout:g}s (the mutant hangs)"))
+            elif code == 1:
                 results.append((name, f"CAUGHT    {name}"))
             elif code == 0:
                 results.append((name, f"SURVIVED  {name}: the selection passed with the mutant in place"))
@@ -144,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     for _, line in results:
         print(line)
 
-    if run_selection(target, cwd, pytest_args) != 0 or _sha256(target.read_bytes()) != original_sha:
+    if run_selection(target, cwd, pytest_args, args.timeout) != 0 or _sha256(target.read_bytes()) != original_sha:
         print("ERROR: the restored baseline is not green; results above are not trustworthy.", file=sys.stderr)
         return 2
     print("restored baseline green")

@@ -153,3 +153,26 @@ def test_the_restore_does_not_overwrite_an_edit_made_during_the_run(toy: Path) -
     assert result.returncode == 2, result.stdout + result.stderr
     assert "changed during the run" in result.stderr
     assert "# concurrent edit" in (toy / "calc.py").read_text(), "the other session's edit must survive"
+
+
+def test_a_mutant_that_hangs_is_stopped_by_the_per_selection_timeout(toy: Path) -> None:
+    """A mutant can loop forever, and the run had no bound, so one hang stalled the whole check.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303). A timed-out mutant is not a
+    pass, so it counts as caught, and says it timed out; a baseline that times out is an untrusted harness.
+    """
+    args = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy), "--timeout", "20"]
+    args += ["--mutant", "hang", "return a + b", "while True:\n        pass", "--", "test_calc.py"]
+
+    result = subprocess.run(args, capture_output=True, text=True, timeout=240, check=False)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CAUGHT    hang" in result.stdout and "timed out" in result.stdout
+    assert "restored baseline green" in result.stdout
+
+    (toy / "test_slow.py").write_text("import time\n\n\ndef test_slow():\n    time.sleep(60)\n", newline="\n")
+    slow = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy), "--timeout", "3"]
+    slow += ["--mutant", "add-to-sub", "return a + b", "return a - b", "--", "test_slow.py"]
+    baseline = subprocess.run(slow, capture_output=True, text=True, timeout=240, check=False)
+    assert baseline.returncode == 2, baseline.stdout + baseline.stderr
+    assert "timed out" in baseline.stderr
