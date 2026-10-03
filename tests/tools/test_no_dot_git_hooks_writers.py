@@ -20,7 +20,11 @@ import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCANNED = [".claude/hooks", ".codex", ".githooks", ".github", "tools", "shared", "research_system"]
+# Every tracked file is governed, whatever its directory: a writer is dangerous wherever it sits. Prose is
+# not a writer: documentation by extension, and committed result data by directory.
+PROSE_SUFFIXES = (".md", ".rst", ".txt")
+PROSE_PREFIXES = ("results/",)
+SELF = "tests/tools/test_no_dot_git_hooks_writers.py"
 # Read sites only, matched as substrings of the stripped line: each resolves or inspects the hooks
 # directory and never writes into it. The rest of these two files is scanned like any other file, so a
 # write added to either is seen (they were skipped whole before).
@@ -29,6 +33,11 @@ ALLOWED_LINES: dict[str, tuple[str, ...]] = {
         'return configured, REPO_ROOT / ".git" / "hooks"',
         'shadowed_dir = REPO_ROOT / ".git" / "hooks"',
         "WARNING: .git/hooks contains",
+    ),
+    # Fixtures that deliberately PUT hooks in the legacy directory, to prove the verifier refuses it.
+    "tests/tools/test_system_review_hook_gates.py": (
+        'target = repo / ".git" / "hooks"',
+        '[None, ".git/hooks", "other-hooks"]',
     ),
     "shared/manager_dispatch_check.py": ('hooks_dir = Path(configured) if configured else Path(".git/hooks")',),
 }
@@ -73,11 +82,12 @@ def references_in_code(text: str, path: str = "") -> list[int]:
 
 
 def violations(repo_root: Path) -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z", "--", *SCANNED], cwd=repo_root, capture_output=True, check=True
-    ).stdout
+    out = subprocess.run(["git", "ls-files", "-z"], cwd=repo_root, capture_output=True, check=True).stdout
     found: list[str] = []
     for path in (chunk.decode("utf-8") for chunk in out.split(b"\x00") if chunk):
+        # This file is the scanner: its allowlist, planted shapes and fixtures are the pattern itself.
+        if path.endswith(PROSE_SUFFIXES) or path.startswith(PROSE_PREFIXES) or path == SELF:
+            continue
         try:
             text = (repo_root / path).read_text(encoding="utf-8")
         except (UnicodeDecodeError, FileNotFoundError):
@@ -139,3 +149,23 @@ def test_a_writer_inside_an_allowlisted_installer_is_still_flagged(tmp_path: Pat
     repo = _repo_with(tmp_path, {".claude/hooks/install-git-hooks.py": installer})
 
     assert violations(repo) == [".claude/hooks/install-git-hooks.py:9"]
+
+
+def test_a_writer_outside_the_hook_and_tool_directories_is_flagged(tmp_path: Path) -> None:
+    """The scan covered seven directories, so the same copy placed in any other tracked file went unseen.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): the governed set is every
+    tracked text file. Prose (documentation, committed result data) is not a writer.
+    """
+    repo = _repo_with(
+        tmp_path,
+        {
+            "scripts/install.sh": "cp hook .git/hooks/commit-msg",
+            "trajectory_tda/setup.py": "shutil.copy2(src, '.git/hooks/pre-commit')",
+            "docs/notes.md": "Anything in .git/hooks/ is ignored by git.",
+            "results/gate_register.json": '{"claim": "install to .git/hooks/commit-msg"}',
+            "tools/ok.py": "# explains .git/hooks in a comment only",
+        },
+    )
+
+    assert violations(repo) == ["scripts/install.sh:1", "trajectory_tda/setup.py:1"]
