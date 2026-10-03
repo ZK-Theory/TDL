@@ -313,6 +313,7 @@ def _refuse(bound_task, effect, tmp_path, capsys, **kwargs) -> str:
     return capsys.readouterr().err
 
 
+@pytest.mark.slow
 def test_public_close_task_positive_path_status_and_replay(bound_task, tmp_path, capsys):
     intent = close_task_intent()
     initial = bound_task.coordinator.status(intent)
@@ -351,6 +352,7 @@ def test_public_close_task_positive_path_status_and_replay(bound_task, tmp_path,
     assert spec_task.ACTION in listed["available_actions"]
 
 
+@pytest.mark.slow
 def test_replay_from_a_fresh_process_reconstructs_the_accepted_closure(bound_task, tmp_path, capsys):
     for effect in spec_task.EFFECTS:
         _advance(bound_task, effect, tmp_path, capsys)
@@ -385,6 +387,7 @@ def test_replay_from_a_fresh_process_reconstructs_the_accepted_closure(bound_tas
     assert _tail(bound_task.coordinator) == tail
 
 
+@pytest.mark.slow
 def test_closure_is_not_inferred_from_attempt_completion_or_lease_release(bound_task):
     """A terminal Attempt and a released lease are not Task closure."""
     coordinator = bound_task.coordinator
@@ -405,6 +408,7 @@ def test_closure_is_not_inferred_from_attempt_completion_or_lease_release(bound_
     assert _streams(coordinator)[TASK_ID]["status"] != "accepted"
 
 
+@pytest.mark.slow
 def test_self_review_is_rejected_and_appends_no_authoritative_effect(bound_task, tmp_path, capsys):
     for effect in ("SubmitForReview", "RequestReview"):
         _advance(bound_task, effect, tmp_path, capsys)
@@ -425,6 +429,7 @@ def test_self_review_is_rejected_and_appends_no_authoritative_effect(bound_task,
     assert bound_task.coordinator.status(close_task_intent())["next_effect"] == "StartReview"
 
 
+@pytest.mark.slow
 def test_non_owner_acceptance_is_rejected_and_appends_no_authoritative_effect(bound_task, tmp_path, capsys):
     for effect in spec_task.EFFECTS[:-1]:
         _advance(bound_task, effect, tmp_path, capsys)
@@ -445,6 +450,7 @@ def test_non_owner_acceptance_is_rejected_and_appends_no_authoritative_effect(bo
     assert _streams(bound_task.coordinator)[TASK_ID]["status"] == "review_pending"
 
 
+@pytest.mark.slow
 def test_non_owner_producer_cannot_submit_for_review(bound_task, tmp_path, capsys):
     non_owner_grant = activate_lifecycle_grant(
         bound_task.bound.harness,
@@ -460,6 +466,7 @@ def test_non_owner_producer_cannot_submit_for_review(bound_task, tmp_path, capsy
     assert bound_task.coordinator.status(close_task_intent())["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_acceptance_requires_satisfied_review_evidence(bound_task, tmp_path, capsys):
     """Acceptance built before SatisfyReview is refused and leaves no effect."""
     for effect in spec_task.EFFECTS[:-2]:
@@ -486,6 +493,7 @@ def test_acceptance_requires_satisfied_review_evidence(bound_task, tmp_path, cap
     assert coordinator.status(close_task_intent())["state"] == "prepared"
 
 
+@pytest.mark.slow
 def test_expired_actor_cannot_create_a_new_effect_while_completed_state_stays_readable(bound_task, tmp_path, capsys):
     for effect in spec_task.EFFECTS:
         _advance(bound_task, effect, tmp_path, capsys)
@@ -530,6 +538,7 @@ def test_expired_actor_cannot_create_a_new_effect_while_completed_state_stays_re
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_exact_retry_reads_the_existing_receipt_without_new_effects(bound_task, tmp_path, capsys):
     for effect in spec_task.EFFECTS:
         committed = _advance(bound_task, effect, tmp_path, capsys)
@@ -585,6 +594,7 @@ def test_exact_retry_reads_the_existing_receipt_without_new_effects(bound_task, 
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_a_completed_closure_conflicts_unless_the_invocation_repeats_a_committed_effect(bound_task, tmp_path, capsys):
     """A completed action answers only a repeat of a committed effect; anything else conflicts.
 
@@ -609,6 +619,7 @@ def test_a_completed_closure_conflicts_unless_the_invocation_repeats_a_committed
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_close_task_intent_rejects_unrecognized_and_missing_fields(bound_task):
     coordinator = bound_task.coordinator
     with pytest.raises(SchemaError):
@@ -617,6 +628,7 @@ def test_close_task_intent_rejects_unrecognized_and_missing_fields(bound_task):
         coordinator.status({key: value for key, value in close_task_intent().items() if key != "review_id"})
 
 
+@pytest.mark.slow
 def test_verdict_bound_to_another_subject_is_not_completion(bound_task, tmp_path, capsys):
     """A verdict whose exact subject hash differs does not satisfy the action."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
@@ -645,6 +657,7 @@ def test_verdict_bound_to_another_subject_is_not_completion(bound_task, tmp_path
     assert coordinator.status(intent)["next_effect"] == "RecordReviewVerdict"
 
 
+@pytest.mark.slow
 def test_inherited_enforcement_refuses_self_review_independently_of_the_route(bound_task, tmp_path, capsys):
     """The governed boundary refuses self-review even with the route check bypassed.
 
@@ -717,6 +730,7 @@ def test_inherited_enforcement_refuses_self_review_independently_of_the_route(bo
     assert _tail(coordinator) == assigned_tail
 
 
+@pytest.mark.slow
 def test_submit_for_review_requires_terminal_attempt_evidence(bound_running_task, tmp_path, capsys):
     """A running Attempt is not review-ready, and the refusal leaves no effect."""
     coordinator = bound_running_task.coordinator
@@ -726,6 +740,7 @@ def test_submit_for_review_requires_terminal_attempt_evidence(bound_running_task
     assert coordinator.status(close_task_intent())["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task, tmp_path, capsys):
     """A foreign refusing verdict is conflicting evidence, not "prepared"."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
@@ -760,12 +775,14 @@ def test_a_non_approving_verdict_conflicts_instead_of_under_reporting(bound_task
     assert spec_task.ACTION in listed["available_actions"]
 
 
+@pytest.mark.slow
 def test_effects_that_take_no_evidence_reject_supplied_evidence(bound_task, tmp_path, capsys):
     message = _refuse(bound_task, "SubmitForReview", tmp_path, capsys, evidence=SATISFY_EVIDENCE)
     assert "takes no independent evidence" in message, message
     assert bound_task.coordinator.status(close_task_intent())["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_status_listing_survives_an_unrelated_task_review_submission(bound_task):
     """One governed submission naming a non-review id must not fail the listing."""
     unrelated = spec_task.enumerated_intents(
@@ -781,6 +798,7 @@ def test_status_listing_survives_an_unrelated_task_review_submission(bound_task)
     assert bound_task.coordinator.status()["actions"] == []
 
 
+@pytest.mark.slow
 def test_verdict_naming_another_attempt_is_not_completion(bound_task, tmp_path, capsys):
     """Review admission ignores producing_attempt_id; the route refuses foreign verdicts."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview", "StartReview"):
@@ -807,6 +825,7 @@ def test_verdict_naming_another_attempt_is_not_completion(bound_task, tmp_path, 
         coordinator.status(intent)
 
 
+@pytest.mark.slow
 def test_review_request_binds_the_task_state_current_at_request(bound_task, tmp_path, capsys):
     """A Task validly paused and resumed at review_pending must not strand the route."""
     coordinator = bound_task.coordinator
@@ -857,6 +876,7 @@ def test_review_request_binds_the_task_state_current_at_request(bound_task, tmp_
     assert result["subject_sha256"] == after_resume
 
 
+@pytest.mark.slow
 def test_a_foreign_multi_review_submission_cannot_be_closed_by_the_route(bound_task, tmp_path, capsys):
     """The route issues single-review submissions; it will not close one raised elsewhere."""
     coordinator = bound_task.coordinator
@@ -881,6 +901,7 @@ def test_a_foreign_multi_review_submission_cannot_be_closed_by_the_route(bound_t
     assert "TaskSubmittedForReview was not issued by this route" in message, message
 
 
+@pytest.mark.slow
 def test_a_withdrawn_review_conflicts_instead_of_advertising_progress(bound_task, tmp_path, capsys):
     for effect in ("SubmitForReview", "RequestReview"):
         _advance(bound_task, effect, tmp_path, capsys)
@@ -910,6 +931,7 @@ def test_a_withdrawn_review_conflicts_instead_of_advertising_progress(bound_task
     assert len(closures) == 1 and "ReviewWithdrawn" in closures[0]["unreadable"]
 
 
+@pytest.mark.slow
 def test_absent_or_unbound_governed_subjects_are_not_runnable_actions(bound_task):
     coordinator = bound_task.coordinator
     missing_task = {**close_task_intent(), "task_id": "tsk_01978abc-9400-7000-8000-000000009400"}
@@ -949,6 +971,7 @@ def _external_request(subject_sha256, *, number, allowed_verdicts, review_id=REV
     )
 
 
+@pytest.mark.slow
 def test_a_foreign_request_forbidding_approval_is_not_answerable(bound_task, tmp_path, capsys):
     """Admission permits an approving verdict the recorded request never allowed."""
     _advance(bound_task, "SubmitForReview", tmp_path, capsys)
@@ -961,6 +984,7 @@ def test_a_foreign_request_forbidding_approval_is_not_answerable(bound_task, tmp
         coordinator.status(intent)
 
 
+@pytest.mark.slow
 def test_a_foreign_assignment_with_a_weaker_grade_is_not_completion(bound_task, tmp_path, capsys):
     """AssignReview admits any non-empty grade; the route refuses assignments it did not make."""
     for effect in ("SubmitForReview", "RequestReview"):
@@ -985,6 +1009,7 @@ def test_a_foreign_assignment_with_a_weaker_grade_is_not_completion(bound_task, 
         coordinator.status(close_task_intent())
 
 
+@pytest.mark.slow
 def test_task_subject_drift_after_the_review_request_conflicts(bound_task, tmp_path, capsys):
     """Acceptance hashes the current Task, so post-request drift dooms the review."""
     for effect in ("SubmitForReview", "RequestReview"):
@@ -1013,6 +1038,7 @@ def test_task_subject_drift_after_the_review_request_conflicts(bound_task, tmp_p
         coordinator.status(close_task_intent())
 
 
+@pytest.mark.slow
 def test_a_reused_review_identity_is_refused_before_submitting(bound_task, tmp_path, capsys):
     """Starting on an existing Review stream would strand the Task at review_pending."""
     coordinator = bound_task.coordinator
@@ -1033,6 +1059,7 @@ def test_a_reused_review_identity_is_refused_before_submitting(bound_task, tmp_p
         coordinator.status(close_task_intent(SECOND_REVIEW_ID))
 
 
+@pytest.mark.slow
 def test_a_foreign_acceptance_is_not_completion(bound_task, tmp_path, capsys):
     """Admission validates only the ids supplied; the route refuses acceptance it did not issue.
 
@@ -1059,6 +1086,7 @@ def test_a_foreign_acceptance_is_not_completion(bound_task, tmp_path, capsys):
         coordinator.status(intent)
 
 
+@pytest.mark.slow
 def test_a_submission_claiming_an_unregistered_candidate_hash_is_refused(bound_candidate_task, tmp_path, capsys):
     """SubmitForReview admission counts candidate hashes but never checks their values."""
     coordinator = bound_candidate_task.coordinator
@@ -1081,6 +1109,7 @@ def test_a_submission_claiming_an_unregistered_candidate_hash_is_refused(bound_c
         coordinator.status(close_task_intent())
 
 
+@pytest.mark.slow
 def test_acceptance_refuses_an_empty_criterion_set_and_selects_every_submitted_candidate(bound_task):
     """The empty-criterion payload the reducer cannot honour, and P-057 accept-all selection."""
     ids = spec_task.subject_ids(close_task_intent())
@@ -1109,6 +1138,7 @@ def test_acceptance_refuses_an_empty_criterion_set_and_selects_every_submitted_c
     assert spec_task._accept_payload(ids, real, two)["satisfied_review_ids"] == [REVIEW_ID, SECOND_REVIEW_ID]
 
 
+@pytest.mark.slow
 def test_a_repeated_public_advance_after_a_lost_response_reads_its_receipt(bound_task, tmp_path, capsys):
     """An identical repeated invocation replays the committed effect, even mid-chain."""
     coordinator = bound_task.coordinator
@@ -1137,6 +1167,7 @@ def test_a_repeated_public_advance_after_a_lost_response_reads_its_receipt(bound
     assert verdict["next_effect"] == "SatisfyReview"
 
 
+@pytest.mark.slow
 def test_review_is_not_requested_while_the_task_is_paused(bound_task, tmp_path, capsys):
     """Admission allows a request against a paused Task that could never be accepted."""
     coordinator = bound_task.coordinator
@@ -1165,6 +1196,7 @@ def test_review_is_not_requested_while_the_task_is_paused(bound_task, tmp_path, 
     assert coordinator.status(close_task_intent())["next_effect"] == "RequestReview"
 
 
+@pytest.mark.slow
 def test_a_foreign_review_start_is_not_completion(bound_task, tmp_path, capsys):
     """A start the route did not issue is refused, even with the exact derived payload."""
     for effect in ("SubmitForReview", "RequestReview", "AssignReview"):
@@ -1187,6 +1219,7 @@ def test_a_foreign_review_start_is_not_completion(bound_task, tmp_path, capsys):
         coordinator.status(intent)
 
 
+@pytest.mark.slow
 def test_a_route_keyed_request_with_an_altered_policy_is_refused(bound_task, tmp_path, capsys):
     """Identity alone is not trusted: the route-derived payload is regenerated as well.
 
@@ -1215,6 +1248,7 @@ def test_a_route_keyed_request_with_an_altered_policy_is_refused(bound_task, tmp
         coordinator.status(intent)
 
 
+@pytest.mark.slow
 def test_the_producer_is_derived_from_the_attempt_and_its_lease(bound_task):
     """Independence is measured against who produced the Attempt, not who submitted it.
 
@@ -1244,6 +1278,7 @@ def test_the_producer_is_derived_from_the_attempt_and_its_lease(bound_task):
         spec_task._check_actor_relation("StartReview", ids, held_by_reviewer, actor_id=REVIEWER)
 
 
+@pytest.mark.slow
 def test_failed_or_partial_attempt_work_remains_open(bound_unfinished_task, tmp_path, capsys):
     """Admission would submit this work for review; the route refuses before any mutation."""
     coordinator = bound_unfinished_task.coordinator
@@ -1279,6 +1314,7 @@ def test_failed_or_partial_attempt_work_remains_open(bound_unfinished_task, tmp_
     assert _streams(coordinator)[TASK_ID]["status"] != "accepted"
 
 
+@pytest.mark.slow
 def test_an_unregistered_candidate_is_refused_before_any_task_mutation(bound_candidate_task, tmp_path, capsys):
     """Accept-all (P-057) binds each candidate's registered hash; refuse an unregistered one at the start."""
     coordinator = bound_candidate_task.coordinator
@@ -1303,6 +1339,7 @@ def _operator_coordinator(bound_task, tmp_path, name, *, actor, grant, clock):
     )
 
 
+@pytest.mark.slow
 def test_a_concurrent_commit_of_the_same_effect_replays_instead_of_conflicting(
     bound_task, tmp_path, capsys, monkeypatch
 ):
@@ -1335,6 +1372,7 @@ def test_a_concurrent_commit_of_the_same_effect_replays_instead_of_conflicting(
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_an_exact_retry_after_the_grant_expires_reads_its_receipt(bound_task, tmp_path, capsys):
     """A committed effect is read back, not re-authorized, after its grant expires."""
     coordinator = bound_task.coordinator
@@ -1365,6 +1403,7 @@ def test_an_exact_retry_after_the_grant_expires_reads_its_receipt(bound_task, tm
     assert _tail(coordinator) == tail
 
 
+@pytest.mark.slow
 def test_a_verdict_with_unrequested_evidence_is_refused(bound_task, tmp_path, capsys):
     """Verdict admission checks only that its evidence is non-empty.
 
@@ -1444,6 +1483,7 @@ def test_candidates_with_identical_content_are_refused_before_submission():
     assert spec_task._submit_payload(ids, streams, distinct)["candidate_artefact_hashes"] == ["a" * 64, "b" * 64]
 
 
+@pytest.mark.slow
 def test_a_retry_after_another_operator_committed_the_next_effect_reads_its_receipt(bound_task, tmp_path, capsys):
     """A lost response is recognised even when later effects have committed since."""
     coordinator = bound_task.coordinator
