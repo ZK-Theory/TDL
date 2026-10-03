@@ -189,3 +189,12 @@ role name or contract claimed:
   failing test, a test that never ran, and a missing interpreter, so confirm the
   test executed (JUnit `tests >= 1`, or the run's final summary line) before
   reading its exit code.
+
+**Manager acceptance.** Before accepting Success on a task that touches an admission
+or evaluator boundary, confirm that these controls are in place: each negative control
+names the layer that must refuse; construction and evaluation have a field-by-field
+correspondence table; refusals precede the first irreversible effect; borrowed
+derivations and cross-route evidence are re-asserted against the owning record; and
+hash-bound rule references are shown to be evaluated. (This item lives here, not in
+`research-assurance-triage`: that skill's bytes are pinned by the accepted WP6.3 private
+assurance pack, and changing them needs a superseding contract revision.)
