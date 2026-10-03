@@ -44,6 +44,8 @@ _EXTENSION = re.compile(
     r"\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r|pdf|html|lean|js|ts)$"
 )
 _ANCHOR = re.compile(r"(?::\d+(?:-\d+)?|#L\d+(?:-L?\d+)?)$")
+# Only after a file extension, so `C#` or `issue#12` in prose is not read as a path with a fragment.
+_FRAGMENT = re.compile(r"(\.[A-Za-z0-9]{1,5})#[\w.-]+$")
 _ROOT_FILE = re.compile(
     r"(?:\.?[\w-][\w.-]*\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r)"
     r"|\.gitattributes|\.gitignore|\.gitmodules|\.env)"
@@ -53,6 +55,9 @@ _ROOT_FILE = re.compile(
 def _normalise(span: str) -> str | None:
     """Return the repository path a backtick span cites, or None when it is not a path citation."""
     candidate = _ANCHOR.sub("", span.split("::", 1)[0].strip())
+    # A heading fragment (`docs/plan.md#background`): `#` is not a path character, so the whole span
+    # failed the character test and a citation with a fragment was never checked at all.
+    candidate = _FRAGMENT.sub(r"\1", candidate)
     if candidate.startswith("./"):
         candidate = candidate[2:]
     if (

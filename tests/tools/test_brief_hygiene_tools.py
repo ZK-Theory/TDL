@@ -531,3 +531,13 @@ def test_a_subheading_under_deliverables_stays_inside_the_output_section(repo: P
     after = _check(repo, _brief(repo, ended))
     assert after.returncode == 1, "positive control: a same-level heading ends the output section"
     assert "results/never.json" in after.stderr and "results/h2.json" not in after.stderr
+
+
+def test_a_heading_fragment_does_not_hide_a_citation(repo: Path) -> None:
+    """``#`` is not a path character, so ``docs/missing.md#background`` was never checked at all."""
+    present = _check(repo, _brief(repo, "See `docs/plan.md#background`.\n"))
+    missing = _check(repo, _brief(repo, "See `docs/never-written.md#background`.\n"))
+
+    assert present.returncode == 0, present.stderr
+    assert missing.returncode == 1
+    assert "docs/never-written.md: absent from main and from every branch" in missing.stderr
