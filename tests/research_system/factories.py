@@ -870,3 +870,67 @@ def publish_release_command(
         "evidence_refs": [manifest_ref, control_ref],
         "payload": request,
     }
+
+
+def approved_foundation(
+    monkeypatch: Any,
+    foundation_path: Path,
+    *,
+    code_roots: list[Path],
+    control_root: Path,
+    store_identity: str,
+    witness: Any,
+    witness_path: Path,
+    schema_root: Path,
+    origin_authority_root: Path,
+    project_id: str = PROJECT_ID,
+) -> Path:
+    """Write an approved foundation for a test store and make it the canonical foundation.
+
+    ``ControlBinding.load`` and the CLI always read the canonical foundation (#218). Without this,
+    a test that builds its own store still depends on the operator's live control store, and it
+    fails on any machine where that store is absent or cannot load.
+
+    Args:
+        monkeypatch: The test's ``pytest.MonkeyPatch``.
+        foundation_path: Where to write the foundation YAML.
+        code_roots: Registered code roots of the test store.
+        control_root: The test store's control root.
+        store_identity: The store identity.
+        witness: The store's approved origin witness.
+        witness_path: Where that witness is persisted.
+        schema_root: Schema root the store binds.
+        origin_authority_root: Origin authority root holding the store's witness.
+        project_id: Project bound into the store.
+
+    Returns:
+        The written foundation path.
+    """
+    import yaml
+
+    from research_system.config import _canonical_local_cli_uri
+
+    foundation = {
+        "schema_version": "1.0.0",
+        "project_id": project_id,
+        "control_root": str(control_root.resolve()),
+        "control_root_required": True,
+        "store_identity": str(store_identity),
+        "endpoint_scheme": "local-cli",
+        "canonical_hash": "sha256",
+        "canonical_uri": _canonical_local_cli_uri(control_root.resolve()),
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": sorted(str(root.resolve()) for root in code_roots),
+        "schema_root": str(schema_root.resolve()),
+        "origin_authority_root": str(origin_authority_root.resolve()),
+        "origin_witness_path": str(witness_path.resolve()),
+        "origin_witness_sha256": witness.raw_sha256,
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    foundation_path.parent.mkdir(parents=True, exist_ok=True)
+    foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    # cli.py imports the function by name, so both bindings are redirected.
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: foundation_path)
+    monkeypatch.setattr("research_system.cli.canonical_foundation_path", lambda: foundation_path)
+    return foundation_path

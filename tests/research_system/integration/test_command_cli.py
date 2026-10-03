@@ -10,10 +10,9 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
 from research_system.errors import ConfigurationError
 from research_system.operations.resources import TrustedRuntimeAuthority
-from research_system.schema_registry import SchemaRegistry
+from research_system.authority import authority_bootstrap_sha256, initialize_authority_control_store
 from research_system.store.identity import initialize_control_store
-from research_system.store.ledger import EventLedger
-from tests.research_system.factories import PROJECT_ID
+from tests.research_system.factories import PROJECT_ID, approved_foundation, authority_bootstrap
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -50,15 +49,47 @@ def _command_submit_inputs(tmp_path):
     return config, command
 
 
-def _external_v1_store(tmp_path, *, schema_bound):
+def _external_store(tmp_path, monkeypatch, *, schema_bound):
+    """Create an external store and make it the canonical approved foundation.
+
+    History commands read the canonical foundation (#218), so each store is approved here
+    rather than through the operator's live control store. A schema-bound store is created
+    with an explicit canonical schema root. The v1 store has none and needs an origin
+    authority root (#208).
+    """
     code_root = tmp_path / "code"
     code_root.mkdir()
     projection_root = code_root / ".research-system" / "projections"
     projection_root.mkdir(parents=True)
-    if schema_bound:
-        shutil.copytree(SCHEMAS, code_root / ".research-system" / "schemas")
+    schema_root = code_root / ".research-system" / "schemas"
+    shutil.copytree(SCHEMAS, schema_root)
     control_root = tmp_path / "control"
-    initialize_control_store([code_root], control_root, PROJECT_ID)
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+    if schema_bound:
+        bootstrap = authority_bootstrap()
+        identity = initialize_authority_control_store(
+            [code_root],
+            control_root,
+            PROJECT_ID,
+            bootstrap,
+            authority_bootstrap_sha256(bootstrap),
+            canonical_schema_root=schema_root,
+            origin_authority_root=origin_root,
+        )
+    else:
+        identity = initialize_control_store([code_root], control_root, PROJECT_ID, origin_authority_root=origin_root)
+    approved_foundation(
+        monkeypatch,
+        code_root / ".research-system" / "config" / "foundation.yaml",
+        code_roots=[code_root],
+        control_root=control_root,
+        store_identity=identity,
+        witness=identity.witness,
+        witness_path=identity.witness_path,
+        schema_root=schema_root,
+        origin_authority_root=origin_root,
+    )
     return code_root, control_root, projection_root
 
 
@@ -79,25 +110,24 @@ def test_history_commands_reject_v1_store_without_runtime_schema_authority(
     tmp_path,
     command,
     capsys,
+    monkeypatch,
 ):
-    _code_root, control_root, projection_root = _external_v1_store(
+    _code_root, control_root, projection_root = _external_store(
         tmp_path,
+        monkeypatch,
         schema_bound=False,
     )
-    EventLedger(
-        control_root,
-        PROJECT_ID,
-        SchemaRegistry(SCHEMAS),
-    ).append([{"event_type": "TaskCreated", "stream_id": TASK_ID}])
 
     argv = [command, "verify", "--control-root", str(control_root)]
     if command == "projection":
         output = projection_root / "rebuilt.json"
         argv = [command, "rebuild", "--control-root", str(control_root), "--output", str(output)]
 
+    # Since #218 a store without runtime schema authority cannot even be approved: the
+    # canonical foundation refuses it before any history is read.
     with pytest.raises(
         ConfigurationError,
-        match="store manifest does not bind a usable runtime schema root",
+        match="materialized store schema root differs from approved project binding",
     ):
         cli.main(argv)
     assert capsys.readouterr().out == ""
@@ -106,9 +136,10 @@ def test_history_commands_reject_v1_store_without_runtime_schema_authority(
 
 
 @pytest.mark.parametrize("command", ["replay", "projection"])
-def test_history_commands_accept_schema_bound_current_store(tmp_path, command):
-    _code_root, control_root, projection_root = _external_v1_store(
+def test_history_commands_accept_schema_bound_current_store(tmp_path, command, monkeypatch):
+    _code_root, control_root, projection_root = _external_store(
         tmp_path,
+        monkeypatch,
         schema_bound=True,
     )
     argv = [command, "verify", "--control-root", str(control_root)]
