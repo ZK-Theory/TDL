@@ -1809,6 +1809,14 @@ def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:
         )
     )
 
+    def stage_bytes(stage):
+        return {
+            path.relative_to(stage).as_posix(): path.read_bytes() for path in sorted(stage.rglob("*")) if path.is_file()
+        }
+
+    partial_before = stage_bytes(partial_stage)
+    foreign_before = stage_bytes(foreign_stage)
+
     identity = initialize_authority_control_store(
         [code_root],
         tmp_path / "control",
@@ -1817,9 +1825,13 @@ def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:
         authority_bootstrap_sha256(bootstrap),
     )
 
-    assert identity != partial_identity
-    assert partial_stage.exists()
-    assert foreign_stage.exists()
+    # Since #208 the identity is derived from the reserved origin witness, so an identical
+    # retry resumes the crashed run's own stage and reaches the same identity. The stage built
+    # for a different bootstrap hash must stay inert: neither consumed nor altered.
+    assert partial_before
+    assert identity == partial_identity
+    assert (tmp_path / "control" / "manifests" / "store-identity.json").is_file()
+    assert stage_bytes(foreign_stage) == foreign_before
 
 
 def test_portable_publication_collision_verifies_winner_and_cleans_loser(tmp_path, monkeypatch) -> None:
