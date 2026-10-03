@@ -335,6 +335,42 @@ def test_fix_refuses_paths_outside_the_repository(lf_repo: Path, tmp_path: Path)
     assert outside.read_bytes() == b"x\r\n"
 
 
+def test_fix_refuses_a_path_declared_binary(lf_repo: Path) -> None:
+    """--fix rewrote any CRLF it found, so a hand-passed PDF (no NUL in its first 8000 bytes) was corrupted.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #301): the scan skips paths the
+    index declares `binary`, but the writing mode applied only git's NUL heuristic, which most PDFs
+    defeat.
+    """
+    (lf_repo / ".gitattributes").write_bytes(b"* text=auto eol=lf\n*.pdf binary\n")
+    pdf = lf_repo / "report.pdf"
+    original = b"%PDF-1.4\r\n1 0 obj\r\n<< /Type /Catalog >>\r\nendobj\r\n"
+    pdf.write_bytes(original)
+    _git(lf_repo, "add", ".gitattributes", "report.pdf")
+
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(lf_repo), "--fix", "--", "report.pdf"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "binary" in result.stderr and "report.pdf" in result.stderr
+    assert pdf.read_bytes() == original, "a binary file must not be rewritten"
+
+    text = lf_repo / "notes.md"
+    text.write_bytes(b"one\r\n")
+    positive = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(lf_repo), "--fix", "--", "notes.md"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert positive.returncode == 0, positive.stderr
+    assert text.read_bytes() == b"one\n", "positive control: a text file is still fixed"
+
+
 def test_a_forced_text_hook_with_a_nul_byte_is_still_scanned(lf_repo: Path) -> None:
     """`.githooks/** text eol=lf` means git never applies the NUL heuristic there, so neither may the gate."""
     hook = lf_repo / ".githooks" / "post-commit"
