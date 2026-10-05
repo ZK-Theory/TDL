@@ -4,13 +4,16 @@
 # not listed here, and on any entry listed here that passes, so a fix must remove its entry
 # in the same change. Adding an entry needs Stephen's decision, recorded with its reason.
 #
-# WP6.3 private assurance pack residue (2026-10-02 triage). These assert the accepted
-# contract's own bytes, so they clear only with the formal superseding contract revision
-# Stephen asked for (scope-stop retirement, declared test surface, upstream identity, and
-# the allocation re-pin). Confirmed failing on 2026-10-05 at the
-# pipe/relocate-triage-checklist-from-pinned-skill tip: 5 failed, 40 passed.
+# WP6.3 private assurance pack residue (2026-10-02 triage). Kept here by Stephen's decision
+# of 2026-10-05 (option B): fix them in the next superseding pack revision, not now.
+# - The contract still declares the durable control
+#   test_review_provenance_records_must_share_one_stable_handoff_id, which 41cb9f58 removed.
+#   A durable control can only go by contract revision. The contract schema pins
+#   contract_revision: 5, and the accepted pack pins the current contract bytes, so a
+#   revision means pack re-review and re-acceptance.
+# - The asp allocation pins the contract before 41cb9f58 (03cd115c... at 449b0d00). The
+#   allocation file is append-only, and a superseding entry implies a new pack revision.
+# The other two residue failures are fixed by #330, which merges before this list.
 tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_upstream_contract_is_strict_pending_and_identity_separated
-tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_scope_stop_future_pack_is_absent_in_remediation_task
-tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_review_provenance_records_may_retain_distinct_genuine_handoff_ids
 tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_declared_test_surface_is_closed_not_merely_a_subset
 tests/research_system/contracts/test_assurance_pack_object_allocation.py::test_allocation_binds_the_unmodified_accepted_contract_subject
