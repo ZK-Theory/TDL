@@ -128,3 +128,82 @@ def test_a_stale_pyc_matching_the_sources_size_and_mtime_is_not_trusted(toy: Pat
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "CAUGHT    add-to-sub" in result.stdout
+
+
+def test_the_restore_does_not_overwrite_an_edit_made_during_the_run(toy: Path) -> None:
+    """The restore wrote the original bytes unconditionally, silently discarding another session's edit.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): the target is a live source
+    file. If it no longer holds the mutant bytes the tool wrote, someone else changed it, and
+    restoring would destroy that change.
+    """
+    (toy / "test_meddle.py").write_text(
+        "from pathlib import Path\n\n\ndef test_meddle():\n"
+        "    source = Path(__file__).parent / 'calc.py'\n"
+        "    text = source.read_text()\n"
+        "    if 'a - b' in text:\n"
+        "        source.write_text(text + '# concurrent edit' + chr(10))\n",
+        newline="\n",
+    )
+    args = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy)]
+    args += ["--mutant", "add-to-sub", "return a + b", "return a - b", "--", "test_calc.py", "test_meddle.py"]
+
+    result = subprocess.run(args, capture_output=True, text=True, timeout=300, check=False)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert "changed during the run" in result.stderr
+    assert "# concurrent edit" in (toy / "calc.py").read_text(), "the other session's edit must survive"
+
+
+def test_a_mutant_that_hangs_is_stopped_by_the_per_selection_timeout(toy: Path) -> None:
+    """A mutant can loop forever, and the run had no bound, so one hang stalled the whole check.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303). A timed-out mutant is not a
+    pass, so it counts as caught, and says it timed out; a baseline that times out is an untrusted harness.
+    """
+    args = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy), "--timeout", "20"]
+    args += ["--mutant", "hang", "return a + b", "while True:\n        pass", "--", "test_calc.py"]
+
+    result = subprocess.run(args, capture_output=True, text=True, timeout=240, check=False)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CAUGHT    hang" in result.stdout and "timed out" in result.stdout
+    assert "restored baseline green" in result.stdout
+
+    (toy / "test_slow.py").write_text("import time\n\n\ndef test_slow():\n    time.sleep(60)\n", newline="\n")
+    slow = [sys.executable, str(TOOL), "--target", "calc.py", "--cwd", str(toy), "--timeout", "3"]
+    slow += ["--mutant", "add-to-sub", "return a + b", "return a - b", "--", "test_slow.py"]
+    baseline = subprocess.run(slow, capture_output=True, text=True, timeout=240, check=False)
+    assert baseline.returncode == 2, baseline.stdout + baseline.stderr
+    assert "timed out" in baseline.stderr
+
+
+def test_a_stale_pyc_under_pythonpycacheprefix_is_not_trusted(toy: Path, tmp_path: Path, monkeypatch) -> None:
+    """With ``PYTHONPYCACHEPREFIX`` set, bytecode lives under the prefix, not beside the source.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #303): the harness deleted only
+    ``<dir>/__pycache__``, so a stale same-size, same-mtime .pyc under the prefix was still read.
+    """
+    import importlib.util
+    import os
+    import py_compile
+
+    prefix = tmp_path / "pycache-prefix"
+    monkeypatch.setenv("PYTHONPYCACHEPREFIX", str(prefix))
+    monkeypatch.setattr(sys, "pycache_prefix", str(prefix))
+    source = toy / "calc.py"
+    original = source.read_bytes()
+    stamp = source.stat().st_mtime
+    source.write_bytes(original.replace(b"return a > b", b"return a < b"))
+    os.utime(source, (stamp, stamp))
+    cached = Path(importlib.util.cache_from_source(str(source)))
+    py_compile.compile(str(source), cfile=str(cached), doraise=True)
+    source.write_bytes(original)
+    os.utime(source, (stamp, stamp))
+    assert cached.exists() and prefix in cached.parents, "fixture must plant the stale bytecode under the prefix"
+
+    result = _run(toy, ("add-to-sub", "return a + b", "return a - b"))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CAUGHT    add-to-sub" in result.stdout
+    assert not cached.exists(), "the harness must clear the prefixed bytecode too"

@@ -1,8 +1,8 @@
 ---
 name: tda-resource-preflight
-description: Use before launching compute that may exceed ~30 minutes — bootstraps, permutation nulls, Markov batteries, MICE refits, per-cluster or per-individual batteries, PH at high landmark count, or large ETL / memory-sensitive dataframe work.
+description: Use before launching compute that may exceed ~30 minutes — bootstraps, permutation nulls, Markov batteries, MICE refits, per-cluster or per-individual batteries, PH at high landmark count, large ETL / memory-sensitive dataframe work, or a test group, certification packet, or mutation-control battery expected to run that long.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: core
   lanes:
     - output-provenance
@@ -20,7 +20,9 @@ reporting, and an up-front wall-time budget. The count is selected from a measur
 production-entry-point sweep; it is not a fixed minimum or the largest count that
 fits in memory.
 This skill produces the resource plan that makes a launch defensible. Skip it
-for small deterministic unit tests and trivial calculations.
+for small deterministic unit tests and trivial calculations. A test group or
+certification packet expected to run past ~30 minutes is neither: see Long Test
+Runs below before launching it.
 
 ## Procedure
 
@@ -140,6 +142,40 @@ is an ISO-8601 UTC timestamp and `launch_heartbeat.status` is one of
 `emitted` / `missing` — the run is auditable for responsiveness only when both
 are populated.
 
+## Long Test Runs
+
+A slow test is a defect to raise, not a workload to parallelise. The worker-count
+and checkpointing convention above is for stochastic research compute. Applied to
+a test suite, it makes a multi-hour test look normal. The SPEC route's public
+tests grew one sub-phase at a time to 4-hour groups and a day-long certification
+packet, recorded as a "known limit" in four PRs and absorbed by a 20-worker
+resumable runner, with no single test ever timed or profiled. Before launching
+any test run expected to exceed ~30 minutes:
+
+1. Time one test alone and profile it: which stage dominates (lineage replay
+   through the public CLI, subprocess git, fixture setup)? Do not scale out
+   before this measurement exists.
+2. Compare against the previous PR's time for the same group. A rise past the
+   owner's recorded threshold, a breach of a recorded group or packet budget, or
+   no recorded budget for a run this long goes into the PR's decision table with
+   options, such as a shared prefix fixture that builds a route once and copies
+   the store, mutation controls aimed at focused tests rather than whole refusal
+   batteries, or a route-side fix. It never goes into a known-limits list.
+3. Read the budgets and the rise threshold from the owner's record, not from this
+   skill: the owner may revise them. The current record is P-058 (2026-10-01)
+   plus Stephen's additions of 2026-10-02: 10 minutes a test, 60 minutes a group,
+   5 hours a packet, 6 hours for the nightly full suite, and a decision-table
+   entry when a test's time rises more than 25% between sub-phases. The runner
+   enforces each budget with a check that fails. A budget recorded only as a
+   note is not a budget.
+4. When a run is legitimately long after that decision, make it resumable
+   rather than trying to detach it from the session (WMI- and Start-Process-
+   launched children died within seconds of the tool call returning). Each group
+   writes its result on completion and a start file with PID and time, pytest
+   runs with `-v`, and an environment failure (for example "Git inspection is
+   unavailable" across many groups in the same second) is classified and
+   re-queued once, with both attempts recorded, not reported as a test failure.
+
 ## WSL Background Compute
 
 WSL 2 processes are tied to their parent session's lifecycle and die silently
@@ -186,6 +222,9 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
       heartbeat emitted (a cost-ordered / in-order-yield queue delays first real output).
 - [ ] Memory-per-worker × workers checked against the machine; disk checked.
 - [ ] Preflight record written.
+- [ ] For a test or certification run: one test timed alone and profiled before
+      scale-out, and any rise past the owner's recorded threshold or breach of a
+      recorded budget raised as a decision.
 
 ## Escalate Or Stop When
 

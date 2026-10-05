@@ -170,7 +170,7 @@ def test_a_pull_request_url_is_closure_evidence(tmp_path: Path) -> None:
 
 def test_headings_inside_fenced_code_are_not_observations(tmp_path: Path) -> None:
     fenced = "Template:\n\n```markdown\n### Observation fake: example\n\n**Status:** OPEN\n```\n"
-    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    packet = _packet(tmp_path, "| A | 1 | a |\n| **Total** | **1** | |\n")
     result = _run(tmp_path, _obs("a", "OPEN", fenced), "--packet", packet)
     assert result.returncode == 0, result.stderr
     assert "1 observation(s): 1 OPEN" in result.stdout
@@ -178,7 +178,7 @@ def test_headings_inside_fenced_code_are_not_observations(tmp_path: Path) -> Non
 
 def test_an_unrecognised_status_fails(tmp_path: Path) -> None:
     """`OPEM` is neither OPEN nor closed, so it vanished from the ledger while the lint passed."""
-    packet = _packet(tmp_path, "| A | 1 | a |\n")
+    packet = _packet(tmp_path, "| A | 1 | a |\n| **Total** | **1** | |\n")
     result = _run(tmp_path, _obs("a", "OPEN") + _obs("b", "OPEM"), "--packet", packet)
     assert result.returncode == 1
     assert "b: unrecognised status" in result.stderr
@@ -189,3 +189,132 @@ def test_a_digit_only_number_is_not_a_commit(tmp_path: Path) -> None:
     commit = _run(tmp_path, _obs("a", "ACTIONED — landed in commit 1234567."))
     assert dated.returncode == 1
     assert commit.returncode == 0, commit.stderr
+
+
+def test_an_unterminated_fence_fails_loudly_and_keeps_the_later_observations(tmp_path: Path) -> None:
+    """An unclosed fence made every later heading look like quoted code, so the lint dropped them all.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): the later entries vanished
+    from the parse, the OPEN count and every ledger, and the lint still exited 0.
+    """
+    log = (
+        _obs("a", "OPEN", "Quote:\n\n```markdown\nan example that is never closed\n")
+        + _obs("b", "OPEN")
+        + _obs("c", "OPEN")
+    )
+    result = _run(tmp_path, log)
+    assert result.returncode == 1, result.stdout
+    assert "unterminated" in result.stderr and "```" in result.stderr
+    assert "3 observation(s): 3 OPEN" in result.stdout
+
+
+def test_a_status_inside_a_fenced_example_is_not_the_status(tmp_path: Path) -> None:
+    """The first ``**Status:**`` in the block was read, quoted examples included.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): an entry that quotes the
+    observation template before its own Status line was counted OPEN, and an entry with no real Status
+    line took the quoted one instead of failing.
+    """
+    example = "Template:\n\n```markdown\n**Status:** OPEN\n```\n"
+    quoted_first = f"### Observation a: title\n\n{example}\n**Status:** ACTIONED — fixed in PR #306.\n\n"
+    only_quoted = f"### Observation b: title\n\n**Stauts:** OPEN\n\n{example}\n"
+    quoted_resolution = (
+        "### Observation c: title\n\n**Status:** CLOSED\n\n```\n**Resolution:** fixed in PR #12.\n```\n\n"
+    )
+
+    first = _run(tmp_path, quoted_first)
+    assert first.returncode == 0, first.stderr
+    assert "1 observation(s): 0 OPEN" in first.stdout
+
+    missing = _run(tmp_path, only_quoted)
+    assert missing.returncode == 1 and "b: no **Status:** line" in missing.stderr
+
+    resolution = _run(tmp_path, quoted_resolution)
+    assert resolution.returncode == 1
+    assert "c: closing status names no checkable artifact" in resolution.stderr
+
+
+def test_escalated_and_partially_statuses_count_as_open(tmp_path: Path) -> None:
+    """A standalone ESCALATED or PARTIALLY entry was in no ledger: only a leading OPEN counted as open.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): the owner default is that a
+    status beginning ESCALATED or PARTIALLY is still open work, so it must reach every ledger.
+    """
+    log = (
+        _obs("a", "ESCALATED — owner decision pending.")
+        + _obs("b", "PARTIALLY ADDRESSED — AWAITING OWNER DECISION (2026-09-08).")
+        + _obs("c", "**OPEN**")
+        + _obs("d", "ACTIONED — fixed in PR #1.")
+        + _obs("e", "DEFERRED — external.")
+    )
+    counted = _run(tmp_path, log)
+    assert counted.returncode == 0, counted.stderr
+    assert "5 observation(s): 3 OPEN" in counted.stdout
+
+    short = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | b · c |\n| **Total** | **2** | |\n"))
+    assert short.returncode == 1
+    assert "OPEN but missing from the ledger: a" in short.stderr
+
+    whole = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 3 | a · b · c |\n| **Total** | **3** | |\n"))
+    assert whole.returncode == 0, whole.stderr
+    assert "ledger matches the 3 OPEN observation(s)" in whole.stdout
+
+
+def test_a_ledger_without_a_total_row_fails(tmp_path: Path) -> None:
+    """The Total was checked only when present, so a ledger that simply omitted it passed.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): a hand-assembled count was
+    the failure this ledger exists to end, and the row that states the count was optional.
+    """
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    bare = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n"))
+    assert bare.returncode == 1
+    assert "no Total row" in bare.stderr
+
+
+def test_the_total_row_is_identified_by_its_label(tmp_path: Path) -> None:
+    """Any row with a count and no ids was read as the Total, whatever it was called."""
+    log = _obs("a", "OPEN") + _obs("b", "OPEN")
+    mislabelled = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| Grand sum | 2 | |\n"))
+    assert mislabelled.returncode == 1
+    assert "no Total row" in mislabelled.stderr
+    assert "ledger row 'Grand sum' declares '2' but lists 0 id(s)" in mislabelled.stderr
+
+    listing = _run(tmp_path, log, "--packet", _packet(tmp_path, "| A | 1 | a |\n| **Total** | **2** | b |\n"))
+    assert listing.returncode == 1
+    assert "Total row lists ids" in listing.stderr
+
+    empty_group = _run(
+        tmp_path, log, "--packet", _packet(tmp_path, "| A | 2 | a · b |\n| B | 0 | |\n| **Total** | **2** | |\n")
+    )
+    assert empty_group.returncode == 0, empty_group.stderr
+
+
+def test_a_progress_field_next_to_the_resolution_is_not_closure_evidence(tmp_path: Path) -> None:
+    """The Resolution paragraph was captured up to the next blank line, so an adjacent field ran into it.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306): a ``**Progress:**`` line
+    written directly under ``**Resolution:**`` was read as part of the resolution, so the abandoned PR
+    it names counted as the artifact that closed the entry.
+    """
+    adjacent = "**Resolution:** done, as agreed.\n**Progress:** tried PR #12, abandoned.\n"
+    result = _run(tmp_path, _obs("a", "CLOSED", adjacent))
+    assert result.returncode == 1
+    assert "a: closing status names no checkable artifact" in result.stderr
+
+    own_line = "**Resolution:** fixed in PR #12.\n**Progress:** tried PR #11 first.\n"
+    kept = _run(tmp_path, _obs("b", "CLOSED", own_line))
+    assert kept.returncode == 0, kept.stderr
+
+
+def test_a_file_with_a_long_extension_is_closure_evidence(tmp_path: Path) -> None:
+    """A path ending in ``.parquet`` named a real artifact but the extension pattern stopped at five characters.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #306).
+    """
+    pathed = _run(tmp_path, _obs("a", "CLOSED", "**Resolution:** wrote `results/p01/h1_2026-09-30.parquet`.\n"))
+    bare = _run(tmp_path, _obs("b", "CLOSED", "**Resolution:** regenerated h1_table.parquet from the script.\n"))
+    assert pathed.returncode == 0, pathed.stderr
+    assert bare.returncode == 0, bare.stderr
+    nothing = _run(tmp_path, _obs("c", "CLOSED", "**Resolution:** it was sorted out, see the notes.\n"))
+    assert nothing.returncode == 1, "positive control: prose naming no artifact must still fail"

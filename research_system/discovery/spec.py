@@ -15,7 +15,6 @@ from research_system.command.models import Command
 from research_system.command.reducers import replay_control_plane
 from research_system.command.service import CommandService
 from research_system.discovery.commands import DISCOVERY_COMMAND_TYPES, discovery_resolve_transaction_ids
-from research_system.discovery.replay.driver import replay_discovery
 from research_system.discovery.routes import shared_event_partition
 from research_system.discovery.runtime import DiscoveryRuntime
 from research_system.discovery.spec_source import (
@@ -28,6 +27,7 @@ from research_system.discovery.spec_source import (
     validate_source_refs,
 )
 from research_system.discovery import spec_assay, spec_result, spec_task
+from research_system.discovery.spec_replay import per_operation, replay_discovery
 from research_system.discovery.spec_source import DOCUMENT_KIND as SOURCE_DOCUMENT_KIND
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -177,6 +177,18 @@ class _Spec02BriefRegistrationService(_DocumentRegistrationService):
         )
 
 
+class _Spec02ReturnRegistrationService(_DocumentRegistrationService):
+    def _publish(self, artefact_id: str) -> bool:
+        existed_before = self.objects.revision_exists("spec_02_operator_return_document", artefact_id, 1)
+        self.objects.write("spec_02_operator_return_document", artefact_id, 1, self.document)
+        return existed_before
+
+    def _withdraw(self, artefact_id: str, existed_before: bool) -> None:
+        self.objects.rollback_new_revision(
+            "spec_02_operator_return_document", artefact_id, 1, self.document, existed_before=existed_before
+        )
+
+
 _REGISTRATION_SERVICES = {
     SOURCE_DOCUMENT_KIND: _SourceRegistrationService,
     spec_result.DOCUMENT_KIND: _ProjectUseRegistrationService,
@@ -185,6 +197,7 @@ _REGISTRATION_SERVICES = {
     spec_assay.PARTIAL_RETURN_KIND: _PartialReturnRegistrationService,
     spec_assay.APPROVAL_KIND: _LiveRunApprovalRegistrationService,
     spec_assay.SPEC_02_BRIEF_KIND: _Spec02BriefRegistrationService,
+    spec_assay.SPEC_02_RETURN_KIND: _Spec02ReturnRegistrationService,
 }
 
 
@@ -303,6 +316,7 @@ class SpecCoordinator:
         if isinstance(outcome, tuple):
             raise IntegrityError(f"{spec_result.ACCEPT} review evidence would not govern use authority: {outcome[0]}")
 
+    @per_operation
     def result(self, task_id: str, output_format: str) -> dict | str:
         """Return the Task-specific project-use result.
 
@@ -335,6 +349,7 @@ class SpecCoordinator:
             operational_ledger=self.ledger,
         )
 
+    @per_operation
     def status(self, intent: dict | None = None) -> dict:
         self.binding.revalidate()
         if intent is None:
@@ -546,6 +561,7 @@ class SpecCoordinator:
             state["state"] = "completed"
         return state
 
+    @per_operation
     def advance(self, intent: dict, evidence: dict | None = None) -> dict:
         if intent.get("action") in spec_assay.ACTIONS:
             return self._advance_assay(intent, evidence)

@@ -109,6 +109,8 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_crlf_byte_surface.py",
     "tests/tools/test_system_review_hook_gates.py",
     "tests/tools/test_sync_agent_skills.py",
+    "tests/tools/test_results_no_overwrite_hook.py",
+    "tests/tools/test_hook_currency.py",
 )
 
 
