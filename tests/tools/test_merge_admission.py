@@ -13,7 +13,9 @@ import copy
 import json
 import re
 import shutil
+import statistics
 import subprocess
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -21,9 +23,11 @@ import pytest
 import yaml
 
 from tools.check_merge_admission import (
+    SWEEP_MAX_RUN_AGE,
     SweepGate,
     evaluate_merge_group_size,
     evaluate_platform_order,
+    evaluate_sweep_cadence,
     evaluate_thread_finality,
     evidence_is_stale,
     load_config,
@@ -1261,26 +1265,470 @@ def _bash() -> str:
     return found
 
 
-@pytest.mark.parametrize("workflow_path", [WORKFLOW_PATH, SWEEP_WORKFLOW_PATH], ids=["admission", "sweep"])
+WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+WORKFLOW_FILES = sorted(WORKFLOW_DIR.glob("*.yml"))
+WATCHDOG_WORKFLOW_PATH = WORKFLOW_DIR / "ars-artefact-currency-watchdog.yml"
+
+
+def _declared_shell(block: Any) -> str | None:
+    """Return ``defaults.run.shell`` from a workflow or job mapping, if it declares one."""
+    if not isinstance(block, dict):
+        return None
+    run = block.get("defaults", {}).get("run", {})
+    return run.get("shell") if isinstance(run, dict) else None
+
+
+def _bash_scripts(workflow_path: Path) -> list[tuple[str, str]]:
+    """Return (label, script) for every step that runs under bash: a step, job or workflow default says so.
+
+    Steps under the Windows default shell are PowerShell, which `bash -n` would misread, so they are left out.
+    """
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    workflow_shell = _declared_shell(workflow)
+    scripts: list[tuple[str, str]] = []
+    for job_name, job in workflow["jobs"].items():
+        job_shell = _declared_shell(job) or workflow_shell
+        for step in job.get("steps", []):
+            if "run" in step and (step.get("shell") or job_shell) == "bash":
+                scripts.append((f"{job_name} / {step.get('name')}", step["run"]))
+    return scripts
+
+
+@pytest.mark.parametrize("workflow_path", WORKFLOW_FILES, ids=lambda path: path.name)
 def test_every_workflow_run_script_is_valid_bash(workflow_path: Path) -> None:
     """The scripts are only ever executed on GitHub, so nothing local noticed a quoting break.
 
     An apostrophe in a comment inside the single-quoted GraphQL query ended the string early, and
     every admission run died with a bash syntax error (found 2026-09-30 by re-running the check on
-    PR #304). String assertions on the YAML cannot see that; `bash -n` on each script can.
+    PR #304). String assertions on the YAML cannot see that; `bash -n` on each script can. It runs on
+    every workflow, not only the two admission ones: the same break is possible in any of them.
     """
-    jobs = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))["jobs"]
-    scripts = [
-        (f"{job_name} / {step.get('name')}", step["run"])
-        for job_name, job in jobs.items()
-        for step in job["steps"]
-        if "run" in step
-    ]
-    assert scripts
-    for name, script in scripts:
+    for name, script in _bash_scripts(workflow_path):
         rendered = re.sub(r"\$\{\{.*?\}\}", "EXPR", script)
         result = subprocess.run([_bash(), "-n"], input=rendered, capture_output=True, text=True, encoding="utf-8")
         assert result.returncode == 0, f"{workflow_path.name} step {name!r} is not valid bash: {result.stderr}"
+
+
+def test_the_bash_syntax_check_is_not_vacuous() -> None:
+    """A discovery or shell-resolution slip would leave the parametrized check above passing over nothing."""
+    names = {path.name for path in WORKFLOW_FILES}
+    for expected in (
+        "merge-admission.yml",
+        "merge-admission-sweep.yml",
+        "ars-artefact-currency.yml",
+        "ars-artefact-currency-watchdog.yml",
+        "ci.yml",
+    ):
+        assert expected in names, f"{expected} is missing from the workflow set"
+        assert _bash_scripts(WORKFLOW_DIR / expected), f"{expected} contributes no bash script to the syntax check"
+
+
+def test_a_broken_bash_script_is_caught_by_the_syntax_check() -> None:
+    """Watched failure: the #304 break, an apostrophe inside a single-quoted string, must fail `bash -n`."""
+    broken = "gh api graphql -f query='\n  # Codex's reply\n  query { x }'\n"
+    result = subprocess.run([_bash(), "-n"], input=broken, capture_output=True, text=True, encoding="utf-8")
+    assert result.returncode != 0
+
+
+# Campaign M of the 2026-09-29 system review: the sweep's `*/5` cron fired about every four hours, and
+# nothing measured it (obs 2026-09-29-sweep-cron-runs-at-two-percent-of-its-stated-cadence).
+
+SWEEP_RUNS_FIXTURE = Path(__file__).parent / "fixtures" / "merge_admission_sweep_runs_2026-10-02.json"
+GIT_INSTRUCTIONS_PATH = REPO_ROOT / ".claude" / "instructions" / "git.instructions.md"
+CADENCE_NOW = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+BOUND_MINUTES = int(SWEEP_MAX_RUN_AGE.total_seconds() // 60)
+
+
+def _minutes_ago(minutes: float) -> str:
+    return (CADENCE_NOW - timedelta(minutes=minutes)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _sweep_run(
+    minutes_ago: float, *, status: str = "completed", conclusion: str | None = "success", event: str = "schedule"
+) -> dict[str, Any]:
+    """One row of the REST workflow-runs listing the watchdog reads, created ``minutes_ago`` before CADENCE_NOW."""
+    return {"created_at": _minutes_ago(minutes_ago), "event": event, "status": status, "conclusion": conclusion}
+
+
+def _run_list(*runs: dict[str, Any]) -> dict[str, Any]:
+    return {"workflow_runs": list(runs)}
+
+
+def _recorded_sweep_runs() -> dict[str, Any]:
+    """The real run list of the sweep as captured on 2026-10-02 (every run on record)."""
+    return json.loads(SWEEP_RUNS_FIXTURE.read_text(encoding="utf-8"))
+
+
+def _recorded_times(recorded: dict[str, Any]) -> list[datetime]:
+    return sorted(datetime.fromisoformat(row["created_at"]) for row in recorded["workflow_runs"])
+
+
+def _recorded_gaps_minutes(recorded: dict[str, Any]) -> list[float]:
+    times = _recorded_times(recorded)
+    return [(later - earlier).total_seconds() / 60 for earlier, later in zip(times, times[1:], strict=False)]
+
+
+def test_a_sweep_whose_newest_successful_run_is_older_than_the_bound_is_refused() -> None:
+    """Watched failure: the real defect was a schedule that stopped arriving while every run that did arrive was green."""
+    age = BOUND_MINUTES + 60
+    listing = _run_list(_sweep_run(age), _sweep_run(age + 240))
+    with pytest.raises(ValueError, match=rf"{age} min old, over the {BOUND_MINUTES}-minute bound"):
+        evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+def test_a_fresh_sweep_run_passes_and_reports_the_measured_gap() -> None:
+    """Positive control: the same evaluator passes a fresh list and names the numbers it measured."""
+    verdict = evaluate_sweep_cadence(_run_list(_sweep_run(42), _sweep_run(300)), now=CADENCE_NOW)
+    assert "42 min old" in verdict
+    assert f"bound {BOUND_MINUTES} min" in verdict
+    assert "largest gap between successful runs 258 min" in verdict
+    assert "2 runs examined" in verdict
+
+
+@pytest.mark.parametrize(
+    ("age", "refused"),
+    [(BOUND_MINUTES - 1, False), (BOUND_MINUTES, False), (BOUND_MINUTES + 1, True)],
+    ids=["inside", "exactly-at", "one-minute-over"],
+)
+def test_the_bound_refuses_only_what_is_older_than_it(age: int, refused: bool) -> None:
+    """The bound is `older than`, so a run exactly at it stands and one minute more does not."""
+    listing = _run_list(_sweep_run(age))
+    if refused:
+        with pytest.raises(ValueError, match="bound"):
+            evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+    else:
+        assert f"{age} min old" in evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+@pytest.mark.parametrize(
+    ("status", "conclusion"),
+    [("completed", "failure"), ("completed", "cancelled"), ("in_progress", None), ("queued", None)],
+)
+def test_a_fresh_run_that_did_not_succeed_does_not_satisfy_the_bound(status: str, conclusion: str | None) -> None:
+    """A sweep that fires and fails protects nothing, and the refusal names the newest run's real state."""
+    listing = _run_list(_sweep_run(5, status=status, conclusion=conclusion), _sweep_run(BOUND_MINUTES + 120))
+    with pytest.raises(ValueError, match=rf"newest run of any outcome .* \({status}/{conclusion or 'none'}\)"):
+        evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [_run_list(), _run_list(_sweep_run(10, conclusion="failure"))],
+    ids=["no-runs", "only-failures"],
+)
+def test_a_run_list_with_no_successful_run_is_refused(listing: dict[str, Any]) -> None:
+    """Silent absence: a sweep that never ran must not read as a sweep that ran recently."""
+    with pytest.raises(ValueError, match="no successful"):
+        evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ([], "JSON object"),
+        ({}, "workflow_runs"),
+        ({"workflow_runs": "none"}, "workflow_runs"),
+        ({"workflow_runs": [1]}, "workflow_runs"),
+        ({"workflow_runs": [{"status": "completed", "conclusion": "success"}]}, "created_at"),
+        ({"workflow_runs": [{**_sweep_run(10), "created_at": "2026-10-02T11:00:00"}]}, "timezone"),
+        ({"workflow_runs": [{**_sweep_run(10), "created_at": "yesterday"}]}, "ISO-8601"),
+    ],
+    ids=["list", "no-key", "not-a-list", "not-an-object", "no-timestamp", "naive-timestamp", "garbage-timestamp"],
+)
+def test_a_malformed_run_list_is_refused(payload: Any, message: str) -> None:
+    """Every gate here fails closed on evidence it cannot read, rather than passing on a guess."""
+    with pytest.raises(ValueError, match=message):
+        evaluate_sweep_cadence(payload, now=CADENCE_NOW)
+
+
+def test_the_largest_gap_between_runs_is_reported_so_the_bound_can_be_tuned() -> None:
+    """The gap that matters for choosing the bound is the longest the platform has produced, not the newest age."""
+    listing = _run_list(_sweep_run(30), _sweep_run(30 + 420), _sweep_run(30 + 420 + 100))
+    assert "largest gap between successful runs 420 min" in evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+def test_a_single_clock_skewed_run_does_not_trip_the_watchdog() -> None:
+    """A run stamped a few seconds after the runner's clock is fresh, not an error."""
+    listing = _run_list(_sweep_run(-0.1))
+    assert "0 min old" in evaluate_sweep_cadence(listing, now=CADENCE_NOW)
+
+
+def test_the_recorded_real_sweep_passes_at_capture_and_fails_once_the_bound_has_elapsed() -> None:
+    """Real evidence both ways: the sweep as it ran passes, and the same run list a bound later does not."""
+    recorded = _recorded_sweep_runs()
+    captured = datetime.fromisoformat(recorded["captured_at"])
+    newest = _recorded_times(recorded)[-1]
+    expected_age = int((captured - newest).total_seconds() // 60)
+    assert f"{expected_age} min old" in evaluate_sweep_cadence(recorded, now=captured)
+    with pytest.raises(ValueError, match="bound"):
+        evaluate_sweep_cadence(recorded, now=newest + SWEEP_MAX_RUN_AGE + timedelta(minutes=1))
+
+
+def test_the_default_bound_clears_the_longest_gap_on_record() -> None:
+    """A bound under the platform's normal throttling would alarm on a healthy sweep."""
+    assert max(_recorded_gaps_minutes(_recorded_sweep_runs())) < BOUND_MINUTES
+
+
+def test_the_cadence_cli_refuses_a_stale_run_list_and_prints_the_gap_for_a_fresh_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The workflow's only interface is this command's exit status and its stdout."""
+    stale = tmp_path / "stale.json"
+    stale.write_text(json.dumps(_run_list(_sweep_run(BOUND_MINUTES + 30))), encoding="utf-8")
+    fresh = tmp_path / "fresh.json"
+    fresh.write_text(json.dumps(_run_list(_sweep_run(7))), encoding="utf-8")
+    common = ["--now", CADENCE_NOW.isoformat(), "--config", str(CONFIG_PATH)]
+
+    assert main(["sweep-cadence", "--runs", str(stale), *common]) == 1
+    assert f"{BOUND_MINUTES + 30} min old" in capsys.readouterr().err
+
+    assert main(["sweep-cadence", "--runs", str(fresh), *common]) == 0
+    assert "7 min old" in capsys.readouterr().out
+
+    assert main(["sweep-cadence", *common]) == 1
+    assert "--runs is required" in capsys.readouterr().err
+
+
+def _workflow_document(path: Path) -> dict[str, Any]:
+    """Load a workflow without YAML 1.1 coercing the `on` key."""
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+
+
+def test_the_cadence_watchdog_is_not_cron_only_and_cannot_be_skipped() -> None:
+    """It lives in a workflow that also fires on events, which the platform does not throttle like a cron.
+
+    A cron-only watchdog would be delayed by the behaviour it measures. The job is also not conditional:
+    a watchdog that can be skipped, or that continues on error, reads green while checking nothing.
+    """
+    workflow = _workflow_document(WATCHDOG_WORKFLOW_PATH)
+    assert "schedule" in workflow["on"]
+    assert {"push", "pull_request", "merge_group"} <= set(workflow["on"])
+    job = workflow["jobs"]["sweep-cadence"]
+    assert job["runs-on"].startswith("windows")
+    assert "if" not in job and "continue-on-error" not in job
+    assert all("if" not in step and "continue-on-error" not in step for step in job["steps"])
+
+
+def test_the_cadence_watchdog_reads_the_sweeps_runs_and_runs_the_checker() -> None:
+    job = _workflow_document(WATCHDOG_WORKFLOW_PATH)["jobs"]["sweep-cadence"]
+    scripts = {step["name"]: step["run"] for step in job["steps"] if "run" in step}
+    assert (WORKFLOW_DIR / "merge-admission-sweep.yml").is_file()
+    reader = next(script for script in scripts.values() if "actions/workflows/" in script)
+    assert "actions/workflows/merge-admission-sweep.yml/runs" in reader
+    checker = next(script for script in scripts.values() if "sweep-cadence" in script)
+    assert "tools/check_merge_admission.py sweep-cadence --runs sweep-runs.json" in checker
+    # `tee` would otherwise report its own success for a failing checker.
+    assert "set -euo pipefail" in checker
+
+
+def _header_text(path: Path) -> str:
+    """The comment block before a workflow's `on:` key, markers removed and whitespace collapsed."""
+    lines: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("on:"):
+            break
+        if line.startswith("#"):
+            lines.append(line.lstrip("#").strip())
+    return re.sub(r"\s+", " ", " ".join(lines))
+
+
+def test_the_sweep_header_states_the_measured_window_not_the_intended_one() -> None:
+    """The header is a claim about the gate's exposure. It must carry the measured figures, and they must be true.
+
+    The original header promised an exposure window of 5-10 minutes on the strength of a `*/5` schedule
+    that fired about every four hours. This recomputes every figure the header cites from the committed
+    run list, so the header cannot drift from the evidence it names.
+    """
+    header = _header_text(SWEEP_WORKFLOW_PATH)
+    assert "5-10 minutes" not in header
+    assert "re-measured" in header.lower()
+    recorded = _recorded_sweep_runs()
+    times = _recorded_times(recorded)
+    gaps = _recorded_gaps_minutes(recorded)
+    days = (times[-1] - times[0]).total_seconds() / 86400
+    assert f"{len(times)} runs in {days:.1f} days" in header
+    assert f"{len(times) / days:.1f} a day" in header
+    assert (
+        f"minimum {round(min(gaps))}, median {round(statistics.median(gaps))}, maximum {round(max(gaps))} minutes"
+        in header
+    )
+    assert f"{times[0].date()} to {times[-1].date()}" in header
+
+
+def test_no_instruction_still_promises_the_sweep_runs_every_five_minutes() -> None:
+    """Agents read these when deciding whether to wait or comment; the claim they act on must match the measurement."""
+    assert "5-minute merge-admission sweep" not in GIT_INSTRUCTIONS_PATH.read_text(encoding="utf-8")
+    assert "5-minute schedule" not in WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+# A comment on a pull request wakes the sweep. It does not wake merge-admission.yml: an `issue_comment` run
+# is attached to the default branch's latest commit (GITHUB_SHA), not to the pull request's head, so a
+# merge-admission run started that way could never replace the head's failed check. The sweep re-runs the
+# head's own admission run, which does land on the head.
+
+_EXPRESSION_TOKEN = re.compile(r"\s*(?:(?P<string>'[^']*')|(?P<op>\|\||&&|==|!=|\(|\))|(?P<path>[A-Za-z_][\w.\-]*))")
+
+
+def _truthy(value: Any) -> bool:
+    """GitHub's truthiness: false, 0, '' and null are falsy; anything else, including an object, is truthy."""
+    return not (value is None or value is False or value == 0 or value == "")
+
+
+def _evaluate_expression(expression: str, *, event_name: str, event: dict[str, Any]) -> Any:
+    """Evaluate the small subset of GitHub's expression language a job condition here may use.
+
+    Supports `||`, `&&`, `==`, `!=`, parentheses, string literals and `github.event_name` / `github.event.*`
+    lookups. Anything else raises, so a condition that outgrows this fails the test loudly instead of being
+    silently mis-evaluated.
+    """
+    tokens: list[tuple[str, str]] = []
+    expression = expression.strip()
+    position = 0
+    while position < len(expression):
+        match = _EXPRESSION_TOKEN.match(expression, position)
+        if match is None or match.lastgroup is None:
+            raise AssertionError(f"unsupported expression syntax near {expression[position:]!r}")
+        tokens.append((match.lastgroup, match.group(match.lastgroup)))
+        position = match.end()
+    cursor = 0
+
+    def peek() -> tuple[str, str] | None:
+        return tokens[cursor] if cursor < len(tokens) else None
+
+    def take() -> tuple[str, str]:
+        nonlocal cursor
+        token = tokens[cursor]
+        cursor += 1
+        return token
+
+    def atom() -> Any:
+        kind, text = take()
+        if kind == "string":
+            return text[1:-1]
+        if kind == "op" and text == "(":
+            value = disjunction()
+            assert take() == ("op", ")")
+            return value
+        if kind != "path":
+            raise AssertionError(f"unexpected token {text!r}")
+        if text == "github.event_name":
+            return event_name
+        parts = text.split(".")
+        assert parts[:2] == ["github", "event"], f"unsupported context {text!r}"
+        value: Any = event
+        for part in parts[2:]:
+            value = value.get(part) if isinstance(value, dict) else None
+        return value
+
+    def comparison() -> Any:
+        left = atom()
+        if peek() in (("op", "=="), ("op", "!=")):
+            operator = take()[1]
+            right = atom()
+            return (left == right) if operator == "==" else (left != right)
+        return left
+
+    def conjunction() -> Any:
+        value = comparison()
+        while peek() == ("op", "&&"):
+            take()
+            right = comparison()
+            value = right if _truthy(value) else value
+        return value
+
+    def disjunction() -> Any:
+        value = conjunction()
+        while peek() == ("op", "||"):
+            take()
+            right = conjunction()
+            value = value if _truthy(value) else right
+        return value
+
+    result = disjunction()
+    assert cursor == len(tokens), f"unparsed tokens after {tokens[:cursor]!r}"
+    return result
+
+
+def _comment_event(*, on_pull_request: bool) -> dict[str, Any]:
+    """An `issue_comment` payload, trimmed to the keys that matter: a PR comment carries `issue.pull_request`."""
+    issue: dict[str, Any] = {"number": 310, "state": "open", "title": "[PIPELINE] P06: reuse one schema validator"}
+    if on_pull_request:
+        issue["pull_request"] = {"url": "https://api.github.com/repos/ZK-Theory/TDL/pulls/310"}
+    return {
+        "action": "created",
+        "issue": issue,
+        "comment": {"user": {"login": CODEX_BOT}, "body": "Codex Review: Didn't find any major issues."},
+        "repository": {"default_branch": "main"},
+    }
+
+
+def _sweep_job_runs(event_name: str, event: dict[str, Any]) -> bool:
+    """Whether GitHub would start the sweep job for this event, per the job's own `if` condition."""
+    condition = _workflow_document(SWEEP_WORKFLOW_PATH)["jobs"]["sweep"].get("if")
+    return True if condition is None else _truthy(_evaluate_expression(condition, event_name=event_name, event=event))
+
+
+def test_a_comment_on_a_pull_request_wakes_the_sweep() -> None:
+    """Watched failure: before this change the sweep had no comment trigger, so a Codex comment woke nothing."""
+    triggers = _workflow_document(SWEEP_WORKFLOW_PATH)["on"]
+    assert triggers["issue_comment"] == {"types": ["created"]}
+    assert _sweep_job_runs("issue_comment", _comment_event(on_pull_request=True))
+
+
+def test_a_comment_on_a_plain_issue_is_ignored() -> None:
+    """`issue_comment` fires for issues as well; an issue has no pull request for the sweep to read."""
+    assert not _sweep_job_runs("issue_comment", _comment_event(on_pull_request=False))
+
+
+@pytest.mark.parametrize("event_name", ["schedule", "workflow_dispatch"])
+def test_the_condition_does_not_switch_off_the_scheduled_or_manual_sweep(event_name: str) -> None:
+    """Positive control: the condition that filters comments must not also filter the cron backstop."""
+    assert _sweep_job_runs(event_name, {})
+
+
+def test_comment_runs_and_scheduled_runs_share_one_serial_sweep_group() -> None:
+    """Two sweeps must not act at once, and a newer one must not cancel one that is mid-way through a re-run."""
+    concurrency = _workflow_document(SWEEP_WORKFLOW_PATH)["concurrency"]
+    assert concurrency == {"group": "merge-admission-sweep", "cancel-in-progress": "false"}
+
+
+def test_the_sweep_acts_on_nothing_the_comment_payload_carries() -> None:
+    """Anyone can comment on a public pull request, and the sweep holds write scopes.
+
+    The payload therefore only decides whether the job runs. No script and no action input may read the
+    comment's author or body, or the issue's title or body, so a comment cannot steer what the sweep does.
+    """
+    body = SWEEP_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "github.event.comment" not in body
+    for job in _workflow_document(SWEEP_WORKFLOW_PATH)["jobs"].values():
+        for step in job["steps"]:
+            assert "github.event.issue" not in step.get("run", ""), step.get("name")
+            assert "github.event.comment" not in step.get("run", ""), step.get("name")
+
+
+def test_only_the_sweep_reacts_to_comments() -> None:
+    """A comment-triggered merge-admission run could only attach its check to the default branch's commit.
+
+    `issue_comment` runs carry GITHUB_SHA of the default branch's latest commit, so the check would never
+    replace the pull request head's, and the run would read green while changing nothing.
+    """
+    for path in WORKFLOW_FILES:
+        reacts = "issue_comment" in _workflow_document(path)["on"]
+        assert reacts == (path.name == "merge-admission-sweep.yml"), path.name
+
+
+def test_a_codex_plus_one_and_its_no_issues_note_after_a_failed_admission_re_run_it(config: dict[str, Any]) -> None:
+    """The sequence on PR #304: a +1, then a comment one second later, which is what wakes the sweep.
+
+    The +1 is what the sweep reads. The comment must not hide it, and the re-run targets the head's own run.
+    """
+    pull_request = _failed_then_reacted(
+        "2026-09-25T17:05:00Z",
+        comment=("2026-09-25T17:05:01Z", "Codex Review: Didn't find any major issues. Nice work!"),
+    )
+    assert sweep_actions(_sweep_payload(pull_request), gate=_sweep_gate(config), producers=PRODUCERS) == [
+        f"rerun {GATE_RUN_ID} 278"
+    ]
 
 
 def test_config_is_a_shallow_copy_not_shared(config: dict[str, Any], snapshot: dict[str, Any]) -> None:
