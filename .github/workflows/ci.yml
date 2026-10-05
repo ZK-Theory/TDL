@@ -182,3 +182,40 @@ jobs:
 
       - name: Refuse skipped or absent controls
         run: .venv\Scripts\python.exe tools/assert_no_skips.py admission-controls.xml
+
+  # Watchdog of the watchdog (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups, PR #302).
+  # The workflow-liveness watchdog is a scheduled workflow, and a schedule that stops firing (the
+  # workflow disabled by hand, or GitHub pausing schedules after 60 days of repository inactivity)
+  # emits nothing: it cannot report its own silence. This job runs on every pull request and push, an
+  # independent trigger, and fails when the watchdog's newest scheduled run is older than 72 hours
+  # (its cron is daily) or absent.
+  watchdog-schedule-liveness:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Read the watchdog's latest scheduled run from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ars-artefact-currency-watchdog.yml/runs?event=schedule&per_page=1"
+          > watchdog-runs.json
+
+      - name: Fail closed if the watchdog's schedule has stopped firing
+        run: python tools/check_workflow_liveness.py --latest-run-json watchdog-runs.json --max-age-hours 72
