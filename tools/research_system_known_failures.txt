@@ -1,0 +1,16 @@
+# Known research_system failures that the CI lanes tolerate. One pytest node id per line.
+#
+# This list may only shrink. tools/research_system_baseline.py fails a lane on any failure
+# not listed here, and on any entry listed here that passes, so a fix must remove its entry
+# in the same change. Adding an entry needs Stephen's decision, recorded with its reason.
+#
+# WP6.3 private assurance pack residue (2026-10-02 triage). These assert the accepted
+# contract's own bytes, so they clear only with the formal superseding contract revision
+# Stephen asked for (scope-stop retirement, declared test surface, upstream identity, and
+# the allocation re-pin). Confirmed failing on 2026-10-05 at the
+# pipe/relocate-triage-checklist-from-pinned-skill tip: 5 failed, 40 passed.
+tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_upstream_contract_is_strict_pending_and_identity_separated
+tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_scope_stop_future_pack_is_absent_in_remediation_task
+tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_review_provenance_records_may_retain_distinct_genuine_handoff_ids
+tests/research_system/contracts/test_wp6_3_tdl_private_assurance_pack_contract.py::test_declared_test_surface_is_closed_not_merely_a_subset
+tests/research_system/contracts/test_assurance_pack_object_allocation.py::test_allocation_binds_the_unmodified_accepted_contract_subject
