@@ -374,7 +374,8 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
-**Status (2026-09-25): 4a, 4a′, 4b-1 and 4b-2a COMPLETE / INTEGRATED. 4b-2b and 4c remain.**
+**Status (2026-10-05): 4a, 4a′, 4b-1, 4b-2a and 4b-2b COMPLETE / INTEGRATED. 4c remains;**
+**its handoff is `handoffs/01M4677SY7MNV0FA274DM87YME-wp6-phase4c-assembly-handoff.md`.**
 Phase 4 as a whole, and Gate 6, remain INCOMPLETE.
 - **4a′**, PR #296, merged at `dc04e8303a3217061015500ac4ff5f54a4872576`:
   `return_spec_01_partial` and `review_spec_01_partial`, with the closed
@@ -574,6 +575,11 @@ table:
     PASS (W11 §4.5);
   - the complete public path reaches an accepted project-use result that records the Spike;
   - the stuck start (PR #298 known limit 7) is asserted in 4b-2b, as Stephen decided on 2026-09-24.
+- **4b-2b integrated.** PR #309 merged at `e7b8f1da` (2026-10-03). Its tree is the certified candidate
+  `253b2e0e` plus main's #310 and #308 files, which #309 does not touch. A running Spike is returned,
+  independently reviewed and decided, and the complete path reaches an accepted project-use result that
+  records the Spike. Review round 1 extended decision 2 to predicate evidence. Schema-validator reuse merged
+  separately as #310 (`8792fe8a`).
 - **Test-cost decisions (P-058, 2026-10-01).** Measured first: the route's cost is ledger
   replay repeated within one invocation, not git. 4b-2b adds a replay cache for one coordinator
   operation. Schema-validator reuse is a separate PR. Certification runs between 02:00 and
