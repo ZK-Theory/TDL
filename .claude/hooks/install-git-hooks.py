@@ -104,6 +104,30 @@ def foreign_hooks_problem(hooks_dir: Path) -> str | None:
     )
 
 
+def untracked_hooks_problem(hooks_dir: Path, configured: str) -> str | None:
+    """Return a problem when the active hook directory is anything but this checkout's tracked ``.githooks``.
+
+    ``foreign_hooks_problem`` only asks whether the directory lies inside the tree, and ``.git/hooks``
+    does: with ``core.hooksPath`` unset git reads that untracked, per-clone directory, and every required
+    hook sitting there verified as live. A hook no commit ever reviewed is the 47-day dead-hook class run
+    backwards (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups, PR #302). The only directory
+    whose bytes are versioned, reviewed and identical in every clone and worktree is the tracked one.
+    """
+    tracked = (REPO_ROOT / ".githooks").resolve()
+    if hooks_dir.resolve() == tracked:
+        return None
+    if not configured:
+        fix = "uv run python .claude/hooks/install-git-hooks.py --install"
+        reads = f"core.hooksPath is unset, so git reads {hooks_dir} (untracked and per-clone)"
+    else:
+        fix = hookspath_remedy(REPO_ROOT)
+        reads = f"core.hooksPath={configured} makes git read {hooks_dir}"
+    return (
+        f"active hook directory {hooks_dir} is not the tracked .githooks directory ({tracked}): {reads}. "
+        f"Hooks there are not versioned or reviewed, and a clone or worktree does not receive them. Fix: {fix}"
+    )
+
+
 def hookspath_remedy(checkout: Path) -> str:
     """Return the command that clears a foreign core.hooksPath in the config scope that set it.
 
@@ -211,6 +235,12 @@ def verify(install: bool = False) -> int:
     if foreign:
         print("\nFAIL — the hook gate is not this checkout's:", file=sys.stderr)
         print(f"  - {foreign}", file=sys.stderr)
+        return 1
+
+    untracked = untracked_hooks_problem(hooks_dir, configured)
+    if untracked:
+        print("\nFAIL — the hook gate is not the tracked one:", file=sys.stderr)
+        print(f"  - {untracked}", file=sys.stderr)
         return 1
 
     if not hooks_dir.is_dir():
