@@ -522,7 +522,9 @@ def test_changed_retry_legacy_store_and_inert_object_fail_closed(tmp_path) -> No
     changed = deepcopy(bootstrap)
     changed["publication_grant"]["expires_at"] = "2026-07-14T00:00:00Z"
     changed["publication_grant_sha256"] = sha256_hex(canonical_bytes(changed["publication_grant"]))
-    with pytest.raises(ConflictError, match="bootstrap"):
+    # Since #208 the origin witness reserved by the first initialization binds its bootstrap
+    # hash, and it is the check that refuses a changed retry.
+    with pytest.raises(ConflictError, match="origin witness does not match initializer request"):
         initialize_authority_control_store(
             [tmp_path / "repo"],
             control_root,
@@ -1403,7 +1405,8 @@ def test_cli_store_init_schema_authority_stops_before_unmaterialized_origin_pins
 @pytest.mark.parametrize(
     "authority_kind, message",
     [
-        ("changed", "schema root binding mismatch"),
+        # The reserved origin witness binds the schema root (#208), so it refuses this retry first.
+        ("changed", "origin witness does not match initializer request"),
         ("unregistered", "registered code root"),
         ("wrong_suffix", "registered code root"),
         ("missing", "existing directory"),
