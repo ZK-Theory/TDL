@@ -755,3 +755,26 @@ def test_pre_commit_admits_a_detached_head(tmp_path: Path) -> None:
     completed = _run_hook(repo, env)
 
     assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_when_a_detached_head_moves_to_another_commit_while_the_gates_run(tmp_path: Path) -> None:
+    """The second read compared symbolic refs only, and a detached HEAD has none: A to B passed as 'unchanged'.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #300): another session moving a
+    detached HEAD to a different commit mid-gate landed this commit on the new base unseen.
+    """
+    repo, env = _branch_fixture_repo(tmp_path, "fixture-branch")
+    seed = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    tree = _git(repo, "rev-parse", "HEAD^{tree}").stdout.strip()
+    other = _git(repo, "commit-tree", tree, "-p", seed, "-m", "other").stdout.strip()
+    _git(repo, "checkout", "-q", "--detach")
+    _write_fake_interpreter(
+        repo, f'  *run_staged_contract_gate.py*) git -C "$HOOK_TEST_REPO" update-ref --no-deref HEAD {other} ;;'
+    )
+
+    completed = _run_hook(repo, env)
+
+    assert completed.returncode == 1, completed.stderr
+    assert "HEAD moved while the gates ran" in completed.stderr

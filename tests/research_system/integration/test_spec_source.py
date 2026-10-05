@@ -91,6 +91,7 @@ def test_remote_fetch_with_master_branch(source_repo, monkeypatch):
         assert raw == b"exact source\r\n"
 
 
+@pytest.mark.slow
 def test_source_registration_holds_writer_lock_through_rejection(bound_source, source_repo, monkeypatch):
     from research_system.errors import ArsError
     from research_system.store.lock import CompositeWriterLock, WriterLockContentionError
@@ -137,6 +138,7 @@ def test_source_registration_holds_writer_lock_through_rejection(bound_source, s
     read_document(artefact_id, objects=coordinator.objects, schemas=coordinator.schemas, ledger=coordinator.ledger)
 
 
+@pytest.mark.slow
 def test_source_registration_refuses_a_ledger_that_moved_after_derivation(
     bound_source, source_repo, tmp_path, capsys, monkeypatch
 ):
@@ -331,6 +333,7 @@ def invoke_cli(bound, tmp_path, capsys, intent, verb, grant, actor=None):
     return json.loads(capsys.readouterr().out)
 
 
+@pytest.mark.slow
 def test_public_advance_status_registration_and_replay(bound_source, source_repo, tmp_path, capsys):
     bound = bound_source
     intent = source_intent(source_repo)
@@ -408,6 +411,7 @@ def test_public_advance_status_registration_and_replay(bound_source, source_repo
     assert replayed["registration"] == completed["registration"] and replayed["state"] == "completed"
 
 
+@pytest.mark.slow
 def test_correction_publication_failures_and_governed_backup(bound_source, source_repo, tmp_path, capsys, monkeypatch):
     from research_system.artefacts.authority import ArtefactAuthorityContractLoader
     from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJECT
@@ -685,6 +689,11 @@ def test_source_failure_classification_and_action_contract(source_repo, monkeypa
         "approve_spec_02": ("RegisterArtefact",),
         "prepare_spec_02": ("RegisterArtefact",),
         "start_spec_02": ("RegisterSpikePlan", "ProposeSpikeExecutionDecision", "ResolveDecision", "StartSpike"),
+        "return_spec_02_complete": ("RegisterArtefact", "RecordSpikeVerdict"),
+        "return_spec_02_partial": ("RegisterArtefact", "RecordSpikeVerdict"),
+        "review_spec_02_complete": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "review_spec_02_partial": ("RequestDiscoveryOutcomeReview", "ReviewDiscoveryOutcome"),
+        "decide_spec_02": ("ProposePromotionDecision", "ResolveDecision"),
     }
 
     def timed_out(*args, **kwargs):

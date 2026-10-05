@@ -355,3 +355,189 @@ def test_a_file_new_since_the_base_is_reported_not_skipped(repo: Path) -> None:
 
     assert result.returncode == 1
     assert "NEW         tools/b.py" in result.stdout
+
+
+def test_an_unreadable_brief_is_a_failed_check_not_a_traceback(repo: Path) -> None:
+    """A mistyped path or a non-UTF-8 file raised from ``read_text`` and printed a traceback.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): the failure must be a check
+    result a dispatch can read, naming the file.
+    """
+    missing = _check(repo, repo.parent / "no-such-brief.md")
+    binary = repo.parent / "binary-brief.md"
+    binary.write_bytes(b"\xff\xfe\x00 not utf-8 \x80")
+    undecodable = _check(repo, binary)
+
+    for result, name in ((missing, "no-such-brief.md"), (undecodable, "binary-brief.md")):
+        assert result.returncode == 1, result.stderr
+        assert "Traceback" not in result.stderr, result.stderr
+        assert "cannot read brief" in result.stderr and name in result.stderr
+
+
+def test_the_dispatch_gate_reports_an_unreadable_brief_as_a_failed_check(repo: Path) -> None:
+    """The same unreadable brief must fail the named dispatch check, not raise through the Manager's run."""
+    from shared.manager_dispatch_check import check_brief_paths
+
+    check = check_brief_paths(repo.parent / "no-such-brief.md", repo, "main")
+
+    assert not check.ok
+    assert "cannot read brief" in check.detail
+
+
+def test_branch_qualification_is_tried_before_the_suffix_suggestion(repo: Path) -> None:
+    """A citation that names the branch holding it was rejected because a same-named file lives deeper on main.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): the suffix suggestion ran
+    first and ``continue``d, so the branch-qualified reading never got a turn.
+    """
+    (repo / "vendor" / "docs").mkdir(parents=True)
+    (repo / "vendor" / "docs" / "h2.md").write_text("vendored\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "vendored copy on main")
+    _git(repo, "checkout", "-q", "docs/handoff")
+    (repo / "docs" / "h2.md").write_text("second handoff\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "h2 on the branch")
+    _git(repo, "checkout", "-q", "main")
+
+    qualified = _check(repo, _brief(repo, "Read `docs/h2.md` from branch `docs/handoff`.\n"))
+    unqualified = _check(repo, _brief(repo, "Read `docs/h2.md`.\n"))
+
+    assert qualified.returncode == 0, qualified.stderr
+    assert unqualified.returncode == 1
+    assert "cite the full path (vendor/docs/h2.md)" in unqualified.stderr, "the suggestion survives, last"
+
+
+def test_branch_discovery_reads_the_brief_relative_reading(repo: Path) -> None:
+    """The branch lookup used the root reading alone, so a brief-relative citation was 'on no branch at all'.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    brief = repo / "docs" / "notes" / "brief.md"
+    brief.parent.mkdir()
+    brief.write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "brief")
+    _git(repo, "checkout", "-q", "-b", "docs/notes-branch")
+    (repo / "docs" / "notes" / "sub").mkdir()
+    (repo / "docs" / "notes" / "sub" / "h3.md").write_text("beside the brief\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "h3 beside the brief, on a branch")
+    _git(repo, "checkout", "-q", "main")
+    brief.write_text("Read `sub/h3.md`.\n", newline="\n")
+
+    result = _check(repo, brief)
+
+    assert result.returncode == 1
+    assert "sub/h3.md: absent from main; present on docs/notes-branch" in result.stderr, result.stderr
+
+
+def test_every_branch_holding_the_path_is_named_not_only_those_containing_its_last_commit(repo: Path) -> None:
+    """``branch --contains <last commit>`` named only branches descended from the newest touch of the path."""
+    for name in ("alpha", "beta"):
+        _git(repo, "checkout", "-q", "-b", name, "main")
+        (repo / "docs" / "d.md").write_text(f"written on {name}\n", newline="\n")
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "--no-verify", "-m", f"d on {name}")
+    _git(repo, "checkout", "-q", "main")
+
+    result = _check(repo, _brief(repo, "Read `docs/d.md`.\n"))
+
+    assert result.returncode == 1
+    assert "alpha" in result.stderr and "beta" in result.stderr, result.stderr
+
+
+def test_an_ignored_citation_is_checked_against_every_reading(repo: Path) -> None:
+    """The ignore and existence tests used the root reading alone, so an ignored file beside the brief failed.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    brief = repo / "docs" / "notes" / "brief.md"
+    brief.parent.mkdir()
+    (repo / ".gitignore").write_text("docs/notes/*.csv\n", newline="\n")
+    brief.write_text("x\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "brief and ignore rule")
+    brief.write_text("Input: `local-data.csv`.\n", newline="\n")
+
+    missing = _check(repo, brief)
+    (repo / "docs" / "notes" / "local-data.csv").write_text("x\n", newline="\n")
+    present = _check(repo, brief)
+
+    assert missing.returncode == 1
+    assert "git-ignored, never tracked, and not present" in missing.stderr, missing.stderr
+    assert present.returncode == 0, present.stderr
+
+
+def test_a_vault_citation_cannot_escape_the_vault_root(repo: Path, tmp_path: Path) -> None:
+    """``vault_root / "../x"`` resolved outside the vault, so any file on disk satisfied a vault citation.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305).
+    """
+    vault = tmp_path / "vault"
+    (vault / "04-Methods").mkdir(parents=True)
+    (vault / "04-Methods" / "log.md").write_text("log\n", newline="\n")
+    (tmp_path / "outside.md").write_text("not in the vault\n", newline="\n")
+
+    def run(text: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(BRIEF_PATHS), str(_brief(repo, text)), "--ref", "main", "--repo-root", str(repo)]
+            + ["--vault-root", str(vault)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    escaping = run("Read `../outside.md` and `04-Methods/../../outside.md`.\n")
+    inside = run("Read `04-Methods/log.md` and `04-Methods/../04-Methods/log.md`.\n")
+
+    assert escaping.returncode == 1, escaping.stdout
+    assert "outside.md" in escaping.stderr
+    assert inside.returncode == 0, inside.stderr
+
+
+def test_a_type_comment_change_is_not_equivalent(repo: Path) -> None:
+    """Type comments are annotations to type checkers, and ``ast.parse`` drops them unless asked to keep them.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305): a formatter or codemod that
+    rewrote ``# type: int`` to ``# type: str`` was reported EQUIVALENT.
+    """
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[int]\n", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "--no-verify", "-m", "typed")
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[str]\n", newline="\n")
+
+    changed = _equivalence(repo, "tools/t.py")
+    (repo / "tools" / "t.py").write_text("x = []  # type: list[int]\n", newline="\n")
+    unchanged = _equivalence(repo, "tools/t.py")
+
+    assert changed.returncode == 1, changed.stdout
+    assert "CHANGED     tools/t.py" in changed.stdout
+    assert unchanged.returncode == 0, "positive control: the identical comment is still equivalent"
+
+
+def test_a_subheading_under_deliverables_stays_inside_the_output_section(repo: Path) -> None:
+    """Any heading ended the section, so paths listed under a ``###`` subheading were refused as prerequisites.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #305). A heading of the same or a
+    higher level still ends it.
+    """
+    nested = (
+        "## Deliverables\n\n### Result files\n\n- `results/h2_2026-09-26.json`\n\n#### Tests\n\n- `tests/test_new.py`\n"
+    )
+    ended = "## Deliverables\n\n- `results/h2.json`\n\n## Context\n\nSee `results/never.json`.\n"
+
+    assert _check(repo, _brief(repo, nested)).returncode == 0
+    after = _check(repo, _brief(repo, ended))
+    assert after.returncode == 1, "positive control: a same-level heading ends the output section"
+    assert "results/never.json" in after.stderr and "results/h2.json" not in after.stderr
+
+
+def test_a_heading_fragment_does_not_hide_a_citation(repo: Path) -> None:
+    """``#`` is not a path character, so ``docs/missing.md#background`` was never checked at all."""
+    present = _check(repo, _brief(repo, "See `docs/plan.md#background`.\n"))
+    missing = _check(repo, _brief(repo, "See `docs/never-written.md#background`.\n"))
+
+    assert present.returncode == 0, present.stderr
+    assert missing.returncode == 1
+    assert "docs/never-written.md: absent from main and from every branch" in missing.stderr

@@ -31,8 +31,13 @@ on:
   #   * *resolving* a thread moves the check from failure to success, so it
   #     cannot admit silently -- re-run the check once threads carry a disposition;
   #   * *reopening* a resolved thread moves it the other way, from success to
-  #     blocked. That IS silent, and merge-admission-sweep.yml closes it on a
-  #     5-minute schedule by dequeuing the pull request and re-running this check.
+  #     blocked. That IS silent, and merge-admission-sweep.yml closes it by dequeuing
+  #     the pull request and re-running this check. Its `*/5` schedule fires about
+  #     every four hours (measured; see that file's header), not every five minutes.
+  # There is deliberately no `issue_comment` trigger here: that event's run is attached to
+  # the default branch's latest commit, not the pull request head, so it could never
+  # replace the head's check. Comments wake merge-admission-sweep.yml instead, which
+  # re-runs the head's own run.
   pull_request_review_comment:
     types: [created, edited, deleted]
   merge_group:

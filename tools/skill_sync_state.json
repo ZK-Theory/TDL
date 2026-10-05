@@ -12,7 +12,7 @@
     "SKILL.md": "86296694503feb21e337ac907e09315dc46fcc325140a97abae8ee1ccae03c6a"
   },
   "contract-first-tdd": {
-    "SKILL.md": "eecae0d27736bb8f2390581c3b6145b327ee1e4cb5256f92e8305c29969edb9e"
+    "SKILL.md": "a9ed38b18b0d747f1a37407ac6272b153e1704d0f76af1452c59972b2059f6c3"
   },
   "executing-plans-extras": {
     "SKILL.md": "5adf72546f4eca1498dad0282acf15833cf8e2fdf623bc528d7b03e9f361d338",
@@ -123,7 +123,7 @@
     "SKILL.md": "bfa53899ad55ff83e75839b8f28797bf027a7c38e5fcc67fd0c415d0a094be4f"
   },
   "tda-large-workflow-supervision": {
-    "SKILL.md": "6f45bf4a0f54782a9ba03eda4750db22ba0698a5a6f7f84aebaa17664657f5b9"
+    "SKILL.md": "45d02bacb13948ebc5efbc38b4c179ffa595e39778e841da7ad57c29808b4701"
   },
   "tda-learning-scaffold": {
     "SKILL.md": "b0778f0c820139e718f67bf258e97d2dd02900a3e78126aaf97f5f81c46cebf8"
@@ -150,7 +150,7 @@
     "SKILL.md": "44370b1ec16a014ca1c655b62d9258638cf1516121e46bdee26b551e3bf7d5b1"
   },
   "tda-resource-preflight": {
-    "SKILL.md": "fa24b4638375f6ce13266052d2c955a65b593fb33b06dbd59ae7224ebbc26440"
+    "SKILL.md": "4be9e047fe73226b6cafa922d756077ded2941cba2d95df9f2c17966904fb3c8"
   },
   "tda-scenario-stress-test": {
     "SKILL.md": "3c3267aad5b495a7d5868486756c0532fec1a8d8bacc7e475ea71305cdc9f546"
@@ -177,7 +177,7 @@
     "SKILL.md": "196ab58f1d44a3fc3d82d99a8e95cb1087c5917291adf1872a4c66eae37daa06"
   },
   "using-git-worktrees-extras": {
-    "SKILL.md": "ac5461bb8924c8abb5458c9f1bcd4054a370e3dd5a74e3e4806979b4f7d90166",
+    "SKILL.md": "89e755ea81798c0a57a2f4e4351d1d06cfb07ac24b50918fcd9abd8d6e962376",
     "agents/openai.yaml": "8f6b64afe9c1d5d729d83b90c31c356bc6ccfcf2ceb44f2aedc7de94e965024d"
   },
   "validate-topology": {

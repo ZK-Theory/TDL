@@ -142,6 +142,18 @@ def _split_leading_config(arguments: tuple[str, ...]) -> tuple[tuple[str, ...], 
     return arguments[:index], arguments[index:]
 
 
+_MAXIMUM_CAUSE_TEXT = 120
+
+
+def _describe_os_error(exc: OSError) -> str:
+    """Return one short line naming an ``OSError`` for an error message."""
+
+    text = " ".join(str(exc).split())
+    if len(text) > _MAXIMUM_CAUSE_TEXT:
+        text = f"{text[: _MAXIMUM_CAUSE_TEXT - 3]}..."
+    return f"OSError: {text}" if text else "OSError"
+
+
 def run_git(
     repository_root: Path,
     *arguments: str,
@@ -150,15 +162,22 @@ def run_git(
     timeout: int | float = 10,
     unavailable_message: str = "Git validation is unavailable",
 ) -> subprocess.CompletedProcess[Any]:
-    """Run one fixed Git command with portable output and failure semantics."""
+    """Run one fixed Git command with portable output and failure semantics.
+
+    Every refusal raises ``ConfigurationError`` whose message is the caller's
+    ``unavailable_message`` followed by the cause in parentheses, so that the
+    message alone separates the three refusals: ``(executable not found)``,
+    ``(OSError: <short text>)`` and ``(timed out after <timeout>s)``.  The
+    underlying exception stays chained as ``__cause__``, which callers read.
+    """
 
     if _GIT_EXECUTABLE is None:
-        raise ConfigurationError(unavailable_message)
+        raise ConfigurationError(f"{unavailable_message} (executable not found)")
     try:
         if not _GIT_EXECUTABLE.resolve(strict=True).is_file():
             raise OSError("Git executable is not a physical file")
     except OSError as exc:
-        error = ConfigurationError(unavailable_message)
+        error = ConfigurationError(f"{unavailable_message} ({_describe_os_error(exc)})")
         error.__cause__ = exc
         raise error
     try:
@@ -211,8 +230,12 @@ def run_git(
             text=text,
             timeout=timeout,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        error = ConfigurationError(unavailable_message)
+    except subprocess.TimeoutExpired as exc:
+        error = ConfigurationError(f"{unavailable_message} (timed out after {timeout:g}s)")
+        error.__cause__ = exc
+        raise error
+    except OSError as exc:
+        error = ConfigurationError(f"{unavailable_message} ({_describe_os_error(exc)})")
         error.__cause__ = exc
         raise error
 

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://portfolio/spec-02-operator-return",
+  "$comment": "The operator return of a bounded SPEC-02 Spike (P-058, 06s Phase 4b-2b, 2026-09-25). One W11 spike-verdict carries PASS, FAIL and PARTIAL, so one record serves both return actions: return_spec_02_complete records a PASS or FAIL verdict and return_spec_02_partial a PARTIAL one. The operator supplies the eleven W11 verdict judgements; the route derives the Spike, Candidate, Assay, plan and Attempt references, the operational provenance and the verdict artefact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_id",
+    "schema_version",
+    "document_type",
+    "intent",
+    "recorded_at",
+    "producer_actor_id",
+    "causal_prefix",
+    "route_id",
+    "brief",
+    "task",
+    "candidate",
+    "spike",
+    "operator_return",
+    "verdict_artifact",
+    "verdict_sha256",
+    "governed_code_subject"
+  ],
+  "properties": {
+    "schema_id": {"const": "ars://portfolio/spec-02-operator-return"},
+    "schema_version": {"const": "1.0.0"},
+    "document_type": {"const": "spec_02_operator_return"},
+    "intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "candidate_id"],
+      "properties": {
+        "action": {"enum": ["return_spec_02_complete", "return_spec_02_partial"]},
+        "candidate_id": {"type": "string", "pattern": "^obj_"}
+      }
+    },
+    "recorded_at": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "producer_actor_id": {"type": "string", "pattern": "^act_"},
+    "causal_prefix": {"$ref": "#/$defs/causal_prefix"},
+    "route_id": {"const": "SPEC-GATE6-RUN-V1"},
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artefact_id", "content_sha256", "event_id", "event_hash", "global_position"],
+      "properties": {
+        "artefact_id": {"type": "string", "pattern": "^art_"},
+        "content_sha256": {"$ref": "#/$defs/sha256"},
+        "event_id": {"type": "string", "pattern": "^evt_"},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "global_position": {"type": "integer", "minimum": 1}
+      }
+    },
+    "task": {"$ref": "#/$defs/task"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "spike": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spike_id"],
+      "properties": {
+        "spike_id": {"type": "string", "pattern": "^spk_"}
+      }
+    },
+    "operator_return": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "success_predicates",
+        "failure_predicates",
+        "kill_conditions",
+        "artefact_refs",
+        "validation_refs",
+        "completed_scope",
+        "unmet_scope",
+        "limitations",
+        "mechanical_recommendation",
+        "prohibited_inferences"
+      ],
+      "properties": {
+        "verdict": {"enum": ["PASS", "FAIL", "PARTIAL"]},
+        "success_predicates": {"type": "array"},
+        "failure_predicates": {"type": "array"},
+        "kill_conditions": {"type": "array"},
+        "artefact_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/record_ref"}},
+        "validation_refs": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/record_ref"}},
+        "completed_scope": {"type": "string", "minLength": 1},
+        "unmet_scope": {"type": "string", "minLength": 1},
+        "limitations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "mechanical_recommendation": {"enum": ["PROMOTE", "PARK", "KILL", "NONE"]},
+        "prohibited_inferences": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "verdict_artifact": {"$ref": "ars://portfolio/spike-verdict"},
+    "verdict_sha256": {"$ref": "#/$defs/sha256"},
+    "governed_code_subject": {"$ref": "#/$defs/governed_code_subject"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"intent": {"properties": {"action": {"const": "return_spec_02_complete"}}}}},
+      "then": {"properties": {"operator_return": {"properties": {"verdict": {"enum": ["PASS", "FAIL"]}}}}}
+    },
+    {
+      "if": {"properties": {"intent": {"properties": {"action": {"const": "return_spec_02_partial"}}}}},
+      "then": {"properties": {"operator_return": {"properties": {"verdict": {"const": "PARTIAL"}}}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "record_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "record_revision", "content_hash"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "record_revision": {"type": "integer", "minimum": 1},
+        "content_hash": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "event_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "event_hash", "global_position"],
+      "properties": {
+        "event_id": {"type": "string", "pattern": "^evt_"},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "global_position": {"type": "integer", "minimum": 1}
+      }
+    },
+    "causal_prefix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["global_position", "event_hash", "raw_prefix_sha256"],
+      "properties": {
+        "global_position": {"type": "integer", "minimum": 0},
+        "event_hash": {"$ref": "#/$defs/sha256"},
+        "raw_prefix_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "task_revision",
+        "attempt_id",
+        "dispatch_id",
+        "context_packet_id",
+        "code_identity",
+        "environment_fingerprint"
+      ],
+      "properties": {
+        "task_id": {"type": "string", "pattern": "^tsk_"},
+        "task_revision": {"type": "integer", "minimum": 1},
+        "attempt_id": {"type": "string", "pattern": "^att_"},
+        "dispatch_id": {"type": "string", "pattern": "^dsp_"},
+        "context_packet_id": {"type": "string", "pattern": "^ctx_"},
+        "code_identity": {"type": "string", "pattern": "^git:(sha1:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"},
+        "environment_fingerprint": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "revision", "content_sha256"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^obj_"},
+        "revision": {"type": "integer", "minimum": 1},
+        "content_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "governed_code_subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["binding_event", "event_type", "recovery_binding_sha256", "git_head", "git_tree"],
+      "properties": {
+        "binding_event": {"$ref": "#/$defs/event_ref"},
+        "event_type": {"enum": ["StoreBindingRepaired", "StoreBindingAdvanced"]},
+        "recovery_binding_sha256": {"$ref": "#/$defs/sha256"},
+        "git_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "git_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    }
+  }
+}

@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.1.0"
+  version: "1.2.1"
   tier: core
   lanes:
     - output-provenance
@@ -108,6 +108,11 @@ internals, so they survive refactors.
 - [ ] Contract binding + validation commands run green.
 - [ ] Output schema / provenance checks run if outputs changed.
 - [ ] No speculative generalisation added.
+- [ ] Correspondence table: one row per generated or contract-defined field
+      (admission and evaluator boundaries), each with a negative control.
+- [ ] Each red run's evidence names its test group, a nonzero executed count
+      and the asserted failure text.
+- [ ] The self-test questions below were answered from the record.
 
 ## Escalate Or Stop When
 
@@ -153,7 +158,10 @@ role name or contract claimed:
   generator constructs and an evaluator binds, write one row naming the
   construction rule, the evaluator check, and one negative control. An evaluator
   that re-validates only the fields it would itself have set wrongly trusts the
-  rest.
+  rest. The table has a row for every generated or contract-defined field:
+  enumerate the fields from the contract or the generator's output, never from
+  the ones the evaluator happens to check, so a field with no row is visible as a
+  gap rather than absent from the list.
 - **Refusals precede the first irreversible effect.** For a multi-effect action,
   list which refusal must fire before which durable write. A correct refusal
   placed after a durable mutation strands the subject.
@@ -188,7 +196,10 @@ role name or contract claimed:
   expected assertion or refusal text appears in the failure. Exit 1 is shared by a
   failing test, a test that never ran, and a missing interpreter, so confirm the
   test executed (JUnit `tests >= 1`, or the run's final summary line) before
-  reading its exit code.
+  reading its exit code. Red evidence names the test group and a nonzero
+  executed count: the selection run (file or node ids), the count it executed
+  (`N failed`, N at least 1) and the asserted failure text, so "0 tests ran" can
+  never stand in for a watched failure.
 
 **Manager acceptance.** Before accepting Success on a task that touches an admission
 or evaluator boundary, confirm that these controls are in place: each negative control
@@ -198,3 +209,14 @@ derivations and cross-route evidence are re-asserted against the owning record; 
 hash-bound rule references are shown to be evaluated. (This item lives here, not in
 `research-assurance-triage`: that skill's bytes are pinned by the accepted WP6.3 private
 assurance pack, and changing them needs a superseding contract revision.)
+
+## Self-test before handing back
+
+Answer each from the record, not from memory, before reporting the work done:
+
+- Which generated or contract-defined field has no row in the correspondence
+  table? Name it, or show the field list the table was checked against.
+- For each negative control, which layer refused it, and what held every upstream
+  layer constant so none refused first?
+- For each red run, what are the test group, the executed count and the failure
+  text? Could any of them have been a run where nothing executed?
