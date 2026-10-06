@@ -39,7 +39,12 @@ _NOW = datetime(2026, 8, 24, 12, 0, tzinfo=UTC)
 
 
 def _git(root: Path, *arguments: str) -> None:
-    subprocess.run(["git", "-C", str(root), *arguments], check=True, capture_output=True)
+    """Run git in ``root``; on failure raise with git's own stderr instead of a bare exit status."""
+    result = subprocess.run(["git", "-C", str(root), *arguments], capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise AssertionError(
+            f"git {' '.join(arguments)} failed in {root} (exit {result.returncode}): {result.stderr.strip()}"
+        )
 
 
 def _git_text(root: Path, *arguments: str) -> str:
@@ -60,6 +65,8 @@ def _candidate(tmp_path: Path) -> Path:
     _git(root, "config", "user.email", "gate6@example.invalid")
     _git(root, "config", "user.name", "Gate 6")
     _git(root, "config", "core.autocrlf", "false")
+    # Copied schema paths reach 118 characters; a deep --basetemp otherwise passes 260.
+    _git(root, "config", "core.longpaths", "true")
     _git(root, "remote", "add", "origin", "https://example.invalid/gate6.git")
     _git(root, "add", ".")
     _git(root, "commit", "-m", "candidate")

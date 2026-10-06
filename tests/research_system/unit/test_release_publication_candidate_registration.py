@@ -120,7 +120,7 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
 
     class StoredEvidence:
         def __init__(self, **kwargs):
-            pass
+            self.authority_snapshot = kwargs.get("authority_snapshot")
 
         def resolve_evaluation_runs(self, reference):
             assert reference == manifest_ref
@@ -137,7 +137,11 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
     for stream in streams.values():
         stream["use_authority"] = "accepted_for_scope"
     monkeypatch.setattr(cli, "StoredReleasePublicationEvidence", StoredEvidence)
-    monkeypatch.setattr(cli, "build_artefact_consumers", lambda binding: object())
+    # #270: the resolver now captures one authority snapshot from the consumers and threads it
+    # through, so the consumer stub must offer that capture.
+    authority_snapshot = SimpleNamespace(events=())
+    consumers = SimpleNamespace(capture_authority_snapshot=lambda: authority_snapshot)
+    monkeypatch.setattr(cli, "build_artefact_consumers", lambda binding: consumers)
 
     resolver, resumed_manifest_ref, resumed_control_ref, pending = cli._publication_evidence(
         binding,
@@ -148,5 +152,6 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
     )
 
     assert isinstance(resolver, StoredEvidence) and pending is False
+    assert resolver.authority_snapshot is authority_snapshot
     assert (resumed_manifest_ref, resumed_control_ref) == (manifest_ref, control_ref)
     assert len(registrations) == 2

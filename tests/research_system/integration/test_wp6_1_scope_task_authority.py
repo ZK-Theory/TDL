@@ -100,11 +100,15 @@ def _restarted_service(harness, *, clock=None):
 
 
 def _separate_authority_resolver(harness) -> LedgerAuthorityGrantResolver:
+    # Resolvers require the approved origin witness since #208 (73d1e2a9); without it every
+    # resolution stops at authority_bootstrap_required before the behaviour under test.
     return LedgerAuthorityGrantResolver(
         harness.authority_root,
         PROJECT_ID,
         harness.authority_resolver.expected_store_identity,
         harness.schemas,
+        approved_witness=harness.authority_resolver.approved_witness,
+        approved_witness_path=harness.authority_resolver.approved_witness_path,
     )
 
 
@@ -946,6 +950,9 @@ def test_foreign_resolver_binding_cannot_consume_valid_projection(tmp_path):
         PROJECT_ID,
         "f" * 64,
         harness.schemas,
+        # Same approved witness, so the refusal comes from the foreign store identity itself.
+        approved_witness=harness.authority_resolver.approved_witness,
+        approved_witness_path=harness.authority_resolver.approved_witness_path,
     )
     resolution = _direct_create_task_resolution(harness, grant_id)
     valid_projection = resolver._projection()
@@ -1562,7 +1569,12 @@ def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
     service.release_lock_timeout_seconds = 1.0
     service._monotonic = lambda: 0.0
     service._lock_wait = lambda _seconds: None
+    # Mirror every moved-restore default CommandService.__init__ sets (#208 added the last four).
     service._restore_source_root = None
+    service._restore_approved_witness = None
+    service._restore_approved_witness_path = None
+    service._restore_preflight_result = None
+    service._restore_preflight_rechecker = None
     service._restore_admission_sequence_lock = threading.RLock()
     snapshot = SimpleNamespace(global_position=0, event_hash="0" * 64)
     service.ledger = SimpleNamespace(snapshot=lambda: snapshot)
