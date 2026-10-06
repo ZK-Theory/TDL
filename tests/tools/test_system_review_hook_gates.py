@@ -208,6 +208,63 @@ def test_dispatch_hook_gate_refuses_a_worktree_whose_hooks_live_in_another_check
     assert check_hook_gate(worktree).ok
 
 
+def _legacy_hooks_repo(tmp_path: Path, hooks_path: str | None) -> Path:
+    """A clone whose ACTIVE hook directory is an in-tree directory other than the tracked `.githooks`.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #302): the foreign-checkout rule only asks whether the
+    active hook directory lies inside the tree, so an unset ``core.hooksPath`` (git then reads the
+    untracked, per-clone ``.git/hooks``) with every required hook sitting there still verified.
+    That is the 47-day dead-hook class run backwards: a present, executable hook that no commit
+    ever reviewed.
+    """
+    repo = _hook_repo(tmp_path, configure=False)
+    names = ("pre-commit", "pre-push", "commit-msg", "prepare-commit-msg")
+    if hooks_path is None:
+        target = repo / ".git" / "hooks"
+    else:
+        _git(repo, "config", "core.hooksPath", hooks_path)
+        target = repo / hooks_path
+    target.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        hook = target / name
+        hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        hook.chmod(0o755)
+    return repo
+
+
+@pytest.mark.parametrize("hooks_path", [None, ".git/hooks", "other-hooks"])
+def test_install_git_hooks_refuses_an_active_hook_directory_that_is_not_the_tracked_one(
+    tmp_path: Path, monkeypatch, capsys, hooks_path: str | None
+) -> None:
+    """Every required hook is present and executable there, so the old check passed; none is tracked."""
+    module = _installer_module()
+    repo = _legacy_hooks_repo(tmp_path, hooks_path)
+
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+    assert module.verify() == 1
+    assert "not the tracked .githooks" in capsys.readouterr().err
+
+    _git(repo, "config", "--local", "core.hooksPath", ".githooks")
+    assert module.verify() == 0, "positive control: the tracked .githooks directory is the one git reads"
+
+
+@pytest.mark.parametrize("hooks_path", [None, ".git/hooks", "other-hooks"])
+def test_dispatch_hook_gate_refuses_an_active_hook_directory_that_is_not_the_tracked_one(
+    tmp_path: Path, hooks_path: str | None
+) -> None:
+    """manager_dispatch_check's hook-gate must apply the same rule before a dispatch."""
+    from shared.manager_dispatch_check import check_hook_gate
+
+    repo = _legacy_hooks_repo(tmp_path, hooks_path)
+
+    refused = check_hook_gate(repo)
+    assert not refused.ok
+    assert "not the tracked .githooks" in refused.detail
+
+    _git(repo, "config", "--local", "core.hooksPath", ".githooks")
+    assert check_hook_gate(repo).ok, "positive control: the tracked .githooks directory is the one git reads"
+
+
 def _apply(command: str) -> None:
     subprocess.run(shlex.split(command), check=True, capture_output=True, text=True)
 

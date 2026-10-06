@@ -365,6 +365,7 @@ def test_route_identities_are_deterministic_uuidv7_and_subject_bound():
                                                                                        second["assay_id"]}  # fmt: skip
 
 
+@pytest.mark.slow
 def test_public_bootstrap_and_assay_request_positive_path(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=ASSAY_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -413,6 +414,7 @@ def test_public_bootstrap_and_assay_request_positive_path(tmp_path, monkeypatch,
     assert states[spec_assay.GENESIS] == states[spec_assay.BAR] == states[spec_assay.REQUEST] == "completed"
 
 
+@pytest.mark.slow
 def test_route_refuses_the_role_collapses_that_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=ASSAY_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -456,6 +458,7 @@ def test_route_refuses_the_role_collapses_that_admission_accepts(tmp_path, monke
         assert _direct(bound, "RequestAssay", payload["assay_id"], payload, actor, human=human) == "accepted"
 
 
+@pytest.mark.slow
 def test_admission_accepts_the_bootstrap_role_collapses_the_route_refuses(tmp_path, monkeypatch, capsys):
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=ASSAY_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -482,6 +485,7 @@ def test_admission_accepts_the_bootstrap_role_collapses_the_route_refuses(tmp_pa
         coordinator.status(BAR_INTENT)
 
 
+@pytest.mark.slow
 def test_route_refuses_a_foreign_effect_on_a_partial_bar_before_appending(tmp_path, monkeypatch, capsys):
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=ASSAY_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -614,6 +618,7 @@ def _seed_task_naming(bound, candidate_id: str, monkeypatch, *, also_naming=(), 
     return _seed_bound_task(bound, outcome=outcome)
 
 
+@pytest.mark.slow
 def test_public_spec_01_path_reaches_an_accepted_project_use_result(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -736,6 +741,7 @@ def test_public_spec_01_path_reaches_an_accepted_project_use_result(tmp_path, mo
     assert result["project_use_decision"]["spike"] is None
 
 
+@pytest.mark.slow
 def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -934,6 +940,7 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     assert _direct(bound, "ProposePromotionDecision", other_decision, proposal, PRODUCER) == "accepted"
 
 
+@pytest.mark.slow
 def test_operator_record_bytes_are_reused_only_when_they_rederive(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -980,6 +987,7 @@ def test_operator_record_bytes_are_reused_only_when_they_rederive(tmp_path, monk
         coordinator.status(spec_01_intent(spec_assay.PREPARE, foreign_candidate))
 
 
+@pytest.mark.slow
 def test_orphaned_record_bytes_are_refused_once_their_prerequisites_lapse(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1011,6 +1019,7 @@ def test_orphaned_record_bytes_are_refused_once_their_prerequisites_lapse(tmp_pa
     assert coordinator.status(prepare_intent)["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1052,6 +1061,7 @@ def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypa
     assert coordinator.status(return_intent)["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1075,6 +1085,7 @@ def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, mo
     assert coordinator.status(prepare_intent)["state"] == "not_started"
 
 
+@pytest.mark.slow
 def test_the_producer_return_is_compared_as_canonical_json(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1107,6 +1118,7 @@ def test_the_producer_return_is_compared_as_canonical_json(tmp_path, monkeypatch
                                               evidence=substituted, refused=True), actor  # fmt: skip
 
 
+@pytest.mark.slow
 def test_operator_record_registration_refuses_a_ledger_that_moved_after_derivation(
     tmp_path,
     monkeypatch,
@@ -1181,6 +1193,7 @@ def _unevaluated_axis_bar() -> dict[str, bytes]:
     }
 
 
+@pytest.mark.slow
 def test_promote_is_refused_while_the_bar_has_an_unevaluated_axis(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False,
                                repository_overrides=_unevaluated_axis_bar())  # fmt: skip
@@ -1235,6 +1248,7 @@ PARTIAL_ARTEFACT_FIELDS = (
 )
 
 
+@pytest.mark.slow
 def test_public_spec_01_partial_path_ends_at_a_reviewed_partial_assay(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1356,6 +1370,7 @@ def _partial_request(candidate_id: str, assay_id: str, review_id: str, digest: s
     }
 
 
+@pytest.mark.slow
 def test_spec_01_partial_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1577,6 +1592,7 @@ def _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch) -> tupl
     return candidate_id, ids
 
 
+@pytest.mark.slow
 def test_public_revisit_and_retry_reach_a_promoted_second_assay(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1669,6 +1685,7 @@ def test_public_revisit_and_retry_reach_a_promoted_second_assay(tmp_path, monkey
     assert states == dict.fromkeys(lineage, "completed")
 
 
+@pytest.mark.slow
 def test_revisit_and_retry_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     candidate_id, first = _reviewed_partial(bound, tmp_path, capsys, source_repo, monkeypatch)
@@ -1809,6 +1826,7 @@ def _direct_reviewed_partial(bound, number: int) -> tuple[str, str, str]:
     return candidate_id, assay_id, review_id
 
 
+@pytest.mark.slow
 def test_admission_accepts_the_revisit_and_retry_collapses_the_route_refuses(
     tmp_path,
     monkeypatch,
