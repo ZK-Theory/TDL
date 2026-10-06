@@ -1,0 +1,195 @@
+name: Research System Suite
+
+# The research_system suite had no CI lane after the unfiltered Linux `test` job was removed
+# on 2026-09-11, and a full run at 54808984 on 2026-10-02 found 195 failures on main. Most
+# traced to PRs that changed a shared seam and ran only the tests beside it (obs
+# 2026-10-03-shared-seam-change-merged-without-its-dependents). This workflow runs:
+#
+#   * nightly and on demand: every research_system test file;
+#   * on pull requests: the files the diff can affect (tools/affected_research_tests.py).
+#
+# Either selection is split into duration-balanced shards (tools/research_system_shards.py).
+# Each shard passes only if every failure is listed in tools/research_system_known_failures.txt
+# and no listed entry passes (tools/research_system_baseline.py), so the list can only shrink.
+#
+# `live_store` tests read the operator's live control store, which no runner has; they stay
+# local-only. Windows only, like every job in this repository (decided 2026-09-11).
+# Advisory for now: making these checks required is a ruleset edit and Stephen's decision.
+
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-system-suite-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SHARDS: "8"
+
+jobs:
+  # The lane's own controls: selection, sharding and the baseline each carry a negative
+  # control, so a selector that silently selects nothing cannot pass here.
+  ci-tools:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
+
+      - name: Run the research_system CI tool controls
+        run: >-
+          .venv/Scripts/python.exe -m pytest -q
+          tests/tools/test_research_system_ci_tools.py
+          --junitxml=ci-tools.xml
+          -o "addopts=" -p no:cacheprovider -p no:cov
+
+      - name: Refuse skipped or absent controls
+        run: .venv/Scripts/python.exe tools/assert_no_skips.py ci-tools.xml
+
+  select:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    outputs:
+      count: ${{ steps.select.outputs.count }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Select the test files to run
+        id: select
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            python tools/affected_research_tests.py --base "origin/$BASE_REF" > selection.txt
+          else
+            python tools/research_system_shards.py --of 1 --shard 1 > selection.txt
+          fi
+          count="$(grep -c . selection.txt || true)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          {
+            echo "### research_system selection ($EVENT): $count files"
+            sed 's/^/- /' selection.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the selection for the shards
+        uses: actions/upload-artifact@v4
+        with:
+          name: selection
+          path: selection.txt
+
+  suite:
+    needs: select
+    # A pull request that affects no research_system test selects nothing and runs no shard.
+    if: needs.select.outputs.count != '0'
+    runs-on: windows-latest
+    # The heaviest shard took about 57 minutes on the operator machine; hosted runners are slower.
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+
+    steps:
+      # Several tests build nested Git repositories past the 260-character Windows path limit.
+      - name: Allow long paths in Git
+        run: git config --global core.longpaths true
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install uv package manager
+        run: pip install uv
+
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked --extra dev
+
+      - name: Fetch the selection
+        uses: actions/download-artifact@v4
+        with:
+          name: selection
+
+      - name: Pick this shard's files
+        id: shard
+        run: |
+          set -euo pipefail
+          python tools/research_system_shards.py --of "$SHARDS" --shard ${{ matrix.shard }} --files selection.txt > shard.txt
+          echo "count=$(grep -c . shard.txt || true)" >> "$GITHUB_OUTPUT"
+          cat shard.txt
+
+      # Exit 1 means tests failed, which the baseline step judges. Any other nonzero exit
+      # (interrupted, internal error, usage error, nothing collected) is not a test outcome.
+      # GitHub runs `shell: bash` with -e, so the status is captured with `||` rather than
+      # read after the command, and shard.txt's CRLF endings (Windows Python) are stripped.
+      - name: Run this shard
+        if: steps.shard.outputs.count != '0'
+        run: |
+          set -uo pipefail
+          mapfile -t files < <(tr -d '\r' < shard.txt)
+          status=0
+          .venv/Scripts/python.exe -m pytest -q "${files[@]}" \
+            -m "not live_store" \
+            -o "addopts=--strict-markers --tb=short" -p no:cacheprovider -p no:cov \
+            --basetemp "$RUNNER_TEMP/bt" --junitxml=shard.xml || status=$?
+          if [ "$status" -gt 1 ]; then
+            echo "pytest exited $status, which is not a test outcome" >&2
+            exit "$status"
+          fi
+
+      - name: Hold the shard to the known-failures baseline
+        if: steps.shard.outputs.count != '0'
+        run: >-
+          .venv/Scripts/python.exe tools/research_system_baseline.py
+          --baseline tools/research_system_known_failures.txt shard.xml
+
+      - name: Keep the shard report
+        if: always() && steps.shard.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-shard-${{ matrix.shard }}
+          path: shard.xml
+          if-no-files-found: warn

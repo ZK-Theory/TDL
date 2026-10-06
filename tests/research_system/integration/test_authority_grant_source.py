@@ -38,6 +38,7 @@ from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     REPO_ROOT,
+    approved_foundation,
     create_task_command,
 )
 
@@ -82,6 +83,39 @@ def _code_root(tmp_path, name: str = "repo"):
         root / ".research-system" / "schemas",
     )
     return root
+
+
+def _approve(monkeypatch, tmp_path, foundation_root, code_roots, control_root, identity, *, schema_root=None):
+    """Make a test store the canonical approved foundation (see factories.approved_foundation)."""
+    return approved_foundation(
+        monkeypatch,
+        foundation_root / ".research-system" / "config" / "foundation.yaml",
+        code_roots=code_roots,
+        control_root=control_root,
+        store_identity=identity,
+        witness=identity.witness,
+        witness_path=identity.witness_path,
+        schema_root=schema_root or code_roots[0] / ".research-system" / "schemas",
+        origin_authority_root=identity.witness_path.parent.parent,
+    )
+
+
+def _unmaterialized_origin_foundation(monkeypatch, tmp_path):
+    """Pin a canonical foundation whose origin pins are still placeholders.
+
+    These tests assert that store initialization stops before using unmaterialized origin
+    pins. They used to rely on the repository's foundation being unmaterialized, which stopped
+    being true on 2026-08-05 (#218), so the precondition is now written explicitly.
+    """
+    path = tmp_path / "unmaterialized-foundation" / ".research-system" / "config" / "foundation.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "origin_authority_root: TBD\norigin_witness_path: TBD\norigin_witness_sha256: TBD\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: path)
+    monkeypatch.setattr("research_system.cli.canonical_foundation_path", lambda: path)
+    return path
 
 
 def _resolver(
@@ -524,7 +558,9 @@ def test_changed_retry_legacy_store_and_inert_object_fail_closed(tmp_path) -> No
     changed = deepcopy(bootstrap)
     changed["publication_grant"]["expires_at"] = "2026-07-14T00:00:00Z"
     changed["publication_grant_sha256"] = sha256_hex(canonical_bytes(changed["publication_grant"]))
-    with pytest.raises(ConflictError, match="bootstrap"):
+    # Since #208 the origin witness reserved by the first initialization binds its bootstrap
+    # hash, and it is the check that refuses a changed retry.
+    with pytest.raises(ConflictError, match="origin witness does not match initializer request"):
         initialize_authority_control_store(
             [tmp_path / "repo"],
             control_root,
@@ -1332,6 +1368,7 @@ def test_cli_store_init_requires_materialized_canonical_origin_pins(tmp_path, mo
         )(),
     )
     control_root = tmp_path / "control"
+    _unmaterialized_origin_foundation(monkeypatch, tmp_path)
     with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
@@ -1398,6 +1435,7 @@ def test_cli_store_init_schema_authority_stops_before_unmaterialized_origin_pins
         str(bootstrap_path),
     ]
 
+    _unmaterialized_origin_foundation(monkeypatch, tmp_path)
     with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(init_args)
     assert not control_root.exists()
@@ -1406,7 +1444,8 @@ def test_cli_store_init_schema_authority_stops_before_unmaterialized_origin_pins
 @pytest.mark.parametrize(
     "authority_kind, message",
     [
-        ("changed", "schema root binding mismatch"),
+        # The reserved origin witness binds the schema root (#208), so it refuses this retry first.
+        ("changed", "origin witness does not match initializer request"),
         ("unregistered", "registered code root"),
         ("wrong_suffix", "registered code root"),
         ("missing", "existing directory"),
@@ -1504,6 +1543,7 @@ def test_cli_store_init_stops_before_manifest_replay_without_materialized_origin
         )(),
     )
     control_root = tmp_path / "control"
+    _unmaterialized_origin_foundation(monkeypatch, tmp_path)
     with pytest.raises(ConfigurationError, match="approved origin_authority_root must be a materialized value"):
         main(
             [
@@ -1522,7 +1562,7 @@ def test_cli_store_init_stops_before_manifest_replay_without_materialized_origin
     assert not control_root.exists()
 
 
-def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path) -> None:
+def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path, monkeypatch) -> None:
     explicit_root = tmp_path / "explicit"
     linked_root = tmp_path / "linked"
     for root in (explicit_root, linked_root):
@@ -1540,6 +1580,7 @@ def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path)
         authority_bootstrap_sha256(bootstrap),
         canonical_schema_root=explicit_root / ".research-system" / "schemas",
     )
+    _approve(monkeypatch, tmp_path, explicit_root, [explicit_root, linked_root], control_root, identity)
     binding_path = tmp_path / "binding.yaml"
     binding_path.write_text(
         json.dumps(
@@ -1561,8 +1602,10 @@ def test_control_binding_rejects_schema_root_that_disagrees_with_store(tmp_path)
         ControlBinding.load(binding_path)
 
 
-def test_control_binding_reports_unavailable_configured_schema_root(tmp_path) -> None:
+def test_control_binding_reports_unavailable_configured_schema_root(tmp_path, monkeypatch) -> None:
     control_root, _, identity = _initialized(tmp_path)
+    code_root = tmp_path / "repo"
+    _approve(monkeypatch, tmp_path, code_root, [code_root], control_root, identity)
     binding_path = tmp_path / "binding.yaml"
     binding_path.write_text(
         json.dumps(
@@ -1581,7 +1624,7 @@ def test_control_binding_reports_unavailable_configured_schema_root(tmp_path) ->
         ControlBinding.load(binding_path)
 
 
-def test_control_binding_reports_missing_manifest_schema_root(tmp_path) -> None:
+def test_control_binding_reports_missing_manifest_schema_root(tmp_path, monkeypatch) -> None:
     explicit_root = _code_root(tmp_path, "explicit")
     linked_root = _code_root(tmp_path, "linked")
     control_root = tmp_path / "control"
@@ -1593,6 +1636,17 @@ def test_control_binding_reports_missing_manifest_schema_root(tmp_path) -> None:
         bootstrap,
         authority_bootstrap_sha256(bootstrap),
         canonical_schema_root=explicit_root / ".research-system" / "schemas",
+    )
+    _approve(
+        monkeypatch,
+        tmp_path,
+        linked_root,
+        [explicit_root, linked_root],
+        control_root,
+        identity,
+        # The foundation approves the binding's (linked) schema root; the store manifest's
+        # (explicit) root is the one removed below, which is the condition under test.
+        schema_root=linked_root / ".research-system" / "schemas",
     )
     shutil.rmtree(explicit_root / ".research-system" / "schemas")
     binding_path = tmp_path / "binding.yaml"
@@ -1630,6 +1684,12 @@ def test_cli_command_submit_stops_without_materialized_canonical_foundation(tmp_
     )
     command_path = tmp_path / "revoke.json"
     command_path.write_bytes(canonical_bytes(_revoke_command(CMD_REVOKE)))
+    # The canonical foundation is the operator's file; this test pins an unmaterialized one.
+    unmaterialized = tmp_path / "repo" / ".research-system" / "config" / "foundation.yaml"
+    unmaterialized.parent.mkdir(parents=True, exist_ok=True)
+    unmaterialized.write_text("schema_version: '1.0.0'\n", encoding="utf-8")
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: unmaterialized)
+    monkeypatch.setattr("research_system.cli.canonical_foundation_path", lambda: unmaterialized)
     monkeypatch.setattr(
         "research_system.cli._authority_clock",
         lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),

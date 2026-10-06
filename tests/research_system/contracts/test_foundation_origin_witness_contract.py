@@ -1,10 +1,16 @@
 from pathlib import Path
 
+import pytest
 import yaml
 
 from research_system.config import ApprovedProjectBinding
 
 
+# This contract deliberately loads the operator's live control store through the committed
+# foundation. It is the check that caught the live store pinning a schema root inside a deleted
+# disposable worktree (2026-10-02). Off the operator machine it cannot pass, so lanes there
+# deselect it with -m "not live_store"; on the operator machine a failure is a real finding.
+@pytest.mark.live_store
 def test_foundation_materializes_approved_external_control_and_origin() -> None:
     path = Path(__file__).resolve().parents[3] / ".research-system" / "config" / "foundation.yaml"
     value = yaml.safe_load(path.read_text(encoding="utf-8"))
