@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -16,6 +17,7 @@ from research_system.errors import ArsError, ConfigurationError, ConflictError, 
 from research_system.ids import new_id
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.binding_service import (
+    _candidate_evidence,
     ADVANCE_COMMAND_SCHEMA_ID,
     AdvanceStoreBinding,
     RepairStoreBinding,
@@ -530,3 +532,43 @@ def test_public_intent_readers_report_invalid_files_as_configuration(reader, tmp
     schema_invalid.write_bytes(canonical_bytes({}))
     with pytest.raises(ConfigurationError):
         reader(schema_invalid)
+
+
+def _bare_candidate(root: Path) -> Path:
+    root.mkdir(parents=True)
+    (root / ".research-system" / "schemas").mkdir(parents=True)
+    (root / ".research-system" / "schemas" / "keep.txt").write_text("x\n", encoding="utf-8")
+    _git(root, "init", "-b", "main")
+    _git(root, "config", "user.email", "gate6@example.invalid")
+    _git(root, "config", "user.name", "Gate 6")
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "candidate")
+    return root.resolve()
+
+
+def _evidence_intent(root: Path) -> SimpleNamespace:
+    return SimpleNamespace(candidate_repository_root=root, intended_schema_root=root / ".research-system" / "schemas")
+
+
+def test_binding_refuses_a_candidate_in_a_linked_worktree(tmp_path: Path) -> None:
+    """The store's schema root becomes the candidate's; a linked worktree can be swept from under it.
+
+    Obs 2026-10-03-tests-and-live-store-bound-to-machine-state.
+    """
+    main = _bare_candidate(tmp_path / "main")
+    _git(main, "worktree", "add", "-q", str(tmp_path / "linked"))
+    linked = (tmp_path / "linked").resolve()
+
+    with pytest.raises(ConfigurationError, match="disposable checkout.*linked Git worktree"):
+        _candidate_evidence(_evidence_intent(linked))
+    # Positive control: the main checkout passes this check and fails later, on the missing route package.
+    with pytest.raises(ArsError) as caught:
+        _candidate_evidence(_evidence_intent(main))
+    assert "disposable" not in str(caught.value)
+
+
+def test_binding_refuses_a_candidate_under_an_agent_worktree_directory(tmp_path: Path) -> None:
+    candidate = _bare_candidate(tmp_path / ".claude" / "worktrees" / "goofy")
+
+    with pytest.raises(ConfigurationError, match=r"disposable checkout.*\.claude/worktrees"):
+        _candidate_evidence(_evidence_intent(candidate))
