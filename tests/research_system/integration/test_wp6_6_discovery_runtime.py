@@ -3350,7 +3350,7 @@ def test_assay_partial_review_revisit_and_retry_run_through_public_seam(tmp_path
     [("PASS", "OR-018"), ("PARTIAL", "OR-019"), ("FAIL", "OR-018")],
 )
 def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provider_execution(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, spike_verdict: str, verdict_row: str
+    tmp_path: Path, spike_verdict: str, verdict_row: str
 ) -> None:
     runtime = _runtime(tmp_path)
     candidate_id = "obj_019fed25-b33e-7740-b280-6f661aaeff68"
@@ -4706,7 +4706,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         with pytest.raises(IntegrityError, match=message):
             replay_discovery(_rehash_events(cross_namespace))
         if guard is not None:
-            with monkeypatch.context() as isolated:
+            with pytest.MonkeyPatch.context() as isolated:
                 _isolate_discovery_driver(isolated)
                 with pytest.raises(IntegrityError, match=guard):
                     replay_discovery(_rehash_events(cross_namespace))
@@ -4738,7 +4738,7 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         # isolate the driver so the Discovery verdict guard itself must fire.
         with pytest.raises(IntegrityError):
             replay_discovery(_rehash_events(events))
-        with monkeypatch.context() as isolated:
+        with pytest.MonkeyPatch.context() as isolated:
             _isolate_discovery_driver(isolated)
             with pytest.raises(IntegrityError, match="invalid Discovery review verdict$"):
                 replay_discovery(_rehash_events(events))
