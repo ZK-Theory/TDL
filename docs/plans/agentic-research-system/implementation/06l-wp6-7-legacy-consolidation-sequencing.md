@@ -1,5 +1,16 @@
 # 06l — WP6.7 Legacy Consolidation Sequencing
 
+<!-- retirement-scope:
+retired: []
+note: >
+  The 2026-08-22 banner retires a class of statement spread across this document -- every
+  Gate 6 definition, preflight, dispatch, Jira and closure instruction -- rather than any
+  contiguous span, and the document remains the live WP6.7/Gate 7 sequencing boundary.
+  Declaring an empty scope records that no passage here is retired prose. PROVISIONAL:
+  whether the diffuse Gate 6 statements should instead be gathered into a quotable span
+  is an editorial decision for Stephen, not settled by this declaration.
+-->
+
 **Date:** 2026-08-01
 **Status:** sequencing document; no transition, migration, cutover, deprecation, retirement, or dispatch is authorised
 **Authority:** P-026/P-034, the accepted WP6 plan, P-042, and the exact current Git/Jira evidence recorded below

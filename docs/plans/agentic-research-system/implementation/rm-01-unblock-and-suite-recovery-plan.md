@@ -6,6 +6,17 @@
 > measurement after 06h has merged. Read PR198-F3 from the PR #198 pre-merge
 > review before starting.
 
+<!-- retirement-scope:
+retired: []
+note: >
+  The superseded item named in the Status field is an obligation, not a passage: the
+  historical pre-06h comparison cannot be recreated because its mandated freeze was never
+  recorded. The current-universe accounting, append-path family manifest, negative
+  controls, quality configuration and live smoke gate all remain required work, so no span
+  of this plan is retired prose. PROVISIONAL: if Task A is later closed as unrecoverable,
+  its span should be quoted and listed here.
+-->
+
 **Integrated owner:** WP6.1 / KAN-65 under P-047. This is not a separate RM
 delivery or completion lane.
 

@@ -1,5 +1,18 @@
 # P-049 — Gate 6 control model (historical baseline)
 
+<!-- retirement-scope:
+retired:
+  - "### G6 - Gate 6 closure (historical SCALE-01 application; superseded)"
+  - "## Historical Gate 6 register (2026-08-13; superseded by 06q)"
+  - "## Historical Jira operation (2026-08-13; non-operative and superseded by 06q)"
+note: >
+  P-049's accepted distinction among merge admission, capability integration and closure
+  control remains live, as does the remote-enforcement analysis. What is retired is this
+  document's SCALE-01 closure application and its 2026-08-13 Jira operation, both
+  superseded by 06q and in turn by 06s. Those spans are quoted so no reader can take the
+  register or the Jira sequence as a current instruction.
+-->
+
 **Decision chronology:** Accepted 2026-08-16; current application amended
 2026-08-22.<br>
 **Status:** Accepted distinction retained; the historical SCALE-01 closure
@@ -140,78 +153,78 @@ plans, and reviews remain typed milestones or evidence, never an unqualified
 completion state.
 
 ### G6 - Gate 6 closure (historical SCALE-01 application; superseded)
-
+>
 > The following SCALE-01 eligibility-envelope application is historical P-049
 > text. It is retained for provenance and is not a current Gate 6 closure
 > prerequisite. The current closure route is 06q, whose real-run target is the
 > already recorded SPEC evidence followed by integrated implementation, a fresh
 > bounded run, replay/recovery proof, independent review, and Stephen's owner
 > decision.
-
-**Question:** may KAN-12 be marked complete as the first-release Gate 6
-capability?
-
-The answer is **yes** only after one final assembled candidate binds and proves
-all of the following together:
-
-1. WP6.1 remains integrated at the final assembled public lifecycle seam
-   (KAN-65 / PR #243 evidence).
-2. WP6.4 remains integrated at the owner-operated brief-out/evidence-back,
-   restart/replay, backup, and restore-verification seam (KAN-57 / PR #242
-   evidence).
-3. WP6.6's real Discovery genesis and non-mutating TDA-scale dossier admission
-   remain integrated (KAN-59 / PR #248 evidence). That admission proves its
-   operation did not write; it does not itself grant an OS- or
-   capability-enforced read-only pilot root.
-4. A **new immutable SCALE-01 eligibility envelope** consumes, rather
-   than rewrites, the accepted WP6.6 expected-set identity, final cardinality,
-   dossier-admission result, and registered roots. It is an **eligibility
-   envelope**, not a package: its schema permits only exact identities/hashes
-   of the already admitted package, admission event, and root-grant evidence,
-   plus the narrow eligibility verdict. It must not add, replace, or supply a
-   package member. Those are explicit pre-registered expected values/invariants,
-   not values inferred or rewritten at run time. An unset value, unavailable
-   root or grant, mismatch, skipped check, or non-pass fails closed and leaves
-   KAN-12 `INCOMPLETE`. Changing an expected baseline requires a new envelope
-   and fresh exact-subject review and owner reapproval. The envelope is not
-   added back into the already accepted dossier expected set, so the two
-   artifacts cannot form a content-address cycle. Before it can return
-   `dispatchable: true`, each input root must have an OS- or capability-enforced
-   read-only grant/mount bound by exact identity; the old write-capable checkout
-   is not sufficient. The negative selection must prove that a writable,
-   missing, substituted, or expired root grant fails closed without issuing the
-   eligibility verdict. The envelope retains `execution_authorized: false` and
-   preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5, or
-   WP6.6 admission bytes.
-5. One named final Gate 6 assembled test selection exercises the coupled public
-   seams and the new eligibility envelope's decisive tamper/no-partial-state
-   negatives.
-   It includes `tools/certify_wp6_6_real_dossier.ps1` (or an accepted exact
-   equivalent) against the designated real roots with
-   `TDL_REQUIRE_REAL_DOSSIER=1`. Missing roots, a real-dossier skip, or a
-   non-pass fails G6 closed. It is run once at final candidate head. A broad
-   repository suite is not a substitute for this selection.
-6. One fresh independent exact-subject review covers the assembled candidate,
-   including the new eligibility envelope. Stephen then makes one final Gate 6 owner
-   decision over that exact subject.
-
-The final decision may accept the new eligibility envelope and assembled evidence together;
-it must not manufacture a separate review/acceptance loop merely because the
-eligibility envelope exists. D-G6-5 remains historical acceptance of v1.0.3,
-not a shortcut around the new exact subject.
-
-`dispatchable: true` at G6 means only that the governed eligibility envelope makes
-SCALE-01 eligible for a later, separately authorized operator-mediated pilot
-dispatch. It does not create a provider call, launch an external session,
-execute research, or change `execution_authorized: false`. Those remain a
-subsequent owner action outside Gate 6 closure. This is the precise
-reconciliation of the historical Gate 6 definition with the accepted WP6.6
-non-dispatchable dossier-admission boundary.
-
-Passing G6 is a readiness decision only. It does not start a pilot, execute a
-provider call, accept returned research content, or authorize a result or
-claim.
-
+>
+> **Question:** may KAN-12 be marked complete as the first-release Gate 6
+> capability?
+>
+> The answer is **yes** only after one final assembled candidate binds and proves
+> all of the following together:
+>
+> 1. WP6.1 remains integrated at the final assembled public lifecycle seam
+>    (KAN-65 / PR #243 evidence).
+> 2. WP6.4 remains integrated at the owner-operated brief-out/evidence-back,
+>    restart/replay, backup, and restore-verification seam (KAN-57 / PR #242
+>    evidence).
+> 3. WP6.6's real Discovery genesis and non-mutating TDA-scale dossier admission
+>    remain integrated (KAN-59 / PR #248 evidence). That admission proves its
+>    operation did not write; it does not itself grant an OS- or
+>    capability-enforced read-only pilot root.
+> 4. A **new immutable SCALE-01 eligibility envelope** consumes, rather
+>    than rewrites, the accepted WP6.6 expected-set identity, final cardinality,
+>    dossier-admission result, and registered roots. It is an **eligibility
+>    envelope**, not a package: its schema permits only exact identities/hashes
+>    of the already admitted package, admission event, and root-grant evidence,
+>    plus the narrow eligibility verdict. It must not add, replace, or supply a
+>    package member. Those are explicit pre-registered expected values/invariants,
+>    not values inferred or rewritten at run time. An unset value, unavailable
+>    root or grant, mismatch, skipped check, or non-pass fails closed and leaves
+>    KAN-12 `INCOMPLETE`. Changing an expected baseline requires a new envelope
+>    and fresh exact-subject review and owner reapproval. The envelope is not
+>    added back into the already accepted dossier expected set, so the two
+>    artifacts cannot form a content-address cycle. Before it can return
+>    `dispatchable: true`, each input root must have an OS- or capability-enforced
+>    read-only grant/mount bound by exact identity; the old write-capable checkout
+>    is not sufficient. The negative selection must prove that a writable,
+>    missing, substituted, or expired root grant fails closed without issuing the
+>    eligibility verdict. The envelope retains `execution_authorized: false` and
+>    preserves the provider-free boundary. It does not mutate v1.0.3, D-G6-5, or
+>    WP6.6 admission bytes.
+> 5. One named final Gate 6 assembled test selection exercises the coupled public
+>    seams and the new eligibility envelope's decisive tamper/no-partial-state
+>    negatives.
+>    It includes `tools/certify_wp6_6_real_dossier.ps1` (or an accepted exact
+>    equivalent) against the designated real roots with
+>    `TDL_REQUIRE_REAL_DOSSIER=1`. Missing roots, a real-dossier skip, or a
+>    non-pass fails G6 closed. It is run once at final candidate head. A broad
+>    repository suite is not a substitute for this selection.
+> 6. One fresh independent exact-subject review covers the assembled candidate,
+>    including the new eligibility envelope. Stephen then makes one final Gate 6 owner
+>    decision over that exact subject.
+>
+> The final decision may accept the new eligibility envelope and assembled evidence together;
+> it must not manufacture a separate review/acceptance loop merely because the
+> eligibility envelope exists. D-G6-5 remains historical acceptance of v1.0.3,
+> not a shortcut around the new exact subject.
+>
+> `dispatchable: true` at G6 means only that the governed eligibility envelope makes
+> SCALE-01 eligible for a later, separately authorized operator-mediated pilot
+> dispatch. It does not create a provider call, launch an external session,
+> execute research, or change `execution_authorized: false`. Those remain a
+> subsequent owner action outside Gate 6 closure. This is the precise
+> reconciliation of the historical Gate 6 definition with the accepted WP6.6
+> non-dispatchable dossier-admission boundary.
+>
+> Passing G6 is a readiness decision only. It does not start a pilot, execute a
+> provider call, accept returned research content, or authorize a result or
+> claim.
+>
 ## Currency monitor
 
 The current monitor remains exactly the P-048 C-1 control. The repository
@@ -230,32 +243,32 @@ proposal is adopted; it cannot be made required until a real, bounded green
 baseline exists.
 
 ## Historical Gate 6 register (2026-08-13; superseded by 06q)
-
-The statuses and GitHub configuration in this table are live observations as at
-2026-08-13, not claims that Jira/GitHub state is content-addressed by
-`9fb53f53`.
-
-| Canonical object / immutable evidence | Live observed state (2026-08-13) | Consequence |
-| --- | --- | --- |
-| KAN-65 / WP6.1; PR #243 evidence | `INTEGRATED` | prerequisite evidence, not an open work lane |
-| KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
-| KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
-| KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; the residual `Blocks` edge `10194` to KAN-12 is explicitly labelled `link-reconciliation-required` and non-authoritative in KAN-61 | no open WP6.7 delivery remains; remove the stale structured edge before final KAN-12 transition rather than treating it as a revived functional blocker |
-| KAN-12 / Gate 6 | `INCOMPLETE — NOT RUNNABLE` | the final capability has no current eligibility-envelope entry point, assembled proof, fresh independent review, or owner closure decision; construction may begin, but Gate 6 itself is not runnable |
-| GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
-
-The real remaining functional gap recorded at that historical subject was:
-
+>
+> The statuses and GitHub configuration in this table are live observations as at
+> 2026-08-13, not claims that Jira/GitHub state is content-addressed by
+> `9fb53f53`.
+>
+> | Canonical object / immutable evidence | Live observed state (2026-08-13) | Consequence |
+> | --- | --- | --- |
+> | KAN-65 / WP6.1; PR #243 evidence | `INTEGRATED` | prerequisite evidence, not an open work lane |
+> | KAN-57 / WP6.4; v1.0.3/D-G6-5 accepted bytes | `INTEGRATED` | predecessor preflight stays immutable and non-dispatchable |
+> | KAN-59 / WP6.6; PR #248 evidence | `INTEGRATED` | supplies frozen expected-set/admission evidence; that dossier profile remains non-dispatchable |
+> | KAN-61 / Jira capability-control milestone | `[MILESTONE DONE]`; the residual `Blocks` edge `10194` to KAN-12 is explicitly labelled `link-reconciliation-required` and non-authoritative in KAN-61 | no open WP6.7 delivery remains; remove the stale structured edge before final KAN-12 transition rather than treating it as a revived functional blocker |
+> | KAN-12 / Gate 6 | `INCOMPLETE — NOT RUNNABLE` | the final capability has no current eligibility-envelope entry point, assembled proof, fresh independent review, or owner closure decision; construction may begin, but Gate 6 itself is not runnable |
+> | GitHub `main` configuration | no branch protection and no ruleset | no remote control currently prevents an unreviewed direct merge |
+>
+> The real remaining functional gap recorded at that historical subject was:
+>
 > **Construct and prove a new immutable eligibility envelope that binds the
 > integrated WP6.6 admission and read-only root grants, then prove the assembled
 > public seam through one final review and owner decision. The envelope may make
 > a pilot eligible; the pilot is not executed. Until that envelope has a real
 > public seam, Gate 6 is NOT RUNNABLE.**
-
-This historical eligibility-envelope statement is superseded. The current
-single campaign and its remaining functional gap are defined in 06q; SCALE-01
-is not a Gate 6 closure prerequisite.
-
+>
+> This historical eligibility-envelope statement is superseded. The current
+> single campaign and its remaining functional gap are defined in 06q; SCALE-01
+> is not a Gate 6 closure prerequisite.
+>
 ## Current control pointer
 
 Use [06q — Gate 6 Recovery and Closure Plan](06q-gate6-spec-real-run-integration-and-follow-up.md)
@@ -265,11 +278,11 @@ is historical PR #258 diagnostic evidence only. Gate 7 remains blocked on
 integrated Gate 6 and final closure evidence.
 
 ## Historical Jira operation (2026-08-13; non-operative and superseded by 06q)
-
+>
 > Do not execute any instruction in this section. It authorizes no Jira
 > mutation, child issue, dependency change, status transition, or Gate 6
 > action. Current Jira control and work decomposition are governed only by 06q.
-
+>
 ## Remote enforcement feasibility and choice
 
 This section is deliberately not yet applied. GitHub currently reports both
