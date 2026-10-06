@@ -28,8 +28,8 @@ artifacts:
   repository_path: .gitattributes
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: 2c71799535efcdf46828e7b94ebce4f7293a6586
-  raw_utf8_lf_sha256: 62662d62e9868fc3b09be298f239f8a84a399800d5cb9c0206a11616b5edd4f0
+  git_blob_id: 8213d721e44bc28b89079cddd5bd573a5dedaaf8
+  raw_utf8_lf_sha256: 655d2ac34f4ea214c7f0c8c2de04784b9b13d490e350713df8e4edf4127f520f
 - artifact_role: authority_catalogue
   repository_path: .research-system/contracts/wp6-2-t2-cost-grant-authority-catalogue.yaml
   canonical_schema_id: ars://contracts/wp6-2-t2-cost-grant-authority-catalogue
@@ -172,14 +172,14 @@ artifacts:
   repository_path: tests/research_system/contracts/wp6_2_t2_authority_validation.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: a9211047ebae89ab03bbb50030932724e01265fd
-  raw_utf8_lf_sha256: 55271b3a663d61ca7bc5ac0775d3547e22a4db1a6b75ad33976b393efb9fea46
+  git_blob_id: 607a6f9f1acd91ffbf3d7d9ad30f337873d4d428
+  raw_utf8_lf_sha256: 14b7a7cfe8252f371ad19293b8c25c61df26907f40187e56c84ab6830db0cf46
 - artifact_role: independent_oracle
   repository_path: tests/research_system/contracts/wp6_2_t2_expectations.py
   canonical_schema_id: null
   schema_version: null
-  git_blob_id: 3eb69499b896b235d28f9803c6a8a70f972e49fb
-  raw_utf8_lf_sha256: 6bf374af0f95c0834ad7b2473ebd3af58eea625ccf4b5669b75f3a3e89176f83
+  git_blob_id: 807a0d8a1eff8cc1435e64b84a21983b0d5bfbb1
+  raw_utf8_lf_sha256: 3e63488e4133890eb44b2eb156b73ebde53cfd5ea1ac1d57d61f6fdb0ed0edad
 - artifact_role: schema_materializer
   repository_path: tests/research_system/contracts/wp6_2_t2_schema_materializer.py
   canonical_schema_id: null
