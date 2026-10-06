@@ -38,10 +38,15 @@ Modes:
     sync_agent_skills.py --force-mirror  # overwrite MIRROR_EDITED skills
     sync_agent_skills.py --verify-state  # flag recorded != actual even when trees match
 
+Pack pins: in sync and --check modes, every skill an assurance pack under
+`.research-system/` pins by `repository_path` + `git_blob` must still have its
+pinned bytes; an edit to a pinned skill needs a superseding contract revision.
+
 Exit codes:
     0 — in step (or sync completed cleanly).
     1 — divergence found (--check) or unclassified skill, or missing RA markers,
-        or any MIRROR_EDITED skill detected (without --force-mirror).
+        or any MIRROR_EDITED skill detected (without --force-mirror), or a
+        pinned skill differs from its pack pin.
     2 — framework error (missing trees, bad invocation).
 """
 
@@ -552,6 +557,67 @@ def run_sync(
     return 1 if (any_failure or any_mirror_edited) else 0
 
 
+_PINNED_SKILL = re.compile(r"^\.agents/skills/([^/]+)/SKILL\.md$")
+
+
+def _pins(node: object):  # noqa: ANN202 - recursive generator over parsed YAML
+    """Yield every mapping that pins a skill file by ``repository_path`` and ``git_blob``."""
+    if isinstance(node, dict):
+        path, blob = node.get("repository_path"), node.get("git_blob")
+        if isinstance(path, str) and isinstance(blob, str) and _PINNED_SKILL.match(path):
+            yield path, blob
+        for value in node.values():
+            yield from _pins(value)
+    elif isinstance(node, list):
+        for value in node:
+            yield from _pins(value)
+
+
+def check_pack_pins(repo_root: Path) -> tuple[int, list[str]]:
+    """Return (pins checked, problems) for every skill an accepted pack pins under ``.research-system/``.
+
+    An assurance pack pins some skills by exact git blob, and any edit to one makes the pack unconsumable
+    until a superseding contract revision, which is an owner decision. The tree-identity check above never
+    sees that binding: #307 added eight lines to a pinned skill, Gate 0 passed, and 48 tests went red
+    (obs 2026-10-06-review-skill-edit-broke-a-pack-pinned-skill). The blob is computed over LF-normalised
+    bytes, which is the git blob in this LF-canonical repository whatever the checkout's line endings.
+    """
+    import yaml  # the main-checkout venv carries PyYAML; imported here so the mirror modes stay stdlib-only
+
+    checked = 0
+    problems: list[str] = []
+    for pack in sorted((repo_root / ".research-system").rglob("*.yaml")):
+        try:
+            parsed = yaml.safe_load(pack.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            problems.append(f"{pack.relative_to(repo_root)}: unreadable YAML, so its pins cannot be checked ({exc})")
+            continue
+        for path, blob in _pins(parsed):
+            checked += 1
+            where = f"{pack.relative_to(repo_root).as_posix()} pins {path} at {blob[:12]}"
+            skill = repo_root / path
+            if not skill.is_file():
+                problems.append(f"{where}, but the skill is missing")
+                continue
+            data = skill.read_bytes().replace(b"\r\n", b"\n")
+            actual = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+            if actual != blob:
+                problems.append(
+                    f"{where}, but the file is now {actual[:12]}. Restore the pinned bytes and put the new text in an "
+                    "unpinned skill, or get the owner's approval for a superseding contract revision that re-pins it."
+                )
+    return checked, problems
+
+
+def run_pin_check(repo_root: Path) -> int:
+    """Print the pack-pin result; 1 when any pinned skill differs from its pin."""
+    checked, problems = check_pack_pins(repo_root)
+    for problem in problems:
+        print(f"  PIN_DRIFT  {problem}", file=sys.stderr)
+    print(f"  pack pins: {checked} checked, {len(problems)} drifted")
+    return 1 if problems else 0
+
+
 def run_check_guides(repo_root: Path) -> int:
     """Presence-check RA markers in the Claude APM guides (not byte identity)."""
     guides_dir = repo_root / ".claude" / "apm-guides"
@@ -687,13 +753,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.verify_state:
         return run_verify_state(claude_skills, state_path)
 
-    return run_sync(
+    result = run_sync(
         agents_skills,
         claude_skills,
         check_only=args.check,
         state_path=state_path,
         force_mirror=args.force_mirror,
     )
+    # Mirroring cannot repair a pin, so the check runs in both modes: a sync that copies a pinned skill's
+    # edit into the mirror must not report success.
+    return max(result, run_pin_check(repo_root))
 
 
 if __name__ == "__main__":
