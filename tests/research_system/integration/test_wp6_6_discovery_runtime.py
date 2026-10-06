@@ -2018,6 +2018,22 @@ def test_genesis_read_failures_are_integrity_errors_and_atomic(
     assert tuple(runtime.ledger.iter_events()) == ()
 
 
+def _isolate_discovery_driver(monkeypatch) -> None:
+    """Bypass the shared ledger validation so a test reaches the Discovery driver's own guards.
+
+    Since #265 the shared replay schema-validates every event before the Discovery driver folds
+    it, so a malformed event is refused there first. The driver keeps its own payload guards as
+    defence in depth. Each guard test asserts the full refusal first, then calls this to prove
+    the guard itself still fires.
+    """
+    import research_system.discovery.replay.driver as driver
+    import research_system.projection.replay as shared_replay
+
+    monkeypatch.setattr(shared_replay, "_replay_shared_partitions", lambda *args, **kwargs: None)
+    monkeypatch.setattr(driver, "_validate_persisted_event_envelopes", lambda *args, **kwargs: None)
+    monkeypatch.setattr(driver, "validate_transaction_contract", lambda *args, **kwargs: None)
+
+
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
@@ -2025,20 +2041,30 @@ def test_genesis_read_failures_are_integrity_errors_and_atomic(
         ({"authority_event_type": "ReviewRequested"}, "requires authority_payload"),
     ],
 )
-def test_replay_rejects_malformed_payload_as_integrity_error(payload: object, message: str) -> None:
+def test_replay_rejects_malformed_payload_as_integrity_error(
+    payload: object, message: str, monkeypatch, tmp_path: Path
+) -> None:
+    # A real genesis comes first: the driver's authority-payload guard sits behind its
+    # "W11 genesis is required" guard.
+    runtime = _runtime(tmp_path)
+    runtime.submit(_genesis())
+    prefix = tuple(runtime.ledger.iter_events())
     event = {
         "event_type": "SpikePlanned",
         "command_type": "RegisterSpikePlan",
         "payload": payload,
-        "global_position": 1,
-        "previous_event_hash": "0" * 64,
+        "global_position": len(prefix) + 1,
+        "previous_event_hash": prefix[-1]["event_hash"],
     }
     event["event_hash"] = sha256_hex(canonical_bytes(event))
-    with pytest.raises(IntegrityError, match=f"schema provenance mismatch|{message}"):
-        replay_discovery((event,))
+    with pytest.raises(IntegrityError):
+        replay_discovery((*prefix, event))
+    _isolate_discovery_driver(monkeypatch)
+    with pytest.raises(IntegrityError, match=message):
+        replay_discovery((*prefix, event))
 
 
-def test_replay_rejects_unsupported_authority_event_type_as_integrity_error() -> None:
+def test_replay_rejects_unsupported_authority_event_type_as_integrity_error(monkeypatch) -> None:
     event = {
         "event_type": "CandidateRegistered",
         "command_type": "RequestW11AuthorityReview",
@@ -2048,10 +2074,10 @@ def test_replay_rejects_unsupported_authority_event_type_as_integrity_error() ->
         "previous_event_hash": "0" * 64,
     }
     event["event_hash"] = sha256_hex(canonical_bytes(event))
-    with pytest.raises(
-        IntegrityError,
-        match="schema provenance mismatch|unsupported W11 authority event type",
-    ):
+    with pytest.raises(IntegrityError):
+        replay_discovery((event,))
+    _isolate_discovery_driver(monkeypatch)
+    with pytest.raises(IntegrityError, match="unsupported W11 authority event type"):
         replay_discovery((event,))
 
 
@@ -2768,7 +2794,7 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
             )
             with pytest.raises(
                 IntegrityError,
-                match="schema provenance mismatch|invalid Discovery review verdict",
+                match="schema provenance mismatch|event schema validation failed|invalid Discovery review verdict",
             ):
                 replay_discovery(_rehash_events(events))
 
@@ -4641,6 +4667,9 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 match="invalid Discovery (?:decision proposal|decision resolution|revisit)",
             ):
                 replay_discovery(_rehash_events(tampered))
+    # An identity outside its namespace, or a verdict outside its shape, is refused by the event
+    # schema itself. Since #265 that schema layer runs in the shared replay, which words the
+    # refusal 'event schema validation failed'; the Discovery-specific alternatives remain.
     for event_type, producer_type, identity_field, message in (
         (
             "SpikePlanned",
@@ -4652,13 +4681,13 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             "DecisionProposed",
             "ProposePromotionDecision",
             "new_decision_id",
-            "schema provenance mismatch|invalid Discovery decision proposal|transaction stream mismatch",
+            "schema provenance mismatch|event schema validation failed|invalid Discovery decision proposal|transaction stream mismatch",
         ),
         (
             "ReviewRequested",
             "RequestDiscoveryOutcomeReview",
             "new_review_id",
-            "schema provenance mismatch|invalid Discovery review request|transaction stream mismatch",
+            "schema provenance mismatch|event schema validation failed|invalid Discovery review request|transaction stream mismatch",
         ),
     ):
         cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -4694,9 +4723,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if tampered_verdict == "approve_with_conditions"
             else []
         )
+        # A verdict outside the schema's shape is refused by the event schema, which since
+        # #265 runs in the shared replay and words it 'event schema validation failed'.
         with pytest.raises(
             IntegrityError,
-            match="schema provenance mismatch|invalid Discovery review verdict",
+            match="schema provenance mismatch|event schema validation failed|invalid Discovery review verdict",
         ):
             replay_discovery(_rehash_events(events))
 
