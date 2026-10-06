@@ -1995,6 +1995,120 @@ on the SPEC-02 start, under the stopping rule Stephen accepted for #298 on 2026-
     `5f78e5d0` rather than the latest round, and `# fmt: skip` is the house idiom that keeps
     them. Recorded as a follow-up, not a fix in this PR.
 
+**4b-2b design decisions (2026-09-25):** PR #298 merged at `764d8b9f`, whose tree equals the
+certified candidate `3dfe0456`. The 4b-2b design pass then measured the Spike's return, review
+and decision rows at `764d8b9f`: nineteen probes, each on its own scratch store with the Spike
+started, and one run from a Candidate the public SOURCE and SPEC-01 route promoted. Stephen
+accepted every recommendation.
+- **Measured admission.**
+  - OR-018 records a PASS or FAIL verdict from the producer, the steward, the owner or an
+    unrelated human, with the Lease expired, and after the Attempt has completed.
+  - OR-019 records a Partial verdict from the steward, and is refused once the Lease has
+    expired. It leaves the Attempt `partial` and the Lease `released`.
+  - A verdict citing an artefact whose manifest names another Attempt is recorded.
+  - OR-036 accepts the owner and the producer as the review requester. OR-020 refuses the
+    producer and the requester, and accepts the owner and an unrelated human.
+  - OR-026 accepts the owner, the reviewer, the steward and the producer as proposer. OR-027 is
+    owner-only and is not bound to the proposal: PROMOTE was selected after a PARK proposal,
+    and PARK was selected with no revisit triggers.
+  - Both rows apply the verdict truth table: after a FAIL with a triggered kill condition only
+    KILL, after a FAIL without one PARK or KILL, and after a PASS any option, including KILL.
+  - From the public Candidate, the complete Spike path ran through `close_task` to an accepted
+    project-use result that records the Spike.
+- **Decisions.**
+  1. **One return record.** A new closed `ars://portfolio/spec-02-operator-return` 1.0.0, with
+     its own object kind, serves both return actions: one W11 `spike-verdict` carries PASS, FAIL
+     and PARTIAL, and 06q gives both returns the same schema and version. Its verdict must
+     match the action. The two actions share the return and outcome-review identities, so the
+     alternative not taken conflicts, as in 4a′. The operator supplies the eleven W11 verdict
+     judgements; the route derives the Spike, Candidate, Assay, plan and Attempt references
+     and runs admission's own verdict rule before registration.
+  2. **The cited evidence comes from the Spike's own Attempt.** Every `artefact_refs` entry must
+     name the Spike's Attempt in its registered manifest. `validation_refs` keep admission's
+     type check only, so an independent validator may be cited. Every artefact that a success
+     predicate, failure predicate or kill condition cites as evidence must name the Spike's Attempt
+     too; a predicate may still cite a portfolio record (PR #309 review, 2026-10-02, Codex P1).
+  3. **A Partial return needs a live Lease.** Both Partial rows are held to a Lease that is live
+     at their trusted submission time, the rule the start rows have, and re-deriving a recorded
+     row consults no clock. The complete return needs no Lease. **Known limit:** a Lease that
+     expires between the two Partial rows leaves the return unrecordable, as for the start.
+  4. **The mechanical recommendation is evidence only** (W11 §4.4). The route adds no PROMOTE
+     condition beyond admission's verdict truth table. SPEC-01's check reads the recommendation
+     admission derives; for a Spike, the fact admission validates is the verdict.
+  5. **No KILL after a PASS.** W11 §4.5 requires a satisfied kill or failure condition for KILL,
+     and admission accepts a KILL proposal after a PASS, so the route refuses it at both OR-026
+     and OR-027.
+  6. **The complete public path reaches an accepted project-use result** through `close_task`,
+     closing PR #288's known limit that the Spike branch is tested at function level only.
+     **Phase 5 prep:** a Spike PROMOTE permits `adopt_default`, while the SPEC-02 contract says
+     no result supports a superiority or paper claim.
+  7. **The stuck start is asserted in 4b-2b (Stephen, 2026-09-24).** PR #298 known limit 7:
+     once the Lease expires between the start's rows, the route refuses the next row, the start
+     stays `prepared`, and a renewal is rejected as `lease_expired`, so the start cannot be
+     resumed.
+  8. **The four SPEC-02 test lines over 120 characters** are wrapped in 4b-2b, in their own
+     commit.
+- **Confirmed by measurement** (the 2026-09-18 bindings): the route records the verdict only from
+  the prospective producer; refuses the producer or the owner requesting the outcome review,
+  and the owner recording it; records only an approving review; and refuses the producer, the
+  reviewer or the owner proposing the decision. A PARK needs the owner's revisit triggers, as
+  for SPEC-01. A Partial Spike is terminal: `decide_spec_02` refuses it, so it reaches no
+  project-use result.
+- **Known limits:** a validation artefact's independence is not checked; the operator's
+  mechanical recommendation is not validated; nothing checks the accepted plan's
+  outcome-to-next-step mapping after a FAIL without a triggered kill condition; and OR-019
+  closes the Attempt as Partial, so its Task reaches no project-use result.
+
+**Test-cost decisions (2026-10-01):** the certifying packet for 4b-2b's candidate `bd5c971e`
+needed about a day of Stephen's machine, with single tests running for hours. Stephen stopped it
+on 2026-09-26. The route tests' cost had grown with every sub-phase since #291 and was recorded
+as a known limit, not escalated. It was measured before any fix was chosen.
+- **Measured.** These runs used scratch stores at `bd5c971e`, each one process, or eight on the
+  machine's eight performance cores. The simulated caches wrapped functions from outside the
+  code.
+  - The public SPEC-01 path test alone took 16m47s for 31 CLI invocations, on a ledger of at most
+    89 events. The cost of an invocation grew from 5 s to 115 s. Git was a flat 2.5 s per
+    invocation, 8% of the test.
+  - Replay was 78% of the time: 895 ledger replays, and 75% of their time repeated an event
+    list the same invocation had already replayed. Every replay re-loads every owner
+    administration decision from the object store (33,181 loads in the test), and
+    `SchemaRegistry.validate` rebuilds its reference registry and validator on each of its
+    152,875 calls.
+  - A replay cache for the route's own calls, one invocation's lifetime, plus validator
+    reuse, both simulated, cut the SPEC-02 refusals test from 7,395 s to 873 s of CPU (2h12m
+    to 17.6 minutes), the complete SPEC-02 path from 5,531 s to 2,219 s, and the SPEC-01 path
+    from 1,137 s to 608 s. Every assertion passed under each.
+  - Also loading each owner decision once per invocation took only 2 more points off the
+    SPEC-02 path.
+  - With both fixes simulated, the next cost is the store binding's revalidation. It runs about
+    five times per invocation, and each run re-checks the whole schema catalogue against the
+    bound Git subject: `git archive`, then a byte comparison of every schema file, 1.3 s each,
+    about 37% of what remains.
+- **Decisions (Stephen accepted every recommendation, 2026-10-01).**
+  1. **A route-side replay cache, in 4b-2b as its own commit.** Within one coordinator
+     operation (`status`, `advance` or `result`), the route replays an identical event list
+     once. The cache is keyed by the list's exact canonical bytes and the replay options,
+     every caller receives its own copy, and it ends with the operation. Admission, the
+     command service and the authority resolver keep their own replays, so no check moves
+     out from under the writer lock.
+  2. **Schema-validator reuse** in `SchemaRegistry.validate` goes in a separate PR, because it
+     is platform code outside P-058. 4b-2b does not depend on it.
+  3. **The owner-decision re-load stays.** Loading each decision once would weaken a
+     deliberate re-load for 2 points.
+  4. **The binding's schema-catalogue re-check stays (D5).** It is recorded as a Phase 5 prep
+     cost. Phase 5 runs on a fresh store (P-058, 2026-09-14), whose ledger is about as long as
+     the test stores', so live invocations cost about what the tests measure.
+  5. **Test restructuring is deferred**: a shared starting state, and mutation controls aimed
+     at smaller tests. It is revisited only if a budget fails.
+  6. **A time budget.**
+     - Certification runs only between 02:00 and 11:00, on 8 workers.
+     - A group over 60 minutes fails the packet's budget. The runner records the breach and
+       lets the group finish, so its evidence stands.
+     - The whole packet takes 5 hours or less.
+     - A test whose time rises by more than 25% from one sub-phase to the next goes in that
+       PR's decision table.
+     - The public-route tests that take minutes are marked `slow`.
+
 ## Decision protocol
 
 Each future decision entry must record:

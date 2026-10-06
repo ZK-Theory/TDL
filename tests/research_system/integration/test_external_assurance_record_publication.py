@@ -40,6 +40,7 @@ from research_system.store.identity import (
     load_store_origin_witness,
     origin_witness_path,
 )
+from research_system.store.anchor import TRANSACTION_GUARD_NAME
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -585,7 +586,18 @@ def _external_record_context(
 
 
 def _durable_files(root: Path) -> dict[str, bytes]:
-    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+    """Snapshot durable files, leaving out the empty transaction guard.
+
+    Since #264 a refused activation may leave ``.store-transaction-v2.guard`` behind. It is an
+    empty mutation guard, protocol state rather than domain publication, and must stay empty.
+    """
+    guards = [path for path in root.rglob(TRANSACTION_GUARD_NAME) if path.is_file()]
+    assert all(path.read_bytes() == b"" for path in guards)
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and path.name != TRANSACTION_GUARD_NAME
+    }
 
 
 def _schema_variant(tmp_path: Path, *, event: bool = False):

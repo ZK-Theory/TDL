@@ -26,7 +26,7 @@ from research_system.artefacts.runtime import ACCEPTED_ARTEFACT_AUTHORITY_SUBJEC
 from research_system.artefacts.use_resolver import predicate_reference
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery import spec_task
-from research_system.discovery.replay.driver import replay_discovery
+from research_system.discovery.spec_replay import replay, replay_discovery
 from research_system.discovery.spec_source import (
     CORRECTION_SCHEMA,
     SOURCE_REF_PREFIX,
@@ -35,7 +35,6 @@ from research_system.discovery.spec_source import (
 )
 from research_system.errors import ConflictError, IntegrityError
 from research_system.methods.registration import _stable_command_id
-from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 
 REGISTER = "register_project_use_decision"

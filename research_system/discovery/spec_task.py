@@ -22,8 +22,8 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import ArsError, ConflictError, IntegrityError
+from research_system.discovery.spec_replay import replay
 from research_system.methods.registration import _stable_command_id
-from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 
 ACTION = "close_task"

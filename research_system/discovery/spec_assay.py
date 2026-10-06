@@ -48,6 +48,22 @@ the review that the SOURCE route's own completion check accepts and whose one fa
 requirement, so only a single-requirement Partial can be revisited on the route. The route
 refuses the producer, the owner or the outcome reviewer proposing a revisit, and the producer or
 the owner requesting a retry; admission keeps the retry authorization owner-only.
+
+The Spike's return, outcome review and decision (06s Phase 4b-2b, P-058, 2026-09-25) follow its start.
+One closed operator return serves both returns: the complete return records a PASS or FAIL verdict
+through OR-018, the Partial one a PARTIAL verdict through OR-019, and the two share their return and
+outcome-review identities, so the alternative not taken conflicts. The route derives the verdict's
+references and runs admission's own verdict rule before the return is registered. Measured against
+admission, it also refuses:
+
+- a verdict citing an artefact another Attempt produced, or recorded by anyone but the prospective
+  producer;
+- a Partial return while the Spike's Lease has expired, because OR-019 closes the Attempt and its Lease;
+- the producer or the owner requesting the outcome review, and the owner recording it;
+- the producer, the reviewer or the owner proposing the decision, and KILL after a PASS (W11 §4.5).
+
+The operator's mechanical recommendation is evidence only (W11 §4.4). A Partial Spike is terminal on the
+route: the Spike revisit rows are outside the agreed action list, so ``decide_spec_02`` refuses it.
 """
 
 from __future__ import annotations
@@ -61,10 +77,11 @@ from pathlib import Path
 from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.command.reducers import reduce_artefact
 from research_system.discovery.accepted_w11 import ACCEPTED, CATALOGUE_STREAM_ID
 from research_system.discovery.assay_authority import assay_reconstruction_sha256
-from research_system.discovery.replay.driver import replay_discovery
-from research_system.discovery.routes import DISCOVERY_ROW_ROUTES
+from research_system.discovery.commands import discovery_resolve_transaction_ids
+from research_system.discovery.routes import DISCOVERY_ROW_ROUTES, shared_event_partition
 from research_system.discovery.rules import (
     _aggregate_content_hash,
     _assay_partial_bindings_match,
@@ -72,12 +89,14 @@ from research_system.discovery.rules import (
     _axis_set_hash,
     _record_ref,
     _review_ref,
+    _spike_verdict_matches,
+    _valid_spike_promotion_option,
 )
+from research_system.discovery.spec_replay import replay, replay_discovery
 from research_system.discovery.spec_result import _BINDING_EVENTS, _event_ref
 from research_system.discovery.spec_source import SOURCE_REF_PREFIX, registration_ref, source_ids
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.methods.registration import _stable_command_id
-from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry
 
 GENESIS = "bootstrap_genesis"
@@ -97,6 +116,13 @@ RETRY_REQUEST = "request_spec_01_retry"
 APPROVE_02 = "approve_spec_02"
 PREPARE_02 = "prepare_spec_02"
 START_02 = "start_spec_02"
+# 06s Phase 4b-2b (P-058, 2026-09-25): the Spike's operator return, complete or Partial, its independent outcome
+# review, and the owner's decision at the spike_to_preregistration gate.
+RETURN_02 = "return_spec_02_complete"
+RETURN_02_PARTIAL = "return_spec_02_partial"
+REVIEW_02 = "review_spec_02_complete"
+REVIEW_02_PARTIAL = "review_spec_02_partial"
+DECIDE_02 = "decide_spec_02"
 INTENT_SCHEMA_ID = "ars://portfolio/spec-assay-intent"
 INTENT_SCHEMA_VERSION = "1.3.0"
 APPROVAL_SCHEMA_ID = "ars://portfolio/spec-02-live-run-approval"
@@ -105,6 +131,9 @@ APPROVAL_KIND = "spec_02_live_run_approval_document"
 SPEC_02_BRIEF_KIND = "spec_02_operator_brief_document"
 APPROVAL_TYPE = "spec_02_live_run_approval"
 SPEC_02_BRIEF_TYPE = "spec_02_operator_brief"
+SPEC_02_RETURN_SCHEMA_ID = "ars://portfolio/spec-02-operator-return"
+SPEC_02_RETURN_KIND = "spec_02_operator_return_document"
+SPEC_02_RETURN_TYPE = "spec_02_operator_return"
 BRIEF_SCHEMA_ID = "ars://portfolio/spec-operator-brief-package"
 RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-return"
 PARTIAL_RETURN_SCHEMA_ID = "ars://portfolio/spec-operator-partial-return"
@@ -129,17 +158,32 @@ _REVIEW_WINDOW = timedelta(days=30)
 _GATE = "assay_to_spike"
 _NEXT_STATE = {"PROMOTE": "spike_planning_authorized", "PARK": "parked", "KILL": "killed"}
 _CONSEQUENCES = {"PROMOTE": "authorize Spike planning", "PARK": "park the Candidate", "KILL": "kill the Candidate"}
+_SPIKE_GATE = "spike_to_preregistration"
+_SPIKE_NEXT_STATE = {"PROMOTE": "preregistration_authorized", "PARK": "parked", "KILL": "killed"}
+_SPIKE_CONSEQUENCES = {
+    "PROMOTE": "authorize preregistration",
+    "PARK": "park the Candidate",
+    "KILL": "kill the Candidate",
+}
 
 # The operator records are artefact registrations, not W11 rows.
 _BRIEF, _RETURN = "AR:spec_01_operator_brief", "AR:spec_01_operator_return"
 _PARTIAL_RETURN = "AR:spec_01_operator_partial_return"
 _APPROVAL = "AR:spec_02_live_run_approval"
 _SPEC_02_BRIEF = "AR:spec_02_operator_brief"
-_ARTEFACT_ROWS = frozenset({_BRIEF, _RETURN, _PARTIAL_RETURN, _APPROVAL, _SPEC_02_BRIEF})
+# One record serves both Spike returns (P-058, 2026-09-25). Each return registers it under its own row, so the
+# route knows which verdict the record it builds must carry.
+_SPEC_02_RETURN, _SPEC_02_PARTIAL_RETURN = "AR:spec_02_operator_return", "AR:spec_02_operator_return:partial"
+_SPEC_02_RETURN_ROWS = frozenset({_SPEC_02_RETURN, _SPEC_02_PARTIAL_RETURN})
+_ARTEFACT_ROWS = frozenset({_BRIEF, _RETURN, _PARTIAL_RETURN, _APPROVAL, _SPEC_02_BRIEF, *_SPEC_02_RETURN_ROWS})
 _SPEC_02_ALIAS = "SPEC-02"
 # The SPEC-02 actions the route carries. A Spike follows its Candidate's promoted Assay, which the
 # route reads from the ledger, so none of them derives an Assay identity (P-058, 2026-09-18).
-_SPEC_02_ACTIONS = frozenset({APPROVE_02, PREPARE_02, START_02})
+_SPEC_02_ACTIONS = frozenset(
+    {APPROVE_02, PREPARE_02, START_02, RETURN_02, RETURN_02_PARTIAL, REVIEW_02, REVIEW_02_PARTIAL, DECIDE_02}
+)
+# The Spike outcome rows, which name no Assay of their own.
+_SPIKE_OUTCOME_ROWS = frozenset({"OR-018", "OR-019", "OR-036", "OR-037", "OR-020", "OR-021", "OR-026", "OR-027"})
 ROWS = {
     GENESIS: ("OR-140",),
     BAR: ("OR-101", "OR-102", "OR-103", "OR-104", "OR-105", "OR-106", "OR-107", "OR-108"),
@@ -156,6 +200,11 @@ ROWS = {
     APPROVE_02: (_APPROVAL,),
     PREPARE_02: (_SPEC_02_BRIEF,),
     START_02: ("OR-014", "OR-015", "OR-016", "OR-017"),
+    RETURN_02: (_SPEC_02_RETURN, "OR-018"),
+    RETURN_02_PARTIAL: (_SPEC_02_PARTIAL_RETURN, "OR-019"),
+    REVIEW_02: ("OR-036", "OR-020"),
+    REVIEW_02_PARTIAL: ("OR-037", "OR-021"),
+    DECIDE_02: ("OR-026", "OR-027"),
 }
 
 
@@ -182,6 +231,13 @@ _OWNED_ROWS = {
     # The Spike stream also carries the later Spike rows (OR-018 onward), so the start wholly owns only its
     # execution Decision (OR-015, OR-016), as the Assay stream is left to its later actions (PR #298 review).
     START_02: ("OR-015",),
+    # The Spike's return, review and decision own their record, review and Decision streams; the verdict rows
+    # land on the Spike stream the start opened. Each alternative owns the stream it shares with the other.
+    RETURN_02: (_SPEC_02_RETURN,),
+    RETURN_02_PARTIAL: (_SPEC_02_PARTIAL_RETURN,),
+    REVIEW_02: ("OR-036",),
+    REVIEW_02_PARTIAL: ("OR-037",),
+    DECIDE_02: ("OR-026",),
 }
 # The revisit trio acts on one Assay of the lineage and creates the next (P-058, 2026-09-17).
 _REVISIT_ACTIONS = frozenset({REVISIT, AUTHORIZE, RETRY_REQUEST})
@@ -190,7 +246,17 @@ _SPEC_01_ACTIONS = (
 )
 # The return alternative each outcome action follows. The complete and Partial sequences share their
 # return and outcome-review identities, so one Assay can take only one of them (P-058, 2026-09-17).
-_RETURN_OF = {RETURN: RETURN, REVIEW: RETURN, RETURN_PARTIAL: RETURN_PARTIAL, REVIEW_PARTIAL: RETURN_PARTIAL}
+_RETURN_OF = {
+    RETURN: RETURN,
+    REVIEW: RETURN,
+    RETURN_PARTIAL: RETURN_PARTIAL,
+    REVIEW_PARTIAL: RETURN_PARTIAL,
+    # A Spike's two returns share one identity in the same way (P-058, 2026-09-25).
+    RETURN_02: RETURN_02,
+    REVIEW_02: RETURN_02,
+    RETURN_02_PARTIAL: RETURN_02_PARTIAL,
+    REVIEW_02_PARTIAL: RETURN_02_PARTIAL,
+}
 # The Spike plan content the operator supplies at start_spec_02; every reference, and the approved
 # scope, are derived (P-058, 2026-09-18).
 _SPIKE_PLAN_FIELDS = (
@@ -236,6 +302,21 @@ _VERDICT_EVIDENCE = frozenset(
         "limitations",
     }
 )
+# The W11 verdict judgements the Spike's operator supplies; the route derives the verdict's references.
+_SPIKE_JUDGEMENTS = (
+    "verdict",
+    "success_predicates",
+    "failure_predicates",
+    "kill_conditions",
+    "artefact_refs",
+    "validation_refs",
+    "completed_scope",
+    "unmet_scope",
+    "limitations",
+    "mechanical_recommendation",
+    "prohibited_inferences",
+)
+_SPIKE_VERDICT_SCHEMA_ID = "ars://portfolio/spike-verdict"
 _OPERATOR_RETURN = frozenset(
     {
         "axis_results",
@@ -264,6 +345,15 @@ _EVIDENCE = {
     # The plan's scope is not caller evidence: the route derives it from the approval.
     _APPROVAL: _APPROVAL_EVIDENCE,
     "OR-014": frozenset(_SPIKE_PLAN_FIELDS),
+    # 06s Phase 4b-2b: the operator's verdict judgements, which the Spike producer's own verdict row re-supplies,
+    # the outcome reviewer's verdict evidence, and the owner's selected option.
+    _SPEC_02_RETURN: frozenset(_SPIKE_JUDGEMENTS),
+    _SPEC_02_PARTIAL_RETURN: frozenset(_SPIKE_JUDGEMENTS),
+    "OR-018": frozenset(_SPIKE_JUDGEMENTS),
+    "OR-019": frozenset(_SPIKE_JUDGEMENTS),
+    "OR-020": _VERDICT_EVIDENCE,
+    "OR-021": _VERDICT_EVIDENCE,
+    "OR-027": frozenset({"selected_option", "revisit_triggers"}),
 }
 _AXIS_EVIDENCE = frozenset({"axis_id", "value", "rationale", "unmet_condition_codes"})
 _SPIKE_PLAN_SCHEMA_ID = "ars://portfolio/spike-plan"
@@ -347,6 +437,10 @@ def subject_ids(project_id: str, intent: dict[str, Any]) -> dict[str, str]:
             "spec_02_brief_id": _stable("art", project_id, candidate_id, PREPARE_02),
             "spike_id": _stable("spk", project_id, candidate_id, START_02),
             "execution_decision_id": _stable("dec", project_id, candidate_id, START_02),
+            # Both returns and both reviews derive from the complete action, so the alternatives share them.
+            "spec_02_return_id": _stable("art", project_id, candidate_id, RETURN_02),
+            "spike_review_id": _stable("rev", project_id, candidate_id, REVIEW_02),
+            "spike_decision_id": _stable("dec", project_id, candidate_id, DECIDE_02),
         }
     if action not in _SPEC_01_ACTIONS:
         return {}
@@ -518,10 +612,16 @@ def _stream(row: str, ids: dict[str, str], ctx: AssayContext) -> str:
         return ids["approval_id"]
     if row == _SPEC_02_BRIEF:
         return ids["spec_02_brief_id"]
-    if row in {"OR-014", "OR-017"}:
+    if row in _SPEC_02_RETURN_ROWS:
+        return ids["spec_02_return_id"]
+    if row in {"OR-014", "OR-017", "OR-018", "OR-019"}:
         return ids["spike_id"]
     if row in {"OR-015", "OR-016"}:
         return ids["execution_decision_id"]
+    if row in {"OR-036", "OR-037", "OR-020", "OR-021"}:
+        return ids["spike_review_id"]
+    if row in {"OR-026", "OR-027"}:
+        return ids["spike_decision_id"]
     if row in {"OR-105", "OR-106", "OR-034", "OR-035", "OR-006", "OR-007"}:
         return ids["review_id"]
     if row in {"OR-107", "OR-108", "OR-012", "OR-013"}:
@@ -1016,6 +1116,130 @@ def _spec_02_brief(
     return document
 
 
+def _artefact_streams(events: list[dict]) -> dict[str, dict]:
+    """Return the canonical artefact projection admission resolves a Spike verdict's evidence against."""
+    resolve_transaction_ids = discovery_resolve_transaction_ids(events)
+    streams: dict[str, dict] = {}
+    for event in events:
+        if shared_event_partition(event, resolve_transaction_ids=resolve_transaction_ids) == "artefact":
+            streams[event["stream_id"]] = reduce_artefact(streams.get(event["stream_id"], {}), event)
+    return streams
+
+
+def _partial_closure(ids: dict[str, str], events: list[dict], ctx: AssayContext, *, taken_at: str | None) -> None:
+    """Hold a Partial return to the Attempt and Lease OR-019 closes (P-058, 2026-09-25).
+
+    Admission refuses OR-019 unless the Attempt and Lease are the ones the Spike started on, the Attempt is
+    unchanged, and the Lease has not expired, so the route refuses the Partial rows while any of these fails.
+    ``taken_at`` is the trusted moment the row is taken; None while a recorded W11 row is re-derived, which
+    consults no clock (PR #298 review). Known limit: a Lease that expires between the two rows leaves the
+    registered return unrecordable, as it leaves a start stuck.
+    """
+    spike = _projection(events, ctx)["spikes"].get(ids["spike_id"]) or {}
+    attempt_id, attempt, _ = _execution_pair(ids, events, ctx, taken_at=taken_at, action=RETURN_02_PARTIAL)
+    if (
+        attempt_id != spike.get("attempt_id")
+        or attempt.get("lease_id") != spike.get("lease_id")
+        or sha256_hex(canonical_bytes(attempt)) != spike.get("attempt_sha256")
+    ):
+        raise IntegrityError(f"{RETURN_02_PARTIAL} requires the unchanged Attempt and Lease its Spike started on")
+
+
+def _spike_return(
+    action: str,
+    ids: dict[str, str],
+    events: list[dict],
+    ctx: AssayContext,
+    *,
+    actor_id: str,
+    recorded_at: str,
+    evidence: dict,
+) -> dict:
+    """Derive the Spike's operator return from a ledger prefix and the operator's verdict judgements.
+
+    One record serves both returns (P-058, 2026-09-25): the complete return records a PASS or FAIL verdict and
+    the Partial return a PARTIAL one. The route derives the verdict's Spike, Candidate, Assay, plan and Attempt
+    references and runs admission's own verdict rule before registration, so a verdict admission would refuse is
+    refused before any durable mutation. Admission does not check which Attempt produced the cited artefacts, so
+    the route requires every one, in the artefact refs and as any predicate's or kill condition's evidence, to come
+    from the Spike's own Attempt; a validation artefact may come from an independent validator. A Partial return
+    is held to a live Lease at its own recorded moment.
+    """
+    partial = action == RETURN_02_PARTIAL
+    verdict = evidence.get("verdict")
+    if partial and verdict != "PARTIAL":
+        raise IntegrityError(f"{action} records a PARTIAL verdict")
+    if not partial and verdict not in {"PASS", "FAIL"}:
+        raise IntegrityError(f"{action} records a PASS or FAIL verdict")
+    _completed(START_02, ids, events, ctx)
+    projection, candidate, assay, _ = _promoted_assay(ids, events, ctx)
+    spike = projection["spikes"].get(ids["spike_id"])
+    if not isinstance(spike, dict) or spike.get("status") != "running" or candidate.get("status") != "spike_running":
+        raise IntegrityError(f"{action} requires the Candidate's running Spike")
+    brief = _one(events, ids["spec_02_brief_id"], "ArtefactRegistered")
+    task = _task_provenance(ids["candidate_id"], events, ctx)
+    if task != _read_document(_SPEC_02_BRIEF, brief, ctx)["task"]:
+        raise IntegrityError(f"{action} must come from the Task and Attempt the brief was issued to")
+    if partial:
+        _partial_closure(ids, events, ctx, taken_at=recorded_at)
+    artifact = {
+        "schema_id": _SPIKE_VERDICT_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "spike_id": ids["spike_id"],
+        "candidate_ref": _record_ref(ids["candidate_id"], candidate["revision"], candidate["content_sha256"]),
+        "originating_assay_ref": _record_ref(candidate["assay_id"], 1, assay.get("scorecard_sha256")),
+        "spike_plan_ref": _record_ref(ids["spike_id"], 1, spike.get("plan_sha256")),
+        "attempt_ref": _record_ref(spike.get("attempt_id"), 1, spike.get("attempt_sha256")),
+        **{key: deepcopy(evidence[key]) for key in _SPIKE_JUDGEMENTS},
+    }
+    _validate(_SPIKE_VERDICT_SCHEMA_ID, artifact, ctx)
+    digest = sha256_hex(canonical_bytes(artifact))
+    streams = _artefact_streams(events)
+    payload = {
+        "spike_id": ids["spike_id"],
+        "candidate_id": ids["candidate_id"],
+        "verdict": verdict,
+        "verdict_sha256": digest,
+    }
+    if not _spike_verdict_matches(artifact, payload, candidate, assay, spike, projection, streams):
+        raise IntegrityError(
+            f"{action} verdict would not be admitted: its predicates, kill conditions and evidence must satisfy the "
+            "W11 truth table and cite registered artefacts"
+        )
+    for ref in artifact["artefact_refs"]:
+        if ((streams.get(ref["id"]) or {}).get("manifest") or {}).get("attempt_id") != spike.get("attempt_id"):
+            raise IntegrityError(f"{action} verdict may cite only artefacts from the Spike's own Attempt: {ref['id']}")
+    # Admission accepts a predicate's evidence when it is a portfolio record or any registered artefact, so every
+    # artefact a predicate or kill condition cites must come from the Spike's own Attempt too (PR #309 review).
+    for result in [*artifact["success_predicates"], *artifact["failure_predicates"], *artifact["kill_conditions"]]:
+        for ref in result["evidence_refs"]:
+            cited = streams.get(ref["id"])
+            if cited is not None and ((cited.get("manifest") or {}).get("attempt_id") != spike.get("attempt_id")):
+                raise IntegrityError(
+                    f"{action} verdict predicates may cite only artefacts from the Spike's own Attempt: {ref['id']}"
+                )
+    document = {
+        "schema_id": SPEC_02_RETURN_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "document_type": SPEC_02_RETURN_TYPE,
+        "intent": _intent(action, ids),
+        "recorded_at": recorded_at,
+        "producer_actor_id": actor_id,
+        "causal_prefix": _causal_prefix(events, ctx),
+        "route_id": _ROUTE_IDENTITY,
+        "brief": registration_ref(brief),
+        "task": task,
+        "candidate": {key: candidate[key] for key in ("candidate_id", "revision", "content_sha256")},
+        "spike": {"spike_id": ids["spike_id"]},
+        "operator_return": deepcopy(evidence),
+        "verdict_artifact": artifact,
+        "verdict_sha256": digest,
+        "governed_code_subject": _governed_code_subject(events),
+    }
+    _validate(SPEC_02_RETURN_SCHEMA_ID, document, ctx)
+    return document
+
+
 def _build(
     row: str,
     ids: dict[str, str],
@@ -1033,6 +1257,10 @@ def _build(
     if row == _APPROVAL:
         return _live_run_approval(ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at,
                                   evidence=evidence or {})  # fmt: skip
+    if row in _SPEC_02_RETURN_ROWS:
+        action = RETURN_02_PARTIAL if row == _SPEC_02_PARTIAL_RETURN else RETURN_02
+        return _spike_return(action, ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at,
+                             evidence=evidence or {})  # fmt: skip
     build = _operator_partial_return if row == _PARTIAL_RETURN else _operator_return
     return build(ids, events, ctx, actor_id=actor_id, recorded_at=recorded_at, evidence=evidence or {})
 
@@ -1047,6 +1275,8 @@ def _record_identity(row: str) -> tuple[str, str, str]:
         return APPROVAL_KIND, APPROVAL_TYPE, APPROVAL_SCHEMA_ID
     if row == _SPEC_02_BRIEF:
         return SPEC_02_BRIEF_KIND, SPEC_02_BRIEF_TYPE, SPEC_02_BRIEF_SCHEMA_ID
+    if row in _SPEC_02_RETURN_ROWS:
+        return SPEC_02_RETURN_KIND, SPEC_02_RETURN_TYPE, SPEC_02_RETURN_SCHEMA_ID
     return PARTIAL_RETURN_KIND, PARTIAL_RETURN_TYPE, PARTIAL_RETURN_SCHEMA_ID
 
 
@@ -1068,6 +1298,10 @@ def _stored(row: str, artefact_id: str, ctx: AssayContext) -> dict | None:
         if not ctx.objects.revision_exists(SPEC_02_BRIEF_KIND, artefact_id, 1):
             return None
         document = ctx.objects.read(SPEC_02_BRIEF_KIND, artefact_id, 1)
+    elif row in _SPEC_02_RETURN_ROWS:
+        if not ctx.objects.revision_exists(SPEC_02_RETURN_KIND, artefact_id, 1):
+            return None
+        document = ctx.objects.read(SPEC_02_RETURN_KIND, artefact_id, 1)
     else:
         if not ctx.objects.revision_exists(PARTIAL_RETURN_KIND, artefact_id, 1):
             return None
@@ -1225,6 +1459,11 @@ def _payload(
         return _spike_start(
             row, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence, taken_at=taken_at
         )
+    if row in _SPIKE_OUTCOME_ROWS:
+        # Nor does a row of the Spike's return, review or decision (P-058, 2026-09-25).
+        return _spike_outcome(
+            row, intent, ids, events, ctx, actor_id=actor_id, grant_id=grant_id, evidence=evidence, taken_at=taken_at
+        )
     if row in {"OR-101", "OR-102"}:
         path = ASSAY_RUBRIC_PATH if row == "OR-101" else ASSAY_SCOPE_PATH
         return {
@@ -1314,34 +1553,30 @@ def _payload(
         subject_label, return_label = (
             ("assay-partial", "operator-partial-return") if partial else ("scorecard", "operator-return")
         )
+        question = (
+            f"Is the {'Partial' if partial else 'scorecard'} exactly the one the operator returned against the issued "
+            "brief and the accepted Assay bar?"
+        )
+        evidence_refs = [
+            f"{subject_label}:{digest}",
+            f"{return_label}:{returned['payload']['manifest']['content_sha256']}",
+        ]
         return {
             "row_id": row,
             **subject,
             "review_id": ids["review_id"],
             "subject_sha256": digest,
-            "review_contract": {
-                "review_type": "provenance",
-                "new_review_id": ids["review_id"],
-                "subject_ids": [ids["assay_id"]],
-                "subject_hashes": [digest],
-                "governing_refs": [f"W11:{row}", f"{_ROUTE_IDENTITY}:{_BRIEF_ALIAS}"],
-                "review_questions": [
-                    f"Is the {'Partial' if partial else 'scorecard'} exactly the one the operator returned against the "
-                    "issued brief and the accepted Assay bar?"
-                ],
-                "required_evidence_refs": [
-                    f"{subject_label}:{digest}",
-                    f"{return_label}:{returned['payload']['manifest']['content_sha256']}",
-                ],
-                "required_lanes": ["output", "provenance"],
-                "reviewer_capability": ["assay-independent-review"],
-                "required_independence_grade": _OUTCOME_REVIEW_GRADE,
-                "visibility_policy": "owner-visible",
-                "allowed_verdicts": ["approve", "changes_requested", "reject"],
-                "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
-                "deadline": _time(scored["recorded_at"], _REVIEW_WINDOW),
-                "escalation_rule": "owner-ruling",
-            },
+            "review_contract": _outcome_review_contract(
+                row,
+                ids["review_id"],
+                ids["assay_id"],
+                digest,
+                alias=_BRIEF_ALIAS,
+                question=question,
+                evidence_refs=evidence_refs,
+                capability="assay-independent-review",
+                deadline=_time(scored["recorded_at"], _REVIEW_WINDOW),
+            ),
         }
     if row in {"OR-006", "OR-007"}:
         partial = row == "OR-007"
@@ -1351,30 +1586,9 @@ def _payload(
             raise IntegrityError(f"{REVIEW_PARTIAL if partial else REVIEW} requires its pending outcome review")
         registration = _one(events, ids["return_id"], "ArtefactRegistered")
         returned = _read_document(_PARTIAL_RETURN if partial else _RETURN, registration, ctx)
-        supplied = evidence or {}
-        verdict = {
-            "review_id": ids["review_id"],
-            "verdict": "approve",
-            "findings": supplied["findings"],
-            "required_evidence_refs": list(review["required_evidence_refs"]),
-            "limitations": supplied["limitations"],
-            "conditions": [],
-            "reviewer_actor_id": actor_id,
-            **{
-                key: supplied[key]
-                for key in (
-                    "reviewer_profile",
-                    "reviewer_session",
-                    "reviewer_model_metadata",
-                    "context_manifest_id",
-                    "context_manifest_sha256",
-                    "trace_visibility_evidence_refs",
-                )
-            },
-            "unchanged_subject_sha256": review["subject_sha256"],
-            "producing_attempt_id": returned["task"]["attempt_id"],
-            "computed_independence_grade": review["required_independence_grade"],
-        }
+        verdict = _approving_verdict(
+            ids["review_id"], review, evidence or {}, actor_id=actor_id, attempt_id=returned["task"]["attempt_id"]
+        )
         return {
             "row_id": row,
             **subject,
@@ -1385,7 +1599,7 @@ def _payload(
         }
     if row == "OR-012":
         # OR-012 requires a scored, reviewed Assay; a reviewed Partial is revisited instead (P-058, 2026-09-17).
-        if _return_taken(ids, events) == RETURN_PARTIAL:
+        if _return_taken(DECIDE, ids, events) == RETURN_PARTIAL:
             raise IntegrityError(f"{DECIDE} cannot decide a Partial Assay: its Candidate is revisited instead")
         _completed(REVIEW, ids, events, ctx)
         projection, candidate, assay = _subjects(ids, events, ctx)
@@ -1539,19 +1753,19 @@ def _within_ceiling(box: Any, ceiling: Any) -> bool:
     return not box.get("network_access") or ceiling.get("network_access") is True
 
 
-def _moment(value: Any, what: str) -> datetime:
+def _moment(value: Any, what: str, action: str) -> datetime:
     """Return an instant as aware UTC, refusing a value the route cannot compare against a Lease."""
     try:
         moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (TypeError, ValueError) as exc:
-        raise IntegrityError(f"{START_02} requires {what} to be an instant") from exc
+        raise IntegrityError(f"{action} requires {what} to be an instant") from exc
     if moment.tzinfo is None or moment.utcoffset() is None:
-        raise IntegrityError(f"{START_02} requires {what} to name its offset")
+        raise IntegrityError(f"{action} requires {what} to name its offset")
     return moment.astimezone(UTC)
 
 
 def _execution_pair(
-    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, taken_at: str | None
+    ids: dict[str, str], events: list[dict], ctx: AssayContext, *, taken_at: str | None, action: str = START_02
 ) -> tuple[str, dict, dict]:
     """Return the Task's running Attempt and the live Lease OR-017 binds, as held at this ledger prefix.
 
@@ -1562,7 +1776,8 @@ def _execution_pair(
 
     Re-deriving a recorded row consults no clock. Its Lease's liveness is a fact about the moment that
     row was taken, not about any later reading, so a completed start stays readable once its Lease
-    expires, as the previous round's fix requires.
+    expires, as the previous round's fix requires. ``action`` names the action refused: the start, or a
+    Partial Spike return, whose OR-019 closes the same Attempt and Lease (P-058, 2026-09-25).
     """
     task = _task_provenance(ids["candidate_id"], events, ctx)
     state = ctx.operational_state(events)
@@ -1575,11 +1790,11 @@ def _execution_pair(
         or lease.get("status") != "active"
         or lease.get("attempt_id") != task["attempt_id"]
     ):
-        raise IntegrityError(f"{START_02} requires the Task's running Attempt to hold its active Lease")
-    if taken_at is not None and _moment(lease.get("expires_at"), "the Lease expiry") <= _moment(
-        taken_at, "its own submission time"
+        raise IntegrityError(f"{action} requires the Task's running Attempt to hold its active Lease")
+    if taken_at is not None and _moment(lease.get("expires_at"), "the Lease expiry", action) <= _moment(
+        taken_at, "its own submission time", action
     ):
-        raise IntegrityError(f"{START_02} requires a Lease that has not expired when this effect is taken")
+        raise IntegrityError(f"{action} requires a Lease that has not expired when this effect is taken")
     return task["attempt_id"], attempt, lease
 
 
@@ -1722,6 +1937,249 @@ def _spike_start(
     }
 
 
+def _outcome_review_contract(
+    row: str,
+    review_id: str,
+    subject_id: str,
+    digest: str,
+    *,
+    alias: str,
+    question: str,
+    evidence_refs: list[str],
+    capability: str,
+    deadline: str,
+) -> dict[str, Any]:
+    """Return the route-fixed outcome-review contract an Assay's or a Spike's review request names."""
+    return {
+        "review_type": "provenance",
+        "new_review_id": review_id,
+        "subject_ids": [subject_id],
+        "subject_hashes": [digest],
+        "governing_refs": [f"W11:{row}", f"{_ROUTE_IDENTITY}:{alias}"],
+        "review_questions": [question],
+        "required_evidence_refs": evidence_refs,
+        "required_lanes": ["output", "provenance"],
+        "reviewer_capability": [capability],
+        "required_independence_grade": _OUTCOME_REVIEW_GRADE,
+        "visibility_policy": "owner-visible",
+        "allowed_verdicts": ["approve", "changes_requested", "reject"],
+        "satisfaction_authority": "ars://portfolio/policy/discovery-outcome-review@1.0.0",
+        "deadline": deadline,
+        "escalation_rule": "owner-ruling",
+    }
+
+
+def _approving_verdict(
+    review_id: str, review: dict, supplied: dict, *, actor_id: str | None, attempt_id: str
+) -> dict[str, Any]:
+    """Return the outcome reviewer's verdict. The route records only an approving review (P-058, 2026-09-15)."""
+    return {
+        "review_id": review_id,
+        "verdict": "approve",
+        "findings": supplied["findings"],
+        "required_evidence_refs": list(review["required_evidence_refs"]),
+        "limitations": supplied["limitations"],
+        "conditions": [],
+        "reviewer_actor_id": actor_id,
+        **{
+            key: supplied[key]
+            for key in (
+                "reviewer_profile",
+                "reviewer_session",
+                "reviewer_model_metadata",
+                "context_manifest_id",
+                "context_manifest_sha256",
+                "trace_visibility_evidence_refs",
+            )
+        },
+        "unchanged_subject_sha256": review["subject_sha256"],
+        "producing_attempt_id": attempt_id,
+        "computed_independence_grade": review["required_independence_grade"],
+    }
+
+
+def _refuse_spike_option(spike: dict, option: Any) -> None:
+    """Refuse an option the reviewed Spike verdict does not permit (P-058, 2026-09-25).
+
+    Admission applies the verdict truth table at both decision rows, but accepts KILL after a PASS, which W11
+    §4.5 forbids: KILL requires a satisfied kill or failure condition.
+    """
+    verdict = spike.get("verdict")
+    if option == "KILL" and verdict == "PASS":
+        raise IntegrityError(
+            f"{DECIDE_02} cannot KILL after a PASS: KILL requires a satisfied kill or failure condition"
+        )
+    if not _valid_spike_promotion_option(spike, option):
+        raise IntegrityError(f"{DECIDE_02} cannot {option} after a {verdict} Spike verdict")
+
+
+def _spike_outcome(
+    row: str,
+    intent: dict[str, Any],
+    ids: dict[str, str],
+    events: list[dict],
+    ctx: AssayContext,
+    *,
+    actor_id: str | None,
+    grant_id: str | None,
+    evidence: dict | None,
+    taken_at: str | None,
+) -> dict[str, Any]:
+    """Return the exact payload for one row of the Spike's return, outcome review or decision (P-058, 2026-09-25)."""
+    subject = {"row_id": row, "candidate_id": ids["candidate_id"], "spike_id": ids["spike_id"]}
+    if row in {"OR-018", "OR-019"}:
+        partial = row == "OR-019"
+        action, label = (RETURN_02_PARTIAL, _SPEC_02_PARTIAL_RETURN) if partial else (RETURN_02, _SPEC_02_RETURN)
+        document = _read_document(label, _one(events, ids["spec_02_return_id"], "ArtefactRegistered"), ctx)
+        # Admission keeps registration owner-only, so the Spike producer's own verdict row re-supplies the return.
+        if not _same_record(evidence, document["operator_return"]):
+            raise IntegrityError(f"{action} Spike producer must supply the exact operator return that was registered")
+        if partial:
+            _partial_closure(ids, events, ctx, taken_at=taken_at)
+        return {
+            **subject,
+            "verdict": document["verdict_artifact"]["verdict"],
+            "verdict_sha256": document["verdict_sha256"],
+            "verdict_artifact": document["verdict_artifact"],
+        }
+    projection = _projection(events, ctx)
+    spike = projection["spikes"].get(ids["spike_id"])
+    if not isinstance(spike, dict) or spike.get("candidate_id") != ids["candidate_id"]:
+        raise IntegrityError(f"the SPEC-02 route requires the Spike its own start recorded: {ids['spike_id']}")
+    reviewed = {**subject, "review_id": ids["spike_review_id"]}
+    if row in {"OR-036", "OR-037"}:
+        partial = row == "OR-037"
+        action = REVIEW_02_PARTIAL if partial else REVIEW_02
+        _completed(RETURN_02_PARTIAL if partial else RETURN_02, ids, events, ctx)
+        if spike.get("status") != ("partial_recorded" if partial else "verdict_recorded"):
+            raise IntegrityError(f"{action} requires the Spike's recorded {'Partial ' if partial else ''}verdict")
+        digest = spike["verdict_sha256"]
+        returned = _one(events, ids["spec_02_return_id"], "ArtefactRegistered")
+        recorded = _one(events, ids["spike_id"], "SpikePartialRecorded" if partial else "SpikeVerdictRecorded")
+        question = (
+            f"Is the {'Partial ' if partial else ''}Spike verdict exactly the one the operator returned against the "
+            "issued brief and the approved plan?"
+        )
+        evidence_refs = [
+            f"spike-verdict:{digest}",
+            f"spec-02-operator-return:{returned['payload']['manifest']['content_sha256']}",
+        ]
+        return {
+            **reviewed,
+            "subject_sha256": digest,
+            "review_contract": _outcome_review_contract(
+                row,
+                ids["spike_review_id"],
+                ids["spike_id"],
+                digest,
+                alias=_SPEC_02_ALIAS,
+                question=question,
+                evidence_refs=evidence_refs,
+                capability="spike-independent-review",
+                deadline=_time(recorded["recorded_at"], _REVIEW_WINDOW),
+            ),
+        }
+    if row in {"OR-020", "OR-021"}:
+        partial = row == "OR-021"
+        review = projection["reviews"].get(ids["spike_review_id"])
+        if not isinstance(review, dict) or review.get("status") != "pending":
+            raise IntegrityError(f"{REVIEW_02_PARTIAL if partial else REVIEW_02} requires its pending outcome review")
+        label = _SPEC_02_PARTIAL_RETURN if partial else _SPEC_02_RETURN
+        returned = _read_document(label, _one(events, ids["spec_02_return_id"], "ArtefactRegistered"), ctx)
+        verdict = _approving_verdict(
+            ids["spike_review_id"], review, evidence or {}, actor_id=actor_id, attempt_id=returned["task"]["attempt_id"]
+        )
+        return {**reviewed, "subject_sha256": review["subject_sha256"], "review_verdict": verdict}
+    decided = {**reviewed, "decision_id": ids["spike_decision_id"], "verdict_sha256": spike.get("verdict_sha256")}
+    if row == "OR-026":
+        # A reviewed Partial Spike is revisited, not decided, and the Spike revisit rows are not route actions.
+        if _return_taken(DECIDE_02, ids, events) == RETURN_02_PARTIAL:
+            raise IntegrityError(f"{DECIDE_02} cannot decide a Partial Spike: it is terminal on the route")
+        _completed(REVIEW_02, ids, events, ctx)
+        review = projection["reviews"].get(ids["spike_review_id"])
+        if not isinstance(review, dict) or review.get("status") != "satisfied":
+            raise IntegrityError(f"{DECIDE_02} requires a satisfied outcome review")
+        recommendation = intent["recommendation"]
+        _refuse_spike_option(spike, recommendation)
+        candidate = projection["candidates"][ids["candidate_id"]]
+        recorded = _one(events, ids["spike_review_id"], "ReviewVerdictRecorded")
+        aggregate = _record_ref(ids["spike_id"], spike.get("version"), _aggregate_content_hash(spike))
+        return {
+            **decided,
+            "w2_payload": {
+                "question": _SPIKE_GATE,
+                "recommendation": recommendation,
+                "new_decision_id": ids["spike_decision_id"],
+                "decision_revision": 1,
+                "decision_kind": "design_lock",
+                "options": ["PROMOTE", "PARK", "KILL"],
+                "governing_evidence_refs": [
+                    f"spike-verdict:{spike['verdict_sha256']}",
+                    f"review:{ids['spike_review_id']}",
+                ],
+                "affected_task_ids": [],
+                "affected_claim_ids": [],
+                "required_authority": "owner",
+                "expires_at": _time(recorded["recorded_at"], _REVIEW_WINDOW),
+                "review_date": _time(recorded["recorded_at"]),
+                "consequences": [_SPIKE_CONSEQUENCES[recommendation]],
+            },
+            "promotion_relation": {
+                "schema_id": "ars://portfolio/relation/discovery-promotion",
+                "schema_version": "1.0.0",
+                "relation_kind": "discovery_promotion",
+                "decision_id": ids["spike_decision_id"],
+                "candidate_ref": _record_ref(ids["candidate_id"], candidate["revision"], candidate["content_sha256"]),
+                "gate": _SPIKE_GATE,
+                "aggregate_ref": aggregate,
+                # A Spike carries no producer relation, so the relation binds its plan, as admission derives it.
+                "aggregate_relation_hash": spike.get("producer_relation_sha256", spike.get("plan_sha256")),
+                "evidence_ref": aggregate,
+                "selected_option": recommendation,
+                "next_candidate_state": _SPIKE_NEXT_STATE[recommendation],
+                "rationale": (
+                    "The route proposes this option against the exact reviewed Spike verdict; the owner decides."
+                ),
+                "considered_evidence_refs": [_review_ref(review)],
+                "conditions": [],
+                "effective_scope": f"{_SPIKE_GATE}:{ids['candidate_id']}",
+                "revisit_triggers": [],
+                "actor_id": actor_id,
+            },
+        }
+    decision = projection["decisions"].get(ids["spike_decision_id"])
+    if not isinstance(decision, dict) or decision.get("status") != "proposed":
+        raise IntegrityError(f"{DECIDE_02} requires its proposed Decision")
+    supplied = evidence or {}
+    selected, triggers = supplied.get("selected_option"), supplied.get("revisit_triggers")
+    if selected not in _SPIKE_NEXT_STATE:
+        raise IntegrityError(f"{DECIDE_02} selected option must be PROMOTE, PARK or KILL")
+    _strings(triggers, f"{DECIDE_02} revisit_triggers")
+    if selected == "PARK" and not triggers:
+        raise IntegrityError(f"{DECIDE_02} PARK requires the owner's revisit triggers")
+    # Admission lets the owner select any option the verdict permits, whatever was proposed.
+    _refuse_spike_option(spike, selected)
+    proposal = _one(events, ids["spike_decision_id"], "DecisionProposed")
+    return {
+        **decided,
+        "w2_payload": {
+            "decision_id": ids["spike_decision_id"],
+            "selected_option": selected,
+            "effective_scope": "exact Discovery subject",
+            "decision_revision": 1,
+            "deciding_actor_id": actor_id,
+            "decision_authority_grant_id": grant_id,
+            "governing_evidence_refs": list(proposal["payload"]["governing_evidence_refs"]),
+            "considered_review_ids": [ids["spike_review_id"]],
+            "effective_at": _time(proposal["recorded_at"]),
+            "permitted_commands": [],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": triggers,
+        },
+    }
+
+
 def _route_source_observation(
     observation_id: str, observation: dict, events: list[dict], projection: dict, ctx: AssayContext
 ) -> bool:
@@ -1849,6 +2307,9 @@ def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: Assa
             raise IntegrityError(
                 f"{START_02} Spike planning requires an actor who is neither the prospective producer nor the owner"
             )
+    if row in _SPIKE_OUTCOME_ROWS:
+        _check_spike_relation(row, ids, events, ctx, actor_id=actor_id)
+        return
     if row not in {"OR-034", "OR-035", "OR-006", "OR-007", "OR-012", "OR-009"}:
         return
     owner = _owner(events, ctx)
@@ -1871,6 +2332,39 @@ def _check_relation(row: str, ids: dict[str, str], events: list[dict], ctx: Assa
             raise IntegrityError(
                 f"{REVISIT} revisit proposer must be neither the producer, the outcome reviewer nor the owner"
             )
+
+
+def _check_spike_relation(
+    row: str, ids: dict[str, str], events: list[dict], ctx: AssayContext, *, actor_id: str
+) -> None:
+    """Refuse the Spike outcome collapses inherited admission was measured to accept (P-058, 2026-09-25).
+
+    Admission records a verdict from any actor, a review request from the producer or the owner, a review by the
+    owner, and a decision proposal from the producer, the reviewer or the owner. It already keeps the owner's
+    selection owner-only, and refuses a reviewer who is the producer or the requester.
+    """
+    projection = _projection(events, ctx)
+    if row in {"OR-018", "OR-019"}:
+        producer = (projection["assay_bar_authority"].get("prospective_producer_ref") or {}).get("id")
+        if actor_id != producer:
+            action = RETURN_02_PARTIAL if row == "OR-019" else RETURN_02
+            raise IntegrityError(f"{action} Spike verdict must come from the prospective producer")
+        return
+    owner = _owner(events, ctx)
+    producer = (projection["spikes"].get(ids["spike_id"]) or {}).get("producer_actor_id")
+    review = REVIEW_02_PARTIAL if row in {"OR-037", "OR-021"} else REVIEW_02
+    if row in {"OR-036", "OR-037"} and actor_id in {producer, owner}:
+        raise IntegrityError(f"{review} outcome-review requester must be neither the producer nor the owner")
+    if row in {"OR-020", "OR-021"} and actor_id == owner:
+        raise IntegrityError(f"{review} outcome reviewer must not be the owner")
+    if row == "OR-026":
+        reviewers = {
+            event["actor_id"]
+            for event in events
+            if event["stream_id"] == ids["spike_review_id"] and event["event_type"] == "ReviewVerdictRecorded"
+        }
+        if actor_id in {producer, owner, *reviewers}:
+            raise IntegrityError(f"{DECIDE_02} proposer must be neither the producer, the reviewer nor the owner")
 
 
 def _check_evidence(row: str, evidence: dict | None) -> None:
@@ -1896,7 +2390,12 @@ def _recorded_evidence(
         # The Spike plan the row recorded carries the operator's own content verbatim.
         artifact = (event.get("payload") or {}).get("plan_artifact") or {}
         return {key: deepcopy(artifact.get(key)) for key in _SPIKE_PLAN_FIELDS}
-    if row not in {"OR-006", "OR-007", "OR-013"}:
+    if row in {"OR-018", "OR-019"}:
+        label = _SPEC_02_PARTIAL_RETURN if row == "OR-019" else _SPEC_02_RETURN
+        return _read_document(label, _one(prefix, ids["spec_02_return_id"], "ArtefactRegistered"), ctx)[
+            "operator_return"
+        ]
+    if row not in {"OR-006", "OR-007", "OR-013", "OR-020", "OR-021", "OR-027"}:
         return None
     payload = event.get("payload") or {}
     return {key: payload.get(key) for key in _EVIDENCE[row]}
@@ -1919,19 +2418,21 @@ def _issued_registration(event: dict, intent: dict[str, Any]) -> bool:
     return event.get("idempotency_key") == key and event.get("command_id") == _stable_command_id(key)
 
 
-def _return_taken(ids: dict[str, str], events: list[dict]) -> str | None:
-    """Return the return alternative whose route-keyed registration opens the Assay's return stream, if any.
+def _return_taken(action: str, ids: dict[str, str], events: list[dict]) -> str | None:
+    """Return the return alternative whose route-keyed registration opens the subject's return stream, if any.
 
     Both alternatives register at the same identity, and admission refuses a second registration there,
     so at most one is ever taken. This reads identity only; the taken action's own evaluation verifies it.
-    A later Assay's registration is keyed by its ordinal, so each alternative is read at that ordinal.
+    A later Assay's registration is keyed by its ordinal, so each alternative is read at that ordinal. A
+    SPEC-02 action reads its Spike's return, whose two alternatives share one identity too (P-058, 2026-09-25).
     """
-    first = next((event for event in events if event["stream_id"] == ids["return_id"]), None)
+    spike = action in _SPEC_02_ACTIONS
+    stream = ids["spec_02_return_id" if spike else "return_id"]
+    first = next((event for event in events if event["stream_id"] == stream), None)
     if first is None or first.get("event_type") != "ArtefactRegistered":
         return None
-    return next(
-        (action for action in (RETURN, RETURN_PARTIAL) if _issued_registration(first, _intent(action, ids))), None
-    )
+    alternatives = (RETURN_02, RETURN_02_PARTIAL) if spike else (RETURN, RETURN_PARTIAL)
+    return next((taken for taken in alternatives if _issued_registration(first, _intent(taken, ids))), None)
 
 
 def _located(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> list[tuple[str, list[dict]]]:
@@ -2036,9 +2537,10 @@ def evaluate(intent: dict[str, Any], events: list[dict], ctx: AssayContext) -> d
     action = intent["action"]
     ids = subject_ids(ctx.project_id, intent)
     if action in _RETURN_OF:
-        taken = _return_taken(ids, events)
+        taken = _return_taken(action, ids, events)
         if taken not in {None, _RETURN_OF[action]}:
-            raise ConflictError(f"{action} is excluded: this Assay's operator return was registered by {taken}")
+            subject = "Spike" if action in _SPEC_02_ACTIONS else "Assay"
+            raise ConflictError(f"{action} is excluded: this {subject}'s operator return was registered by {taken}")
     located = _located(intent, events, ctx)
     for row, transaction in located:
         _verify_effect(row, intent, ids, transaction[0], events, ctx)
@@ -2238,7 +2740,7 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
             if ids["assay_id"] not in projection["assays"]:
                 break
             # Only the outcome alternative the route registered is a subject; the other one is excluded.
-            taken = _return_taken(ids, events)
+            taken = _return_taken(REVISIT, ids, events)
             outcome = (RETURN_PARTIAL, REVIEW_PARTIAL) if taken == RETURN_PARTIAL else (RETURN, REVIEW)
             actions = [*((REQUEST,) if ordinal == 1 else ()), PREPARE, *outcome]
             if ids["revisit_decision_id"] in streams:
@@ -2261,17 +2763,38 @@ def enumerated_intents(events: list[dict], ctx: AssayContext) -> list[dict[str, 
                     }
                 )
             ordinal += 1
-        # The Candidate's SPEC-02 subjects follow its promoted Assay; each is listed once its stream exists.
+        # The Candidate's SPEC-02 subjects follow its promoted Assay; each is listed once its stream exists,
+        # and only the return alternative the route registered, with its review (P-058, 2026-09-25).
         spec_02 = subject_ids(ctx.project_id, {"action": START_02, "candidate_id": candidate_id})
+        partial = _return_taken(RETURN_02, spec_02, events) == RETURN_02_PARTIAL
         for action, stream in (
             (APPROVE_02, spec_02["approval_id"]),
             (PREPARE_02, spec_02["spec_02_brief_id"]),
             (START_02, spec_02["spike_id"]),
+            (RETURN_02_PARTIAL if partial else RETURN_02, spec_02["spec_02_return_id"]),
+            (REVIEW_02_PARTIAL if partial else REVIEW_02, spec_02["spike_review_id"]),
         ):
             if stream in streams:
                 candidates.append(
                     {"action": action, "reason": f"recorded route {action}", "candidate_id": candidate_id}
                 )
+        proposal = next(
+            (
+                event
+                for event in events
+                if event["stream_id"] == spec_02["spike_decision_id"] and event["event_type"] == "DecisionProposed"
+            ),
+            None,
+        )
+        if proposal is not None and (proposal.get("payload") or {}).get("recommendation") in _SPIKE_NEXT_STATE:
+            candidates.append(
+                {
+                    "action": DECIDE_02,
+                    "reason": "recorded route decision",
+                    "candidate_id": candidate_id,
+                    "recommendation": proposal["payload"]["recommendation"],
+                }
+            )
     intents = []
     for intent in candidates:
         try:
