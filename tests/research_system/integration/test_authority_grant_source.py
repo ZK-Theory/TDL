@@ -8,9 +8,11 @@ import shutil
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
+import research_system.authority as authority_module
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
     _verify_bootstrap_bindings,
@@ -30,13 +32,13 @@ from research_system.errors import (
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.store.identity import _manifest_hash, build_store_origin_witness
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
 from tests.research_system.factories import (
     REPO_ROOT,
     approved_foundation,
-    claim_dispatch_command,
     create_task_command,
 )
 
@@ -973,12 +975,12 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
     assert service.submit(_revoke_command(CMD_REVOKE)).status == "accepted"
-    unrelated = claim_dispatch_command(
-        CMD_RETRY,
-        "actor-a",
-        REUSED_TASK_ID,
-        expected_version=0,
-    )
+    # The generic ClaimDispatch this test used is no longer admissible (#212). The unrelated
+    # command is now a different-keyed revocation that the store refuses on its merits; its
+    # stored receipt still owns CMD_RETRY, which is the reuse under test.
+    unrelated = _revoke_command(CMD_RETRY)
+    unrelated["idempotency_key"] = "unrelated-reused-command-id"
+    unrelated["expected_stream_version"] = 2
     unrelated_service = CommandService(
         control_root,
         EventLedger(control_root, PROJECT_ID, schemas),
@@ -988,7 +990,8 @@ def test_scoped_retry_rejects_reused_unrelated_command_id(tmp_path) -> None:
         authority_resolver=_resolver(control_root, PROJECT_ID, identity),
         clock=lambda: datetime(2026, 7, 12, 12, tzinfo=UTC),
     )
-    assert unrelated_service.submit(unrelated).status == "accepted"
+    unrelated_receipt = unrelated_service.submit(unrelated)
+    assert ReceiptStore(control_root).load(CMD_RETRY) == unrelated_receipt
 
     with pytest.raises(ConflictError, match="command ID"):
         service.submit(_revoke_command(CMD_RETRY))
@@ -1866,6 +1869,14 @@ def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:
         )
     )
 
+    def stage_bytes(stage):
+        return {
+            path.relative_to(stage).as_posix(): path.read_bytes() for path in sorted(stage.rglob("*")) if path.is_file()
+        }
+
+    partial_before = stage_bytes(partial_stage)
+    foreign_before = stage_bytes(foreign_stage)
+
     identity = initialize_authority_control_store(
         [code_root],
         tmp_path / "control",
@@ -1874,9 +1885,13 @@ def test_partial_and_foreign_hash_stages_remain_inert(tmp_path) -> None:
         authority_bootstrap_sha256(bootstrap),
     )
 
-    assert identity != partial_identity
-    assert partial_stage.exists()
-    assert foreign_stage.exists()
+    # Since #208 the identity is derived from the reserved origin witness, so an identical
+    # retry resumes the crashed run's own stage and reaches the same identity. The stage built
+    # for a different bootstrap hash must stay inert: neither consumed nor altered.
+    assert partial_before
+    assert identity == partial_identity
+    assert (tmp_path / "control" / "manifests" / "store-identity.json").is_file()
+    assert stage_bytes(foreign_stage) == foreign_before
 
 
 def test_portable_publication_collision_verifies_winner_and_cleans_loser(tmp_path, monkeypatch) -> None:
@@ -1928,6 +1943,56 @@ def test_competing_initializers_converge_on_one_complete_identity(tmp_path) -> N
     assert len(identities) == 2
     assert identities[0] == identities[1]
     assert len(tuple(EventLedger(control_root, PROJECT_ID).iter_events())) == 2
+
+
+def _race_for_the_witness_slot(monkeypatch, competing_manifest):
+    """Let a competitor win the origin-witness slot just before this initializer writes."""
+    real_persist = authority_module.persist_store_origin_witness
+
+    def persist(witness, origin_root, *, expected_sha256=None):
+        manifest = competing_manifest(dict(witness.initial_manifest))
+        manifest["manifest_hash"] = _manifest_hash(manifest)
+        competitor = build_store_origin_witness(
+            manifest,
+            initial_control_root=Path(witness.initial_control_root),
+            physical_root=origin_root,
+        )
+        real_persist(competitor, origin_root)
+        return real_persist(witness, origin_root, expected_sha256=expected_sha256)
+
+    monkeypatch.setattr(authority_module, "persist_store_origin_witness", persist)
+
+
+def test_competing_initializer_for_a_foreign_request_is_refused(tmp_path, monkeypatch) -> None:
+    code_root = _code_root(tmp_path)
+    control_root = tmp_path / "control"
+    bootstrap = _bootstrap()
+    _race_for_the_witness_slot(
+        monkeypatch,
+        lambda manifest: {**manifest, "bootstrap_manifest_sha256": "f" * 64},
+    )
+
+    with pytest.raises(ConflictError, match="does not match initializer request"):
+        initialize_authority_control_store(
+            [code_root], control_root, PROJECT_ID, bootstrap, authority_bootstrap_sha256(bootstrap)
+        )
+    assert not control_root.exists()
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
+
+
+def test_competing_initializer_that_never_publishes_is_not_adopted(tmp_path, monkeypatch) -> None:
+    code_root = _code_root(tmp_path)
+    control_root = tmp_path / "control"
+    bootstrap = _bootstrap()
+    monkeypatch.setattr(authority_module, "_COMPETING_INITIALIZER_WAIT_SECONDS", 0.3)
+    _race_for_the_witness_slot(monkeypatch, lambda manifest: manifest)
+
+    with pytest.raises(ConflictError, match="did not publish"):
+        initialize_authority_control_store(
+            [code_root], control_root, PROJECT_ID, bootstrap, authority_bootstrap_sha256(bootstrap)
+        )
+    assert not control_root.exists()
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
 
 
 def test_non_genesis_bootstrap_projection_requires_scoped_grant_v2(tmp_path) -> None:

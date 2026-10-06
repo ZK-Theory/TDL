@@ -15,6 +15,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import shutil
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -32,11 +33,13 @@ from research_system.assurance.external_records import (
     storage_object_id,
 )
 from research_system.assurance.resolver import ControlStoreAuthorityResolver
+from research_system.authority import initialize_authority_control_store
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.config import ControlBinding
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.store.identity import _manifest_hash, initialize_control_store as _initialize_control_store
 from research_system.store.objects import ObjectStore
+from tests.research_system.factories import authority_bootstrap, authority_bootstrap_sha256
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -68,6 +71,50 @@ def initialize_control_store(code_roots, control_root, project_id):
         project_id,
         origin_authority_root=origin_root,
     )
+
+
+_SHARED_SCHEMA_CODE_ROOT: Path | None = None
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _shared_schema_code_root(tmp_path_factory: pytest.TempPathFactory):
+    """Copy the accepted schemas once per module into a code root every store registers.
+
+    External assurance records require a manifest schema root (#236), and the authority
+    initializer only accepts one inside a registered code root. The runtime schema registry is
+    cached per resolved root, so one shared copy keeps the cost to a single registry build
+    instead of one per test. The record catalogue also reads the pack contract beside it.
+    """
+    global _SHARED_SCHEMA_CODE_ROOT
+    root = tmp_path_factory.mktemp("schema-code")
+    shutil.copytree(SCHEMA_PATH.parents[1], root / ".research-system" / "schemas")
+    shutil.copytree(REPO_ROOT / ".research-system" / "contracts", root / ".research-system" / "contracts")
+    _SHARED_SCHEMA_CODE_ROOT = root.resolve()
+    yield
+    _SHARED_SCHEMA_CODE_ROOT = None
+
+
+def initialize_schema_bound_control_store(code_root, control_root, project_id):
+    """Initialize a store whose manifest binds the shared canonical schema root.
+
+    Returns the store identity, the registered code roots, and the bound schema root.
+    """
+    assert _SHARED_SCHEMA_CODE_ROOT is not None
+    code_roots = [code_root, _SHARED_SCHEMA_CODE_ROOT]
+    schema_root = _SHARED_SCHEMA_CODE_ROOT / ".research-system" / "schemas"
+    origin_root = control_root.parent / ".origin-authority"
+    origin_root.mkdir(parents=True, exist_ok=True)
+    bootstrap = authority_bootstrap()
+    identity = initialize_authority_control_store(
+        code_roots,
+        control_root,
+        project_id,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        canonical_schema_root=schema_root,
+        origin_authority_root=origin_root,
+    )
+    return identity, tuple(root.resolve() for root in code_roots), schema_root
 
 
 def _parent_pointer(parent: dict[str, Any], pointer: str) -> Any:
@@ -257,12 +304,12 @@ def _binding(tmp_path: Path) -> ControlBinding:
     code_root = tmp_path / "code"
     code_root.mkdir()
     control_root = tmp_path / "control"
-    identity = initialize_control_store([code_root], control_root, PROJECT_ID)
+    identity, code_roots, schema_root = initialize_schema_bound_control_store(code_root, control_root, PROJECT_ID)
     return ControlBinding(
-        code_roots=(code_root.resolve(),),
+        code_roots=code_roots,
         control_root=control_root.resolve(),
         project_id=PROJECT_ID,
-        schema_root=SCHEMA_PATH.parents[1],
+        schema_root=schema_root,
         store_identity=identity,
         origin_authority_root=identity.witness_path.parent.parent,
         origin_witness_path=identity.witness_path,
@@ -919,14 +966,17 @@ def test_attributed_writer_rejects_relationship_self_attestation(tmp_path: Path)
 def test_attributed_writer_requires_replayed_authority_and_writes_nothing(tmp_path: Path) -> None:
     binding = _binding(tmp_path)
     store = ExternalAssuranceRecordStore(binding)
-    with pytest.raises(ArsError, match="authority_bootstrap_required"):
+    # Bind the store's real authority root so the write reaches the replay check: the store is
+    # bootstrapped (it must be, to carry a schema root), but the caller's grant was never replayed.
+    authority_root = authority_bootstrap()["root_grant"]["authority_grant_id"]
+    with pytest.raises(ArsError, match="scoped authority grant is not activated"):
         store.write(
             record_class="canonical_actor",
             record_id=RECORD_ID,
             revision=1,
             expected_previous_revision=0,
             record=_valid_actor_body(),
-            publication_context=_publication_context(binding),
+            publication_context=_publication_context(binding, authority_root=authority_root),
         )
     assert not (binding.control_root / "objects" / "canonical_actor" / RECORD_ID).exists()
     assert not (binding.control_root / "runtime" / "writer.lock").exists()

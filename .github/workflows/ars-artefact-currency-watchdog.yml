@@ -110,3 +110,57 @@ jobs:
           python tools/check_workflow_liveness.py \
             --workflows-json all-workflows.json \
             --all-tracked "${ref_args[@]}"
+
+  # The merge-admission sweep's `*/5` cron fires about every four hours, and nothing watched
+  # that: its logic tests passed, every run succeeded, and a header claiming 5-10 minutes
+  # stood false for weeks (obs 2026-09-29-sweep-cron-runs-at-two-percent-of-its-stated-
+  # cadence). A schedule is a claim, so this job measures it.
+  #
+  # Here rather than in a new cron workflow: a cron-only watchdog is throttled by the same
+  # platform behaviour it measures. This workflow also fires on push to main, pull_request
+  # and merge_group, which are event-driven, so the sweep's age is read on every PR and
+  # merge as well as daily.
+  #
+  # Its own job, not a step of the job above: that job is a required check, and a stale
+  # sweep must not freeze every merge, including the one that repairs it. This job is not in
+  # the P-049 required list; making it required is a ruleset edit and Stephen's decision.
+  # The bound is SWEEP_MAX_RUN_AGE in tools/check_merge_admission.py. This job runs the
+  # checked-out subject's copy of the tool, which is acceptable while it is informational;
+  # if it is ever made required, take the tool from the base ref as merge-admission.yml does.
+  sweep-cadence:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout workflow subject without submodule cleanup
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
+      - name: Install the configuration parser
+        run: pip install "PyYAML>=6"
+
+      - name: Read the merge-admission sweep's recent runs from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/merge-admission-sweep.yml/runs?per_page=100"
+          --jq '{workflow_runs: [.workflow_runs[] | {created_at, event, status, conclusion}]}'
+          > sweep-runs.json
+
+      - name: Fail if the sweep has not succeeded within its bound
+        run: |
+          set -euo pipefail
+          python tools/check_merge_admission.py sweep-cadence --runs sweep-runs.json | tr -d '\r' | tee -a "$GITHUB_STEP_SUMMARY"

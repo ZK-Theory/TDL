@@ -13,6 +13,7 @@ from research_system.errors import ArsError, IntegrityError, SchemaError
 from research_system.evals.executors import release_tranche
 from research_system.evals.retention import EvidenceStoreRegistry
 from research_system.schema_registry import cached_schema_registry, runtime_schema_registry
+from research_system.store.anchor import TRANSACTION_GUARD_NAME
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from tests.research_system.factories import (
@@ -179,11 +180,14 @@ def test_restore_admission_preparation_has_explicit_required_keyword_signature()
         "authority_grant_id",
         "approved_witness",
         "approved_witness_path",
+        # Added by #268 (verified store binding continuation): the registry the binding is read with.
+        "schema_registry",
     )
-    assert parameters["target_root"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert all(parameter.kind is inspect.Parameter.KEYWORD_ONLY for parameter in parameters.values())
     assert parameters["target_root"].default is inspect.Parameter.empty
     assert parameters["approved_witness"].default is None
     assert parameters["approved_witness_path"].default is None
+    assert parameters["schema_registry"].default is None
     assert all(parameter.kind is not inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
 
 
@@ -1283,11 +1287,7 @@ def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admi
         approved_witness=case["witness"],
         approved_witness_path=case["witness_path"],
     )
-    target_before = {
-        path.relative_to(case["target"]).as_posix(): path.read_bytes()
-        for path in sorted(case["target"].rglob("*"))
-        if path.is_file()
-    }
+    target_before = _durable_domain_tree(case["target"])
     original_lock = service_module.WriterLock
     mutated: list[bool] = []
 
@@ -1325,11 +1325,7 @@ def test_moved_restore_rejects_witness_drift_between_preparation_and_locked_admi
         service.submit(command)
 
     assert mutated == [True]
-    assert {
-        path.relative_to(case["target"]).as_posix(): path.read_bytes()
-        for path in sorted(case["target"].rglob("*"))
-        if path.is_file()
-    } == target_before
+    assert _durable_domain_tree(case["target"]) == target_before
     assert service.receipts.load(CMD_RESTORE) is None
 
 
@@ -1575,11 +1571,7 @@ def test_real_command_service_rejects_t2_during_generation_two_restore_without_m
         approved_witness_path=case["witness_path"],
     )
     command = issue_command()
-    before = {
-        path.relative_to(case["target"]).as_posix(): path.read_bytes()
-        for path in sorted(case["target"].rglob("*"))
-        if path.is_file()
-    }
+    before = _durable_domain_tree(case["target"])
     ledger_before = service.ledger.snapshot()
 
     with pytest.raises(IntegrityError, match="transaction state is not cleared"):
@@ -1592,11 +1584,7 @@ def test_real_command_service_rejects_t2_during_generation_two_restore_without_m
     )
     assert service.receipts.load_t2(command["command_id"]) is None
     assert rechecks == 1
-    assert {
-        path.relative_to(case["target"]).as_posix(): path.read_bytes()
-        for path in sorted(case["target"].rglob("*"))
-        if path.is_file()
-    } == before
+    assert _durable_domain_tree(case["target"]) == before
     assert json.loads(transaction_path.read_text(encoding="utf-8"))["generation"] == 2
 
 
@@ -1964,6 +1952,22 @@ def _supersede_command(command_id, source_id, replacement_id, replacement_revisi
     command["expected_stream_version"] = 1
     command["payload"] = payload
     return command
+
+
+def _durable_domain_tree(root):
+    """Snapshot every durable file except the empty transaction guard.
+
+    Since #264 a refused command may leave ``.store-transaction-v2.guard`` behind: an empty
+    mutation guard, which is protocol state rather than domain publication (the sibling
+    scope/task and session-exchange tests make the same split). It must stay empty.
+    """
+    guards = [path for path in root.rglob(TRANSACTION_GUARD_NAME) if path.is_file()]
+    assert all(path.read_bytes() == b"" for path in guards)
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and path.name != TRANSACTION_GUARD_NAME
+    }
 
 
 def _store_bytes(root):

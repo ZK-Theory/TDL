@@ -329,6 +329,16 @@ def check_hook_gate(workspace: Path) -> Check:
             f"Worker's commits would run another checkout's hooks, not this branch's. Fix before "
             f"dispatch, in the scope that set it: {_hookspath_remedy(workspace)}",
         )
+    # In-tree is not enough either: an unset core.hooksPath makes git read the untracked, per-clone
+    # .git/hooks, so a legacy hook there would verify as live although no commit ever reviewed it.
+    if toplevel and hooks_dir.resolve() != (Path(toplevel) / ".githooks").resolve():
+        return Check(
+            "hook-gate",
+            False,
+            f"active hook directory is not the tracked .githooks directory ({where}) — hooks "
+            f"there are not versioned or reviewed. Fix before dispatch: "
+            f"uv run python .claude/hooks/install-git-hooks.py --install",
+        )
     if not hook.is_file():
         return Check(
             "hook-gate",
@@ -340,6 +350,32 @@ def check_hook_gate(workspace: Path) -> Check:
     return Check("hook-gate", True, f"pre-commit live ({where})")
 
 
+def check_hook_currency(workspace: Path, waiver: str | None = None) -> Check:
+    """Assert the workspace's hook tree has every hook change merged on the integration branch.
+
+    Obs 2026-10-02-merged-gates-not-live-in-the-main-checkout: ``hook-gate`` confirms a hook is wired,
+    not that it is the merged one, so a checkout behind ``origin/main`` passed while running pre-merge
+    hooks. A missing hook-touching commit FAILS, like the foreign-hooks case above: a Worker commit
+    on stale hooks bypasses the merged gates as silently as a hook that never ran. The one false
+    positive is a deliberately old base (a stack on an unmerged prerequisite), which
+    ``--allow-stale-hooks '<reason>'`` records as an advisory. A check that cannot reach a verdict
+    (no remote, no reference) is an advisory, not a failure. It reads the last-fetched remote ref, so
+    ``git fetch`` first for a current answer.
+    """
+    from tools.hook_currency import STALE, UNVERIFIED, check
+
+    result = check(workspace)
+    if result.status == STALE:
+        if waiver and waiver.strip():
+            return Check("hook-currency", True, f"{result.message} WAIVED: {waiver.strip()}", advisory=True)
+        return Check(
+            "hook-currency",
+            False,
+            f"{result.message} Fix before dispatch, or record why not with --allow-stale-hooks '<reason>'.",
+        )
+    return Check("hook-currency", True, result.message, advisory=result.status == UNVERIFIED)
+
+
 def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     """Assert every repository path the brief cites resolves on ``ref``.
 
@@ -349,7 +385,10 @@ def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
     """
     from tools.check_brief_paths import citations, default_vault_root, planned_outputs, unresolved
 
-    text = brief.read_text(encoding="utf-8")
+    try:
+        text = brief.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return Check("brief-paths", False, f"cannot read brief {brief}: {exc}")
     cited = citations(text)
     problems = unresolved(
         cited, repo_root, ref, brief=brief, planned=planned_outputs(text), vault_root=default_vault_root(repo_root)
@@ -753,6 +792,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--no-brief", default=None, metavar="REASON", help="Dispatch with no brief file, and why.")
     p.add_argument(
+        "--allow-stale-hooks",
+        default=None,
+        metavar="REASON",
+        help="Dispatch although the workspace lacks a merged hook change, and why (recorded as an advisory).",
+    )
+    p.add_argument(
         "--brief-ref",
         default=None,
         help="Ref a dispatched Worker starts from. Default: the workspace's HEAD, the commit it actually starts on.",
@@ -775,6 +820,7 @@ def main(argv: list[str] | None = None) -> int:
     checks.append(check_branch_ancestry(workspace, args.expected_base))
     checks.append(check_contracts(workspace))
     checks.append(check_hook_gate(workspace))
+    checks.append(check_hook_currency(workspace, args.allow_stale_hooks))
 
     manifests = [Path(m) for m in args.provenance_manifest]
     checks.extend(check_provenance(manifests, repo_root, proj_root))

@@ -891,6 +891,9 @@ def test_claim_consumption_binds_current_p005_owner_decision_and_review_set(tmp_
             "evidence_refs": [REVIEW_ID, REVIEW_EVIDENCE_ID, CLAIM_DECISION_ID],
         },
     )
+    # #270 refuses evidence submitted after the trusted service clock; evaluate at the fixture's
+    # fixed submission instant, which also follows the 19:00Z owner decision it must bind.
+    harness.service.clock = lambda: datetime.fromisoformat(use["submitted_at"].replace("Z", "+00:00"))
     accepted = harness.service.submit(use)
     assert accepted.status == "accepted", accepted
 

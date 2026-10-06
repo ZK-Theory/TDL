@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
 import threading
 from types import SimpleNamespace
@@ -391,9 +392,23 @@ def _revocation_event_payload(
     }
 
 
-def _system(tmp_path):
+def _registry_without_command(command_type: str) -> SchemaRegistry:
+    """Return the runtime registry with one command's active binding removed.
+
+    The inactive-identity controls need a command schema that resolves but is not actively
+    bound. Since #233 activated CompleteAttempt (and no core command is left unbound), the
+    precondition is recreated by withholding that one binding rather than by naming a command.
+    """
+    runtime = _runtime_registry()
+    return SchemaRegistry(
+        REPO_ROOT / ".research-system" / "schemas",
+        active_bindings=tuple(binding for binding in runtime._active_bindings if binding.command_type != command_type),
+    )
+
+
+def _system(tmp_path, schemas=None):
     control_root, _, identity = _initialized(tmp_path)
-    schemas = _runtime_registry()
+    schemas = _runtime_registry() if schemas is None else schemas
     resolver = LedgerAuthorityGrantResolver(
         control_root,
         PROJECT_ID,
@@ -1557,7 +1572,10 @@ def test_activation_rejects_unresolved_inactive_or_wrong_subject_identity(
     tmp_path,
     identity_case,
 ) -> None:
-    _, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    _, schemas, resolver, ledger, objects, service = _system(
+        tmp_path,
+        _registry_without_command("CompleteAttempt") if identity_case == "inactive_command" else None,
+    )
     grant = _scoped_grant(schemas)
     grant["allowed_policy_actions"] = []
     grant["subject_scope"] = {
@@ -1642,7 +1660,10 @@ def test_activation_rejects_unresolved_inactive_or_wrong_subject_identity(
 
 
 def test_later_binding_cannot_wake_rejected_inactive_identity(tmp_path) -> None:
-    control_root, schemas, resolver, ledger, objects, service = _system(tmp_path)
+    control_root, schemas, resolver, ledger, objects, service = _system(
+        tmp_path,
+        _registry_without_command("CompleteAttempt"),
+    )
     grant = _scoped_grant(schemas)
     inactive = schemas.resolve_identity(
         "ars://core/command/CompleteAttempt",
@@ -1692,6 +1713,8 @@ def test_later_binding_cannot_wake_rejected_inactive_identity(tmp_path) -> None:
         PROJECT_ID,
         resolver.expected_store_identity,
         later_registry,
+        approved_witness=resolver.approved_witness,
+        approved_witness_path=resolver.approved_witness_path,
     )
     with pytest.raises(ArsError, match="not activated"):
         later_resolver.scoped_grant_identity(GRANT_ID)
@@ -1972,21 +1995,25 @@ def test_activation_and_revocation_are_serialized_by_the_writer_lock(
         "_prepare_scoped_authority_activation",
         paused_prepare,
     )
+    # Since #208 (restore admission preparation moved pre-lock) a contending submission waits
+    # for the writer lock instead of failing fast. Serialization is asserted directly: the
+    # revocation cannot finish while activation holds the lock, and lands after it.
     with ThreadPoolExecutor(max_workers=2) as executor:
         activation_future = executor.submit(service.submit, activate)
         try:
             assert entered.wait(timeout=10)
             revoke_future = executor.submit(service.submit, revoke)
-            with pytest.raises(ConflictError, match="writer lock exists"):
-                revoke_future.result(timeout=5)
+            with pytest.raises(FutureTimeoutError):
+                revoke_future.result(timeout=1)
         finally:
             release.set()
         assert activation_future.result(timeout=20).status == "accepted"
+        assert revoke_future.result(timeout=60).status == "accepted"
 
     monkeypatch.setattr(
         service,
         "_prepare_scoped_authority_activation",
         real_prepare,
     )
-    assert service.submit(revoke).status == "accepted"
     assert resolver.scoped_grant_identity(GRANT_ID).status == "revoked"
+    assert service.submit(revoke).status == "accepted"
