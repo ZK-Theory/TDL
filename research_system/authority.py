@@ -7,6 +7,7 @@ import re
 import secrets
 import shutil
 import stat
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1495,6 +1496,98 @@ def _authority_schema_registry(
     return require_authority_schemas(runtime_schema_registry(schema_root)), schema_root
 
 
+_COMPETING_INITIALIZER_WAIT_SECONDS = 60.0
+_COMPETING_INITIALIZER_POLL_SECONDS = 0.05
+
+
+def _require_witness_matches_request(
+    witness: StoreOriginWitness,
+    *,
+    project_id: str,
+    final_root: Path,
+    bootstrap_hash: str,
+    resolved_codes: list[Path],
+    selected_schema_root: Path | None,
+) -> None:
+    """Refuse an origin witness that was reserved for a different initialization request."""
+    manifest = witness.initial_manifest
+    if (
+        witness.project_id != project_id
+        or witness.initial_control_root != str(final_root)
+        or manifest.get("bootstrap_manifest_sha256") != bootstrap_hash
+        or manifest.get("code_roots") != sorted(str(root.resolve(strict=True)) for root in resolved_codes)
+        or (selected_schema_root is not None and manifest.get("schema_root") != str(selected_schema_root))
+    ):
+        raise ConflictError("authority store origin witness does not match initializer request")
+
+
+def _converge_on_competing_initializer(
+    final_root: Path,
+    witness_path: Path,
+    *,
+    project_id: str,
+    value: dict[str, Any],
+    bootstrap_hash: str,
+    resolved_codes: list[Path],
+    bootstrap_schemas: SchemaRegistry,
+    selected_schema_root: Path | None,
+    require_schema_binding: bool,
+    approved_origin_witness_sha256: str | None,
+) -> InitializedStore:
+    """Adopt the store published by a competing initializer of the same request.
+
+    The competitor's witness must match this request exactly. Its stage belongs to the
+    competitor, so it is never reset or resumed here. This initializer waits a bounded
+    time for the final root, then verifies it as a complete store under that witness.
+
+    Raises:
+        ConflictError: If the competing witness binds a different request, or no complete
+            store is published within the wait.
+    """
+    try:
+        witness_raw = witness_path.read_bytes()
+    except OSError as exc:
+        raise IntegrityError("competing authority origin witness is unavailable") from exc
+    witness = load_store_origin_witness(
+        witness_path,
+        expected_sha256=approved_origin_witness_sha256 or sha256_hex(witness_raw),
+    )
+    _require_witness_matches_request(
+        witness,
+        project_id=project_id,
+        final_root=final_root,
+        bootstrap_hash=bootstrap_hash,
+        resolved_codes=resolved_codes,
+        selected_schema_root=selected_schema_root,
+    )
+    deadline = time.monotonic() + _COMPETING_INITIALIZER_WAIT_SECONDS
+    while True:
+        if final_root.exists():
+            try:
+                identity = _verify_complete_store(
+                    final_root,
+                    final_root,
+                    project_id,
+                    value,
+                    resolved_codes,
+                    bootstrap_schemas,
+                    selected_schema_root,
+                    require_schema_binding=require_schema_binding,
+                    approved_witness=witness,
+                    approved_witness_path=witness_path,
+                )
+            except (ArsError, OSError):
+                # Published but not yet settled (marker still present): keep waiting.
+                if time.monotonic() >= deadline:
+                    raise
+            else:
+                manifest = _load_bound_manifest(final_root, final_root)
+                return InitializedStore(identity, manifest, witness, witness_path)
+        if time.monotonic() >= deadline:
+            raise ConflictError("competing authority initializer reserved the origin witness but did not publish")
+        time.sleep(_COMPETING_INITIALIZER_POLL_SECONDS)
+
+
 def initialize_authority_control_store(
     code_roots: list[Path],
     control_root: Path,
@@ -1571,15 +1664,14 @@ def initialize_authority_control_store(
             witness_path,
             expected_sha256=approved_origin_witness_sha256 or sha256_hex(witness_raw),
         )
-        reserved_manifest = reserved_witness.initial_manifest
-        if (
-            reserved_witness.project_id != project_id
-            or reserved_witness.initial_control_root != str(final_root)
-            or reserved_manifest.get("bootstrap_manifest_sha256") != bootstrap_hash
-            or reserved_manifest.get("code_roots") != sorted(str(root.resolve(strict=True)) for root in resolved_codes)
-            or (selected_schema_root is not None and reserved_manifest.get("schema_root") != str(selected_schema_root))
-        ):
-            raise ConflictError("authority store origin witness does not match initializer request")
+        _require_witness_matches_request(
+            reserved_witness,
+            project_id=project_id,
+            final_root=final_root,
+            bootstrap_hash=bootstrap_hash,
+            resolved_codes=resolved_codes,
+            selected_schema_root=selected_schema_root,
+        )
     if final_root.exists():
         try:
             witness_raw = witness_path.read_bytes()
@@ -1657,11 +1749,32 @@ def initialize_authority_control_store(
                 physical_root=stage,
             )
         )
-        witness_path = persist_store_origin_witness(
-            witness,
-            resolved_origin_root,
-            expected_sha256=approved_origin_witness_sha256,
-        )
+        try:
+            witness_path = persist_store_origin_witness(
+                witness,
+                resolved_origin_root,
+                expected_sha256=approved_origin_witness_sha256,
+            )
+        except ConflictError:
+            if reserved_witness is not None:
+                raise
+            # A competing initializer reserved the witness slot between our check and our
+            # write. Its witness binds its own stage's physical identity, so the bytes differ
+            # even for an identical request. Converge on its store instead of failing:
+            # discard our stage, then verify the store it publishes.
+            shutil.rmtree(stage, ignore_errors=True)
+            return _converge_on_competing_initializer(
+                final_root,
+                witness_path,
+                project_id=project_id,
+                value=value,
+                bootstrap_hash=bootstrap_hash,
+                resolved_codes=resolved_codes,
+                bootstrap_schemas=bootstrap_schemas,
+                selected_schema_root=selected_schema_root,
+                require_schema_binding=require_schema_binding,
+                approved_origin_witness_sha256=approved_origin_witness_sha256,
+            )
         _bootstrap_failpoint("after-identity")
         _write_durable(
             stage / "manifests" / "authority-bootstrap.json",
