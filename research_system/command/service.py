@@ -5649,13 +5649,24 @@ class CommandService:
         command: Command,
         receipt: Receipt,
     ) -> Receipt:
+        """Return the stored receipt for an exact retry, or refuse a conflicting identity.
+
+        A reused command ID is always refused. A fresh command ID under an already-committed
+        idempotency key is refused only for C1 lifecycle commands (#212, "harden C1 receipt").
+        Other scoped commands, including authority revocation, keep the earlier contract, in
+        which an exact retry may arrive under a new command ID and returns the original receipt.
+        That contract is pinned by
+        test_legacy_v1_command_service_revocation_and_retry_remain_accepted.
+        """
         if command.command_id == receipt.command_id:
             return receipt
         if self.receipts.load(command.command_id) is not None:
             raise ConflictError("command ID conflicts with stored receipt")
         if any(event.get("command_id") == command.command_id for event in self.ledger.snapshot().events):
             raise ConflictError("command ID conflicts with committed command")
-        raise ConflictError("idempotency key conflicts with committed command")
+        if command.envelope["command_type"] in _C1_COMMAND_TYPES:
+            raise ConflictError("idempotency key conflicts with committed command")
+        return receipt
 
     def _stored_rejected_receipt(self, command: Command) -> Receipt | None:
         """Return an idempotent rejected receipt while holding WriterLock."""
