@@ -466,6 +466,90 @@ def test_posix_cleanup_rejects_temporary_symlink_without_following(tmp_path: Pat
     assert foreign.read_bytes() == b"foreign"
 
 
+def _extended_form_on_alternate_calls(monkeypatch, marker: str) -> list[str]:
+    """Make every other realpath of a path containing ``marker`` return the ``\\\\?\\`` form.
+
+    On Windows, ntpath.realpath can return the extended-length form of a path that another
+    process is creating at that moment. Two concurrent initializers hit it on the witness slot
+    (4 of 20 runs of the competing-initializer test failed on 2026-10-06), so one resolution of
+    the slot carried the prefix and the other did not. Alternating reproduces that split
+    deterministically. Returns the list of prefixed results, so a test can show it fired.
+    """
+    real_realpath = os.path.realpath
+    calls = {"count": 0}
+    prefixed: list[str] = []
+
+    def realpath(path, *args, **kwargs):
+        resolved = real_realpath(path, *args, **kwargs)
+        if marker in os.fspath(resolved) and not os.fspath(resolved).startswith("\\\\?\\"):
+            calls["count"] += 1
+            if calls["count"] % 2 == 0:
+                resolved = "\\\\?\\" + os.fspath(resolved)
+                prefixed.append(resolved)
+        return resolved
+
+    monkeypatch.setattr(os.path, "realpath", realpath)
+    return prefixed
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the extended-length path form is Windows-specific")
+def test_witness_slot_accepts_an_extended_length_resolution_of_the_same_path(tmp_path: Path, monkeypatch):
+    # remediation-red: on main the locator compares a plain resolution with a \\?\ one and
+    # refuses its own canonical slot ("differs from its canonical slot").
+    code_root = tmp_path / "code"
+    control_root = tmp_path / "control"
+    origin_root = tmp_path / "origin-authority"
+    code_root.mkdir()
+    origin_root.mkdir()
+    prefixed = _extended_form_on_alternate_calls(monkeypatch, "store-origins")
+
+    result = initialize_control_store([code_root], control_root, PROJECT_ID, origin_authority_root=origin_root)
+
+    assert prefixed, "the extended form was never produced, so this control is vacuous"
+    monkeypatch.undo()
+    canonical = identity_module.origin_witness_path(
+        origin_root, project_id=PROJECT_ID, initial_control_root=control_root
+    )
+    assert result.witness_path == canonical
+    assert not os.fspath(result.witness_path).startswith("\\\\?\\")
+    assert load_store_origin_witness(canonical, expected_sha256=result.witness.raw_sha256).raw_bytes == (
+        result.witness.raw_bytes
+    )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the extended-length path form is Windows-specific")
+def test_witness_slot_is_the_same_when_the_control_root_resolves_to_its_extended_form(tmp_path: Path, monkeypatch):
+    # remediation-red: the slot name hashes the resolved initial control root, so on main an
+    # extended-form resolution of that root names a different slot for the same store.
+    origin_root = tmp_path / "origin-authority"
+    origin_root.mkdir()
+    control_root = tmp_path / "control"
+    plain = identity_module.origin_witness_path(origin_root, project_id=PROJECT_ID, initial_control_root=control_root)
+
+    real_realpath = os.path.realpath
+
+    def realpath(path, *args, **kwargs):
+        resolved = os.fspath(real_realpath(path, *args, **kwargs))
+        return "\\\\?\\" + resolved if resolved.endswith("control") else resolved
+
+    monkeypatch.setattr(os.path, "realpath", realpath)
+    assert (
+        identity_module.origin_witness_path(origin_root, project_id=PROJECT_ID, initial_control_root=control_root)
+        == plain
+    )
+
+
+def test_a_different_witness_slot_is_still_refused(tmp_path: Path):
+    # preservation-green: normalising the path form must not let another slot's file pass.
+    _, _, _, result, witness = _initialized(tmp_path)
+    other = result.witness_path.with_name(f"sha256-{'0' * 64}.json")
+    other.write_bytes(witness.raw_bytes)
+
+    with pytest.raises(IntegrityError, match="differs from its canonical slot"):
+        identity_module.validate_approved_origin_witness_path(other, witness)
+    assert identity_module.validate_approved_origin_witness_path(result.witness_path, witness)
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows reparse controls are platform-specific")
 def test_origin_store_locator_rejects_directory_reparse_escape(tmp_path: Path):
     code_root = tmp_path / "code"

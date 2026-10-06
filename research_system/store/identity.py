@@ -196,6 +196,26 @@ class InitializedStore(str):
         return self._witness_path
 
 
+def _without_extended_prefix(path: Path) -> Path:
+    """Return a Windows extended-length path (``\\\\?\\C:\\...``) in its ordinary form.
+
+    ``Path.resolve`` can return the extended form for a path that another process is
+    creating at that moment, so two resolutions of one file can differ only by the prefix.
+    Witness identities hash and compare resolved paths, so they use this one form.
+    """
+    text = os.fspath(path)
+    if text.startswith("\\\\?\\UNC\\"):
+        return Path("\\\\" + text[len("\\\\?\\UNC\\") :])
+    if text.startswith("\\\\?\\") and text[5:6] == ":":
+        return Path(text[len("\\\\?\\") :])
+    return path
+
+
+def _resolve_witness_path(path: Path, *, strict: bool) -> Path:
+    """Resolve a witness-identity path to its ordinary (non-extended) form."""
+    return _without_extended_prefix(path.resolve(strict=strict))
+
+
 def origin_witness_path(
     origin_authority_root: Path,
     *,
@@ -204,9 +224,11 @@ def origin_witness_path(
 ) -> Path:
     """Return the canonical external locator for one project/root slot."""
     project = validate_id(project_id, "project")
-    initial_root = str(initial_control_root.resolve(strict=False))
+    initial_root = str(_resolve_witness_path(initial_control_root, strict=False))
     slot = sha256_hex(canonical_bytes({"project_id": project, "initial_control_root": initial_root}))
-    return origin_authority_root.resolve(strict=False) / _ORIGIN_WITNESS_DIRECTORY / f"sha256-{slot}.json"
+    return (
+        _resolve_witness_path(origin_authority_root, strict=False) / _ORIGIN_WITNESS_DIRECTORY / f"sha256-{slot}.json"
+    )
 
 
 def _require_physical_path(path: Path, *, require_exists: bool) -> Path:
@@ -233,7 +255,7 @@ def _require_physical_path(path: Path, *, require_exists: bool) -> Path:
         if index < len(parts) - 1 and not stat.S_ISDIR(metadata.st_mode):
             raise IntegrityError(f"physical path ancestor is not a directory: {current}")
     try:
-        return candidate.resolve(strict=require_exists)
+        return _resolve_witness_path(candidate, strict=require_exists)
     except (FileNotFoundError, OSError) as exc:
         raise IntegrityError(f"physical path is unavailable: {candidate}") from exc
 
@@ -252,11 +274,14 @@ def _validate_origin_witness_locator(
         raise IntegrityError("approved origin witness locator is not a regular file")
     origin_root = _require_physical_path(resolved.parent.parent, require_exists=True)
     if expected_witness is not None:
-        expected = origin_witness_path(
-            origin_root,
-            project_id=expected_witness.project_id,
-            initial_control_root=Path(expected_witness.initial_control_root),
-        ).resolve(strict=False)
+        expected = _resolve_witness_path(
+            origin_witness_path(
+                origin_root,
+                project_id=expected_witness.project_id,
+                initial_control_root=Path(expected_witness.initial_control_root),
+            ),
+            strict=False,
+        )
         if resolved != expected or resolved.name != expected_witness.path_name:
             raise IntegrityError("approved origin witness locator differs from its canonical slot")
     return resolved
@@ -312,7 +337,7 @@ def build_store_origin_witness(
     physical_root: Path | None = None,
 ) -> StoreOriginWitness:
     """Build a witness from the immutable initialization inputs."""
-    initial_root = str(initial_control_root.resolve(strict=False))
+    initial_root = str(_resolve_witness_path(initial_control_root, strict=False))
     raw_manifest = canonical_bytes(manifest)
     value = {
         "schema_id": _ORIGIN_WITNESS_SCHEMA_ID,
