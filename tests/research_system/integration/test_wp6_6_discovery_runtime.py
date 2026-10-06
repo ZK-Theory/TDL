@@ -2792,11 +2792,14 @@ def test_assay_verdict_lifecycle_is_atomic_durable_and_replay_equivalent(
                 if tampered_verdict == "approve_with_conditions"
                 else []
             )
-            with pytest.raises(
-                IntegrityError,
-                match="schema provenance mismatch|event schema validation failed|invalid Discovery review verdict",
-            ):
+            # The shared event schema refuses this verdict first (#265). Assert that refusal, then
+            # isolate the driver so the Discovery verdict guard itself must fire.
+            with pytest.raises(IntegrityError):
                 replay_discovery(_rehash_events(events))
+            with monkeypatch.context() as isolated:
+                _isolate_discovery_driver(isolated)
+                with pytest.raises(IntegrityError, match="invalid Discovery review verdict$"):
+                    replay_discovery(_rehash_events(events))
 
 
 def test_request_assay_requires_the_current_accepted_bar_and_producer_relation(tmp_path: Path) -> None:
@@ -4667,27 +4670,30 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
                 match="invalid Discovery (?:decision proposal|decision resolution|revisit)",
             ):
                 replay_discovery(_rehash_events(tampered))
-    # An identity outside its namespace, or a verdict outside its shape, is refused by the event
-    # schema itself. Since #265 that schema layer runs in the shared replay, which words the
-    # refusal 'event schema validation failed'; the Discovery-specific alternatives remain.
-    for event_type, producer_type, identity_field, message in (
+    # An identity outside its namespace is refused by the event schema itself, which since #265 runs
+    # in the shared replay. Where it does, the test asserts that refusal and then isolates the driver,
+    # so the Discovery guard it names must fire on its own (obs 2026-10-03-tamper-tests-pinned-to-check-order).
+    for event_type, producer_type, identity_field, message, guard in (
         (
             "SpikePlanned",
             "RegisterSpikePlan",
             "spike_id",
             "Spike identity collision|transaction stream mismatch for OR-014",
+            None,
         ),
         (
             "DecisionProposed",
             "ProposePromotionDecision",
             "new_decision_id",
-            "schema provenance mismatch|event schema validation failed|invalid Discovery decision proposal|transaction stream mismatch",
+            None,
+            "invalid Discovery decision proposal$",
         ),
         (
             "ReviewRequested",
             "RequestDiscoveryOutcomeReview",
             "new_review_id",
-            "schema provenance mismatch|event schema validation failed|invalid Discovery review request|transaction stream mismatch",
+            None,
+            "invalid Discovery review request$",
         ),
     ):
         cross_namespace = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
@@ -4699,6 +4705,11 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
         minted["payload"][identity_field] = CATALOGUE_STREAM_ID
         with pytest.raises(IntegrityError, match=message):
             replay_discovery(_rehash_events(cross_namespace))
+        if guard is not None:
+            with pytest.MonkeyPatch.context() as isolated:
+                _isolate_discovery_driver(isolated)
+                with pytest.raises(IntegrityError, match=guard):
+                    replay_discovery(_rehash_events(cross_namespace))
     for tampered_verdict in ("approve", "approve_with_conditions"):
         events = tuple(deepcopy(event) for event in runtime.ledger.iter_events())
         verdict_event = next(
@@ -4723,13 +4734,14 @@ def test_spike_positive_lifecycle_reaches_reviewed_atomically_and_without_provid
             if tampered_verdict == "approve_with_conditions"
             else []
         )
-        # A verdict outside the schema's shape is refused by the event schema, which since
-        # #265 runs in the shared replay and words it 'event schema validation failed'.
-        with pytest.raises(
-            IntegrityError,
-            match="schema provenance mismatch|event schema validation failed|invalid Discovery review verdict",
-        ):
+        # The shared event schema refuses this verdict first (#265). Assert that refusal, then
+        # isolate the driver so the Discovery verdict guard itself must fire.
+        with pytest.raises(IntegrityError):
             replay_discovery(_rehash_events(events))
+        with pytest.MonkeyPatch.context() as isolated:
+            _isolate_discovery_driver(isolated)
+            with pytest.raises(IntegrityError, match="invalid Discovery review verdict$"):
+                replay_discovery(_rehash_events(events))
 
     shared_events = tuple(runtime.ledger.iter_events())
     resolve_transaction_ids = discovery_resolve_transaction_ids(shared_events)
