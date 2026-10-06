@@ -91,6 +91,28 @@ def _canonical_local_cli_uri(control_root: Path) -> str:
     return f"local-cli:{control_root.as_uri().removeprefix('file:')}"
 
 
+_DISPOSABLE_WORKTREE_PARENTS = ((".codex", "worktrees"), (".claude", "worktrees"), (".apm", "worktrees"))
+
+
+def disposable_checkout_reason(root: Path) -> str | None:
+    """Say why ``root`` is a checkout meant to be thrown away, or return None for a durable one.
+
+    A durable authority (an approved schema root, a store's bound candidate) must not depend on such a
+    checkout: sweeping it makes the authority unloadable through its approved path (obs
+    2026-10-03-tests-and-live-store-bound-to-machine-state, where a swept Codex worktree took the live
+    store's schema root with it). Two signals, either sufficient: a path under one of the agent worktree
+    directories, and a linked Git worktree, whose ``.git`` is a file rather than a directory.
+    """
+
+    parts = [part.lower() for part in root.parts]
+    for parent, child in _DISPOSABLE_WORKTREE_PARENTS:
+        if any(parts[i] == parent and parts[i + 1] == child for i in range(len(parts) - 1)):
+            return f"it sits under a {parent}/{child} directory"
+    if (root / ".git").is_file():
+        return "it is a linked Git worktree"
+    return None
+
+
 @dataclass(frozen=True)
 class SpecOperatorConfig:
     """Strict Gate 6 route evidence, without any authority adjudication.
@@ -265,6 +287,12 @@ class ApprovedProjectBinding:
             raise ConfigurationError("approved code_roots must be unique")
         if resolved_schema_root not in {root / ".research-system" / "schemas" for root in resolved_code_roots}:
             raise ConfigurationError("approved schema_root is not registered by an approved code root")
+        # Retired code roots stay as provenance (above), but the schema root must resolve on every load.
+        disposable = disposable_checkout_reason(resolved_schema_root.parent.parent) or disposable_checkout_reason(
+            schema_root.parent.parent
+        )
+        if disposable is not None:
+            raise ConfigurationError(f"approved schema_root must not live in a disposable checkout: {disposable}")
         origin_authority_root = Path(_foundation_string(value["origin_authority_root"], "origin_authority_root"))
         origin_witness_path_value = Path(_foundation_string(value["origin_witness_path"], "origin_witness_path"))
         origin_witness_sha256 = _foundation_digest(value["origin_witness_sha256"], "origin_witness_sha256")

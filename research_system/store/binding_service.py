@@ -18,6 +18,7 @@ from typing import Any
 from research_system.authority import _validate_bootstrap, authority_bootstrap_sha256
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.command.models import Receipt
+from research_system.config import disposable_checkout_reason
 from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.git_execution import run_git
 from research_system.schema_registry import bundled_schema_registry, runtime_schema_registry
@@ -453,6 +454,10 @@ def _candidate_evidence(intent: AdvanceStoreBinding | RepairStoreBinding) -> _Ca
         or Path(_git(root, "rev-parse", "--show-toplevel")).resolve(strict=True) != root
     ):
         raise ConfigurationError("candidate repository root is not an exact physical Git worktree")
+    # The store's schema root becomes this candidate's, so the candidate must outlive the binding.
+    disposable = disposable_checkout_reason(root)
+    if disposable is not None:
+        raise ConfigurationError(f"candidate repository root is a disposable checkout: {disposable}")
     schema_root = intent.intended_schema_root.resolve(strict=True)
     if schema_root != root / ".research-system" / "schemas" or not schema_root.is_dir():
         raise ConfigurationError("intended schema root is not candidate-owned")
