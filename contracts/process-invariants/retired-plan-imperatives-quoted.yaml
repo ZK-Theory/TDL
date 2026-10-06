@@ -1,0 +1,66 @@
+id: retired-plan-imperatives-quoted
+kind: invariant
+
+description: >
+  An ARS implementation plan that declares itself superseded, retired,
+  non-operative or historical must carry a machine-readable retirement-scope
+  declaration, and every line inside a declared retired span must be
+  blockquoted rather than left readable as an instruction. Retirement is
+  per-claim: a span the successor still cites as reference material is carved
+  out under `retained` and stays unquoted. Nothing is ever deleted -- the
+  retired text remains in the file as evidence of what was planned and why it
+  was replaced.
+
+spec_citation:
+  source: >
+    research-observer observation
+    2026-08-22-retired-procedure-kept-live-imperatives, logged while resolving
+    the documentation-contract threads on PR #259: "A warning does not make
+    executable prose historical." Its suggested improvement -- "retirement
+    checks should fail when a historical procedure retains unquoted imperative
+    operations that conflict with its active successor" -- is this contract.
+    Authored after the prose form of the same rule failed three times.
+  vault_entry_date: "2026-09-08"
+
+invariant:
+  claim: >
+    When a plan document's own status text (its H1 title, a Status/Authority
+    field value, or a header banner blockquote) claims the document is
+    superseded, retired, non-operative or historical, then the document must
+    contain a retirement-scope declaration; every non-blank line inside each
+    declared retired span must be blockquoted, excepting the span's opening
+    heading, fenced code, and nested `retained` carve-outs; a declared heading
+    that matches no heading or several headings is an error rather than an
+    empty scope; and a declaration retiring no span at all requires a written
+    note justifying that answer.
+  preconditions:
+    - "the document is Markdown under contracts-scanned plan roots (tools/check_retired_imperatives.py DEFAULT_ROOTS)"
+    - "the retirement claim appears in the document's own status text, not merely in its body or in a field describing other objects"
+  counter_example_history: >
+    Three instances, each with the diagnosis already available in writing.
+    (1) 06p, 2026-08-13: the "Historical Jira operation" section was labelled
+    non-operative while retaining its full instruction block; resolved only by
+    deleting the block in PR #259. (2) 06s v2 Phase 0 step 4 codified the
+    insufficient remedy in the successor plan, instructing its executor to add
+    "a superseded-by-06s banner line to 06q's header (no other 06q edits)".
+    (3) PR #271 executed that step: its entire 06q change is one banner line,
+    and the banner enumerates the imperatives it fails to neutralise --
+    "including its sole-authority, no-successor, retirement and
+    fresh-live-SPEC-02 instructions" -- leaving 480 lines of section 4
+    construction sequence readable as instructions.
+
+binding:
+  test_file: "tests/tools/test_retired_imperatives.py"
+  test_function: "test_retirement_gate_is_enforced_and_demonstrably_fires"
+  must_assert: >
+    Asserts both halves, because a clean-tree assertion alone is satisfied
+    equally well by a gate that can never fire. (a) The live scan over
+    DEFAULT_ROOTS returns no findings. (b) The gate fires with the specific
+    expected rule id on each shape it exists to catch: a supersession banner
+    over an unquoted body (the PR #271 shape) yields R1-declaration; an
+    unquoted line inside a declared retired span yields R2-unquoted; an empty
+    retired scope with no justifying note yields R1-declaration; and a
+    declaration naming a heading that no longer exists yields R2-scope rather
+    than silently passing on an empty span. (c) The gate does not fire on an
+    active successor whose header preserves other objects' retired evidence,
+    nor on a document that merely discusses supersession in its body.

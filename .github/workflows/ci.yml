@@ -177,6 +177,8 @@ jobs:
           tests/tools/test_sync_agent_skills.py
           tests/tools/test_results_no_overwrite_hook.py
           tests/tools/test_hook_currency.py
+          tests/tools/test_observation_log_lint.py
+          tests/tools/test_retired_imperatives.py
           --junitxml=admission-controls.xml
           -o "addopts=" -p no:cacheprovider -p no:cov
 

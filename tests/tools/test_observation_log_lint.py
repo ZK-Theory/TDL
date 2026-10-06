@@ -318,3 +318,60 @@ def test_a_file_with_a_long_extension_is_closure_evidence(tmp_path: Path) -> Non
     assert bare.returncode == 0, bare.stderr
     nothing = _run(tmp_path, _obs("c", "CLOSED", "**Resolution:** it was sorted out, see the notes.\n"))
     assert nothing.returncode == 1, "positive control: prose naming no artifact must still fail"
+
+
+def _git(cwd: Path, *args: str) -> str:
+    env_args = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "core.hooksPath=/dev/null"]
+    done = subprocess.run(["git", *env_args, *args], cwd=cwd, capture_output=True, text=True, check=True)
+    return done.stdout.strip()
+
+
+def _repo_with_a_stranded_commit(tmp_path: Path) -> tuple[Path, str, str]:
+    """A clone whose first commit is pushed to its origin and whose second exists only locally."""
+    origin, clone = tmp_path / "origin.git", tmp_path / "clone"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(tmp_path, "init", "-q", "-b", "main", str(clone))
+    _git(clone, "remote", "add", "origin", str(origin))
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "pushed")
+    pushed = _git(clone, "rev-parse", "HEAD")
+    _git(clone, "push", "-q", "origin", "main")
+    _git(clone, "fetch", "-q", "origin")
+    _git(clone, "switch", "-q", "-c", "local-only")
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "stranded")
+    return clone, pushed, _git(clone, "rev-parse", "HEAD")
+
+
+def test_an_open_entry_citing_a_local_only_commit_is_reported(tmp_path: Path) -> None:
+    """A "built" limb whose commit was never pushed must not read as delivered.
+
+    Obs 2026-10-06-owner-decided-work-stranded-on-local-branches: two owner-decided deliverables sat on
+    never-pushed branches for four weeks while the log, and two review packets, called them built.
+    """
+    clone, pushed, stranded = _repo_with_a_stranded_commit(tmp_path)
+    log = _obs("a", f"OPEN — the gate is built on a branch (`{stranded[:9]}`).")
+    result = _run(tmp_path, log, "--reachability", str(clone))
+    assert result.returncode == 1
+    assert f"a: cites commit {stranded[:9]}, which is on no remote-tracking ref" in result.stderr
+
+    delivered = _run(tmp_path, _obs("b", f"OPEN — limb 1 merged in {pushed[:9]}."), "--reachability", str(clone))
+    assert delivered.returncode == 0, delivered.stderr
+    assert "reachability: 1 commit hash(es) checked, 0 stranded" in delivered.stdout
+
+
+def test_reachability_reads_only_open_entries_and_skips_carried_hashes(tmp_path: Path) -> None:
+    clone, pushed, stranded = _repo_with_a_stranded_commit(tmp_path)
+    closed = _obs("a", f"ACTIONED — fixed in {stranded[:9]}.")
+    carried = _obs("b", f"OPEN — carried as `{pushed[:9]}` (was `{stranded[:9]}`).")
+    result = _run(tmp_path, closed + carried, "--reachability", str(clone))
+    assert result.returncode == 0, result.stderr
+    assert "1 commit hash(es) checked, 0 stranded" in result.stdout
+
+
+def test_a_hash_that_is_not_a_commit_here_is_counted_not_dropped(tmp_path: Path) -> None:
+    """Hashes from other repositories, or content digests, cannot be checked here; the count says so."""
+    clone, _, _ = _repo_with_a_stranded_commit(tmp_path)
+    result = _run(
+        tmp_path, _obs("a", "OPEN — MathUni merge 4d057729 and digest dd085c86."), "--reachability", str(clone)
+    )
+    assert result.returncode == 0, result.stderr
+    assert "0 commit hash(es) checked, 0 stranded; 2 not a commit in this repository" in result.stdout
