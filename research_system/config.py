@@ -334,7 +334,12 @@ class ApprovedProjectBinding:
         persisted_schema_root = manifest_schema_root(manifest)
         if persisted_schema_root is None:
             raise ConfigurationError("materialized store schema root differs from approved project binding")
-        if persisted_schema_root.resolve(strict=True) != resolved_schema_root:
+        try:
+            persisted_schema_root_resolved = persisted_schema_root.resolve(strict=True)
+        except OSError as exc:
+            # Report it as configuration, like ControlBinding does, not as an escaping OSError.
+            raise ConfigurationError("store manifest schema root is missing") from exc
+        if persisted_schema_root_resolved != resolved_schema_root:
             if activation_sha256 is None:
                 raise ConfigurationError("materialized store schema root differs from approved project binding")
             try:

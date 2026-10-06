@@ -29,7 +29,7 @@ from research_system.schema_registry import (
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
-from tests.research_system.factories import REPO_ROOT
+from tests.research_system.factories import REPO_ROOT, approved_foundation
 from tests.research_system.integration.test_authority_grant_source import (
     ACTOR_ID,
     CMD_RETRY,
@@ -1518,8 +1518,23 @@ def test_restart_revalidates_immutable_revocation_decision(tmp_path) -> None:
 def test_cli_replay_uses_bound_owner_decision_validator(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
     control_root, schemas, resolver, _, objects, service = _system(tmp_path)
+    # `replay verify` loads the canonical foundation (#218); approve this test's store
+    # rather than depending on the operator's live control store.
+    code_root = tmp_path / "repo"
+    approved_foundation(
+        monkeypatch,
+        code_root / ".research-system" / "config" / "foundation.yaml",
+        code_roots=[code_root],
+        control_root=control_root,
+        store_identity=resolver.expected_store_identity,
+        witness=resolver.approved_witness,
+        witness_path=resolver.approved_witness_path,
+        schema_root=code_root / ".research-system" / "schemas",
+        origin_authority_root=resolver.approved_witness_path.parent.parent,
+    )
     grant = _scoped_grant(schemas)
     decision = _decision(
         resolver,
