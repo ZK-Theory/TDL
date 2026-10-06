@@ -111,6 +111,10 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_sync_agent_skills.py",
     "tests/tools/test_results_no_overwrite_hook.py",
     "tests/tools/test_hook_currency.py",
+    # System review tools (2026-10-06, PR #332): the review ledger and stranded-commit lint, and
+    # the retired-plan gate that pre-commit Gate 2 runs.
+    "tests/tools/test_observation_log_lint.py",
+    "tests/tools/test_retired_imperatives.py",
 )
 
 
