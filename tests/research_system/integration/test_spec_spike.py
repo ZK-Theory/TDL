@@ -22,7 +22,7 @@ from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.errors import SchemaError
 from research_system.ids import new_id
 from research_system.schema_registry import runtime_schema_registry
-from tests.research_system.factories import PROJECT_ID, REPO_ROOT
+from tests.research_system.factories import PROJECT_ID, REPO_ROOT, activate_lifecycle_grant
 from tests.research_system.integration import test_spec_task as tst
 from tests.research_system.integration import test_wp6_1_c1_readiness_lease as c1
 from tests.research_system.integration.test_spec_assay import (
@@ -117,12 +117,24 @@ def test_spec_02_route_identities_are_deterministic_and_subject_bound():
     # Every SPEC-02 action names the same subjects, and free text is not identity.
     assert approve == prepare == start
     assert spec_assay.subject_ids(PROJECT_ID, {**spec_02_intent(spec_assay.START_02), "reason": "other"}) == start
-    other = spec_assay.subject_ids(PROJECT_ID, spec_02_intent(spec_assay.START_02, "obj_019fed25-b33e-7740-b280-000000000502"))  # fmt: skip
+    other_candidate = "obj_019fed25-b33e-7740-b280-000000000502"
+    other = spec_assay.subject_ids(PROJECT_ID, spec_02_intent(spec_assay.START_02, other_candidate))
     assert other["spike_id"] != start["spike_id"]
     # A Spike follows its Candidate's promoted Assay, which the route reads from the ledger rather than
     # derives, so no SPEC-02 identity is a SPEC-01 one and the SPEC-01 identities are unchanged.
-    spec_01 = spec_assay.subject_ids(PROJECT_ID, {"action": spec_assay.PREPARE, "reason": "x", "candidate_id": CANDIDATE})  # fmt: skip
-    assert set(start) == {"candidate_id", "approval_id", "spec_02_brief_id", "spike_id", "execution_decision_id"}
+    prepare_01 = {"action": spec_assay.PREPARE, "reason": "x", "candidate_id": CANDIDATE}
+    spec_01 = spec_assay.subject_ids(PROJECT_ID, prepare_01)
+    assert set(start) == {
+        "candidate_id",
+        "approval_id",
+        "spec_02_brief_id",
+        "spike_id",
+        "execution_decision_id",
+        # 06s Phase 4b-2b: the Spike's operator return, its outcome review and its decision.
+        "spec_02_return_id",
+        "spike_review_id",
+        "spike_decision_id",
+    }
     assert not (set(start.values()) & set(spec_01.values())) - {CANDIDATE}
 
 
@@ -332,6 +344,7 @@ def _spec_02_states(coordinator, candidate_id: str) -> dict:
     }
 
 
+@pytest.mark.slow
 def test_public_spec_02_path_starts_the_approved_spike(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
@@ -445,6 +458,7 @@ def test_public_spec_02_path_starts_the_approved_spike(tmp_path, monkeypatch, ca
     assert _spec_02_states(coordinator, candidate_id) == completed
 
 
+@pytest.mark.slow
 def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = _bind(tmp_path, monkeypatch)
     candidate_id, _ = _promoted(bound, tmp_path, capsys, source_repo, monkeypatch)
@@ -492,8 +506,9 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
     _invoke(bound, tmp_path, capsys, approve_intent, approve_grant, OWNER, evidence=APPROVAL_EVIDENCE)
     # Nor does the start precede the brief, even once the approval is registered.
     plan_grant = _grant(bound, "RegisterSpikePlan", candidate_id, STEWARD)
-    assert "prepare_spec_02 to be completed first" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant,
-                                                              STEWARD, evidence=PLAN_EVIDENCE, refused=True)  # fmt: skip
+    unprepared = _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=PLAN_EVIDENCE,
+                         refused=True)  # fmt: skip
+    assert "prepare_spec_02 to be completed first" in unprepared
     _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER)
 
     # Neither the prospective producer nor the owner plans the Spike.
@@ -509,8 +524,9 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
         {key: value for key, value in box.items() if key != "memory_limit_mb"},
         {**box, "network_access": True},
     ):
-        assert "cost ceiling" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD,
-                                         evidence={**PLAN_EVIDENCE, "time_resource_box": over}, refused=True)  # fmt: skip
+        over_plan = {**PLAN_EVIDENCE, "time_resource_box": over}
+        assert "cost ceiling" in _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=over_plan,
+                                         refused=True)  # fmt: skip
     _invoke(bound, tmp_path, capsys, start_intent, plan_grant, STEWARD, evidence=PLAN_EVIDENCE)
     # A Lease the replay still marks active is not live once it has expired. The execution rows are
     # refused at the submission time they would be recorded at, so the route never records an authority
@@ -527,6 +543,39 @@ def test_spec_02_route_binds_the_approval_and_the_spike_plan(tmp_path, monkeypat
                                                                            grant, actor, refused=True)  # fmt: skip
     proposed = _run(bound, tmp_path, capsys, start_intent, "ProposeSpikeExecutionDecision", candidate_id, STEWARD)
     assert proposed["next_effect"] == "ResolveDecision"
+
+    # A Lease that expires between the start's rows leaves the start stuck (PR #298 known limit 7, asserted in
+    # 4b-2b as Stephen decided on 2026-09-24). Once it has expired, the route refuses the owner's approval of the
+    # proposal and the control plane refuses to renew the Lease, so the start stays prepared and nothing resumes
+    # it: the route has no Spike revisit or cancellation.
+    coordinator = bound.coordinator
+    resolve_grant = _grant(bound, "ResolveDecision", ids["execution_decision_id"], OWNER, human=True)
+    late = C1_NOW + timedelta(minutes=50)
+    with monkeypatch.context() as expired:
+        expired.setattr(cli, "SpecCoordinator", partial(SpecCoordinator, clock=lambda: late))
+        assert "Lease that has not expired" in _invoke(bound, tmp_path, capsys, start_intent, resolve_grant, OWNER,
+                                                       refused=True)  # fmt: skip
+        # The coordinator's command service takes the clock it is built with.
+        expired.setattr(coordinator, "clock", lambda: late)
+        renewal = c1._renew_lease_command(
+            number=9101,
+            expected_stream_version=coordinator.ledger.snapshot().stream_versions[c1.LEASE_ID],
+            prior_expiry=c1.INITIAL_EXPIRY,
+            new_expiry=c1.GRANT_EXPIRY,
+        )
+        renewal["authority_grant_id"] = activate_lifecycle_grant(
+            bound.harness,
+            subject_kind="lease",
+            subject_id=c1.LEASE_ID,
+            actor_id=OWNER,
+            allowed_actor_classes=("human",),
+            command_types=("RenewExecutionLease",),
+            grant_id=new_id("authority_grant"),
+        )
+        receipt = coordinator._command_service().submit(renewal)
+        assert receipt.status == "rejected" and receipt.reason_code == "lease_expired", receipt
+        stuck = coordinator.status(start_intent)
+    assert stuck["state"] == "prepared" and stuck["next_effect"] == "ResolveDecision"
 
 
 def _direct_promoted(bound, number: int) -> tuple[str, str]:
@@ -666,6 +715,7 @@ def _direct_promoted(bound, number: int) -> tuple[str, str]:
     return candidate_id, assay_id
 
 
+@pytest.mark.slow
 def test_admission_accepts_the_spike_planning_collapses_the_route_refuses(tmp_path, monkeypatch, capsys):
     bound = _bind(tmp_path, monkeypatch)
     coordinator = bound.coordinator
