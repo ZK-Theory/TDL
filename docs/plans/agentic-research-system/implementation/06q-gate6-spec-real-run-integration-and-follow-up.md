@@ -216,338 +216,367 @@ new writes use canonical identities. Status and advance consume the same
 registry and evaluator. A persisted legacy fixture may bypass a new writer
 only through an explicitly tested compatibility read path.
 
-## 4. Sequential implementation slices
+## 4. Sequential implementation slices - PARTLY RETIRED
 
-The following six PRs are sequential latest-`main` slices. Each owns one
-invariant family, one observable public path, and one explicit negative matrix.
-No live store is written during construction.
+> **Retirement scope.** 06s supersedes this section as the Gate 6 delivery
+> decomposition, and its supersession banner at the top of this file already
+> says so. A banner alone leaves the text below readable as instructions, which
+> is the failure this change closes: 480 lines of imperative construction
+> sequence that no current reader is meant to execute.
+>
+> **Steps 0-4 and Step 6 are quoted below as historical record.** Nothing is
+> deleted. Their imperative verbs ("do not", "must", "keep", "read back")
+> addressed the retired 2026-08 campaign's executors and bind no current
+> reader. They are retained as evidence of what was planned and why it was
+> replaced.
+>
+> **Step 5 is NOT retired and is left unquoted.** 06s retains its finite SPEC
+> action composition as reference material ("Only the finite SPEC action
+> composition in its section 4 Step 5 and the source-resolution contract cited
+> below remain reference material"), and 06s Phase 3 consults its action table
+> directly. Quoting it would degrade material executors are still instructed to
+> read.
+>
+> Note that 06s also *replaces* this document's section 6 mandatory fresh live
+> SPEC-02 closure requirement; section 6 is left as written but is not the
+> current closure rule.
 
-### Step 0 — Documentation-only control reset
+>
+> The following six PRs are sequential latest-`main` slices. Each owns one
+> invariant family, one observable public path, and one explicit negative matrix.
+> No live store is written during construction.
+>
+> ### Step 0 — Documentation-only control reset
+>
+> **Owner:** documentation lane; this iteration.
+> **Output:** this plan as the sole active Gate 6 recovery/closure authority;
+> updated pointers in the assigned plan, decision, roadmap, and handoff
+> documents; historical 06r retirement note.
+> **Acceptance:** exact assigned documentation paths only, resolved links, no
+> active SCALE-01 closure prerequisite, P-049/P-050 recorded, PR states accurate,
+> and `git diff --check` clean.
+> **Step 0 control boundary:** the approved Step 0 Jira text updates KAN-12 and
+> KAN-103, creates one level-0 Task job for each of the six PRs, parents every
+> job to the KAN-12 Epic, and gives every job an outward `Blocks` link to
+> KAN-103. Jira does not permit a Task to be the parent of another Task, so the
+> six jobs are KAN-103's blocking siblings rather than its children. KAN-103
+> must read back six inward blockers and cannot transition terminal while any
+> one remains open. Each job records its observable outcome, current gap, next
+> action, authoritative files, closure evidence, owner, and dependency links,
+> and reads back those links. The remaining Step 0 authority is only that Jira
+> mutation and readback. The branch, PR, and PR #257 closure work is already
+> complete; Step 0 does not provide standing authority for further Git or review
+> operations, provider/paid work, live-store mutation, or final Gate 6 closure.
+>
+> ### Review-convergence correction — STORE precedes SOURCE
+>
+> PR #260 showed that the original order was not dependency-safe. The SOURCE
+> candidate had to modify generic immutable-file publication, recovery locking,
+> ledger admission, and shared replay callers before the STORE slice supplied
+> their verified root and replay context. The resulting optional resolver and
+> ad hoc lock/error plumbing let focused tests pass while production backup,
+> restore, and projection callers remained unable to replay the new source
+> event. The staged-file repair also reopened a substitution window in the same
+> publication invariant it was intended to close.
+>
+> The corrected sequence lands the shared STORE boundary first. SOURCE then uses
+> those interfaces and owns only Git/source semantics plus its typed provenance
+> verdict. Do not cherry-pick PR #260 wholesale. Reuse a change only after it is
+> re-derived against the corrected owner and its negative matrix passes. The
+> review concern about `os.link(..., follow_symlinks=False)` is not a defect on
+> the sole supported runtime, CPython 3.13.5 on Windows: the exact operation has
+> been exercised successfully. STORE nevertheless retains an explicit platform
+> control so this fact cannot silently drift.
+>
+> Keep the existing six Jira implementation jobs; do not create duplicate
+> remediation tickets for the PR #260 comments. Change the STORE job to the next
+> production action, make the SOURCE job depend on STORE, and attach the four
+> valid cycle-2 findings plus the ledger diagnostic failure to those two owning
+> jobs. Read back both dependency directions and the revised next actions after
+> the plan amendment merges.
+>
+> ### Step 1 — `G6-SPEC-STORE-1`
+>
+> **Invariant:** one verified snapshot and predecessor governs the whole
+> operation. Selection and read happen under the lock, then revalidate before
+> publication. Outputs are prevalidated. Marker, object, event, receipt, and
+> current binding form one recovery identity. Store contention, integrity
+> failure, and unavailable physical state remain distinct typed outcomes.
+>
+> **Main interfaces:** new `repair-binding` and `advance-binding` parsers and
+> handlers; the `SpecOperatorConfig@1.0.0` schema and shared loader that establish
+> the canonical root plus exact project/store/route binding for every public
+> SPEC command; the existing backup and restore seams,
+> `verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
+> one shared verified-binding admission. The loader produces one replay context
+> that includes the exact registered-content resolver; every production replay,
+> projection rebuild, backup, restore, and verification caller consumes that
+> context rather than forwarding an optional resolver. The current authority
+> remains the append-only `manifests/binding-repair-current.json` lineage; this
+> step must not create a parallel current-binding file, event family, or command
+> path.
+>
+> The exact live predecessor is schema `ars://internal/store-binding-recovery`
+> version `1.1.0`, raw SHA-256
+> `317cb9623b13dbbf128234b987f4cb56db33d1b3f69c925b1b83e5db89f96f5d`,
+> and Git subject `cf8faf48d3cd682bf7d8fe7b9202b0054249442c`. That retired
+> subject is not an ancestor of the recovery baseline or the future squash-merged
+> implementation, so the first transition cannot use the ordinary descendant
+> rule. It is one uniquely typed, owner-reviewed divergence successor that binds
+> the exact predecessor bytes and object, protected route and source hashes,
+> project/store/origin identity, reviewed integrated-`main` commit, and new
+> governed-code manifest in one transaction. It is admitted only from the legacy
+> record that lacks that successor relation. Afterwards, every code-changing
+> advance returns to the strict clean-descendant rule; an unbound or merely
+> asserted non-descendant remains forbidden.
+>
+> The live pointer must also fail closed against the currently drifted physical
+> candidate checkout: that path now resolves to `94f8bc1` with governed schema
+> catalogue `1f3c2666…`, whereas the bound subject is `cf8faf48` with catalogue
+> `b4c6e6cf…`. Neither the present drift nor restoring a convenient checkout may
+> silently update authority. Admission resumes only from the exact bound bytes or
+> through the reviewed divergence successor above.
+>
+> `SpecOperatorConfig` remains authority-neutral and does not grow an origin
+> witness field. The shared loader obtains that independent trust anchor only
+> from the fixed canonical foundation through `ApprovedProjectBinding`, then
+> requires the foundation, operator config, store manifest, and current SPEC
+> binding to agree on the control root, project, store, approved code roots,
+> activated schema lineage, and origin witness before replay or mutation.
+>
+> To obey the review-size hard stop without recreating a monolith, STORE lands as
+> serial candidates under the single KAN-105 job. `STORE-1A-PUB` and
+> `STORE-1A-OBJECT-R2`, `STORE-1A-LOCK-V2B`, the append-only
+> `STORE-1A-RELEASE-V2`, and `STORE-1A-MANIFEST` are integrated. They own the
+> physical-store boundary, writer/release recovery, governed-code manifest, and
+> documentation-only-successor rule. The former `STORE-1B` surface is split at
+> its actual ownership boundary:
+> `G6-STORE-CURRENT-BINDING-1` is integrated and owns
+> historical binding lineage, the exact read-only current-pointer admission,
+> binding-event replay, and the private validated append continuation; the
+> active PR #268 candidate owns `SpecOperatorConfig@1.0.0`, the authority-neutral
+> public loader, commands, and consumer migration. Each candidate must remain
+> within the
+> 35-file hard stop. All remain one incomplete STORE/Gate 6 capability until the
+> assembled public path passes. This split creates neither a competing Gate 6
+> plan nor another Jira capability job.
+>
+> Together `STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B` freeze the following
+> replacement architecture. Object R2 introduces `store/anchor.py` and migrates
+> `store/objects.py`; V2B introduces `store/writer.py`, migrates `LockedRoot`, and
+> turns `store/lock.py` into the facade only after the writer half is present. New
+> `store/anchor.py` owns physical directory identity, anchored traversal, exact
+> member effects, the fixed per-directory transaction guard, retained generation
+> pins, and close-only resource quarantine. New `store/writer.py` owns inspection,
+> stale reclaim, `LockedRoot` root-claim orchestration, `WriterLock`,
+> `CompositeWriterLock`, and retained release ownership. `store/lock.py` becomes
+> the compatibility facade for current production imports; private monkeypatch
+> tests migrate to the actual owner module rather than forcing implementation
+> globals back into the facade. `store/objects.py` remains the immutable-object
+> protocol owner and calls the anchor transaction rather than implementing a
+> second filesystem state machine. The live next production sequence is PR #268
+> review and owner adoption, merged-public-path verification, and then the SOURCE
+> slice. `G6-STORE-CURRENT-BINDING-1`, `STORE-1A-MANIFEST`, and
+> `STORE-1A-LOCK-V2B`/`STORE-1A-RELEASE-V2` are integrated historical
+> predecessors. No live binding transition occurs during candidate construction.
+>
+> Immutable object publication is commit-on-link. A successful final hard link is
+> immediately recorded and is never a rollback target; a later exact retry adopts
+> and fsyncs an uncertain content-addressed final before returning. New writes do
+> not create publication claims, cleanup anchors, background deletion workers, or
+> delayed final rollback. Reserved private residue is reconciled synchronously
+> under the same guard. This prohibition applies to implicit cleanup within a
+> publication attempt; it does not abolish the existing explicit
+> `ObjectStore.rollback_new_revision` authority held by the higher-level command
+> transaction after a successful returned write. That caller-owned rollback keeps
+> its exact-generation and pre-existence checks and uses the same canonical guard.
+> A separate close-only quarantine may retain only typed native Windows HANDLE
+> owners after namespace terminality; it contains no integer CRT/POSIX descriptor
+> and no link, unlink, rename, or publication callback. An integer descriptor
+> close is attempted once because an error does not prove that its number remains
+> owned; later retry by number could act on an unrelated descriptor. Guard
+> acquisition is bounded so an uncertain surviving lock fails closed instead of
+> hanging another operation. Writer release and Composite rollback retain one
+> serialized release owner; a transferred member cannot self-register a second
+> owner.
+>
+> Every Windows deletion-capable seam compares `FileIdInfo` from the already-open
+> native handle with the captured volume and file identity before applying
+> `Delete=True`, in addition to same-handle bytes and mutable-path revalidation.
+> The V2B successor must apply the same handle-bound identity proof to writer file
+> leases and audit its retained-close paths against the native-HANDLE-only rule;
+> those lease and writer changes do not belong in Object R2. V2B must also make
+> mutable-file replacement recovery total: if every reserved stage for the exact
+> operation contains the same desired bytes, it selects one deterministically,
+> publishes it, and reconciles the extras; any mixed or different reserved-stage
+> set rejects closed. It must not strand an equal multi-stage set as permanently
+> ambiguous, retry a descriptor in `terminal_uncertain`, or retain a close ticket
+> without a native Windows HANDLE owner.
+>
+> Linux exactness is defined against all repository-controlled STORE participants,
+> which must use the canonical transaction guard. While it is live, a retained
+> descriptor plus that guard detects and preserves an observed foreign generation.
+> Python cannot make
+> pathname unlink atomic against an uncooperative same-UID process that bypasses
+> the guard; such direct filesystem mutation is out-of-contract tampering, not a
+> capability silently claimed by this implementation. Requiring protection from
+> that attacker would need a privileged filesystem broker or different storage
+> primitive.
+>
+> The clean replacement baseline at `121e20ff...` is `143 passed, 6 skipped` on
+> Windows and `19 failed, 104 passed, 26 skipped` on Linux for the cohesive store
+> selection. The 19 Linux failures are inherited from merged `STORE-1A-PUB` and
+> remain the direct replacement target. The exact required currency selection is
+> `5 passed` on both platforms.
+>
+> A read-only no-follow census of the live
+> `C:\Users\steph\TDL-ARS-WP64-Control` store found 432 canonical object revisions
+> across 430 object identities, with no duplicate same-revision prefixes and zero
+> publication claims, cleanup anchors, object-private temporary residues, or
+> guard files. STORE-1A-LOCK-V2 therefore needs no legacy claim-residue migration
+> reconciler. Historical canonical object bytes remain readable through the
+> unchanged revision format; the retired claim protocol is removed rather than
+> kept as a second publication path.
+>
+> **Acceptance boundary:** the governed-code manifest versions code, config,
+> schemas, contracts, locks, and the allowed documentation-only descendant. The
+> new command parsers and handlers are exercised through their public CLI seam.
+> One verified-binding admission is shared by all consumers; local
+> administration is distinct from SPEC semantic authority; schemas remain
+> append-only. Immutable-file publication executes through one canonical
+> per-directory transaction. It records O_EXCL/link/unlink dispositions before
+> any later fallible work, retains the staged inode pin through ownership
+> transfer, and separates namespace completion from every descriptor/anchor close
+> disposition. A failed call may leave only a state that the next operation can
+> reconcile under the same guard; no background rollback may delete a final after
+> another call has exposed it as success. A substitution injected after the final
+> identity check but before cleanup must preserve the foreign generation;
+> `missing_ok` applies only to a proved absent owned generation, not to an
+> identity mismatch. The exact internal retry discriminant is
+> `research_system.store.lock.WriterLockContentionError`, an
+> exported subclass of `ConflictError` raised only when the canonical writer lock
+> already exists. Recovery retries that exact subclass, without string matching,
+> until the existing 30-second deadline. Identity change, platform failure, and
+> every sibling `ConflictError` propagate immediately; the public conflict/error
+> and nonzero-exit mapping remains unchanged. Producer tests prove that only
+> canonical lock contention emits the subclass, and consumer tests prove retry
+> for that subclass plus immediate propagation for every non-retryable sibling.
+> Windows member creation must also remain beneath the captured physical parent:
+> the public creation path proves the positive case, and a recreated-parent
+> negative must fail before creating a member in either physical generation.
+> The pinned Windows runtime has a direct
+> `os.link(..., follow_symlinks=False)` positive control. Negatives cover an
+> actual substituted/reparse source outcome, final-name substitution, concurrent
+> contenders, every crash phase, wrong root, stale binding, drift, documentation
+> descendant, separate roots, and historical replay. A governed manifest
+> identifies repository and committed bytes independently of a local checkout
+> path. The same subject in another clean physical worktree validates; a
+> different repository, redirected checkout, or hidden modified governed or
+> reviewed-documentation byte fails closed. The strict-descendant validator is
+> the ordinary post-divergence transition, never the first reviewed divergence.
+>
+> Event admission has explicit diagnostic precedence. An inactive or full-only
+> schema identity is rejected before producer selection; an active schema with
+> the wrong producer is rejected as an unbound producer. The existing
+> `test_runtime_ledger_rejects_unbound_full_only_event_schema` becomes a required
+> STORE acceptance test, accompanied by the active-schema/wrong-producer
+> negative. The STORE slice is not accepted while either case is conflated or
+> the complete store module contains another unexplained failure.
+>
+> The STORE preservation package must also reach the immutable-publication seam.
+> At the recovery base, the concurrent-identical producer-snapshot test is
+> blocked earlier because calibration does not bind the S-014 `known_bad` case to
+> its fixture-declared mutation ID. This is required STORE work, not an ignored
+> baseline exception: calibration must derive the declared mutation identity for
+> the known-bad execution, retain an unmutated known-good control, and the exact
+> concurrency test must then pass through the real object-publication path.
+>
+> The unmasked release-publication module must then pass as a preservation gate.
+> The S-014 repair exposes four shared-contract roots that the parent failure had
+> hidden: the frozen Scenario-A event sequence is stale against its producer;
+> release publication incorrectly inherited later scoped-command retry identity
+> semantics; two test assertions predate plural guarded continuations and the
+> mandatory `EventDraft.admission` discriminator; and the contention test uses a
+> single service instance whose sequencing lock prevents the second submit from
+> reaching the filesystem lock. Repair those roots, preserve the stricter C1 and
+> scoped-command behavior, and exercise real contention with two services over
+> the same roots. Do not classify the resulting cascaded schema, replay, receipt,
+> or append failures as independent defects.
+>
+> ### Step 2 — `G6-SPEC-SOURCE-1`
+>
+> **Invariant:** source evidence binds exact bytes to a causal prefix. A resolver
+> must handle heads, lightweight and annotated tags, peeled commits, slash refs,
+> direct OIDs, and subpaths. It may declare a source absent only after an
+> exhaustive successful check; ambiguity or unavailability is not absence.
+>
+> **Main interfaces:** the existing source evidence producer/resolver and its
+> public SPEC registration path; the Step-1 registered-content and replay
+> context; and append-only correction records that bind prior evidence and its
+> causal prefix. The typed `spec_source_observation` document registers the exact
+> resolved Git reference and source bytes/hash. Its completion proof separately
+> binds the later causal registration event before `OR-029` may bind that
+> observation to a Candidate; the document never self-references its own
+> registration.
+>
+> **Acceptance boundary:** accept the `neurips2024` lightweight tag at
+> `145efcde673f1a1897eff250b77221d26c34c479`; preserve the corrected source as
+> append-only; and reject redirected/junctioned paths, malformed locators,
+> ambiguity, transport failure, crash-before-publication, and zero-publication
+> cases without durable side effects. Provenance-validation errors retain their
+> specific cause: malformed or forged provenance is an `IntegrityError`, while
+> store contention or physical-state failure propagates as its store-level typed
+> fault and is never rewritten as a permanent invalid-history verdict. After the
+> first accepted version-2 `spec_source_observation` is registered, one
+> cross-slice integration matrix must exercise shared replay verification,
+> projection rebuild, governed backup creation, candidate-restore replay,
+> restored-store verification, and public Discovery status/replay. Every
+> positive asserts the same source identity and terminal projection. A companion
+> negative removes the resolver at each seam and proves failure before that seam
+> can publish a projection, backup receipt, restore admission, or status result.
+>
+> ### Step 3 — `G6-SPEC-AUTHORITY-1`
+>
+> **Invariant:** every effect is bound to a session and grant. Semantic
+> registration intent is a distinct durable schema, and governed producer,
+> reviewer, and operator roles remain separate. The grant is contained in the
+> session. An exact completed retry may be read after grant expiry but may create
+> no new effect.
+>
+> **Main interfaces:** the common owner/scoped/SPEC authority validator and the
+> existing command service submission seam. After the Step-1 loader has admitted
+> the exact store and route, this validator proves that the config-selected
+> `operator_actor_id`, `actor_session_id`, and `authority_grant_id` authorize the
+> requested semantic effect; possession of the config is never sufficient.
+>
+> **Acceptance boundary:** owner, scope, session, grant, effect, and role
+> separation are checked at the public seam. A retry that is exact and complete
+> is read-only; a new or incomplete effect after expiry is rejected. No
+> authority is inferred from a plan, a local file, a test-created permission, or
+> an agent declaration.
+>
+> ### Step 4 — `G6-SPEC-TASK-1`
+>
+> **Invariant:** a terminal attempt plus a satisfied review follows the existing
+> `SubmitForReview` then `AcceptTask` contract. Completion is never inferred
+> from an attempt, lease, result, or status alone. Failed, partial, incomplete,
+> or unsatisfied-review work remains open. Restart is idempotent.
+>
+> **Main interfaces:** the existing task closure commands, projections, replay,
+> and result handoff seam.
+>
+> **Acceptance boundary:** append
+> `tsk_60c5549e-d11f-7d17-8145-d80e144aa537` only after the implementation slice
+> is merged and its task closure is genuinely satisfied. Tests cover restart,
+> duplicate closure, failed/partial/incomplete outcomes, and missing review;
+> none may silently close the task.
+>
 
-**Owner:** documentation lane; this iteration.
-**Output:** this plan as the sole active Gate 6 recovery/closure authority;
-updated pointers in the assigned plan, decision, roadmap, and handoff
-documents; historical 06r retirement note.
-**Acceptance:** exact assigned documentation paths only, resolved links, no
-active SCALE-01 closure prerequisite, P-049/P-050 recorded, PR states accurate,
-and `git diff --check` clean.
-**Step 0 control boundary:** the approved Step 0 Jira text updates KAN-12 and
-KAN-103, creates one level-0 Task job for each of the six PRs, parents every
-job to the KAN-12 Epic, and gives every job an outward `Blocks` link to
-KAN-103. Jira does not permit a Task to be the parent of another Task, so the
-six jobs are KAN-103's blocking siblings rather than its children. KAN-103
-must read back six inward blockers and cannot transition terminal while any
-one remains open. Each job records its observable outcome, current gap, next
-action, authoritative files, closure evidence, owner, and dependency links,
-and reads back those links. The remaining Step 0 authority is only that Jira
-mutation and readback. The branch, PR, and PR #257 closure work is already
-complete; Step 0 does not provide standing authority for further Git or review
-operations, provider/paid work, live-store mutation, or final Gate 6 closure.
+### Step 5 - `G6-SPEC-MODEL-1` (RETAINED REFERENCE MATERIAL, NOT RETIRED)
 
-### Review-convergence correction — STORE precedes SOURCE
+> Retained by 06s as reference material for the finite SPEC action composition.
+> The surrounding construction sequence is retired; this action table is not.
 
-PR #260 showed that the original order was not dependency-safe. The SOURCE
-candidate had to modify generic immutable-file publication, recovery locking,
-ledger admission, and shared replay callers before the STORE slice supplied
-their verified root and replay context. The resulting optional resolver and
-ad hoc lock/error plumbing let focused tests pass while production backup,
-restore, and projection callers remained unable to replay the new source
-event. The staged-file repair also reopened a substitution window in the same
-publication invariant it was intended to close.
-
-The corrected sequence lands the shared STORE boundary first. SOURCE then uses
-those interfaces and owns only Git/source semantics plus its typed provenance
-verdict. Do not cherry-pick PR #260 wholesale. Reuse a change only after it is
-re-derived against the corrected owner and its negative matrix passes. The
-review concern about `os.link(..., follow_symlinks=False)` is not a defect on
-the sole supported runtime, CPython 3.13.5 on Windows: the exact operation has
-been exercised successfully. STORE nevertheless retains an explicit platform
-control so this fact cannot silently drift.
-
-Keep the existing six Jira implementation jobs; do not create duplicate
-remediation tickets for the PR #260 comments. Change the STORE job to the next
-production action, make the SOURCE job depend on STORE, and attach the four
-valid cycle-2 findings plus the ledger diagnostic failure to those two owning
-jobs. Read back both dependency directions and the revised next actions after
-the plan amendment merges.
-
-### Step 1 — `G6-SPEC-STORE-1`
-
-**Invariant:** one verified snapshot and predecessor governs the whole
-operation. Selection and read happen under the lock, then revalidate before
-publication. Outputs are prevalidated. Marker, object, event, receipt, and
-current binding form one recovery identity. Store contention, integrity
-failure, and unavailable physical state remain distinct typed outcomes.
-
-**Main interfaces:** new `repair-binding` and `advance-binding` parsers and
-handlers; the `SpecOperatorConfig@1.0.0` schema and shared loader that establish
-the canonical root plus exact project/store/route binding for every public
-SPEC command; the existing backup and restore seams,
-`verify_restore_before_writer_lease`, `replay_discovery`, and all consumers of
-one shared verified-binding admission. The loader produces one replay context
-that includes the exact registered-content resolver; every production replay,
-projection rebuild, backup, restore, and verification caller consumes that
-context rather than forwarding an optional resolver. The current authority
-remains the append-only `manifests/binding-repair-current.json` lineage; this
-step must not create a parallel current-binding file, event family, or command
-path.
-
-The exact live predecessor is schema `ars://internal/store-binding-recovery`
-version `1.1.0`, raw SHA-256
-`317cb9623b13dbbf128234b987f4cb56db33d1b3f69c925b1b83e5db89f96f5d`,
-and Git subject `cf8faf48d3cd682bf7d8fe7b9202b0054249442c`. That retired
-subject is not an ancestor of the recovery baseline or the future squash-merged
-implementation, so the first transition cannot use the ordinary descendant
-rule. It is one uniquely typed, owner-reviewed divergence successor that binds
-the exact predecessor bytes and object, protected route and source hashes,
-project/store/origin identity, reviewed integrated-`main` commit, and new
-governed-code manifest in one transaction. It is admitted only from the legacy
-record that lacks that successor relation. Afterwards, every code-changing
-advance returns to the strict clean-descendant rule; an unbound or merely
-asserted non-descendant remains forbidden.
-
-The live pointer must also fail closed against the currently drifted physical
-candidate checkout: that path now resolves to `94f8bc1` with governed schema
-catalogue `1f3c2666…`, whereas the bound subject is `cf8faf48` with catalogue
-`b4c6e6cf…`. Neither the present drift nor restoring a convenient checkout may
-silently update authority. Admission resumes only from the exact bound bytes or
-through the reviewed divergence successor above.
-
-`SpecOperatorConfig` remains authority-neutral and does not grow an origin
-witness field. The shared loader obtains that independent trust anchor only
-from the fixed canonical foundation through `ApprovedProjectBinding`, then
-requires the foundation, operator config, store manifest, and current SPEC
-binding to agree on the control root, project, store, approved code roots,
-activated schema lineage, and origin witness before replay or mutation.
-
-To obey the review-size hard stop without recreating a monolith, STORE lands as
-serial candidates under the single KAN-105 job. `STORE-1A-PUB` and
-`STORE-1A-OBJECT-R2`, `STORE-1A-LOCK-V2B`, the append-only
-`STORE-1A-RELEASE-V2`, and `STORE-1A-MANIFEST` are integrated. They own the
-physical-store boundary, writer/release recovery, governed-code manifest, and
-documentation-only-successor rule. The former `STORE-1B` surface is split at
-its actual ownership boundary:
-`G6-STORE-CURRENT-BINDING-1` is integrated and owns
-historical binding lineage, the exact read-only current-pointer admission,
-binding-event replay, and the private validated append continuation; the
-active PR #268 candidate owns `SpecOperatorConfig@1.0.0`, the authority-neutral
-public loader, commands, and consumer migration. Each candidate must remain
-within the
-35-file hard stop. All remain one incomplete STORE/Gate 6 capability until the
-assembled public path passes. This split creates neither a competing Gate 6
-plan nor another Jira capability job.
-
-Together `STORE-1A-OBJECT-R2` and `STORE-1A-LOCK-V2B` freeze the following
-replacement architecture. Object R2 introduces `store/anchor.py` and migrates
-`store/objects.py`; V2B introduces `store/writer.py`, migrates `LockedRoot`, and
-turns `store/lock.py` into the facade only after the writer half is present. New
-`store/anchor.py` owns physical directory identity, anchored traversal, exact
-member effects, the fixed per-directory transaction guard, retained generation
-pins, and close-only resource quarantine. New `store/writer.py` owns inspection,
-stale reclaim, `LockedRoot` root-claim orchestration, `WriterLock`,
-`CompositeWriterLock`, and retained release ownership. `store/lock.py` becomes
-the compatibility facade for current production imports; private monkeypatch
-tests migrate to the actual owner module rather than forcing implementation
-globals back into the facade. `store/objects.py` remains the immutable-object
-protocol owner and calls the anchor transaction rather than implementing a
-second filesystem state machine. The live next production sequence is PR #268
-review and owner adoption, merged-public-path verification, and then the SOURCE
-slice. `G6-STORE-CURRENT-BINDING-1`, `STORE-1A-MANIFEST`, and
-`STORE-1A-LOCK-V2B`/`STORE-1A-RELEASE-V2` are integrated historical
-predecessors. No live binding transition occurs during candidate construction.
-
-Immutable object publication is commit-on-link. A successful final hard link is
-immediately recorded and is never a rollback target; a later exact retry adopts
-and fsyncs an uncertain content-addressed final before returning. New writes do
-not create publication claims, cleanup anchors, background deletion workers, or
-delayed final rollback. Reserved private residue is reconciled synchronously
-under the same guard. This prohibition applies to implicit cleanup within a
-publication attempt; it does not abolish the existing explicit
-`ObjectStore.rollback_new_revision` authority held by the higher-level command
-transaction after a successful returned write. That caller-owned rollback keeps
-its exact-generation and pre-existence checks and uses the same canonical guard.
-A separate close-only quarantine may retain only typed native Windows HANDLE
-owners after namespace terminality; it contains no integer CRT/POSIX descriptor
-and no link, unlink, rename, or publication callback. An integer descriptor
-close is attempted once because an error does not prove that its number remains
-owned; later retry by number could act on an unrelated descriptor. Guard
-acquisition is bounded so an uncertain surviving lock fails closed instead of
-hanging another operation. Writer release and Composite rollback retain one
-serialized release owner; a transferred member cannot self-register a second
-owner.
-
-Every Windows deletion-capable seam compares `FileIdInfo` from the already-open
-native handle with the captured volume and file identity before applying
-`Delete=True`, in addition to same-handle bytes and mutable-path revalidation.
-The V2B successor must apply the same handle-bound identity proof to writer file
-leases and audit its retained-close paths against the native-HANDLE-only rule;
-those lease and writer changes do not belong in Object R2. V2B must also make
-mutable-file replacement recovery total: if every reserved stage for the exact
-operation contains the same desired bytes, it selects one deterministically,
-publishes it, and reconciles the extras; any mixed or different reserved-stage
-set rejects closed. It must not strand an equal multi-stage set as permanently
-ambiguous, retry a descriptor in `terminal_uncertain`, or retain a close ticket
-without a native Windows HANDLE owner.
-
-Linux exactness is defined against all repository-controlled STORE participants,
-which must use the canonical transaction guard. While it is live, a retained
-descriptor plus that guard detects and preserves an observed foreign generation.
-Python cannot make
-pathname unlink atomic against an uncooperative same-UID process that bypasses
-the guard; such direct filesystem mutation is out-of-contract tampering, not a
-capability silently claimed by this implementation. Requiring protection from
-that attacker would need a privileged filesystem broker or different storage
-primitive.
-
-The clean replacement baseline at `121e20ff...` is `143 passed, 6 skipped` on
-Windows and `19 failed, 104 passed, 26 skipped` on Linux for the cohesive store
-selection. The 19 Linux failures are inherited from merged `STORE-1A-PUB` and
-remain the direct replacement target. The exact required currency selection is
-`5 passed` on both platforms.
-
-A read-only no-follow census of the live
-`C:\Users\steph\TDL-ARS-WP64-Control` store found 432 canonical object revisions
-across 430 object identities, with no duplicate same-revision prefixes and zero
-publication claims, cleanup anchors, object-private temporary residues, or
-guard files. STORE-1A-LOCK-V2 therefore needs no legacy claim-residue migration
-reconciler. Historical canonical object bytes remain readable through the
-unchanged revision format; the retired claim protocol is removed rather than
-kept as a second publication path.
-
-**Acceptance boundary:** the governed-code manifest versions code, config,
-schemas, contracts, locks, and the allowed documentation-only descendant. The
-new command parsers and handlers are exercised through their public CLI seam.
-One verified-binding admission is shared by all consumers; local
-administration is distinct from SPEC semantic authority; schemas remain
-append-only. Immutable-file publication executes through one canonical
-per-directory transaction. It records O_EXCL/link/unlink dispositions before
-any later fallible work, retains the staged inode pin through ownership
-transfer, and separates namespace completion from every descriptor/anchor close
-disposition. A failed call may leave only a state that the next operation can
-reconcile under the same guard; no background rollback may delete a final after
-another call has exposed it as success. A substitution injected after the final
-identity check but before cleanup must preserve the foreign generation;
-`missing_ok` applies only to a proved absent owned generation, not to an
-identity mismatch. The exact internal retry discriminant is
-`research_system.store.lock.WriterLockContentionError`, an
-exported subclass of `ConflictError` raised only when the canonical writer lock
-already exists. Recovery retries that exact subclass, without string matching,
-until the existing 30-second deadline. Identity change, platform failure, and
-every sibling `ConflictError` propagate immediately; the public conflict/error
-and nonzero-exit mapping remains unchanged. Producer tests prove that only
-canonical lock contention emits the subclass, and consumer tests prove retry
-for that subclass plus immediate propagation for every non-retryable sibling.
-Windows member creation must also remain beneath the captured physical parent:
-the public creation path proves the positive case, and a recreated-parent
-negative must fail before creating a member in either physical generation.
-The pinned Windows runtime has a direct
-`os.link(..., follow_symlinks=False)` positive control. Negatives cover an
-actual substituted/reparse source outcome, final-name substitution, concurrent
-contenders, every crash phase, wrong root, stale binding, drift, documentation
-descendant, separate roots, and historical replay. A governed manifest
-identifies repository and committed bytes independently of a local checkout
-path. The same subject in another clean physical worktree validates; a
-different repository, redirected checkout, or hidden modified governed or
-reviewed-documentation byte fails closed. The strict-descendant validator is
-the ordinary post-divergence transition, never the first reviewed divergence.
-
-Event admission has explicit diagnostic precedence. An inactive or full-only
-schema identity is rejected before producer selection; an active schema with
-the wrong producer is rejected as an unbound producer. The existing
-`test_runtime_ledger_rejects_unbound_full_only_event_schema` becomes a required
-STORE acceptance test, accompanied by the active-schema/wrong-producer
-negative. The STORE slice is not accepted while either case is conflated or
-the complete store module contains another unexplained failure.
-
-The STORE preservation package must also reach the immutable-publication seam.
-At the recovery base, the concurrent-identical producer-snapshot test is
-blocked earlier because calibration does not bind the S-014 `known_bad` case to
-its fixture-declared mutation ID. This is required STORE work, not an ignored
-baseline exception: calibration must derive the declared mutation identity for
-the known-bad execution, retain an unmutated known-good control, and the exact
-concurrency test must then pass through the real object-publication path.
-
-The unmasked release-publication module must then pass as a preservation gate.
-The S-014 repair exposes four shared-contract roots that the parent failure had
-hidden: the frozen Scenario-A event sequence is stale against its producer;
-release publication incorrectly inherited later scoped-command retry identity
-semantics; two test assertions predate plural guarded continuations and the
-mandatory `EventDraft.admission` discriminator; and the contention test uses a
-single service instance whose sequencing lock prevents the second submit from
-reaching the filesystem lock. Repair those roots, preserve the stricter C1 and
-scoped-command behavior, and exercise real contention with two services over
-the same roots. Do not classify the resulting cascaded schema, replay, receipt,
-or append failures as independent defects.
-
-### Step 2 — `G6-SPEC-SOURCE-1`
-
-**Invariant:** source evidence binds exact bytes to a causal prefix. A resolver
-must handle heads, lightweight and annotated tags, peeled commits, slash refs,
-direct OIDs, and subpaths. It may declare a source absent only after an
-exhaustive successful check; ambiguity or unavailability is not absence.
-
-**Main interfaces:** the existing source evidence producer/resolver and its
-public SPEC registration path; the Step-1 registered-content and replay
-context; and append-only correction records that bind prior evidence and its
-causal prefix. The typed `spec_source_observation` document registers the exact
-resolved Git reference and source bytes/hash. Its completion proof separately
-binds the later causal registration event before `OR-029` may bind that
-observation to a Candidate; the document never self-references its own
-registration.
-
-**Acceptance boundary:** accept the `neurips2024` lightweight tag at
-`145efcde673f1a1897eff250b77221d26c34c479`; preserve the corrected source as
-append-only; and reject redirected/junctioned paths, malformed locators,
-ambiguity, transport failure, crash-before-publication, and zero-publication
-cases without durable side effects. Provenance-validation errors retain their
-specific cause: malformed or forged provenance is an `IntegrityError`, while
-store contention or physical-state failure propagates as its store-level typed
-fault and is never rewritten as a permanent invalid-history verdict. After the
-first accepted version-2 `spec_source_observation` is registered, one
-cross-slice integration matrix must exercise shared replay verification,
-projection rebuild, governed backup creation, candidate-restore replay,
-restored-store verification, and public Discovery status/replay. Every
-positive asserts the same source identity and terminal projection. A companion
-negative removes the resolver at each seam and proves failure before that seam
-can publish a projection, backup receipt, restore admission, or status result.
-
-### Step 3 — `G6-SPEC-AUTHORITY-1`
-
-**Invariant:** every effect is bound to a session and grant. Semantic
-registration intent is a distinct durable schema, and governed producer,
-reviewer, and operator roles remain separate. The grant is contained in the
-session. An exact completed retry may be read after grant expiry but may create
-no new effect.
-
-**Main interfaces:** the common owner/scoped/SPEC authority validator and the
-existing command service submission seam. After the Step-1 loader has admitted
-the exact store and route, this validator proves that the config-selected
-`operator_actor_id`, `actor_session_id`, and `authority_grant_id` authorize the
-requested semantic effect; possession of the config is never sufficient.
-
-**Acceptance boundary:** owner, scope, session, grant, effect, and role
-separation are checked at the public seam. A retry that is exact and complete
-is read-only; a new or incomplete effect after expiry is rejected. No
-authority is inferred from a plan, a local file, a test-created permission, or
-an agent declaration.
-
-### Step 4 — `G6-SPEC-TASK-1`
-
-**Invariant:** a terminal attempt plus a satisfied review follows the existing
-`SubmitForReview` then `AcceptTask` contract. Completion is never inferred
-from an attempt, lease, result, or status alone. Failed, partial, incomplete,
-or unsatisfied-review work remains open. Restart is idempotent.
-
-**Main interfaces:** the existing task closure commands, projections, replay,
-and result handoff seam.
-
-**Acceptance boundary:** append
-`tsk_60c5549e-d11f-7d17-8145-d80e144aa537` only after the implementation slice
-is merged and its task closure is genuinely satisfied. Tests cover restart,
-duplicate closure, failed/partial/incomplete outcomes, and missing review;
-none may silently close the task.
-
-### Step 5 — `G6-SPEC-MODEL-1`
 
 **Invariant:** one registry defines every public action, alias, effect set,
 document ID, authority requirement, and completion proof. State matrices are
@@ -675,29 +704,30 @@ every registered action. A persisted legacy fixture cannot use the new writer
 as a bypass. The frozen-catalogue test also rejects missing, additional, or
 divergent actions, aliases, effects, and proofs.
 
-### Step 6 — `G6-SPEC-EXEC-1`, integration, and closure candidate
 
-**Invariant:** semantic intent becomes a snapshot, is evaluated, prepared as a
-complete transaction, revalidated under the route lock, published, and sealed.
-Status and advance use the same registry and evaluator. Context uses one
-accepted snapshot with sealed hash-bound approvals. SPEC-01 runs all required
-stages. SPEC-02 requires a separate approval, but a prior `PARK` must also
-traverse the exact W11 Assay revisit/retry sequence and end in a later
-`PROMOTE`; the approval alone never changes Candidate state.
-
-**Main interfaces:** the semantic-intent preparation and transaction/recovery
-seams above, `DiscoveryRuntime.submit`, `CommandService.submit`,
-`replay_discovery`, restore-before-writer-lease, and task closure.
-
-**Acceptance boundary:** the route records operator-mediated provider work but
-never launches providers, reads credentials, invokes paid services during
-construction, or fabricates receipts. A terminal result invokes the existing
-task seam. After all six PRs merge and final assembled selection plus an
-independent exact-`main` review, admit exactly one owner-reviewed successor
-binding, then perform one fresh bounded real SPEC run, replay, task closure,
-human result, and governed backup/restore check. A run against a temporary
-store or fabricated authority is not closure evidence.
-
+> ### Step 6 - `G6-SPEC-EXEC-1`, integration, and closure candidate (historical)
+>
+> **Invariant:** semantic intent becomes a snapshot, is evaluated, prepared as a
+> complete transaction, revalidated under the route lock, published, and sealed.
+> Status and advance use the same registry and evaluator. Context uses one
+> accepted snapshot with sealed hash-bound approvals. SPEC-01 runs all required
+> stages. SPEC-02 requires a separate approval, but a prior `PARK` must also
+> traverse the exact W11 Assay revisit/retry sequence and end in a later
+> `PROMOTE`; the approval alone never changes Candidate state.
+>
+> **Main interfaces:** the semantic-intent preparation and transaction/recovery
+> seams above, `DiscoveryRuntime.submit`, `CommandService.submit`,
+> `replay_discovery`, restore-before-writer-lease, and task closure.
+>
+> **Acceptance boundary:** the route records operator-mediated provider work but
+> never launches providers, reads credentials, invokes paid services during
+> construction, or fabricates receipts. A terminal result invokes the existing
+> task seam. After all six PRs merge and final assembled selection plus an
+> independent exact-`main` review, admit exactly one owner-reviewed successor
+> binding, then perform one fresh bounded real SPEC run, replay, task closure,
+> human result, and governed backup/restore check. A run against a temporary
+> store or fabricated authority is not closure evidence.
+>
 ## 5. Review, merge, and exact-subject protocol
 
 Each slice is a latest-`main` PR with the named invariant, observable path,
