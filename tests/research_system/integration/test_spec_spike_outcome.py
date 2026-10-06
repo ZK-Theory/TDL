@@ -328,17 +328,35 @@ def test_public_spec_02_path_reaches_accepted_project_use(tmp_path, monkeypatch,
     assert decision["intent"]["disposition"] == "retain_experimental_benchmark"
 
 
-@pytest.mark.slow
-def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+def _outcome_store(tmp_path, monkeypatch, capsys, source_repo) -> tuple:  # noqa: F811
+    """A started Spike, its evidence and another Attempt's artefact registered: what every refusal family needs.
+
+    The SPEC-02 outcome refusals are split by family (return; verdict and review; decision) so that no test carries
+    every refusal, and a mutation control re-runs only its own family (test-cost follow-up, 2026-10-05).
+    """
     bound = _bind(tmp_path, monkeypatch)
     candidate_id, _ = _promoted(bound, tmp_path, capsys, source_repo, monkeypatch)
     ids = _started(bound, tmp_path, capsys, candidate_id)
     _evidence(bound)
     _register(bound, FOREIGN, "evaluation_run", attempt_id=OTHER_ATTEMPT)
+    register = _grant(bound, "RegisterArtefact", ids["spec_02_return_id"], OWNER, human=True)
+    return bound, candidate_id, ids, register
+
+
+def _returned(bound, tmp_path, capsys, candidate_id: str, register: str) -> None:
+    """The owner registers the complete return, then the producer records its PASS verdict."""
+    complete = spec_02_intent(spec_assay.RETURN_02, candidate_id)
+    _invoke(bound, tmp_path, capsys, complete, register, OWNER, evidence=spike_evidence())
+    producer = _grant(bound, "RecordSpikeVerdict", candidate_id, PRODUCER)
+    _invoke(bound, tmp_path, capsys, complete, producer, PRODUCER, evidence=spike_evidence())
+
+
+@pytest.mark.slow
+def test_spec_02_return_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    bound, candidate_id, ids, register = _outcome_store(tmp_path, monkeypatch, capsys, source_repo)
     evidence = spike_evidence()
     complete = spec_02_intent(spec_assay.RETURN_02, candidate_id)
     partial_return = spec_02_intent(spec_assay.RETURN_02_PARTIAL, candidate_id)
-    register = _grant(bound, "RegisterArtefact", ids["spec_02_return_id"], OWNER, human=True)
 
     # The verdict matches the action that records it.
     assert "PASS or FAIL" in _invoke(bound, tmp_path, capsys, complete, register, OWNER,
@@ -372,6 +390,15 @@ def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypa
     assert "is excluded" in _invoke(bound, tmp_path, capsys, partial_return, register, OWNER,
                                     evidence=spike_evidence("PARTIAL"), refused=True)  # fmt: skip
 
+
+@pytest.mark.slow
+def test_spec_02_review_route_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """The verdict row's and the outcome review's refusals, after the complete return is registered."""
+    bound, candidate_id, ids, register = _outcome_store(tmp_path, monkeypatch, capsys, source_repo)
+    evidence = spike_evidence()
+    complete = spec_02_intent(spec_assay.RETURN_02, candidate_id)
+    _invoke(bound, tmp_path, capsys, complete, register, OWNER, evidence=evidence)
+
     # Only the prospective producer records the verdict, and only the exact return the owner registered.
     for actor, human in ((OWNER, True), (STEWARD, False)):
         grant = _grant(bound, "RecordSpikeVerdict", candidate_id, actor, human=human)
@@ -393,6 +420,18 @@ def test_spec_02_outcome_route_refuses_what_admission_accepts(tmp_path, monkeypa
     owner_review = _grant(bound, "ReviewDiscoveryOutcome", ids["spike_review_id"], OWNER, human=True)
     assert "must not be the owner" in _invoke(bound, tmp_path, capsys, review_intent, owner_review, OWNER,
                                               evidence=OUTCOME_VERDICT_EVIDENCE, refused=True)  # fmt: skip
+    _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["spike_review_id"], OUTCOME_REVIEWER,
+         evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    assert _states(bound.coordinator, candidate_id)[spec_assay.REVIEW_02] == "completed"
+
+
+@pytest.mark.slow
+def test_spec_02_decision_refuses_what_admission_accepts(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """The Spike decision's refusals, after the return, the verdict and the outcome review are recorded."""
+    bound, candidate_id, ids, register = _outcome_store(tmp_path, monkeypatch, capsys, source_repo)
+    _returned(bound, tmp_path, capsys, candidate_id, register)
+    review_intent = spec_02_intent(spec_assay.REVIEW_02, candidate_id)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
     _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["spike_review_id"], OUTCOME_REVIEWER,
          evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
 
