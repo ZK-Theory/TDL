@@ -2,6 +2,19 @@
 
 > **SUPERSEDED — 2026-09-05:** Stephen approved the revised [06s delivery plan](06s-gate6-delivery-replan-and-gate7-integration.md) and authorized Phase 0. The text below is historical, including its sole-authority, no-successor, retirement and fresh-live-SPEC-02 instructions. Consult only the specific action/source references retained by 06s; execute 06s and decisions P-051–P-056.
 
+<!-- retirement-scope:
+retired:
+  - "## 4. Sequential implementation slices"
+retained:
+  - "### Step 5"
+note: >
+  06s supersedes section 4 as the Gate 6 delivery decomposition. It retains Step 5's
+  finite SPEC action composition as reference material and Phase 3 consults that action
+  table directly, so Step 5 is carved out and left unquoted. Sections 1-3 and 5-8 remain
+  as state, architecture and protocol of record; 06s replaces section 6's fresh-live
+  SPEC-02 closure requirement without retiring the section's text.
+-->
+
 **Date:** 2026-08-22
 **Status:** `INCOMPLETE — the historical real SPEC run is PROVEN, but no complete Gate 6 implementation is integrated on main`
 **Authority:** sole active Gate 6 recovery and closure plan. Do not create a
