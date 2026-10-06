@@ -56,13 +56,20 @@ def module_name(path: str) -> str | None:
     return path[: -len(".py")].replace("/", ".").removesuffix(".__init__")
 
 
-def imported_modules(source: str, current: str) -> set[str]:
-    """Return absolute module names a source imports (``from x import y`` yields x and x.y)."""
+def imported_modules(source: str, current: str, *, is_package: bool = False) -> set[str]:
+    """Return absolute module names a source imports (``from x import y`` yields x and x.y).
+
+    Relative imports resolve against the containing package, which for a package's own
+    ``__init__.py`` is the package itself.
+    """
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return set()
-    package = current.rsplit(".", 1)[0] if "." in current else current
+    if is_package:
+        package = current
+    else:
+        package = current.rsplit(".", 1)[0] if "." in current else current
     found: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -81,8 +88,17 @@ def imported_modules(source: str, current: str) -> set[str]:
 
 
 def dependents(changed_modules: set[str], sources: dict[str, str]) -> set[str]:
-    """Return every module in ``sources`` that transitively imports one of ``changed_modules``."""
-    imports = {module: imported_modules(source, module) for module, source in sources.items()}
+    """Return every module that transitively imports one of ``changed_modules``.
+
+    Args:
+        changed_modules: Dotted names of the changed modules.
+        sources: ``{repo-relative path: source}``; module names and package status come
+            from the paths.
+    """
+    imports = {
+        module_name(path) or "": imported_modules(source, module_name(path) or "", is_package=_is_package(path))
+        for path, source in sources.items()
+    }
     affected = set(changed_modules)
     grew = True
     while grew:
@@ -92,6 +108,10 @@ def dependents(changed_modules: set[str], sources: dict[str, str]) -> set[str]:
                 affected.add(module)
                 grew = True
     return affected
+
+
+def _is_package(path: str) -> bool:
+    return path.endswith("/__init__.py")
 
 
 def _hits(name: str, modules: set[str]) -> bool:
@@ -105,7 +125,7 @@ def select(changed: list[str], tests: dict[str, str], package_sources: dict[str,
     Args:
         changed: Changed repo-relative paths.
         tests: ``{test path: source}`` for every ``.py`` under the test root.
-        package_sources: ``{dotted module: source}`` for the research_system package.
+        package_sources: ``{repo-relative path: source}`` for the research_system package.
         pinned_text: Concatenated text of every ``.research-system`` file, for pin lookups.
     """
     selected = {path for path in changed if path in tests}
@@ -113,10 +133,8 @@ def select(changed: list[str], tests: dict[str, str], package_sources: dict[str,
         selected |= set(tests)
     changed_modules = {module for module in (module_name(path) for path in changed) if module}
     if changed_modules:
-        test_modules = {path: module_name(path) or "" for path in tests}
-        sources = {**package_sources, **{test_modules[path]: source for path, source in tests.items()}}
-        affected = dependents(changed_modules, sources)
-        selected |= {path for path, module in test_modules.items() if module in affected}
+        affected = dependents(changed_modules, {**package_sources, **tests})
+        selected |= {path for path in tests if module_name(path) in affected}
     other = [path for path in changed if not path.endswith(".py") or not path.startswith((PACKAGE + "/", TEST_ROOT))]
     pinned = [path for path in other if path.startswith(PINNING_ROOT + "/") or path in pinned_text]
     if pinned:
@@ -140,9 +158,9 @@ def _governs(path: str) -> bool:
 
 
 def _package_sources(root: Path = REPO_ROOT) -> dict[str, str]:
+    """Return ``{repo-relative path: source}`` for every research_system module."""
     return {
-        module_name(path.relative_to(root).as_posix()) or "": path.read_text(encoding="utf-8")
-        for path in (root / PACKAGE).rglob("*.py")
+        path.relative_to(root).as_posix(): path.read_text(encoding="utf-8") for path in (root / PACKAGE).rglob("*.py")
     }
 
 

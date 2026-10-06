@@ -12,6 +12,8 @@ broke main on 2026-10-02.
 from __future__ import annotations
 
 import importlib.util
+import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -42,11 +44,14 @@ baseline = _load("research_system_baseline")
 # --- affected-test selection -------------------------------------------------------------
 
 PACKAGE = {
-    "research_system.store.ledger": "import json\n",
-    "research_system.store": "from research_system.store.ledger import EventLedger\n",
-    "research_system.command.service": "from research_system.store import EventLedger\n",
-    "research_system.command.lifecycle": "from .service import submit\n",
-    "research_system.config": "import pathlib\n",
+    "research_system/store/ledger.py": "import json\n",
+    "research_system/store/__init__.py": "from research_system.store.ledger import EventLedger\n",
+    "research_system/command/service.py": "from research_system.store import EventLedger\n",
+    "research_system/command/lifecycle.py": "from .service import submit\n",
+    "research_system/config.py": "import pathlib\n",
+    # A facade package that re-exports with a relative import, like research_system/methods.
+    "research_system/methods/__init__.py": "from .pack import MethodsPack\n",
+    "research_system/methods/pack.py": "import json\n",
 }
 TESTS = {
     "tests/research_system/integration/test_service.py": "from research_system.command.service import submit\n",
@@ -55,6 +60,7 @@ TESTS = {
     "tests/research_system/contracts/helper.py": "from research_system.config import load\n",
     "tests/research_system/contracts/test_uses_helper.py": "from tests.research_system.contracts.helper import x\n",
     "tests/research_system/contracts/test_pack.py": "PACKS = '.research-system/packs'\n",
+    "tests/research_system/contracts/test_methods.py": "from research_system.methods import MethodsPack\n",
 }
 
 
@@ -73,6 +79,13 @@ def test_a_test_tree_helper_change_selects_its_importers() -> None:
     assert _select("tests/research_system/contracts/helper.py") == [
         "tests/research_system/contracts/test_uses_helper.py"
     ]
+
+
+def test_a_relative_reexport_in_a_package_init_reaches_the_package_importers() -> None:
+    # In a package's __init__.py, "from .pack import X" names research_system.methods.pack,
+    # not research_system.pack. CodeRabbit review on #329.
+    picked = _select("research_system/methods/pack.py")
+    assert picked == ["tests/research_system/contracts/test_methods.py"]
 
 
 def test_a_package_change_reaches_tests_through_a_helper() -> None:
@@ -122,6 +135,8 @@ REAL_SEAMS = {
     ".gitattributes": "tests/research_system/contracts/test_wp6_2_live_issue_contract.py",
     "research_system/store/ledger.py": "tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py",
     "research_system/config.py": "tests/research_system/integration/test_authority_grant_source.py",
+    # Reached only through research_system/methods/__init__.py's relative re-export.
+    "research_system/methods/pack.py": "tests/research_system/contracts/test_methods_pack_contract.py",
     "tests/research_system/contracts/wp6_2_t2_expectations.py": (
         "tests/research_system/contracts/test_wp6_2_t2_authority_contract.py"
     ),
@@ -342,3 +357,62 @@ def test_the_lane_runs_these_controls_and_refuses_skips(workflow: dict) -> None:
     script = _script(workflow["jobs"]["ci-tools"])
     assert "tests/tools/test_research_system_ci_tools.py" in script
     assert "tools/assert_no_skips.py ci-tools.xml" in script
+
+
+def _bash() -> str:
+    """Resolve Git's bash rather than the WSL launcher stub, failing if none exists."""
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if Path(candidate).exists():
+            return candidate
+    found = shutil.which("bash")
+    if not found or "system32" in found.lower():
+        pytest.fail("no usable bash: the shard step's controls cannot run, and must not silently skip")
+    return found
+
+
+def _run_shard_step(workflow: dict, tmp_path: Path, pytest_status: int) -> tuple[int, list[str]]:
+    """Run the workflow's real shard script as GitHub runs it, with pytest replaced by a stub.
+
+    GitHub runs ``shell: bash`` as ``bash --noprofile --norc -eo pipefail {0}``. The stub records
+    the arguments it received and exits with ``pytest_status``. The shard file is written the way
+    Windows Python writes it, with CRLF line endings.
+    """
+    step = next(step for step in workflow["jobs"]["suite"]["steps"] if step.get("name") == "Run this shard")
+    invocation = ".venv/Scripts/python.exe -m pytest"
+    assert step["run"].count(invocation) == 1, "the stub must replace exactly the pytest invocation"
+    stub = 'fake_pytest() { printf "%s\\n" "$@" > args.txt; return "$FAKE_STATUS"; }\n'
+    (tmp_path / "step.sh").write_bytes((stub + step["run"].replace(invocation, "fake_pytest")).encode("utf-8"))
+    (tmp_path / "shard.txt").write_bytes(
+        b"tests/research_system/unit/test_a.py\r\ntests/research_system/unit/test_b.py\r\n"
+    )
+    run = subprocess.run(
+        [_bash(), "--noprofile", "--norc", "-eo", "pipefail", "step.sh"],
+        cwd=tmp_path,
+        env={**os.environ, "FAKE_STATUS": str(pytest_status), "RUNNER_TEMP": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    args = (tmp_path / "args.txt").read_bytes().decode("utf-8").split("\n") if (tmp_path / "args.txt").exists() else []
+    return run.returncode, args
+
+
+@pytest.mark.parametrize("pytest_status", [0, 1])
+def test_a_test_outcome_reaches_the_baseline_step(workflow: dict, tmp_path: Path, pytest_status: int) -> None:
+    # Exit 1 (tests failed) must not end the step under errexit, or the baseline step that
+    # judges known failures never runs. CodeRabbit review on #329.
+    returncode, _ = _run_shard_step(workflow, tmp_path, pytest_status)
+    assert returncode == 0
+
+
+@pytest.mark.parametrize("pytest_status", [2, 4, 5])
+def test_a_non_test_pytest_exit_fails_the_step(workflow: dict, tmp_path: Path, pytest_status: int) -> None:
+    returncode, _ = _run_shard_step(workflow, tmp_path, pytest_status)
+    assert returncode == pytest_status
+
+
+def test_shard_paths_reach_pytest_without_carriage_returns(workflow: dict, tmp_path: Path) -> None:
+    # Windows Python writes shard.txt with CRLF, and mapfile -t keeps the \r. CodeRabbit review on #329.
+    _, args = _run_shard_step(workflow, tmp_path, 0)
+    assert "tests/research_system/unit/test_a.py" in args and "tests/research_system/unit/test_b.py" in args
+    assert not any("\r" in arg for arg in args)

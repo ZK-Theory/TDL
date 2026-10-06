@@ -163,16 +163,18 @@ jobs:
 
       # Exit 1 means tests failed, which the baseline step judges. Any other nonzero exit
       # (interrupted, internal error, usage error, nothing collected) is not a test outcome.
+      # GitHub runs `shell: bash` with -e, so the status is captured with `||` rather than
+      # read after the command, and shard.txt's CRLF endings (Windows Python) are stripped.
       - name: Run this shard
         if: steps.shard.outputs.count != '0'
         run: |
           set -uo pipefail
-          mapfile -t files < shard.txt
+          mapfile -t files < <(tr -d '\r' < shard.txt)
+          status=0
           .venv/Scripts/python.exe -m pytest -q "${files[@]}" \
             -m "not live_store" \
             -o "addopts=--strict-markers --tb=short" -p no:cacheprovider -p no:cov \
-            --basetemp "$RUNNER_TEMP/bt" --junitxml=shard.xml
-          status=$?
+            --basetemp "$RUNNER_TEMP/bt" --junitxml=shard.xml || status=$?
           if [ "$status" -gt 1 ]; then
             echo "pytest exited $status, which is not a test outcome" >&2
             exit "$status"
