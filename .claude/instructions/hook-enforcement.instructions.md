@@ -24,6 +24,11 @@ This repository uses `.claude/settings.json` to enforce quality checks through h
 - Writes under `results/` trigger a vault-sync reminder (`results-vault-reminder.sh`).
 - Bash/PowerShell commands that run git record, per session and per worktree, the branch they saw (`commit-state-guard.sh`, advisory mode), one file per session under `<absolute-git-dir>/tdl-session-branches/`.
 
+### SessionStart hooks
+
+- `handoff-surface.sh` lists recently committed handoff documents addressed to the session.
+- `tools/hook_currency.py --session-start` prints one line: the hook-tree commit in force, or a WARNING naming the hook-touching commits on `origin/main` (and their files) that this checkout lacks. Merging a gate makes it available, not live; a checkout that has not pulled it runs the old hooks. It reads the last-fetched ref and never fetches, so run `git fetch` for a current answer. It lives in the tree it checks, so it protects against the next hook change, not against the one that introduced it. `shared/manager_dispatch_check.py` runs the same check as `hook-currency` and fails a dispatch whose workspace lacks a merged hook change (`--allow-stale-hooks '<reason>'` records an exception).
+
 ### Hook file locations
 
 - `.claude/hooks/notation-guard.sh`

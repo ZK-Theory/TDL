@@ -266,12 +266,15 @@ def test_composite_writer_lock_maps_verified_windows_sharing_denial_to_writer_co
     def deny_delete_share(*_args, **_kwargs):
         raise ConflictError("root delete protection denied") from SharingViolation("sharing violation")
 
-    monkeypatch.setattr(lock_module, "_open_directory_anchor", deny_delete_share)
     acquired = lock_module._AcquiredMember(candidate._members[0])
 
+    # Since #267 WriterLock acquisition and release open directory anchors themselves, so the
+    # denial is injected only while the candidate prepares, never around the live contender.
     with WriterLock(runtime / "writer.lock", {"command_id": "cmd_live-contender"}):
-        with pytest.raises(ConflictError, match="writer lock exists"):
-            candidate._prepare_member(acquired)
+        with monkeypatch.context() as scoped:
+            scoped.setattr(lock_module, "_open_directory_anchor", deny_delete_share)
+            with pytest.raises(ConflictError, match="writer lock exists"):
+                candidate._prepare_member(acquired)
 
 
 @pytest.mark.parametrize("message", ["missing root", "reparse root", "identity changed"])
@@ -1000,36 +1003,76 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
                 return
             gate_used = True
         ready.set()
-        assert release.wait(2)
+        assert release.wait(10)
 
     def before_exact_delete(candidate):
-        if Path(candidate) == path:
+        # Since #267 the anchored delete reports its final path, which on Windows carries the
+        # extended-length prefix; compare the spelling-independent path.
+        if Path(str(candidate).removeprefix("\\\\?\\")) == path:
             pause_once()
 
     monkeypatch.setattr(anchor_module, "_before_exact_generation_unlink", before_exact_delete)
-    results = []
+    results: dict[str, bool] = {}
     errors = []
 
-    def reclaim():
+    def reclaim(name):
         try:
-            results.append(remove_stale_lock(path, observed))
+            results[name] = remove_stale_lock(path, observed)
         except BaseException as exc:  # pragma: no cover - asserted below
             errors.append(exc)
 
-    first = threading.Thread(target=reclaim)
+    first = threading.Thread(target=reclaim, args=("first",))
     first.start()
     assert ready.wait(2)
 
-    assert remove_stale_lock(path, observed)
+    early: list[object] = []
+
+    def early_writer():
+        lock = WriterLock(path, {"writer_id": "early-writer"})
+        try:
+            lock.__enter__()
+        except WriterLockContentionError as exc:
+            early.append(exc)
+        else:
+            early.append(lock)
+
+    # Since #267 the stale delete runs inside a per-directory transaction admission. While the
+    # first reclaimer is paused mid-delete, a second reclaimer and an early writer both wait on
+    # that admission, so neither can act on the stale generation's path in the window.
+    second = threading.Thread(target=reclaim, args=("second",))
+    writer = threading.Thread(target=early_writer)
+    second.start()
+    writer.start()
+    second.join(timeout=0.5)
+    writer.join(timeout=0.5)
+    try:
+        assert second.is_alive() and writer.is_alive()
+        assert "second" not in results and early == []
+    finally:
+        release.set()
+        for worker in (first, second, writer):
+            worker.join(timeout=10)
+
+    assert errors == []
+    assert not first.is_alive() and not second.is_alive() and not writer.is_alive()
+    assert results["first"] is True
+    [outcome] = early
+    if isinstance(outcome, WriterLock):
+        # The early writer won after the stale generation went: no reclaimer may remove it.
+        try:
+            assert path.exists()
+            assert remove_stale_lock(path, observed) is False
+            assert path.exists()
+        finally:
+            outcome.__exit__(None, None, None)
+    else:
+        assert "writer lock exists" in str(outcome)
     fresh = WriterLock(path, {"writer_id": "fresh-winner"})
     fresh.__enter__()
     try:
         assert path.exists()
-        release.set()
-        first.join(timeout=2)
-        assert not first.is_alive()
-        assert errors == []
-        assert results == [False]
+        assert remove_stale_lock(path, observed) is False
+        assert path.exists()
         with pytest.raises(WriterLockContentionError, match="writer lock exists"):
             WriterLock(path, {"writer_id": "third-contender"}).__enter__()
     finally:

@@ -35,6 +35,13 @@ close merge-queue and thread-state gaps found in review of PR #278:
     must happen for every open pull request with a live thread: dequeue it if
     queued, and re-run a currently green admission check.
 
+``sweep-cadence``
+    The sweep's ``*/5`` schedule fired about every four hours, and nothing
+    measured it (observation ``2026-09-29-sweep-cron-runs-at-two-percent-of-its-
+    stated-cadence``). A schedule is a claim about how often a gate runs, not a
+    measurement, so this reads the sweep's recent runs and fails when none has
+    succeeded within :data:`SWEEP_MAX_RUN_AGE`.
+
 Every gate raises :class:`ValueError` on absent, malformed, truncated, or
 untrusted evidence: silent absence is the failure mode these gates exist to
 remove.
@@ -48,7 +55,7 @@ import json
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +63,15 @@ import yaml
 
 DEFAULT_CONFIG_PATH = Path(".github/merge-admission.yml")
 _GLOB_METACHARACTERS = ("*", "?", "[")
+
+# How long the merge-admission sweep may go without a successful run before the cadence watchdog fails.
+# TUNABLE BY STEPHEN: this is the exposure he is willing to accept for a reopened review thread, or a
+# producer signal that fires no event, to sit unread. 8 hours clears the longest gap measured between
+# consecutive sweep runs (423 minutes, 2026-09-11 to 2026-10-02, 126 runs at roughly one every four hours
+# against a `*/5` schedule), so GitHub's normal throttling does not trip it. Lowering it below that gap
+# makes a healthy sweep alarm; tests/tools/test_merge_admission.py pins that relationship to the run
+# list recorded in tests/tools/fixtures/.
+SWEEP_MAX_RUN_AGE = timedelta(hours=8)
 
 
 def _require_mapping(value: object, what: str) -> Mapping[str, Any]:
@@ -930,6 +946,86 @@ def sweep_actions(payload: SweepListing, *, gate: SweepGate, producers: Sequence
     return actions
 
 
+def _timezone_aware(value: object, what: str) -> datetime:
+    """Parse a GitHub timestamp and refuse one with no timezone, which cannot be compared with ``now``."""
+    parsed = _parse_timestamp(value, what)
+    if parsed.tzinfo is None:
+        raise ValueError(f"{what} carries no timezone: {value!r}")
+    return parsed
+
+
+def evaluate_sweep_cadence(payload: object, *, now: datetime, max_age: timedelta = SWEEP_MAX_RUN_AGE) -> str:
+    """Refuse when the merge-admission sweep has not completed successfully within ``max_age``.
+
+    A scheduled gate's schedule is a claim about how often it runs. The sweep's ``*/5`` cron was honoured
+    about once in 47 times over the three weeks measured, and every run that did arrive was green, so nothing
+    flagged it. This measures the interval instead. Only a *successful* run counts: a sweep that fires and fails
+    protects nothing, and a failing newest run is named in the report either way. Runs of every event
+    count, so a manual dispatch resets the clock, which is how a stale sweep is cleared.
+
+    The newest run's age is the number that fails the check. The largest gap between successful runs in the
+    listing is reported with it, as the evidence for tuning :data:`SWEEP_MAX_RUN_AGE`; a long gap in the
+    past does not fail the check.
+
+    Args:
+        payload: The REST ``GET /repos/{owner}/{repo}/actions/workflows/{file}/runs`` response, or any
+            mapping carrying its ``workflow_runs`` rows, each with ``created_at``, ``status`` and
+            ``conclusion``. Row order does not matter.
+        now: The instant to measure from. Must be timezone-aware. A run stamped slightly after it, from
+            clock skew between the runner and GitHub, counts as zero minutes old.
+        max_age: The oldest the newest successful run may be. A run exactly this old still stands.
+
+    Returns:
+        One line reporting the measured gap, for the log and the step summary.
+
+    Raises:
+        ValueError: If the listing is malformed, has no successful run, or its newest successful run is
+            older than ``max_age``.
+    """
+    listing = _require_mapping(payload, "sweep run list")
+    rows = listing.get("workflow_runs")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise ValueError("sweep run list must contain a workflow_runs list of run objects")
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    runs = [
+        (
+            _timezone_aware(row.get("created_at"), f"workflow_runs[{index}].created_at"),
+            row.get("status"),
+            row.get("conclusion"),
+        )
+        for index, row in enumerate(rows)
+    ]
+    successes = sorted(
+        created for created, status, conclusion in runs if status == "completed" and conclusion == "success"
+    )
+    if not successes:
+        raise ValueError(
+            f"no successful merge-admission sweep run among the {len(runs)} most recent: "
+            "the sweep has not run, or every run failed"
+        )
+    newest_created, newest_status, newest_conclusion = max(runs, key=lambda run: run[0])
+    newest_success = successes[-1]
+    age = max(now - newest_success, timedelta(0))
+    gaps = [
+        int((later - earlier).total_seconds() // 60) for earlier, later in zip(successes, successes[1:], strict=False)
+    ]
+    bound_minutes = int(max_age.total_seconds() // 60)
+    age_minutes = int(age.total_seconds() // 60)
+    summary = f"newest successful merge-admission sweep run {newest_success.isoformat()} is {age_minutes} min old"
+    context = (
+        f"newest run of any outcome {newest_created.isoformat()} ({newest_status}/{newest_conclusion or 'none'}); "
+        f"{len(runs)} runs examined; largest gap between successful runs {f'{max(gaps)} min' if gaps else 'n/a'}"
+    )
+    if age > max_age:
+        raise ValueError(
+            f"{summary}, over the {bound_minutes}-minute bound; {context}. The sweep is not running at its stated "
+            "cadence, so a reopened review thread or a producer signal can sit unread. "
+            "Run it now with `gh workflow run merge-admission-sweep.yml`."
+        )
+    return f"sweep-cadence: {summary} (bound {bound_minutes} min); {context}"
+
+
 def load_config(path: Path) -> Mapping[str, Any]:
     """Load and shallow-validate the merge-admission configuration file."""
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -1003,7 +1099,22 @@ def sweep_gate(config: Mapping[str, Any]) -> SweepGate:
     return SweepGate(**values)
 
 
-GATES = ("thread-finality", "platform-order", "platform-status", "queue-disposition", "merge-group-size", "sweep")
+def _now_utc(value: str | None) -> datetime:
+    """Return the instant the cadence is measured from: ``--now`` if given (tests), otherwise the clock."""
+    if value is None:
+        return datetime.now(timezone.utc)
+    return _timezone_aware(value, "--now")
+
+
+GATES = (
+    "thread-finality",
+    "platform-order",
+    "platform-status",
+    "queue-disposition",
+    "merge-group-size",
+    "sweep",
+    "sweep-cadence",
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1020,6 +1131,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--compare", type=Path, help="saved REST compare base...head response (merge-group-size)")
     parser.add_argument("--base-sha", help="merge group base commit (merge-group-size)")
     parser.add_argument("--head-sha", help="merge group head commit (merge-group-size)")
+    parser.add_argument("--runs", type=Path, help="saved REST listing of the sweep workflow's runs (sweep-cadence)")
+    parser.add_argument("--now", help="measure the cadence from this timestamp instead of the clock (sweep-cadence)")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     args = parser.parse_args(argv)
 
@@ -1042,6 +1155,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("--snapshot must contain a JSON object or a list of page objects")
             producers = _string_list(_section(config, "thread_finality"), "review_producers")
             verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config), producers=producers))
+        elif args.gate == "sweep-cadence":
+            verdict = evaluate_sweep_cadence(_load_json(args.runs, "--runs"), now=_now_utc(args.now))
         elif args.gate == "queue-disposition":
             verdict = queue_disposition(
                 _load_json(args.snapshot, "--snapshot"), event_name=_required(args.event_name, "--event-name")

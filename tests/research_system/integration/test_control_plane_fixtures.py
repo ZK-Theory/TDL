@@ -4,7 +4,7 @@ import pytest
 
 from research_system.canonical import canonical_bytes
 from research_system.command.models import Receipt
-from research_system.errors import IntegrityError
+from research_system.errors import IntegrityError, SchemaError
 from tests.research_system.factories import (
     claim_dispatch_command,
     control_plane,
@@ -40,7 +40,7 @@ def _assert_recovered(harness, command):
         event_batch_id=event["transaction_id"],
         observed_stream_version=event["stream_version"],
     )
-    receipt_path = harness.receipts.receipts_root / f'{event["command_id"]}.json'
+    receipt_path = harness.receipts.receipts_root / f"{event['command_id']}.json"
     assert recovered == expected
     assert receipt_path.read_bytes() == canonical_bytes(
         {
@@ -69,22 +69,20 @@ def test_s001_s002_f001_f002_control_plane_flow(tmp_path):
         {"title": "Integrated"},
     )
     assert harness.service.submit(create) == harness.service.submit(create)
-    first = claim_dispatch_command(
+    # S002/F001/F002 once raced two generic ClaimDispatch commands. #212 activated the C1
+    # ClaimDispatch binding, so the generic envelope is now refused before any mutation; the
+    # single-winner claim race is owned by
+    # test_wp6_2_live_issue_contract::test_concurrent_claim_has_exactly_one_winner_and_no_retry.
+    legacy_claim = claim_dispatch_command(
         "cmd_01978abc-3004-7000-8000-000000003004",
         "actor-a",
         dispatch_id,
         expected_version=0,
     )
-    second = claim_dispatch_command(
-        "cmd_01978abc-3005-7000-8000-000000003005",
-        "actor-b",
-        dispatch_id,
-        expected_version=0,
-    )
-    assert harness.service.submit(first).status == "accepted"
-    assert harness.service.submit(second).status == "conflict"
-    assert len(tuple(harness.ledger.iter_batches())) == 2
-    assert len(harness.replay().active_attempt_ids) == 1
+    with pytest.raises(SchemaError, match="active command binding mismatch: ClaimDispatch"):
+        harness.service.submit(legacy_claim)
+    assert len(tuple(harness.ledger.iter_batches())) == 1
+    assert not harness.replay().active_attempt_ids
 
 
 def test_s011_crash_after_object_write_retries_to_one_batch(tmp_path, monkeypatch):

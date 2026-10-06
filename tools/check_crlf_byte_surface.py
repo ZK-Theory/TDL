@@ -220,6 +220,14 @@ def fix_worktree(paths: list[str], repo_root: Path) -> list[str]:
     if outside:
         # This mode writes, so it acts only on repository-relative paths inside the checkout.
         raise ValueError(f"--fix takes repository-relative paths inside {root}; refusing: {', '.join(outside)}")
+    # The scan skips a path the index declares `binary`; the writing mode must too. Git's NUL
+    # heuristic does not protect it: 99 of the 160 committed PDFs have no NUL in their first 8000
+    # bytes, so a hand-passed PDF was rewritten and corrupted.
+    binary = sorted(binary_declared(list(paths), repo_root, cached=True))
+    if binary:
+        raise ValueError(
+            f"--fix never rewrites a path declared `binary` in .gitattributes; refusing: {', '.join(binary)}"
+        )
     forced = text_forced(list(paths), repo_root)
     changed: list[str] = []
     for path in paths:
