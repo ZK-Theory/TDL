@@ -400,9 +400,12 @@ NEGATIVE_CASES: Final = {
     "neg_wp6_1_t1a_protected_bytes_mutation": {"rejection_code": "protected_artifact_modified"},
 }
 
+# P-059 (2026-10-03): refreshed after #222 edited the authorized context-packet successors
+# below. Every other path in these trees is unchanged since START_REVISION (the diff check
+# in _validate_protected_bytes still enforces that).
 PROTECTED_TREE_IDENTITIES: Final = {
-    ".research-system/schemas/core/commands": "08ed2da41015d0a081cce6ace94281baf7af4bc7",
-    ".research-system/schemas/core/events": "2b0c97bd6daac5c0f8184c0966c2b8a45a948dd0",
+    ".research-system/schemas/core/commands": "8a86a0c4921343e6a3afca3f491fad33e9a8a10f",
+    ".research-system/schemas/core/events": "058c1d5ddcb9d249916977f12b11768b6d15de0f",
 }
 
 AUTHORIZED_PROTECTED_SUCCESSOR_PATHS: Final = {
@@ -434,6 +437,9 @@ AUTHORIZED_PROTECTED_SUCCESSOR_PATHS: Final = {
             "context_packet_validated",
         )
     },
+    # P-059 (2026-10-03): files added under protected WP6.1 globs; neither changes accepted bytes.
+    "tests/research_system/contracts/test_wp6_1_c1_campaign_census.py",  # #212
+    ".research-system/contracts/wp6-1-artifact-roles.yaml",  # #281
 }
 
 PROTECTED_PROVIDER_BLOBS: Final = {
