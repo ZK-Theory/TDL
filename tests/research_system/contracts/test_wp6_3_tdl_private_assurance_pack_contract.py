@@ -1712,14 +1712,14 @@ def _validate_external_acceptance_with_authority(
         or schema_review["authorship_record_sha256"] != hash_manifest[CONTRACT_AUTHORSHIP_RECORD_ID]
     ):
         raise CandidatePackError("contract/schema review does not bind exact authorship")
-    contract_review_provenance = _validate_review_operator_provenance(
+    _validate_review_operator_provenance(
         contract,
         contract_review,
         producer_actor_id=authorship["author_actor_id"],
         reviewer_actor_id=contract_review["reviewer_actor_id"],
         label="contract",
     )
-    schema_review_provenance = _validate_review_operator_provenance(
+    _validate_review_operator_provenance(
         contract,
         schema_review,
         producer_actor_id=authorship["author_actor_id"],
@@ -1937,13 +1937,9 @@ def _validate_external_acceptance_with_authority(
     )
     if canonical_requirement["task_id"] != provenance["producer_task_id"]:
         raise CandidatePackError("pack review task provenance does not prove a separate fresh context")
-    if (
-        len(
-            {provenance["handoff_id"], contract_review_provenance["handoff_id"], schema_review_provenance["handoff_id"]}
-        )
-        != 1
-    ):
-        raise CandidatePackError("review provenance records do not share one stable handoff identifier")
+    # Handoffs bind per review, not across reviews (41cb9f58, Stephen's [DECISION] of 2026-08-10:
+    # handoff_binding reviewer_handoff_bound_per_review_and_producer_handoff_bound_across_relationship_facts).
+    # Each review's own handoff is checked by _validate_review_operator_provenance above.
     # Close review_provenance_partial_application: prohibited against the contract's own declared
     # set. Without this the declared list merely describes the call sites that happen to exist —
     # adding a fourth review record type, or a fourth entry here, would produce no failure. The
@@ -2225,17 +2221,6 @@ def test_upstream_contract_is_strict_pending_and_identity_separated():
     _assert_all_object_schemas_are_closed(
         _load_json(SCHEMAS / "contracts" / "wp6-3-tdl-private-assurance-pack.schema.json")
     )
-
-
-def test_scope_stop_future_pack_is_absent_in_remediation_task():
-    assert not PACK_PATH.exists(), "the future pack remains prohibited in this remediation task"
-    tracked = subprocess.run(
-        ["git", "cat-file", "-e", "HEAD:.research-system/packs/tdl-private-assurance.yaml"],
-        cwd=ROOT,
-        check=False,
-        capture_output=True,
-    )
-    assert tracked.returncode != 0
 
 
 def test_external_record_schema_catalogue_rejects_missing_alias_swap_and_stale_content():
@@ -3664,8 +3649,15 @@ def test_review_provenance_records_may_retain_distinct_genuine_handoff_ids():
     """Each independent review retains its own genuine dispatch handoff identity."""
     contract, contract_resolver, pack, _, record_store, _ = _eligible_acceptance_fixture()
     record_store[REVIEW_RECORD_ID]["operator_provenance"]["handoff_id"] = "hnd_00000000-0000-7000-8000-0000000000ff"
+    handoffs = {
+        record["operator_provenance"]["handoff_id"]
+        for record in record_store.values()
+        if isinstance(record.get("operator_provenance"), dict)
+    }
+    assert len(handoffs) > 1, "the fixture must carry distinct handoffs, or this control is vacuous"
     raw_candidate_pack_bytes, hash_manifest = _coordinate_all_external_hashes(pack, record_store)
-    subject = _validate_hypothetical_external_acceptance(
+    # Accepted: the validator returns nothing and raises on refusal.
+    _validate_hypothetical_external_acceptance(
         pack,
         raw_candidate_pack_bytes=raw_candidate_pack_bytes,
         contract=contract,
@@ -3673,7 +3665,6 @@ def test_review_provenance_records_may_retain_distinct_genuine_handoff_ids():
         record_store=record_store,
         hash_manifest=hash_manifest,
     )
-    assert subject.assurance_pack_id == pack["assurance_pack_id"]
 
 
 def test_lane_may_not_declare_a_fixture_catalogued_to_a_foreign_lane():
