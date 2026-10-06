@@ -190,7 +190,10 @@ def test_broken_canonical_tail_blocks_later_command(tmp_path):
     harness.service.submit(first)
     batch_path = next(harness.ledger.events_root.rglob("*.jsonl"))
     event = json.loads(batch_path.read_text(encoding="utf-8"))
-    event["payload"]["title"] = "tampered without rehash"
+    # Tamper an existing, schema-valid field so the event still passes schema validation and
+    # only the canonical hash chain can catch it. (A new top-level key is now refused earlier,
+    # by the closed payload schema, which would leave the hash check untested.)
+    event["payload"]["definition"]["title"] = "tampered without rehash"
     batch_path.write_bytes(canonical_bytes(event) + b"\n")
     second = create_task_command(
         "cmd_01978abc-3012-7000-8000-000000003012",
