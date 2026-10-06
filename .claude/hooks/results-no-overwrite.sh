@@ -5,6 +5,20 @@
 # file preserved as historical record.
 # Scope: results/**/*.{json,npy,npz}. Allows new files (e.g. a fresh date suffix)
 # and byte-identical rewrites (idempotent reruns). Fails open on any error.
+#
+# Out of scope, by construction: this is a PreToolUse hook on the Write, Edit and MultiEdit tools
+# (.claude/settings.json), so it sees only an agent's direct edits. Result scripts write through
+# Python (open(), json.dump, np.save), never through those tools, and nothing here can intercept
+# them. No automated check covers script-side overwrites of results/; the extension that would is
+# listed as an open gap in docs/plans/skills/skill-prose-controls-register_2026-07-21.md.
+# Neither does this hook check date-suffix naming, nor files outside .json/.npy/.npz (a .csv or
+# .pkl write is allowed).
+#
+# Controls: tests/tools/test_results_no_overwrite_hook.py drives this script through
+# _receipt-wrap.sh with a deny case per branch below. A branch removed from this file fails a test
+# there; the 2,026 receipts logged before that suite existed were all decision=allow, which
+# shows the hook ran, not that it could deny (obs 2026-09-29-results-no-overwrite-never-watched-
+# to-fail).
 
 INPUT=$(cat)
 

@@ -44,6 +44,8 @@ _EXTENSION = re.compile(
     r"\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r|pdf|html|lean|js|ts)$"
 )
 _ANCHOR = re.compile(r"(?::\d+(?:-\d+)?|#L\d+(?:-L?\d+)?)$")
+# Only after a file extension, so `C#` or `issue#12` in prose is not read as a path with a fragment.
+_FRAGMENT = re.compile(r"(\.[A-Za-z0-9]{1,5})#[\w.-]+$")
 _ROOT_FILE = re.compile(
     r"(?:\.?[\w-][\w.-]*\.(?:md|py|toml|ya?ml|json|txt|cfg|ini|lock|sh|ps1|csv|tex|bib|ipynb|R|r)"
     r"|\.gitattributes|\.gitignore|\.gitmodules|\.env)"
@@ -53,6 +55,9 @@ _ROOT_FILE = re.compile(
 def _normalise(span: str) -> str | None:
     """Return the repository path a backtick span cites, or None when it is not a path citation."""
     candidate = _ANCHOR.sub("", span.split("::", 1)[0].strip())
+    # A heading fragment (`docs/plan.md#background`): `#` is not a path character, so the whole span
+    # failed the character test and a citation with a fragment was never checked at all.
+    candidate = _FRAGMENT.sub(r"\1", candidate)
     if candidate.startswith("./"):
         candidate = candidate[2:]
     if (
@@ -100,9 +105,17 @@ def planned_outputs(text: str) -> set[str]:
     """
     planned: set[str] = set()
     in_outputs = False
+    outputs_level = 0  # the level of the heading that opened the section
     for line in text.splitlines():
         if line.lstrip().startswith("#"):
-            in_outputs = bool(_OUTPUT_HEADING.match(line.lstrip()))
+            heading = line.lstrip()
+            level = len(heading) - len(heading.lstrip("#"))
+            if _OUTPUT_HEADING.match(heading):
+                in_outputs, outputs_level = True, level
+            elif in_outputs and level <= outputs_level:
+                # Only a heading of the same or a higher level ends the section: a subheading
+                # (### Result files under ## Deliverables) is still inside it.
+                in_outputs = False
             continue
         for match in _SPAN.finditer(line):
             path = _normalise(match.group(1))
@@ -166,6 +179,26 @@ def _suffix_matches(repo_root: Path, ref: str, target: str) -> list[str]:
     return [line for line in _tree(repo_root, ref) if line.endswith("/" + target)]
 
 
+def _in_vault(vault_root: Path, target: str) -> bool:
+    """Whether ``target`` names an existing file inside the vault; a path that leaves the vault never does.
+
+    ``vault_root / "../x"`` exists whenever ``x`` sits beside the vault, so without this a ``..``
+    citation was satisfied by any file on disk. The path is normalised lexically, not resolved, so a
+    symlink inside the vault (the vault's CONVENTIONS.md) still counts as in it.
+    """
+    normal = posixpath.normpath(target)
+    if normal == ".." or normal.startswith("../") or posixpath.isabs(normal):
+        return False
+    return (vault_root / normal).exists()
+
+
+def _branch_tips(repo_root: Path) -> list[str]:
+    """Return every local and remote-tracking branch name, symbolic ``HEAD`` refs excluded."""
+    refs = _git(repo_root, "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").stdout.split()
+    names = [ref.removeprefix("refs/heads/").removeprefix("refs/remotes/") for ref in refs]
+    return sorted(name for name in names if name != "HEAD" and not name.endswith("/HEAD"))
+
+
 def _top_level(repo_root: Path, ref: str) -> set[str]:
     return {line.split("/", 1)[0] for line in _tree(repo_root, ref)}
 
@@ -205,7 +238,7 @@ def unresolved(
     for item in paths:
         path, contexts = (item, [[]]) if isinstance(item, str) else item
         target = path.rstrip("/")
-        if path in planned or (vault_root is not None and (vault_root / target).exists()):
+        if path in planned or (vault_root is not None and _in_vault(vault_root, target)):
             continue
         readings = [target]
         if directory is not None:
@@ -220,34 +253,42 @@ def unresolved(
             continue
         if "/" not in target and _basename_on_ref(repo_root, ref, target):
             continue
+
+        def qualified(context: list[str], readings: list[str] = readings) -> bool:
+            named = [c for c in context if _is_ref_or_namespace(repo_root, c)]
+            return any(_exists(repo_root, c.rstrip("/"), reading) for c in named for reading in readings)
+
+        # Before the suffix suggestion: a mention that names the branch holding the path is correct, and
+        # a same-named file elsewhere on the ref must not turn it into a "cite the full path" refusal.
+        if all(qualified(context) for context in contexts):
+            continue
         if "/" in target and (suggestions := _suffix_matches(repo_root, ref, target)):
             problems.append(
                 f"{path}: not at the repository root or beside the brief on {ref}; cite the full path "
                 f"({', '.join(suggestions[:3])})"
             )
             continue
-
-        def qualified(context: list[str], readings: list[str] = readings) -> bool:
-            named = [c for c in context if _is_ref_or_namespace(repo_root, c)]
-            return any(_exists(repo_root, c.rstrip("/"), reading) for c in named for reading in readings)
-
-        if all(qualified(context) for context in contexts):
-            continue
-        last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", target).stdout.strip()
+        last = _git(repo_root, "log", "--all", "-1", "--format=%H", "--", *readings).stdout.strip()
         if not last:
-            if _git(repo_root, "check-ignore", "-q", "--no-index", target).returncode == 0:
+            # Every reading is tried, as for refs: an ignored file beside the brief is ignored by a rule
+            # for ITS path, which the root reading would never match.
+            ignored = [r for r in readings if _git(repo_root, "check-ignore", "-q", "--no-index", r).returncode == 0]
+            if ignored:
                 # Never tracked and ignored (data, .env): no ref can hold it, so check the checkout
                 # the Worker reads from. Ignored patterns such as `docs/*` also cover force-added
                 # tracked files, which is why this runs only once no branch has ever held the path.
-                if not (repo_root / target).exists():
+                if not any((repo_root / r).exists() for r in ignored):
                     problems.append(f"{path}: git-ignored, never tracked, and not present in {repo_root}")
                 continue
             problems.append(f"{path}: absent from {ref} and from every branch")
             continue
+        # Every branch whose tip holds ANY reading: asking only for branches that contain the newest
+        # commit touching the path missed divergent branches, and the root reading alone missed a path
+        # the brief cites relative to itself. A later deletion leaves nothing to read, so tips decide.
         branches = [
             name
-            for name in _git(repo_root, "branch", "-a", "--contains", last, "--format=%(refname:short)").stdout.split()
-            if name != ref and _exists(repo_root, name, target)  # a later deletion leaves nothing to read
+            for name in _branch_tips(repo_root)
+            if name != ref and any(_exists(repo_root, name, reading) for reading in readings)
         ]
         where = ", ".join(branches) if branches else f"no branch tip (last touched in commit {last[:12]})"
         problems.append(f"{path}: absent from {ref}; present on {where}")
@@ -273,7 +314,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    text = args.brief.read_text(encoding="utf-8")
+    try:
+        text = args.brief.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # A mistyped path or a non-UTF-8 file is a failed check a dispatch can read, not a traceback.
+        print(f"ERROR: cannot read brief {args.brief}: {exc}", file=sys.stderr)
+        return 1
     cited = citations(text)
     problems = unresolved(
         cited,

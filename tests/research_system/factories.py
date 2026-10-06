@@ -454,7 +454,12 @@ def revoke_lifecycle_grant(
     context = harness.authority_resolver.administration_context()
     decision = {
         "schema_id": "ars://core/owner-authority-administration-decision",
-        "schema_version": "1.0.0",
+        # Decision 1.1.0 targets grant 2.1.0 (#222); 1.0.0 still targets legacy 2.0.0 grants.
+        "schema_version": (
+            OWNER_AUTHORITY_DECISION_SCHEMA_VERSION
+            if resolution.schema_version == SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION
+            else "1.0.0"
+        ),
         "record_id": decision_id,
         "revision": 1,
         "project_id": context.project_id,

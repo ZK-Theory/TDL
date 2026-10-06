@@ -360,3 +360,63 @@ def test_the_guard_is_wired_before_and_after_both_shell_tools() -> None:
         assert set(wired[0]["matcher"].split("|")) >= {"Bash", "PowerShell"}
         command = next(h["command"] for h in wired[0]["hooks"] if "commit-state-guard.sh" in h["command"])
         assert ("--advisory" in command) is advisory
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git -c core.hooksPath=/nowhere commit -m x",
+        "git -c core.hookspath= commit -m x",
+        "git -ccore.hooksPath=/nowhere commit -m x",
+        "git --config-env=core.hooksPath=HOOKS commit -m x",
+        "git --config-env core.hooksPath=HOOKS commit -m x",
+        "git -c user.name=a -c core.hooksPath=/nowhere push origin work",
+    ],
+)
+def test_redirecting_core_hookspath_is_refused_like_no_verify(command: str, repo: Path) -> None:
+    """``git -c core.hooksPath=X commit`` runs no ``.githooks`` hook at all, so it skips every gate as --no-verify does.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #300): the option was parsed for
+    its repository effect and then dropped, so the bypass was invisible to the guard.
+    """
+    assert _pre(command, repo) == "deny"
+
+
+def test_other_git_config_overrides_are_not_a_hooks_bypass(repo: Path) -> None:
+    """Positive control: an unrelated ``-c`` setting, and a message that names the option, stay allowed."""
+    assert _pre("git -c user.name=a commit -m x", repo) == "allow"
+    assert _pre('git commit -m "document core.hooksPath handling"', repo) == "allow"
+
+
+@pytest.mark.parametrize(
+    ("command", "tool"),
+    [
+        ("env TDL_ALLOW_MAIN_COMMIT=1 git commit -m x", "Bash"),
+        ("FOO=1 TDL_ALLOW_MAIN_COMMIT=1 git commit -m x", "Bash"),
+        ("declare -x TDL_ALLOW_MAIN_COMMIT=1", "Bash"),
+        ('bash -c "TDL_ALLOW_MAIN_COMMIT=1 git commit -m x"', "Bash"),
+        ("$env:TDL_ALLOW_MAIN_COMMIT='1'; git commit -m x", "PowerShell"),
+        ("Set-Item env:TDL_ALLOW_MAIN_COMMIT 1", "PowerShell"),
+        ("pwsh -Command \"$env:TDL_ALLOW_MAIN_COMMIT='1'; git commit -m x\"", "PowerShell"),
+    ],
+)
+def test_every_way_of_setting_the_override_is_still_refused(command: str, tool: str, repo: Path) -> None:
+    """The text match is replaced by one that reads the command, so the ways of setting it must stay covered."""
+    assert _pre(command, repo, tool=tool) == "deny"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        'echo "TDL_ALLOW_MAIN_COMMIT=1 is the owner exception"',
+        'git commit -m "document TDL_ALLOW_MAIN_COMMIT=1 for the owner"',
+        "grep -n TDL_ALLOW_MAIN_COMMIT .githooks/pre-commit",
+        "git log --grep=TDL_ALLOW_MAIN_COMMIT= --oneline",
+    ],
+)
+def test_a_command_that_only_mentions_the_override_is_not_refused(command: str, repo: Path) -> None:
+    """The deny matched raw text, so an echo, a grep or a commit message that named the variable was blocked.
+
+    Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #300).
+    """
+    assert _pre(command, repo) == "allow"

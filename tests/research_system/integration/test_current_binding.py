@@ -270,6 +270,9 @@ def _bound_fixture(tmp_path: Path) -> _Fixture:
     foundation_path.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
 
     _git(repository_root, "init")
+    # The deepest schema path is 118 characters; under a deep parallel --basetemp the fixture
+    # passes Windows' 260-character limit unless git is told to use long paths.
+    _git(repository_root, "config", "core.longpaths", "true")
     _git(repository_root, "config", "user.email", "gate6@example.invalid")
     _git(repository_root, "config", "user.name", "Gate 6 fixture")
     _git(repository_root, "config", "core.autocrlf", "false")
