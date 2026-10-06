@@ -392,3 +392,62 @@ def test_save_state_writes_lf_only_bytes(tmp_path: Path) -> None:
     data = state_path.read_bytes()
     assert b"\r" not in data
     assert data.endswith(b"}\n")
+
+
+# ---------------------------------------------------------------------------
+# Pack pins (obs 2026-10-06-review-skill-edit-broke-a-pack-pinned-skill)
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _git_blob(data: bytes) -> str:
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def _pinned_repo(tmp_path: Path, *, flow: bool = False) -> Path:
+    """A repository root whose one skill an assurance pack pins at its current bytes."""
+    body = "---\nname: pinned-skill\n---\n\n# Pinned\n"
+    _write(tmp_path / ".agents" / "skills" / "pinned-skill" / "SKILL.md", body)
+    blob = _git_blob(body.encode())
+    path = ".agents/skills/pinned-skill/SKILL.md"
+    if flow:
+        pins = f"refs:\n  - {{reference_kind: skill, repository_path: {path}, git_blob: {blob}}}\n"
+    else:
+        pins = f"skill_references:\n- reference_kind: skill\n  repository_path: {path}\n  git_blob: {blob}\n"
+    _write(tmp_path / ".research-system" / "packs" / "pack.yaml", pins)
+    return tmp_path
+
+
+@pytest.mark.parametrize("flow", [False, True], ids=["block", "flow"])
+def test_a_pinned_skill_at_its_pinned_bytes_passes(tmp_path: Path, flow: bool) -> None:
+    checked, problems = sas.check_pack_pins(_pinned_repo(tmp_path, flow=flow))
+    assert (checked, problems) == (1, [])
+
+
+@pytest.mark.parametrize("flow", [False, True], ids=["block", "flow"])
+def test_an_edit_to_a_pinned_skill_fails_and_names_the_pin(tmp_path: Path, flow: bool) -> None:
+    """#307 added eight lines to a pack-pinned skill; 48 tests went red and Gate 0 passed."""
+    root = _pinned_repo(tmp_path, flow=flow)
+    skill = root / ".agents" / "skills" / "pinned-skill" / "SKILL.md"
+    skill.write_bytes(skill.read_bytes() + b"- one extra checklist line\n")
+    checked, problems = sas.check_pack_pins(root)
+    assert checked == 1
+    assert len(problems) == 1
+    assert "pinned-skill" in problems[0]
+    assert "packs/pack.yaml" in problems[0].replace("\\", "/")
+    assert "superseding contract revision" in problems[0]
+
+
+def test_a_pin_whose_skill_is_missing_fails(tmp_path: Path) -> None:
+    root = _pinned_repo(tmp_path)
+    (root / ".agents" / "skills" / "pinned-skill" / "SKILL.md").unlink()
+    _, problems = sas.check_pack_pins(root)
+    assert problems and "missing" in problems[0]
+
+
+def test_the_live_repository_pins_match_and_are_found() -> None:
+    """Positive signal: the six WP6.3 pins (in two pack files) are read and all match."""
+    checked, problems = sas.check_pack_pins(REPO_ROOT)
+    assert problems == []
+    assert checked >= 6
