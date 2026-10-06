@@ -104,6 +104,16 @@ VERIFICATION_RUN_REVIEW_ID = "rev_019fe47a-2016-7000-8000-000000002016"
 VERIFICATION_RUN_REVIEW_EVIDENCE_ID = "arec_019fe47a-2017-7000-8000-000000002017"
 
 
+def _evaluate_at_submission(harness, command) -> None:
+    """Run the service clock at the command's own ``submitted_at``.
+
+    #270 refuses artefact authority evidence submitted after the trusted service clock, and
+    these fixtures carry fixed timestamps, so the clock is pinned to the submission instant.
+    """
+    submitted_at = datetime.fromisoformat(command["submitted_at"].replace("Z", "+00:00"))
+    harness.service.clock = lambda: submitted_at
+
+
 def _register_review_authorized_subject(harness) -> None:
     content_path = harness.objects.control_root / "evidence" / "evaluation-run.json"
     content_path.parent.mkdir(parents=True, exist_ok=True)
@@ -180,6 +190,7 @@ def _register_review_authorized_subject(harness) -> None:
         },
     )
     harness.service.governing_evidence_resolver = governing_reviews
+    _evaluate_at_submission(harness, use)
     assert harness.service.submit(use).status == "accepted"
 
 
@@ -277,6 +288,7 @@ def _register_review_authorized_methods_asset(harness, asset) -> None:
         },
     )
     harness.service.governing_evidence_resolver = governing_reviews
+    _evaluate_at_submission(harness, use)
     assert harness.service.submit(use).status == "accepted"
 
 
@@ -347,6 +359,7 @@ def _authorize_verification_run_for_review(harness, content_sha256: str) -> None
         },
     )
     harness.service.governing_evidence_resolver = governing_reviews
+    _evaluate_at_submission(harness, use)
     assert harness.service.submit(use).status == "accepted"
 
 
