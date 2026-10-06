@@ -29,14 +29,20 @@ Checks:
   2026-09-01-completeness-ledger-missed-six-live-items: a hand ledger was wrong by six). Unknown,
   repeated and missing ids are named, and each row's Count, and the Total, must match its ids. The
   table must end with one row labelled Total: a ledger that omits it states no count to check.
+* **Reachability** (``--reachability REPO``). Every commit an OPEN, ESCALATED or PARTIALLY entry cites
+  must be on a remote-tracking ref of REPO; a commit that exists only on a local branch has not been
+  delivered (obs 2026-10-06-owner-decided-work-stranded-on-local-branches). A hash written as
+  ``was <sha>`` was carried onto a new commit and is skipped. Hashes that are not commits in REPO are
+  counted in the summary, not dropped.
 
-Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md]
+Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reachability REPO]
 """
 
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -265,10 +271,57 @@ def ledger_ids(packet_text: str, known: set[str]) -> set[str]:
     return {ident for ident in listed if ident in known}
 
 
+_COMMIT = re.compile(r"\b(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b")
+# A hash written as ``was <sha>`` names a commit carried onto a new one; the new hash is the one checked.
+_CARRIED = re.compile(r"\bwas\s+`?([0-9a-f]{7,40})\b")
+
+
+def _git_out(repo: Path, *args: str) -> str | None:
+    done = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, check=False)
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[str], str]:
+    """Report every commit an open entry cites that sits on no remote-tracking ref of ``repo``.
+
+    Obs 2026-10-06-owner-decided-work-stranded-on-local-branches: a gate and a proposal described as
+    built and awaiting a decision existed only on never-pushed local branches for four weeks. A hash that
+    is not a commit in ``repo`` (another repository's, or a content digest) cannot be checked here; it is
+    counted in the summary rather than dropped silently.
+    """
+    problems: list[str] = []
+    checked = foreign = 0
+    for ident, status, block in entries:
+        if not is_open(status):
+            continue
+        carried = set(_CARRIED.findall(block))
+        for sha in dict.fromkeys(_COMMIT.findall(block)):
+            if sha in carried:
+                continue
+            if _git_out(repo, "cat-file", "-t", f"{sha}^{{commit}}") != "commit":
+                foreign += 1
+                continue
+            checked += 1
+            if not _git_out(repo, "for-each-ref", "--contains", sha, "--format=%(refname)", "refs/remotes"):
+                problems.append(
+                    f"{ident}: cites commit {sha}, which is on no remote-tracking ref; push it or say where it went"
+                )
+    summary = f"reachability: {checked} commit hash(es) checked, {len(problems)} stranded"
+    if foreign:
+        summary += f"; {foreign} not a commit in this repository"
+    return problems, summary
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Lint the observation log and a review packet's ledger.")
     parser.add_argument("log", type=Path)
     parser.add_argument("--packet", type=Path, help="Review packet whose Completeness ledger must equal the OPEN set.")
+    parser.add_argument(
+        "--reachability",
+        type=Path,
+        metavar="REPO",
+        help="Git checkout in which every commit an OPEN entry cites must be on a remote-tracking ref.",
+    )
     args = parser.parse_args(argv)
 
     blocks, fence_problems = scan(args.log.read_text(encoding="utf-8"))
@@ -301,6 +354,11 @@ def main(argv: list[str] | None = None) -> int:
             problems.append("listed more than once in the ledger: " + ", ".join(repeated))
         if not (missing or stale or unknown or repeated or table_problems):
             print(f"ledger matches the {len(open_ids)} OPEN observation(s)")
+
+    if args.reachability:
+        stranded, summary = reachability(entries, args.reachability)
+        problems += stranded
+        print(summary)
 
     for line in problems:
         print(f"ERROR: {line}", file=sys.stderr)
