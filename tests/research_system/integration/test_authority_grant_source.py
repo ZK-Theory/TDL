@@ -8,9 +8,11 @@ import shutil
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
+import research_system.authority as authority_module
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
     _verify_bootstrap_bindings,
@@ -30,6 +32,7 @@ from research_system.errors import (
 )
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
+from research_system.store.identity import _manifest_hash, build_store_origin_witness
 from research_system.store.ledger import EventLedger
 from research_system.store.objects import ObjectStore
 from research_system.store.receipts import ReceiptStore
@@ -1883,6 +1886,56 @@ def test_competing_initializers_converge_on_one_complete_identity(tmp_path) -> N
     assert len(identities) == 2
     assert identities[0] == identities[1]
     assert len(tuple(EventLedger(control_root, PROJECT_ID).iter_events())) == 2
+
+
+def _race_for_the_witness_slot(monkeypatch, competing_manifest):
+    """Let a competitor win the origin-witness slot just before this initializer writes."""
+    real_persist = authority_module.persist_store_origin_witness
+
+    def persist(witness, origin_root, *, expected_sha256=None):
+        manifest = competing_manifest(dict(witness.initial_manifest))
+        manifest["manifest_hash"] = _manifest_hash(manifest)
+        competitor = build_store_origin_witness(
+            manifest,
+            initial_control_root=Path(witness.initial_control_root),
+            physical_root=origin_root,
+        )
+        real_persist(competitor, origin_root)
+        return real_persist(witness, origin_root, expected_sha256=expected_sha256)
+
+    monkeypatch.setattr(authority_module, "persist_store_origin_witness", persist)
+
+
+def test_competing_initializer_for_a_foreign_request_is_refused(tmp_path, monkeypatch) -> None:
+    code_root = _code_root(tmp_path)
+    control_root = tmp_path / "control"
+    bootstrap = _bootstrap()
+    _race_for_the_witness_slot(
+        monkeypatch,
+        lambda manifest: {**manifest, "bootstrap_manifest_sha256": "f" * 64},
+    )
+
+    with pytest.raises(ConflictError, match="does not match initializer request"):
+        initialize_authority_control_store(
+            [code_root], control_root, PROJECT_ID, bootstrap, authority_bootstrap_sha256(bootstrap)
+        )
+    assert not control_root.exists()
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
+
+
+def test_competing_initializer_that_never_publishes_is_not_adopted(tmp_path, monkeypatch) -> None:
+    code_root = _code_root(tmp_path)
+    control_root = tmp_path / "control"
+    bootstrap = _bootstrap()
+    monkeypatch.setattr(authority_module, "_COMPETING_INITIALIZER_WAIT_SECONDS", 0.3)
+    _race_for_the_witness_slot(monkeypatch, lambda manifest: manifest)
+
+    with pytest.raises(ConflictError, match="did not publish"):
+        initialize_authority_control_store(
+            [code_root], control_root, PROJECT_ID, bootstrap, authority_bootstrap_sha256(bootstrap)
+        )
+    assert not control_root.exists()
+    assert not list(tmp_path.glob(".control.authority-stage-*"))
 
 
 def test_non_genesis_bootstrap_projection_requires_scoped_grant_v2(tmp_path) -> None:
