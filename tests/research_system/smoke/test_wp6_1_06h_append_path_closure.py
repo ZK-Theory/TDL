@@ -42,6 +42,13 @@ APPEND_SITE_CLASSIFICATIONS = {
         "self.ledger",
     ): "generic_and_guarded_command_producer",
     ("research_system/command/t2.py", "submit_t2", "service.ledger"): "t2_command_producer",
+    # P-059: WP6.6 (#248) Discovery producer; appends under the three-root CompositeWriterLock after
+    # scoped-authority resolution, with full command provenance on every event.
+    (
+        "research_system/discovery/runtime.py",
+        "DiscoveryRuntime._submit_authorized",
+        "self.ledger",
+    ): "discovery_command_producer",
     (
         "research_system/store/ledger.py",
         "EventLedger._append_release_from_validated_submit",
@@ -52,6 +59,12 @@ APPEND_SITE_CLASSIFICATIONS = {
         "EventLedger._append_scoped_authority_from_validated_submit",
         "self",
     ): "guarded_scoped_authority_command_producer",
+    # P-059: #265's binding-repair continuation, injected one-shot by binding_guard like the two above.
+    (
+        "research_system/store/ledger.py",
+        "EventLedger._append_binding_repair_from_validated_service",
+        "self",
+    ): "guarded_binding_repair_service_producer",
     ("research_system/evals/executors/control_store.py", "execute_s009", "ledger"): "commandless_evaluation_fixture",
     ("research_system/evals/executors/control_store.py", "execute_s011", "ledger"): "commandless_evaluation_fixture",
     (
@@ -82,9 +95,9 @@ _EXPECTED_ACCEPTED_AUTHORITIES = {
     "event_schema_tree": "058c1d5ddcb9d249916977f12b11768b6d15de0f",
 }
 _EXPECTED_RUNTIME_BINDINGS = {
-    "count": 218,
+    "count": 261,
     "canonical_row_format": "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n",
-    "sha256": "96ac13de1e2477117e8f7741692ff8025a4b49a82b6496c6fd61e975ad2047cc",
+    "sha256": "70a6bf2fc871a83db78876d8aad6aa72bb87babc27e08d9f8f626359413e45a6",
 }
 _EXPECTED_HISTORICAL_EVIDENCE = {
     "pre_06h_freeze": _PRE_06H_FREEZE,
@@ -179,7 +192,10 @@ def _validate_manifest_authority(document: dict) -> None:
     decision_path = historical["decision_record"]
     assert document["schema_id"] == _MANIFEST_SCHEMA_ID
     assert document["schema_version"] == _MANIFEST_SCHEMA_VERSION
-    assert document["accounted_base"] == _git_output("merge-base", "HEAD", "origin/main")
+    # P-059: the manifest names the base it was accounted against. Equality with today's
+    # merge-base held only on the authoring branch; what must hold everywhere is that the base
+    # is real history of this checkout.
+    assert _git_is_ancestor(document["accounted_base"], "HEAD")
     assert document["integrated_pr229_merge"] == _INTEGRATED_PR229_MERGE
     assert document["production_candidate"] == _PRODUCTION_CANDIDATE
     assert document["assurance_lane"] == _ASSURANCE_LANE
@@ -608,6 +624,12 @@ def test_event_ledger_guarded_self_append_sites_are_discovered() -> None:
             "EventLedger._append_scoped_authority_from_validated_submit",
             "self",
             "guarded_scoped_authority_command_producer",
+        ),
+        (
+            "research_system/store/ledger.py",
+            "EventLedger._append_binding_repair_from_validated_service",
+            "self",
+            "guarded_binding_repair_service_producer",
         ),
     }
 
