@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.2.1"
+  version: "1.3.0"
   tier: core
   lanes:
     - output-provenance
@@ -112,6 +112,8 @@ internals, so they survive refactors.
       (admission and evaluator boundaries), each with a negative control.
 - [ ] Each red run's evidence names its test group, a nonzero executed count
       and the asserted failure text.
+- [ ] Every race or interleaving test reports passes out of N isolated runs
+      (N at least 50, or a deterministic interleaving harness).
 - [ ] The self-test questions below were answered from the record.
 
 ## Escalate Or Stop When
@@ -200,6 +202,14 @@ role name or contract claimed:
   executed count: the selection run (file or node ids), the count it executed
   (`N failed`, N at least 1) and the asserted failure text, so "0 tests ran" can
   never stand in for a watched failure.
+- **A green race test is a sample.** When a test's subject is a race or any other
+  nondeterministic interleaving, report it as passes out of N isolated runs, never
+  as "passes". With no failures in N runs, the 95% upper bound on the failure rate
+  is 1 - 0.05^(1/N), about 3/N for large N: 3/3 green still allows a failure rate
+  of 63%, and 50/50 bounds it near 6%. Use N of at least 50, or a deterministic
+  interleaving harness that forces the window. The remediation-red control is the parent failing at least once within
+  the same N. (#324 merged on 3/3 green; the same test then failed 4 of 20 isolated
+  runs.)
 
 **Manager acceptance.** Before accepting Success on a task that touches an admission
 or evaluator boundary, confirm that these controls are in place: each negative control
@@ -220,3 +230,5 @@ Answer each from the record, not from memory, before reporting the work done:
   layer constant so none refused first?
 - For each red run, what are the test group, the executed count and the failure
   text? Could any of them have been a run where nothing executed?
+- For each race test reported green, how many isolated runs passed, out of how
+  many? What failure rate does that count still allow?

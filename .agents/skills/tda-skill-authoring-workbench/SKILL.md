@@ -2,7 +2,7 @@
 name: tda-skill-authoring-workbench
 description: Use when creating, reviewing, or refactoring TDL agent skills — deciding whether something should be a skill, reducing overlap between skills, or working the dual-tree authoring-and-sync mechanics for Claude Code and Codex.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: optional
   lanes: []
   roles:
@@ -38,6 +38,13 @@ tier 2 skill first.
    byte-identical before commit.
 4. Skill bodies must not contain tree-specific path literals (the sync tool
    lints for them) — cross-reference other skills by name only.
+5. **Check for a pack pin before editing an existing skill.** Run
+   `git grep -n "<name>/SKILL.md" .research-system/`. A hit means an accepted
+   assurance pack pins the skill's bytes, and any edit makes that pack
+   unconsumable until a superseding contract revision, which is an owner decision.
+   Put the new guidance in an unpinned skill that covers the same step instead.
+   In #307, an 8-line edit to a pinned skill turned 48 tests red; #326 moved the
+   text into an unpinned skill on the owner's decision.
 
 ## Required Decisions (before writing)
 
@@ -86,6 +93,8 @@ mediocre ones.
 - [ ] Self-test prompts for behaviour-shaping skills.
 - [ ] No tree-specific path literals in the body.
 - [ ] Registered in the sync manifest; sync run; `--check` green.
+- [ ] No pack pin in `.research-system/` names an edited skill, or the owner has
+      approved the superseding contract revision.
 - [ ] Cross-links added in both directions where skills reference each other.
 
 ## Escalate Or Stop When
@@ -98,5 +107,5 @@ mediocre ones.
 ## Related Skills
 
 `tda-light-task-triage` (is this worth a skill?) · `adversarial-design-review`
-(reviewing a skill suite as a design artifact) · the task-observer log
+(reviewing a skill suite as a design artifact) · the research-observer log
 (observations tagged to a skill feed its next revision).
