@@ -1,9 +1,11 @@
 # 06t — Path-bound vs symbol-bound pins in `artefact-authority-interface.v1`
 
 **Date:** 2026-09-08
-**Status:** PROPOSAL — decision requested from Stephen. **No contract change has
-been made.** `artefact-authority-interface.v1.yaml`, its identity manifests, and
-`test_06i_stage_a_candidate.py` are untouched by this document.
+**Status:** DECIDED — Option C, accepted by Stephen on 2026-10-07 (P-060 in
+`03-decisions-and-open-questions.md`). Deferred until Gate 6 closes; see §9.
+**No contract change has been made.** `artefact-authority-interface.v1.yaml`, its
+identity manifests, and `test_06i_stage_a_candidate.py` are untouched by this
+document.
 **Origin:** research-observer observation `2026-08-12-file-map-frozen-since-wp1`
 (PROCESS lane), second limb: *"contract pins that bind behaviour to a
 `source_path` should be reviewed for whether path-binding or symbol-binding is
@@ -215,7 +217,7 @@ should not be bundled into this decision.
 ## 7. Decision requested
 
 - [ ] **A** — no change; accept module layout as a contract-amendment surface.
-- [ ] **C** — split by pin semantics (recommended); schedule as a standalone
+- [x] **C** — split by pin semantics (recommended); schedule as a standalone
       slice with the qualname-uniqueness invariant and its negative control.
 - [ ] **D** — defer; accept that the amendment window closes on candidate
       acceptance.
@@ -236,3 +238,22 @@ Option B is listed for completeness and is not recommended.
   `.research-system/contracts/artefact-authority-v1/`.
 - Plan of origin: [06i](06i-wp6-1-artefact-authority-and-consumer-firewall-plan.md).
 - WP1 file map: [01](01-control-plane-and-replay-plan.md).
+
+## 9. Decision and activation (2026-10-07)
+
+Stephen accepted **Option C** (P-060). Nothing changes until the slice is dispatched.
+
+- **When it becomes active.** Only on Stephen's dispatch, after 06s §8 reports Gate 6
+  INTEGRATED. Phase 4c certifies a main SHA whose CI currency group includes
+  `test_06i_stage_a_candidate.py`, Phase 5 step 1 binds the reviewed main SHA, and
+  Phase 5 step 6 requires documentation-only governed-code descent from that SHA to
+  final main. A contract and test change merged in between would either change the
+  reviewed subject or break that check.
+- **Hold.** The 06i candidate stays `candidate_state: proposed` until the slice lands.
+  If its acceptance is proposed first, P-060 goes back to Stephen before it proceeds.
+- **The slice.** As §4 Option C and §5: the test module, the interface YAML and both
+  identity manifests, with the qualname-uniqueness invariant and its negative control
+  in the same change. No `research_system/` change. §6's adjacent finding stays
+  separate.
+- **Tracking.** No Jira issue yet. The delivered 06i capability is KAN-96 (Done,
+  under KAN-65).
