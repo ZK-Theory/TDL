@@ -142,6 +142,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "validation: marks tests as mathematical validation tests",
+    "live_store: reads the operator's live control store (deselect off the operator machine with '-m \"not live_store\"')",
 ]
 
 [tool.bandit]
