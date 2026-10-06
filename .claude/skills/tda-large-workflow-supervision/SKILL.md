@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.4.1"
+  version: "1.5.0"
   tier: optional
   lanes: []
   roles:
@@ -144,6 +144,15 @@ boundaries, declare merge order/bases, keep contracts with their review evidence
 and perform a final integration-seam review. Do not squash or rebase away an exact
 accepted subject.
 
+**Mergeability is bound to a base.** Green evidence names the base it ran on, and
+the base moves while branches wait. When handing back a set of parallel branches,
+re-check each against the current base and each pair against each other with
+`git merge-tree --write-tree <base> <branch>` (and `<a> <b>`). Record a merge order
+for every conflicting pair in the handback, and re-run the binding tests for any
+branch whose merge touches pinned or shared surfaces. In the 2026-10-03 triage,
+two of nine branches pushed green no longer merged two days later, and two sibling
+pairs conflicted; only the merge-tree sweep showed it.
+
 When the file cap requires multiple PRs, keep one campaign status across them.
 Each accepted PR is an integration milestone. After the final seam lands,
 exercise the assembled end-to-end capability before claiming `INTEGRATED`.
@@ -225,6 +234,8 @@ equivalent billing telemetry), using stable task/session identifiers.
       and final acceptance-review boundary recorded.
 - [ ] Existing artifacts certified before any regeneration.
 - [ ] Research-value, branch topology, merge strategy, and PR file cap recorded.
+- [ ] Parallel branches re-checked with `git merge-tree` against the current base
+      and pairwise at handback; merge order recorded for conflicting pairs.
 - [ ] A real end-to-end path has been exercised before `INTEGRATED` is claimed.
 - [ ] No required capability dependency is disposed only to a PR comment,
       plan, handoff, or unnamed successor.

@@ -386,3 +386,35 @@ def test_control_binding_load_rejects_foundation_root_omitted_from_approved_code
 
     with pytest.raises(ConfigurationError, match="canonical foundation root"):
         ControlBinding.load(binding_path)
+
+
+# Obs 2026-10-03-tests-and-live-store-bound-to-machine-state: the live store's approval pinned its schema
+# root inside a Codex worktree, and sweeping that worktree made the store unloadable through its approved
+# path. A durable approval may keep a retired code root as provenance, but its schema root must not live in
+# a checkout that is meant to be thrown away.
+
+
+@pytest.mark.parametrize("parent", [".codex", ".claude", ".apm"])
+def test_approved_binding_refuses_a_schema_root_in_a_disposable_worktree_directory(tmp_path: Path, parent: str):
+    base = tmp_path / parent / "worktrees" / "547f"
+    base.mkdir(parents=True)
+    foundation_path, _foundation = _materialized_foundation(base)
+
+    with pytest.raises(ConfigurationError, match=f"disposable checkout.*{parent}/worktrees"):
+        ApprovedProjectBinding.load(foundation_path)
+
+
+def test_approved_binding_refuses_a_schema_root_in_a_linked_git_worktree(tmp_path: Path):
+    foundation_path, _foundation = _materialized_foundation(tmp_path)
+    (tmp_path / "code" / ".git").write_text("gitdir: C:/elsewhere/.git/worktrees/code\n", encoding="utf-8")
+
+    with pytest.raises(ConfigurationError, match="disposable checkout.*linked Git worktree"):
+        ApprovedProjectBinding.load(foundation_path)
+
+
+def test_approved_binding_accepts_a_schema_root_in_an_ordinary_checkout(tmp_path: Path):
+    """Positive control: a main checkout (a ``.git`` directory) under an ordinary path still loads."""
+    foundation_path, _foundation = _materialized_foundation(tmp_path)
+    (tmp_path / "code" / ".git").mkdir()
+
+    assert ApprovedProjectBinding.load(foundation_path).schema_root.is_absolute()
