@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.2.0"
+  version: "1.2.1"
   tier: core
   lanes:
     - output-provenance
@@ -200,6 +200,15 @@ role name or contract claimed:
   executed count: the selection run (file or node ids), the count it executed
   (`N failed`, N at least 1) and the asserted failure text, so "0 tests ran" can
   never stand in for a watched failure.
+
+**Manager acceptance.** Before accepting Success on a task that touches an admission
+or evaluator boundary, confirm that these controls are in place: each negative control
+names the layer that must refuse; construction and evaluation have a field-by-field
+correspondence table; refusals precede the first irreversible effect; borrowed
+derivations and cross-route evidence are re-asserted against the owning record; and
+hash-bound rule references are shown to be evaluated. (This item lives here, not in
+`research-assurance-triage`: that skill's bytes are pinned by the accepted WP6.3 private
+assurance pack, and changing them needs a superseding contract revision.)
 
 ## Self-test before handing back
 
