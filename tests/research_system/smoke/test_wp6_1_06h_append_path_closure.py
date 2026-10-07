@@ -97,7 +97,7 @@ _EXPECTED_ACCEPTED_AUTHORITIES = {
 _EXPECTED_RUNTIME_BINDINGS = {
     "count": 261,
     "canonical_row_format": "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n",
-    "sha256": "70a6bf2fc871a83db78876d8aad6aa72bb87babc27e08d9f8f626359413e45a6",
+    "sha256": "f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7",
 }
 _EXPECTED_HISTORICAL_EVIDENCE = {
     "pre_06h_freeze": _PRE_06H_FREEZE,

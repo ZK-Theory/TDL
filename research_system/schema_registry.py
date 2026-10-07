@@ -1288,7 +1288,7 @@ _RUNTIME_BINDINGS = (
     ),
     SchemaBinding(
         "ars://wp6-6/gate6/binding-repair/command/RepairStoreBinding",
-        "1.0.0",
+        "1.1.0",
         command_type="RepairStoreBinding",
     ),
     SchemaBinding(

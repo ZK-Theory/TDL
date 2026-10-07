@@ -77,6 +77,25 @@ _BINDING_BASE_FIELDS = frozenset(
         "binding_config_sha256",
     }
 )
+_INITIAL_BINDING_ACTION = "bind-initialized-store"
+# The first binding of a freshly initialized store has no restore to join and nothing stale; it pins
+# the initial manifest its origin witness records instead (P-058, 2026-10-07, P5-3).
+_INITIAL_BINDING_FIELDS = (
+    _BINDING_BASE_FIELDS - {"stale_evidence", "prior_restore_transaction_id", "prior_restore_intended_manifest_sha256"}
+) | {"initial_manifest_sha256"}
+_REPAIR_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
+_INITIAL_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingInitial"
+_ADVANCE_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
+
+
+def _is_initial_binding(binding: dict[str, Any]) -> bool:
+    return binding.get("schema_version") == "1.0.0" and binding.get("owner_action") == _INITIAL_BINDING_ACTION
+
+
+def _binding_object_schema_id(binding: dict[str, Any]) -> str:
+    if binding.get("schema_version") in {"1.1.0", "1.2.0"}:
+        return _ADVANCE_OBJECT_SCHEMA_ID
+    return _INITIAL_OBJECT_SCHEMA_ID if _is_initial_binding(binding) else _REPAIR_OBJECT_SCHEMA_ID
 
 
 def _is_sha256(value: object) -> bool:
@@ -299,7 +318,9 @@ def _validate_binding_shape(value: dict[str, Any]) -> None:
         elif value.get("owner_action") != "advance-clean-descendant-store-binding":
             raise IntegrityError("current binding owner action is invalid")
     elif version == "1.0.0":
-        if value.get("owner_action") != "repair-stale-store-binding":
+        if value.get("owner_action") == _INITIAL_BINDING_ACTION:
+            expected_fields = set(_INITIAL_BINDING_FIELDS)
+        elif value.get("owner_action") != "repair-stale-store-binding":
             raise IntegrityError("current binding owner action is invalid")
     else:
         raise IntegrityError("current binding schema version is unsupported")
@@ -505,11 +526,7 @@ def _validate_binding_chain(
         if sha256_hex(predecessor_raw) != predecessor_sha256:
             raise IntegrityError("current binding predecessor object hash mismatch")
         _validate_binding_shape(predecessor)
-        predecessor_schema_id = (
-            "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
-            if predecessor["schema_version"] in {"1.1.0", "1.2.0"}
-            else "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
-        )
+        predecessor_schema_id = _binding_object_schema_id(predecessor)
         try:
             schemas.validate(predecessor_schema_id, predecessor, schema_version=str(predecessor["schema_version"]))
         except SchemaError as exc:
@@ -571,7 +588,7 @@ def _validate_binding_event_against_object(
     elif event_type == "StoreBindingRepaired":
         advanced = False
         command_type = "RepairStoreBinding"
-        object_schema_id = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
+        object_schema_id = _REPAIR_OBJECT_SCHEMA_ID
         event_schema_id = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
     else:
         raise IntegrityError("current binding event type is invalid")
@@ -588,6 +605,9 @@ def _validate_binding_event_against_object(
     expected_versions = {"1.1.0", "1.2.0"} if advanced else {"1.0.0"}
     if binding.get("schema_version") not in expected_versions:
         raise IntegrityError("current binding event/object version is invalid")
+    initial = _is_initial_binding(binding)
+    if initial:
+        object_schema_id = _INITIAL_OBJECT_SCHEMA_ID
 
     try:
         command_binding = schemas.command_binding(command_type)
@@ -629,7 +649,11 @@ def _validate_binding_event_against_object(
         "git_head": binding.get("git_head"),
         "git_tree": binding.get("git_tree"),
         ("predecessor_binding_sha256" if advanced else "prior_manifest_sha256"): binding.get(
-            "predecessor_binding_sha256" if advanced else "prior_restore_intended_manifest_sha256"
+            "predecessor_binding_sha256"
+            if advanced
+            else "initial_manifest_sha256"
+            if initial
+            else "prior_restore_intended_manifest_sha256"
         ),
     }
     if payload != expected_payload:
@@ -859,11 +883,7 @@ def load_current_binding(
             raise IntegrityError("bound SPEC source bytes changed")
 
     schemas = runtime_schema_registry(schema_root, generation=f"{head}:{catalogue_sha256}")
-    object_schema_id = (
-        "ars://wp6-6/gate6/binding-repair/object/StoreBindingAdvance"
-        if binding["schema_version"] in {"1.1.0", "1.2.0"}
-        else "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
-    )
+    object_schema_id = _binding_object_schema_id(binding)
     try:
         schemas.validate(object_schema_id, binding, schema_version=str(binding["schema_version"]))
     except SchemaError as exc:
@@ -921,22 +941,37 @@ def load_current_binding(
         raise IntegrityError("current binding control config is invalid")
 
     restore = load_restore_binding_transaction(control)
-    if (
-        not isinstance(restore, dict)
-        or restore.get("transaction_id") != binding.get("prior_restore_transaction_id")
-        or restore.get("intended_manifest_sha256") != binding.get("prior_restore_intended_manifest_sha256")
-    ):
-        raise IntegrityError("current binding restore predecessor is invalid")
     manifest = load_store_manifest_unbound(control)
     _validate_external_witness_for_store(control, manifest, witness)
+    if _is_initial_binding(binding):
+        # An initialized store's binding root joins the origin witness instead of a restore: the store
+        # must never have been restored, and its manifest must still be the witness's initial manifest.
+        if (
+            restore is not None
+            or canonical_bytes(manifest) != canonical_bytes(witness.initial_manifest)
+            or binding.get("initial_manifest_sha256") != witness.initial_manifest_sha256
+            or sha256_hex(canonical_bytes(manifest)) != witness.initial_manifest_sha256
+        ):
+            raise IntegrityError("current initial binding differs from the store's origin manifest")
+        manifest_witness_pins_match = True
+    else:
+        if (
+            not isinstance(restore, dict)
+            or restore.get("transaction_id") != binding.get("prior_restore_transaction_id")
+            or restore.get("intended_manifest_sha256") != binding.get("prior_restore_intended_manifest_sha256")
+        ):
+            raise IntegrityError("current binding restore predecessor is invalid")
+        manifest_witness_pins_match = (
+            manifest.get("origin_witness_path") == str(witness_path)
+            and manifest.get("origin_witness_sha256") == witness.raw_sha256
+        )
     if (
         manifest.get("project_id") != project_id
         or manifest.get("store_identity") != expected_store_identity
         or manifest.get("control_root") != str(control)
         or manifest.get("code_roots") != binding["code_roots"]
         or manifest.get("schema_root") != binding["schema_root"]
-        or manifest.get("origin_witness_path") != str(witness_path)
-        or manifest.get("origin_witness_sha256") != witness.raw_sha256
+        or not manifest_witness_pins_match
     ):
         raise IntegrityError("current binding differs from the materialized store manifest")
     _validate_receipt_and_event(
