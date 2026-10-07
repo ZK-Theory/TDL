@@ -53,12 +53,11 @@ def _lineage_candidate(project_id: str, intent: dict, objects) -> str:
 def verify_source_production(
     intent: dict,
     events: Iterable[dict],
+    streams: dict[str, Any],
     *,
     project_id: str,
     registered_candidates: Iterable[str],
     objects,
-    schemas,
-    authority_state_validator,
 ) -> None:
     """Refuse SOURCE production references the ledger does not show (P-058, 2026-10-07, M-2 and P5-7).
 
@@ -69,14 +68,11 @@ def verify_source_production(
     Its Attempt must be running and dispatched on the Task's current revision, and the intent's
     dispatch, Attempt, context packet, code commit and environment fingerprint must be that Attempt's.
     The producer profile, branch, worktree and accepted scope have no ledger record and stay caller
-    strings (a known limit).
+    strings (a known limit). ``streams`` is the caller's replay of ``events``: this module sits below the
+    replay layer, so it does not replay the ledger itself.
     """
-    from research_system.discovery.spec_replay import replay
-
     production = intent["production"]
     task_id = production["task_id"]
-    events = tuple(events)
-    streams = replay(events, schema_registry=schemas, authority_state_validator=authority_state_validator)["streams"]
     task = streams.get(task_id)
     if not isinstance(task, dict) or not str(task_id).startswith("tsk_"):
         raise IntegrityError(f"SOURCE production names Task {task_id}, which the ledger does not hold")

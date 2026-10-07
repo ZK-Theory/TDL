@@ -28,7 +28,7 @@ from research_system.discovery.spec_source import (
     verify_source_production,
 )
 from research_system.discovery import spec_assay, spec_result, spec_task
-from research_system.discovery.spec_replay import per_operation, replay_discovery
+from research_system.discovery.spec_replay import per_operation, replay, replay_discovery
 from research_system.discovery.spec_source import DOCUMENT_KIND as SOURCE_DOCUMENT_KIND
 from research_system.discovery.spec_source_git import parse_locator
 from research_system.errors import ArsError, ConflictError, IntegrityError
@@ -586,13 +586,12 @@ class SpecCoordinator:
             verify_source_production(
                 intent,
                 snapshot.events,
+                replay(snapshot.events, schema_registry=self.schemas, authority_state_validator=validator)["streams"],
                 project_id=self.binding.project_id,
                 registered_candidates=replay_discovery(
                     snapshot.events, schemas=self.schemas, authority_state_validator=validator
                 )["candidates"],
                 objects=self.objects,
-                schemas=self.schemas,
-                authority_state_validator=validator,
             )
             document = prepare_document(
                 intent,

@@ -95,9 +95,11 @@ def test_remote_fetch_with_master_branch(source_repo, monkeypatch):
 def test_source_registration_holds_writer_lock_through_rejection(bound_source, source_repo, monkeypatch):
     from research_system.errors import ArsError
     from research_system.store.lock import CompositeWriterLock, WriterLockContentionError
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     coordinator = bound_source.coordinator
     intent = source_intent(source_repo)
+    seed_source_task(bound_source, intent)
     artefact_id = source_ids(PROJECT_ID, intent)["artefact_id"]
     grant = activate_lifecycle_grant(
         bound_source.harness, subject_kind="artefact", subject_id=artefact_id, command_types=("RegisterArtefact",)
@@ -144,10 +146,12 @@ def test_source_registration_refuses_a_ledger_that_moved_after_derivation(
 ):
     """The document is derived before admission's writer lock; inside the lock a moved ledger refuses it."""
     from research_system.discovery import spec as spec_module
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     bound = bound_source
     coordinator = bound.coordinator
     intent = source_intent(source_repo)
+    seed_source_task(bound, intent)
     ids = source_ids(PROJECT_ID, intent)
     grant = activate_lifecycle_grant(
         bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
@@ -495,10 +499,13 @@ def test_correction_publication_failures_and_governed_backup(bound_source, sourc
     from research_system.canonical import sha256_hex
     from tests.research_system.integration.test_artefact_authority_commands import command
     from tests.research_system.integration.test_wp64_create_backup import _registry
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     bound = bound_source
     coordinator = bound.coordinator
     intent = source_intent(source_repo)
+    # Seeded before the failure's ledger snapshot, so only the failed publication is measured.
+    seed_source_task(bound, intent)
     ids = source_ids(PROJECT_ID, intent)
     grant = activate_lifecycle_grant(
         bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
