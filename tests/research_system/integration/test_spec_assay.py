@@ -46,8 +46,10 @@ def _actor(number: int) -> str:
     return f"act_019fed25-b33e-7740-b280-{number:012d}"
 
 
-# Both committed Assay authority files pin this author, and admission requires it as the submitter (P-058).
+# Both W11 fixture Assay authority files pin this author, and admission requires it as the submitter (P-058).
 PINNED_AUTHOR = _actor(205)
+# SPEC-01's own bar is signed by a dedicated non-owner author (P-058, 2026-10-07, P5-9).
+SPEC_01_AUTHOR = "act_01a1169f-019f-7fbb-b9f6-0246970f1d9a"
 RUBRIC_OBSERVER, SCOPE_OBSERVER, BAR_REQUESTER, BAR_REVIEWER, BAR_PROPOSER = (_actor(n) for n in range(401, 406))
 STEWARD, PRODUCER = _actor(411), _actor(412)
 OUTCOME_REVIEWER, PROPOSER = _actor(421), _actor(431)
@@ -107,8 +109,31 @@ def request_intent(candidate_id: str) -> dict:
     return {"action": spec_assay.REQUEST, "reason": "request the SPEC-01 Assay", "candidate_id": candidate_id}
 
 
+def _spec_01_content(relative: str) -> dict:
+    return json.loads((REPO_ROOT / relative).read_bytes())
+
+
+def _spec_01_axis_results(*, topology=True, data=2, novelty=2, prerequisites=True) -> list[dict]:
+    """Operator answers for every axis of SPEC-01's bar, in rubric order."""
+    values = {"topology_earns_its_keep": topology, "data_feasibility": data, "novelty_publishability": novelty}
+    return [
+        {
+            "axis_id": axis["axis_id"],
+            "value": values.get(axis["axis_id"], prerequisites),
+            "rationale": f"Scratch answer for {axis['axis_id']}.",
+            "unmet_condition_codes": [],
+        }
+        for axis in _spec_01_content(spec_assay.ASSAY_RUBRIC_PATH)["axis_definitions"]
+    ]
+
+
 def _record_id(relative: str) -> str:
-    return json.loads((REPO_ROOT / relative).read_bytes())["record_id"]
+    """The record ID of the bar a route test scores: the W11 fixture bar stands in for SPEC-01's (P5-9)."""
+    fixture = {
+        spec_assay.ASSAY_RUBRIC_PATH: spec_assay.W11_FIXTURE_RUBRIC_PATH,
+        spec_assay.ASSAY_SCOPE_PATH: spec_assay.W11_FIXTURE_SCOPE_PATH,
+    }.get(relative, relative)
+    return json.loads((REPO_ROOT / fixture).read_bytes())["record_id"]
 
 
 def _replay(coordinator) -> dict:
@@ -131,13 +156,21 @@ def _grant(bound, command_type: str, subject_id: str, actor: str, *, human: bool
     )
 
 
-def _bar_steps() -> list[tuple[str, str, str, bool]]:
-    """Each Assay-bar effect's command, grant subject, distinct actor and actor class, in route order."""
+def _bar_steps(*, spec_01_bar: bool = False) -> list[tuple[str, str, str, bool]]:
+    """Each Assay-bar effect's command, grant subject, distinct actor and actor class, in route order.
+
+    With ``spec_01_bar`` the bar is SPEC-01's own committed content, signed by its own author (P5-9).
+    """
     ids = spec_assay.subject_ids(PROJECT_ID, BAR_INTENT)
-    rubric, scope = _record_id(spec_assay.ASSAY_RUBRIC_PATH), _record_id(spec_assay.ASSAY_SCOPE_PATH)
+    if spec_01_bar:
+        rubric_content, scope_content = (_spec_01_content(path) for path in ASSAY_FILES)
+        rubric, scope, author = rubric_content["record_id"], scope_content["record_id"], SPEC_01_AUTHOR
+    else:
+        rubric, scope = _record_id(spec_assay.ASSAY_RUBRIC_PATH), _record_id(spec_assay.ASSAY_SCOPE_PATH)
+        author = PINNED_AUTHOR
     return [
-        ("RegisterAssayRubricContent", rubric, PINNED_AUTHOR, False),
-        ("RegisterAssayEvidenceScopeContent", scope, PINNED_AUTHOR, False),
+        ("RegisterAssayRubricContent", rubric, author, False),
+        ("RegisterAssayEvidenceScopeContent", scope, author, False),
         ("ObserveW11AuthorityFile", rubric, RUBRIC_OBSERVER, False),
         ("ObserveW11AuthorityFile", scope, SCOPE_OBSERVER, False),
         ("RequestW11AuthorityReview", ids["review_id"], BAR_REQUESTER, False),
@@ -593,11 +626,11 @@ def _run(bound, tmp_path, capsys, intent, command_type, subject, actor, *, human
     return _invoke(bound, tmp_path, capsys, intent, grant, actor, evidence=evidence)
 
 
-def _requested(bound, tmp_path, capsys, source_repo) -> str:  # noqa: F811
+def _requested(bound, tmp_path, capsys, source_repo, *, spec_01_bar: bool = False) -> str:  # noqa: F811
     """Import genesis, accept the bar, observe the source and request its Assay, all on the public route."""
     _advance(bound, tmp_path, capsys, GENESIS_INTENT, "ImportAcceptedW11CatalogueGenesis", CATALOGUE_STREAM_ID,
              OWNER, human=True)  # fmt: skip
-    for command_type, subject, actor, human in _bar_steps():
+    for command_type, subject, actor, human in _bar_steps(spec_01_bar=spec_01_bar):
         _advance(bound, tmp_path, capsys, BAR_INTENT, command_type, subject, actor, human)
     candidate_id = _observe(bound, tmp_path, capsys, source_repo)
     _run(bound, tmp_path, capsys, request_intent(candidate_id), "RequestAssay", candidate_id, STEWARD)
@@ -1235,8 +1268,8 @@ def test_operator_record_registration_refuses_a_ledger_that_moved_after_derivati
 
 def _unevaluated_axis_bar() -> dict[str, bytes]:
     """The committed fixture bar plus one required integer axis, which admission only bounds-checks."""
-    rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())
-    scope = json.loads((REPO_ROOT / spec_assay.ASSAY_SCOPE_PATH).read_bytes())
+    rubric = json.loads((REPO_ROOT / spec_assay.W11_FIXTURE_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / spec_assay.W11_FIXTURE_SCOPE_PATH).read_bytes())
     axis = {key: value for key, value in rubric["axis_definitions"][0].items() if key != "allowed_set"}
     axis.update(
         axis_id="data_feasibility",
@@ -1301,6 +1334,97 @@ def test_promote_is_refused_while_the_bar_has_an_unevaluated_axis(tmp_path, monk
     promote = {"selected_option": "PROMOTE", "revisit_triggers": []}
     assert "does not evaluate" in _invoke(bound, tmp_path, capsys, decide_intent, resolve_grant, OWNER,
                                           evidence=promote, refused=True)  # fmt: skip
+
+
+def _version_drifted_spec_01_bar() -> dict[str, bytes]:
+    """SPEC-01's own bar, but declaring rule version 2.0.0 with the registered rule's ID and hash.
+
+    Admission evaluates the SPEC-01 rule only for the registered ID, version and hash, so it scores this bar
+    gate-only. The scorecard's rule reference still carries the registered ID and hash.
+    """
+    rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / spec_assay.ASSAY_SCOPE_PATH).read_bytes())
+    rubric["rule_evaluation_algorithm_version"] = "2.0.0"
+    rubric["content_hash"] = assay_content_sha256(rubric)
+    scope["rubric_ref"]["content_hash"] = rubric["content_hash"]
+    scope["content_hash"] = assay_content_sha256(scope)
+    return {
+        spec_assay.ASSAY_RUBRIC_PATH: canonical_bytes(rubric) + b"\n",
+        spec_assay.ASSAY_SCOPE_PATH: canonical_bytes(scope) + b"\n",
+    }
+
+
+def _reviewed_spec_01_assay(tmp_path, monkeypatch, capsys, source_repo, *, data: int, novelty: int, bar=None):  # noqa: F811
+    """Score SPEC-01's own bar on the public route and have the outcome independently reviewed (P5-8, P5-9)."""
+    spec_01_bar = bar or {path: (REPO_ROOT / path).read_bytes() for path in ASSAY_FILES}
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False,
+                               repository_overrides=spec_01_bar)  # fmt: skip
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo, spec_01_bar=True)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    _seed_task_naming(bound, candidate_id, monkeypatch)
+    _run(bound, tmp_path, capsys, spec_01_intent(spec_assay.PREPARE, candidate_id), "RegisterArtefact",
+         ids["brief_id"], OWNER, human=True)  # fmt: skip
+    evidence = {
+        **RETURN_EVIDENCE,
+        "axis_results": _spec_01_axis_results(data=data, novelty=novelty),
+        "findings": ["Every SPEC-01 axis is answered on its own bar."],
+        "unresolved_findings": [],
+        "limitations": ["scratch store with SPEC-01's own Assay bar"],
+    }
+    return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
+    _run(bound, tmp_path, capsys, return_intent, "RegisterArtefact", ids["return_id"], OWNER, human=True,
+         evidence=evidence)  # fmt: skip
+    _run(bound, tmp_path, capsys, return_intent, "RecordAssayScore", candidate_id, PRODUCER, evidence=evidence)
+    review_intent = spec_01_intent(spec_assay.REVIEW, candidate_id)
+    _run(bound, tmp_path, capsys, review_intent, "RequestDiscoveryOutcomeReview", candidate_id, STEWARD)
+    _run(bound, tmp_path, capsys, review_intent, "ReviewDiscoveryOutcome", ids["review_id"], OUTCOME_REVIEWER,
+         evidence=OUTCOME_VERDICT_EVIDENCE)  # fmt: skip
+    return bound, candidate_id, ids
+
+
+@pytest.mark.slow
+def test_spec_01_bar_below_the_promote_threshold_scores_park(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """Topology passes but Axes 2+3 sum to 3: admission records a mechanical PARK, and PROMOTE is refused."""
+    bound, candidate_id, ids = _reviewed_spec_01_assay(tmp_path, monkeypatch, capsys, source_repo, data=2, novelty=1)
+    assay = _replay(bound.coordinator)["assays"][ids["assay_id"]]
+    assert assay["mechanical_recommendation"] == "PARK"
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    _invoke(bound, tmp_path, capsys, promote_intent, grant, PROPOSER, refused=True)
+    decide_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PARK")
+    _run(bound, tmp_path, capsys, decide_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
+    decided = _run(bound, tmp_path, capsys, decide_intent, "ResolveDecision", ids["decision_id"], OWNER, human=True,
+                   evidence=PARK_EVIDENCE)  # fmt: skip
+    assert decided["state"] == "completed"
+    assert _replay(bound.coordinator)["candidates"][candidate_id]["status"] == "parked"
+
+
+@pytest.mark.slow
+def test_spec_01_bar_meeting_its_rule_may_be_promoted(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """Every gate passes and Axes 2+3 sum to 4: admission records PROMOTE, and the route no longer refuses it."""
+    bound, candidate_id, ids = _reviewed_spec_01_assay(tmp_path, monkeypatch, capsys, source_repo, data=2, novelty=2)
+    assert _replay(bound.coordinator)["assays"][ids["assay_id"]]["mechanical_recommendation"] == "PROMOTE"
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    proposed = _run(bound, tmp_path, capsys, promote_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert proposed["next_effect"] == "ResolveDecision"
+
+
+@pytest.mark.slow
+def test_a_bar_declaring_another_rule_version_keeps_the_promote_refusal(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """CodeRabbit on #352: the relaxed PROMOTE guard follows the frozen rubric, not the scorecard's rule reference.
+
+    With both scores zero, SPEC-01's rule would give PARK. Admission scores this bar gate-only and records
+    PROMOTE, and the scorecard's rule reference still names the registered rule's ID and hash. The route must
+    still refuse PROMOTE.
+    """
+    bound, candidate_id, ids = _reviewed_spec_01_assay(
+        tmp_path, monkeypatch, capsys, source_repo, data=0, novelty=0, bar=_version_drifted_spec_01_bar()
+    )
+    assay = _replay(bound.coordinator)["assays"][ids["assay_id"]]
+    assert assay["mechanical_recommendation"] == "PROMOTE"
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert "does not evaluate" in _invoke(bound, tmp_path, capsys, promote_intent, grant, PROPOSER, refused=True)
 
 
 # 06s Phase 4a′ (P-058, 2026-09-17): the Partial return and its outcome review.

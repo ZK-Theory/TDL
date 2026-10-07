@@ -391,6 +391,64 @@ def _axis_set_hash(axis_ids: Iterable[str]) -> str:
     return sha256_hex(canonical_bytes(sorted(axis_ids)))
 
 
+# SPEC-01's numeric Assay rule (P-058, 2026-10-07, P5-8; W11 §4.3's legacy mapping and the SPEC-01 brief).
+# A rubric that declares this algorithm ID, version 1 and this descriptor's hash has its mechanical
+# recommendation evaluated here; every other rubric keeps the gate-only rule below.
+SPEC_01_ASSAY_RULE: dict[str, Any] = {
+    "algorithm_id": "spec-01-legacy-assay-rule",
+    "algorithm_version": "1.0.0",
+    "decisive_gate_axis_id": "topology_earns_its_keep",
+    "score_axis_ids": ["data_feasibility", "novelty_publishability"],
+    "promote_minimum_score_sum": 4,
+    "promote_minimum_each_score": 1,
+    "decisive_gate_failed": "KILL",
+    "other_required_gate_failed": "PARK",
+    "scores_below_promote_threshold": "PARK",
+}
+SPEC_01_ASSAY_RULE_SHA256 = sha256_hex(canonical_bytes(SPEC_01_ASSAY_RULE))
+
+
+def _spec_01_recommendation(required_results: list[tuple[Mapping[str, Any], Mapping[str, Any]]]) -> str | None:
+    """Evaluate SPEC-01's rule over the required axes, or return None when the bar cannot carry it.
+
+    Axis 1 (topology earns its keep) is a decisive gate: its failure is KILL. Every other required gate
+    is a PROMOTE prerequisite the SPEC-01 brief names; its failure is PARK. PROMOTE needs Axis 2 + Axis 3
+    at least 4 with neither zero; otherwise the outcome is PARK.
+    """
+    by_axis = {definition.get("axis_id"): (definition, result) for definition, result in required_results}
+    decisive = by_axis.get(SPEC_01_ASSAY_RULE["decisive_gate_axis_id"])
+    scores = [by_axis.get(axis_id) for axis_id in SPEC_01_ASSAY_RULE["score_axis_ids"]]
+    if (
+        decisive is None
+        or decisive[0].get("axis_kind") != "gate"
+        or any(item is None or item[0].get("axis_kind") != "integer_score" for item in scores)
+    ):
+        return None
+    if decisive[1].get("value") is not True:
+        return SPEC_01_ASSAY_RULE["decisive_gate_failed"]
+    if any(
+        definition.get("axis_kind") == "gate" and result.get("value") is not True
+        for definition, result in required_results
+    ):
+        return SPEC_01_ASSAY_RULE["other_required_gate_failed"]
+    values = [item[1].get("value") for item in scores if item is not None]
+    if sum(values) >= SPEC_01_ASSAY_RULE["promote_minimum_score_sum"] and all(
+        value >= SPEC_01_ASSAY_RULE["promote_minimum_each_score"] for value in values
+    ):
+        return "PROMOTE"
+    return SPEC_01_ASSAY_RULE["scores_below_promote_threshold"]
+
+
+def evaluates_spec_01_rule(rubric: Mapping[str, Any]) -> bool:
+    """Return whether a rubric declares the registered SPEC-01 rule, so admission evaluates it."""
+
+    return (
+        rubric.get("rule_evaluation_algorithm_id") == SPEC_01_ASSAY_RULE["algorithm_id"]
+        and rubric.get("rule_evaluation_algorithm_version") == SPEC_01_ASSAY_RULE["algorithm_version"]
+        and rubric.get("rule_evaluation_algorithm_hash") == SPEC_01_ASSAY_RULE_SHA256
+    )
+
+
 def _assay_scorecard_matches(
     artifact: Mapping[str, Any],
     payload: Mapping[str, Any],
@@ -504,14 +562,20 @@ def _assay_scorecard_matches(
     if any(axis_id not in results_by_axis for axis_id in required_axis_ids):
         return False
     required_results = [results_by_axis[axis_id] for axis_id in required_axis_ids]
-    recommendation = (
-        "PROMOTE"
-        if all(
-            definition.get("axis_kind") != "gate" or result.get("value") is True
-            for definition, result in required_results
+    if evaluates_spec_01_rule(rubric):
+        spec_01 = _spec_01_recommendation(required_results)
+        if spec_01 is None:
+            return False
+        recommendation = spec_01
+    else:
+        recommendation = (
+            "PROMOTE"
+            if all(
+                definition.get("axis_kind") != "gate" or result.get("value") is True
+                for definition, result in required_results
+            )
+            else "KILL"
         )
-        else "KILL"
-    )
     try:
         artifact_sha256 = sha256_hex(canonical_bytes(artifact))
     except (TypeError, ValueError):
