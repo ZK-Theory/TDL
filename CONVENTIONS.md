@@ -125,6 +125,19 @@ blocking but had **never executed** when this was locked (added 2026-08-02,
 after the last recorded run); its first run is its own liveness test. See the
 2026-09-08 `[DECISION]` in `04-Methods/Computational-Log.md`.
 
+**Amendment (2026-10-07): the commit gate uses the locked ruff.** The
+2026-09-10 amendment locked CI to `uv.lock` but left `.pre-commit-config.yaml`
+at v0.8.4. The two formatters disagree: ruff 0.14.9 wraps an assert's message,
+while 0.8.4 wraps its condition. So a file formatted with the documented
+`uv run ruff format` failed pre-commit Gate 1, and the hook rewrote it back.
+The `ruff-pre-commit` rev now equals the ruff version in `uv.lock` (v0.14.9),
+and a bump to one is a bump to both. Enforced by
+`tests/tools/test_pre_commit_hook.py::test_pre_commit_ruff_is_the_locked_ruff`,
+with a negative control on a copy pinned to v0.8.4, in the blocking
+`admission-controls` job. There was no one-time reformat. 178 files were
+already unformatted under v0.8.4, and 75 more differ only by version. Each is
+reformatted when it is next committed.
+
 ---
 
 ## Authorship
