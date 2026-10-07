@@ -132,9 +132,12 @@ jobs:
       - name: Allow long paths in Git
         run: git config --global core.longpaths true
 
+      # Contract tests read pinned historical commits; a depth-1 clone fails them for the
+      # environment, not the code (obs 2026-10-07-suite-lane-shallow-checkout-fails-history-tests).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python 3.13

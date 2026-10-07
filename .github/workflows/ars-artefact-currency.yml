@@ -29,13 +29,15 @@ jobs:
         # `actions/checkout` traverses the legacy `.superpowers` gitlink while
         # removing credentials, but that gitlink has no .gitmodules mapping.
         # This public-repository checkout deliberately uses no credentials and
-        # never invokes Git's submodule machinery.
+        # never invokes Git's submodule machinery. The fetch is unshallow, like
+        # every job that runs research_system tests
+        # (tests/tools/test_ci_platform_policy.py).
         env:
           GIT_TERMINAL_PROMPT: "0"
         run: |
           git init .
           git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
-          git fetch --no-tags --depth=1 origin "${GITHUB_REF}"
+          git fetch --no-tags origin "${GITHUB_REF}"
           git checkout --detach FETCH_HEAD
 
       - name: Record resolved workflow subject
