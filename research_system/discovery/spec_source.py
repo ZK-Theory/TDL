@@ -38,16 +38,23 @@ def source_ids(project_id: str, intent: dict) -> dict[str, str]:
 _LEDGER_PRODUCTION_FIELDS = ("dispatch_id", "attempt_id", "context_packet_id", "code_commit", "environment_fingerprint")
 
 
-def _lineage_candidate(project_id: str, intent: dict, objects) -> str:
-    """The Candidate a SOURCE lineage derives: its observation's, followed back through corrections."""
+def _lineage_candidate(project_id: str, intent: dict, objects, *, task_id: str) -> str:
+    """The Candidate a SOURCE lineage derives: its observation's, followed back through corrections.
+
+    Every link must cite ``task_id``: one SPEC-01 Task spans SOURCE to closure (P5-7 amended), so a
+    correction under one Task cannot carry another Task's observation, and its Candidate, into this one.
+    """
     seen: set[str] = set()
-    while intent["action"] == "correct_spec_01_source":
+    while True:
+        if intent["production"]["task_id"] != task_id:
+            raise IntegrityError(f"SOURCE lineage includes a registration under a Task other than {task_id}")
+        if intent["action"] != "correct_spec_01_source":
+            return source_ids(project_id, intent)["candidate_id"]
         artefact_id = intent["corrects_artefact_id"]
         if artefact_id in seen or not objects.revision_exists(DOCUMENT_KIND, artefact_id, 1):
             raise IntegrityError("SOURCE correction lineage has no registered observation")
         seen.add(artefact_id)
         intent = objects.read(DOCUMENT_KIND, artefact_id, 1)["intent"]
-    return source_ids(project_id, intent)["candidate_id"]
 
 
 def verify_source_production(
@@ -81,8 +88,9 @@ def verify_source_production(
     if not isinstance(task, dict) or not str(task_id).startswith("tsk_"):
         raise IntegrityError(f"SOURCE production names Task {task_id}, which the ledger does not hold")
     # The Task may name only Candidates that SOURCE observations citing this same Task derive: this one,
-    # and any earlier one (a revisit observation runs under the SPEC-01 Task too).
-    allowed = {_lineage_candidate(project_id, intent, objects)}
+    # and any earlier one (a revisit observation runs under the SPEC-01 Task too). Each lineage stays
+    # under this Task throughout.
+    allowed = {_lineage_candidate(project_id, intent, objects, task_id=task_id)}
     for event in events:
         manifest = (
             (event.get("payload") or {}).get("manifest") if event.get("event_type") == "ArtefactRegistered" else None
@@ -94,7 +102,12 @@ def verify_source_production(
             and objects.revision_exists(DOCUMENT_KIND, event["stream_id"], 1)
         ):
             allowed.add(
-                _lineage_candidate(project_id, objects.read(DOCUMENT_KIND, event["stream_id"], 1)["intent"], objects)
+                _lineage_candidate(
+                    project_id,
+                    objects.read(DOCUMENT_KIND, event["stream_id"], 1)["intent"],
+                    objects,
+                    task_id=task_id,
+                )
             )
     named = set((task.get("definition") or {}).get("portfolio_refs") or ())
     if named & (set(registered_candidates) - allowed):
