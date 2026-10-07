@@ -15,7 +15,8 @@ still apply, except where this handoff updates them.
 
 ## Handoff prompt
 
-You are the primary executor for **06s Gate 6 Phase 5 prep** in `C:\Users\steph\TDL`.
+You are the primary executor for **06s Gate 6 Phase 5 prep**, Jira **KAN-110** (under KAN-12; it blocks
+KAN-103), in `C:\Users\steph\TDL`.
 
 ### Start identity
 
