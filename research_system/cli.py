@@ -39,6 +39,7 @@ from research_system.config import (
     ControlBinding,
     SpecOperatorConfig,
     canonical_foundation_path,
+    disposable_checkout_reason,
     load_foundation_origin_pins,
 )
 from research_system.errors import ArsError, ConfigurationError, IntegrityError
@@ -279,6 +280,91 @@ def _store_init(args: argparse.Namespace) -> int:
             "bootstrap_manifest_sha256": authority_bootstrap_sha256(manifest),
             "origin_witness_sha256": identity.witness.raw_sha256,
             "origin_witness_path": str(identity.witness_path),
+        }
+    )
+    return 0
+
+
+_RESERVED_FOUNDATION_TEMPLATE_FIELDS = ("project_template_alias", "control_root_required", "endpoint_scheme")
+
+
+def _store_reserve(args: argparse.Namespace) -> int:
+    """Reserve one fresh store and write the foundation that pins it (P-058, 2026-10-07, P5-1).
+
+    The reservation is init's own first phase: the stage, its identity manifest and the origin
+    witness, with no store published. The witness pins the stage's physical identity and a random
+    store nonce, so its digest exists only now. The written foundation is committed as the re-pin,
+    and ``store init`` then consumes the reservation under that pin. The code root must be a durable
+    checkout with no linked worktrees, because it becomes the store's only code and schema root.
+    """
+    import yaml
+
+    explicit_root = args.code_root.resolve(strict=True)
+    disposable = disposable_checkout_reason(explicit_root)
+    if disposable is not None:
+        raise ConfigurationError(f"store reserve requires a durable checkout: {disposable}")
+    if _registered_code_roots([explicit_root]) != [explicit_root]:
+        raise ConfigurationError("store reserve requires a checkout with no linked worktrees")
+    if not args.control_root.is_absolute() or not args.origin_authority_root.is_absolute():
+        raise ConfigurationError("store reserve roots must be absolute")
+    bootstrap_input = _read_json(args.authority_bootstrap)
+    if (
+        set(bootstrap_input) != {"schema_id", "schema_version", "approved_bootstrap_sha256", "manifest"}
+        or bootstrap_input.get("schema_id") != "ars://core/authority-bootstrap-input"
+        or bootstrap_input.get("schema_version") != "1.0.0"
+        or not isinstance(bootstrap_input.get("manifest"), dict)
+        or not isinstance(bootstrap_input.get("approved_bootstrap_sha256"), str)
+    ):
+        raise ConfigurationError("invalid authority bootstrap input")
+    template = yaml.safe_load(canonical_foundation_path().read_text(encoding="utf-8"))
+    if not isinstance(template, dict) or any(
+        template.get(field) is None for field in _RESERVED_FOUNDATION_TEMPLATE_FIELDS
+    ):
+        raise ConfigurationError("canonical foundation template fields are missing")
+    schema_root = explicit_root / ".research-system" / "schemas"
+    reserved = initialize_authority_control_store(
+        [explicit_root],
+        args.control_root,
+        args.project_id,
+        bootstrap_input["manifest"],
+        bootstrap_input["approved_bootstrap_sha256"],
+        canonical_schema_root=schema_root,
+        origin_authority_root=args.origin_authority_root,
+        reserve_only=True,
+    )
+    control_root = Path(reserved.witness.initial_control_root)
+    foundation: dict[str, Any] = {
+        "schema_version": "1.0.0",
+        "project_template_alias": template["project_template_alias"],
+        "project_id": reserved.witness.project_id,
+        "control_root": str(control_root),
+        "control_root_required": template["control_root_required"],
+        "store_identity": str(reserved),
+        "origin_authority_root": str(reserved.witness_path.parent.parent),
+        "origin_witness_path": str(reserved.witness_path),
+        "origin_witness_sha256": reserved.witness.raw_sha256,
+        "endpoint_scheme": template["endpoint_scheme"],
+        "canonical_hash": "sha256",
+        "canonical_uri": f"local-cli:{control_root.as_uri().removeprefix('file:')}",
+        # The pre-init tail: the reservation publishes no ledger. The tail fields are provenance only.
+        "canonical_tail_position": 0,
+        "canonical_tail_hash": "0" * 64,
+        "code_roots": [str(explicit_root)],
+        "schema_root": str(schema_root),
+    }
+    foundation["foundation_sha256"] = sha256_hex(canonical_bytes(foundation))
+    _publish_exact_file(
+        args.foundation_output,
+        yaml.safe_dump(foundation, sort_keys=False, default_flow_style=False).encode("utf-8"),
+    )
+    _print_json(
+        {
+            "status": "reserved",
+            "store_identity": str(reserved),
+            "origin_witness_path": str(reserved.witness_path),
+            "origin_witness_sha256": reserved.witness.raw_sha256,
+            "foundation": foundation,
+            "foundation_output": str(args.foundation_output),
         }
     )
     return 0
@@ -1931,6 +2017,15 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--project-id", required=True)
     init.add_argument("--authority-bootstrap", type=Path, required=True)
     init.set_defaults(handler=_store_init)
+
+    reserve = store_commands.add_parser("reserve")
+    reserve.add_argument("--code-root", type=Path, required=True)
+    reserve.add_argument("--control-root", type=Path, required=True)
+    reserve.add_argument("--origin-authority-root", type=Path, required=True)
+    reserve.add_argument("--project-id", required=True)
+    reserve.add_argument("--authority-bootstrap", type=Path, required=True)
+    reserve.add_argument("--foundation-output", type=Path, required=True)
+    reserve.set_defaults(handler=_store_reserve)
 
     repair_binding = store_commands.add_parser("repair-binding")
     repair_binding.add_argument("--intent", type=Path, required=True)

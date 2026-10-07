@@ -13,7 +13,7 @@ accepted_authorities:
 runtime_bindings:
   count: 261
   canonical_row_format: "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n"
-  sha256: 70a6bf2fc871a83db78876d8aad6aa72bb87babc27e08d9f8f626359413e45a6
+  sha256: f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7
 historical_evidence:
   pre_06h_freeze: non_reconstructible_not_recorded_before_existing_runtime_changes
   candidate_default: require_complete_command_schema_identity_except_exact_bound_prefix
