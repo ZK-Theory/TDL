@@ -598,8 +598,16 @@ def test_the_spike_and_disposition_follow_the_owner_decision():
     assert spec_result._PERMITTED_DISPOSITIONS == {
         "PARK": {"retain_experimental_benchmark"},
         "KILL": {"reject"},
-        "PROMOTE": {"adopt_default", "retain_experimental_benchmark"},
+        "PROMOTE": {"retain_experimental_benchmark"},
     }
+    # P5-10: the closed intent enum still names adopt_default, and the route refuses it after any PROMOTE.
+    assert (
+        "adopt_default"
+        in json.loads(
+            (REPO_ROOT / ".research-system/schemas/contracts/wp6-6/spec-project-use-intent.schema.json").read_bytes()
+        )["properties"]["disposition"]["enum"]
+    )
+    assert not any("adopt_default" in permitted for permitted in spec_result._PERMITTED_DISPOSITIONS.values())
 
 
 def test_route_wording_never_promotes_adopts_or_claims_replication_for_park():

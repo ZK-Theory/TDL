@@ -61,7 +61,11 @@ _TERMINAL_STATUS = {
 _PERMITTED_DISPOSITIONS = {
     "PARK": frozenset({"retain_experimental_benchmark"}),
     "KILL": frozenset({"reject"}),
-    "PROMOTE": frozenset({"adopt_default", "retain_experimental_benchmark"}),
+    # On this route a PROMOTE terminal Decision comes only from decide_spec_02, and the SPEC-02 contract
+    # says no Spike result supports a superiority or paper claim. Adopting the method as the project's
+    # default would be one, so a Spike PROMOTE is retained as a benchmark only (P-058, 2026-10-07, P5-10).
+    # The intent schema keeps `adopt_default` in its closed enum (D3); the route refuses it.
+    "PROMOTE": frozenset({"retain_experimental_benchmark"}),
 }
 # Route-authored wording. None of it may promote, adopt or claim replication for PARK.
 _DISPOSITION_TEXT = {

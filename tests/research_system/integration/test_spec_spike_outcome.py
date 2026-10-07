@@ -313,6 +313,12 @@ def test_public_spec_02_path_reaches_accepted_project_use(tmp_path, monkeypatch,
     task.grants_project_use = grants
     # A decided Spike exists, so the project-use decision names it rather than a no_spike reason.
     register = {key: value for key, value in result_route.register_intent().items() if key != "no_spike_reason"}
+    # P5-10: the SPEC-02 contract supports no superiority or paper claim, so a Spike PROMOTE cannot adopt the
+    # method as the project's default; nothing is appended.
+    adopted = {**register, "disposition": "adopt_default"}
+    assert "not permitted by a PROMOTE Decision" in result_route._project_use(
+        task, tmp_path, capsys, adopted, actor=OWNER, grant=grants["register"], refused=True
+    )
     result_route._project_use(task, tmp_path, capsys, register, actor=OWNER, grant=grants["register"])
     review_evidence = result_route._review_evidence(task)
     result_route._project_use(task, tmp_path, capsys, result_route.accept_intent(), actor=result_route.REVIEWER,
