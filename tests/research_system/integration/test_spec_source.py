@@ -235,6 +235,16 @@ def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis
         target = scratch / "repo" / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / relative, target)
+    # Route tests score the W11 fixture bar in place of SPEC-01's own (P5-9); a test may override either file.
+    from research_system.discovery import spec_assay
+
+    fixture_bar = {
+        spec_assay.ASSAY_RUBRIC_PATH: spec_assay.W11_FIXTURE_RUBRIC_PATH,
+        spec_assay.ASSAY_SCOPE_PATH: spec_assay.W11_FIXTURE_SCOPE_PATH,
+    }
+    for relative, fixture_relative in fixture_bar.items():
+        if relative in extra_repository_files and relative not in (repository_overrides or {}):
+            (scratch / "repo" / relative).write_bytes((REPO_ROOT / fixture_relative).read_bytes())
     for relative, content in (repository_overrides or {}).items():
         (scratch / "repo" / relative).write_bytes(content)
     fixture = _bound_fixture(scratch)

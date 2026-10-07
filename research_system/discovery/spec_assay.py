@@ -83,6 +83,8 @@ from research_system.discovery.assay_authority import assay_reconstruction_sha25
 from research_system.discovery.commands import discovery_resolve_transaction_ids
 from research_system.discovery.routes import DISCOVERY_ROW_ROUTES, shared_event_partition
 from research_system.discovery.rules import (
+    SPEC_01_ASSAY_RULE,
+    SPEC_01_ASSAY_RULE_SHA256,
     _aggregate_content_hash,
     _assay_partial_bindings_match,
     _assay_scorecard_matches,
@@ -144,8 +146,13 @@ BRIEF_TYPE = "spec_operator_brief_package"
 RETURN_TYPE = "spec_operator_return"
 PARTIAL_RETURN_TYPE = "spec_operator_partial_return"
 _ASSAY_PARTIAL_SCHEMA_ID = "ars://portfolio/assay-partial"
-ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
-ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
+# SPEC-01's own Assay bar (P-058, 2026-10-07, P5-9): Axis 1 and each further PROMOTE requirement are gates,
+# Axes 2 and 3 are integer scores, and admission evaluates the registered SPEC-01 rule. The W11 fixture bar
+# (assay-rubric-content-v1.json and its scope) stays W11 runtime fixture authority and is what route tests use.
+ASSAY_RUBRIC_PATH = ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-rubric-content-v1.0.0.json"
+ASSAY_SCOPE_PATH = ".research-system/contracts/wp6-6/spec-gate6-run-v1/spec-01-assay-evidence-scope-content-v1.0.0.json"
+W11_FIXTURE_RUBRIC_PATH = ".research-system/contracts/wp6-6/assay-rubric-content-v1.json"
+W11_FIXTURE_SCOPE_PATH = ".research-system/contracts/wp6-6/assay-evidence-scope-content-v1.json"
 ROUTE_PACKAGE_PATH = ".research-system/contracts/wp6-6/spec-gate6-run-v1/route-package.json"
 _BRIEF_ALIAS = "SPEC-01"
 _ROUTE_IDENTITY = "SPEC-GATE6-RUN-V1"
@@ -865,7 +872,8 @@ def _scorecard(
         "producer_context_ref": producer,
         "review_requirements": evidence["review_requirements"],
     }
-    for recommendation in ("PROMOTE", "KILL"):
+    # The gate-only rule yields PROMOTE or KILL; the registered SPEC-01 rule can also yield PARK.
+    for recommendation in ("PROMOTE", "KILL", "PARK"):
         scorecard = {**base, "mechanical_recommendation": recommendation}
         _validate("ars://portfolio/assay-scorecard", scorecard, ctx)
         payload = {
@@ -1421,9 +1429,16 @@ def _refuse_blocked_promote(ids: dict[str, str], events: list[dict], ctx: AssayC
     """
     returned = _read_document(_RETURN, _one(events, ids["return_id"], "ArtefactRegistered"), ctx)
     scorecard = returned["scorecard"]
-    # Equal axis-set hashes mean every axis is required; a non-gate axis is only bounds-checked.
-    if scorecard["required_axis_set_hash"] != scorecard["observed_axis_set_hash"] or any(
-        result["axis_kind"] != "gate" for result in scorecard["axis_results"]
+    # A bar declaring the registered SPEC-01 rule has it evaluated by admission (P-058, 2026-10-07, P5-8), so a
+    # mechanical PROMOTE there already means the rule held. Any other bar is gate-only: equal axis-set hashes
+    # mean every axis is required, and a non-gate axis is only bounds-checked.
+    rule = scorecard["rule_evaluation_ref"]
+    rule_evaluated = rule.get("id") == SPEC_01_ASSAY_RULE["algorithm_id"] and rule.get("content_hash") == (
+        SPEC_01_ASSAY_RULE_SHA256
+    )
+    if not rule_evaluated and (
+        scorecard["required_axis_set_hash"] != scorecard["observed_axis_set_hash"]
+        or any(result["axis_kind"] != "gate" for result in scorecard["axis_results"])
     ):
         raise IntegrityError(
             f"{DECIDE} cannot PROMOTE: the Assay's bar has an axis the scorecard rule does not evaluate"
