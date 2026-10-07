@@ -1336,9 +1336,27 @@ def test_promote_is_refused_while_the_bar_has_an_unevaluated_axis(tmp_path, monk
                                           evidence=promote, refused=True)  # fmt: skip
 
 
-def _reviewed_spec_01_assay(tmp_path, monkeypatch, capsys, source_repo, *, data: int, novelty: int):  # noqa: F811
+def _version_drifted_spec_01_bar() -> dict[str, bytes]:
+    """SPEC-01's own bar, but declaring rule version 2.0.0 with the registered rule's ID and hash.
+
+    Admission evaluates the SPEC-01 rule only for the registered ID, version and hash, so it scores this bar
+    gate-only. The scorecard's rule reference still carries the registered ID and hash.
+    """
+    rubric = json.loads((REPO_ROOT / spec_assay.ASSAY_RUBRIC_PATH).read_bytes())
+    scope = json.loads((REPO_ROOT / spec_assay.ASSAY_SCOPE_PATH).read_bytes())
+    rubric["rule_evaluation_algorithm_version"] = "2.0.0"
+    rubric["content_hash"] = assay_content_sha256(rubric)
+    scope["rubric_ref"]["content_hash"] = rubric["content_hash"]
+    scope["content_hash"] = assay_content_sha256(scope)
+    return {
+        spec_assay.ASSAY_RUBRIC_PATH: canonical_bytes(rubric) + b"\n",
+        spec_assay.ASSAY_SCOPE_PATH: canonical_bytes(scope) + b"\n",
+    }
+
+
+def _reviewed_spec_01_assay(tmp_path, monkeypatch, capsys, source_repo, *, data: int, novelty: int, bar=None):  # noqa: F811
     """Score SPEC-01's own bar on the public route and have the outcome independently reviewed (P5-8, P5-9)."""
-    spec_01_bar = {path: (REPO_ROOT / path).read_bytes() for path in ASSAY_FILES}
+    spec_01_bar = bar or {path: (REPO_ROOT / path).read_bytes() for path in ASSAY_FILES}
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False,
                                repository_overrides=spec_01_bar)  # fmt: skip
     candidate_id = _requested(bound, tmp_path, capsys, source_repo, spec_01_bar=True)
@@ -1389,6 +1407,24 @@ def test_spec_01_bar_meeting_its_rule_may_be_promoted(tmp_path, monkeypatch, cap
     promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
     proposed = _run(bound, tmp_path, capsys, promote_intent, "ProposePromotionDecision", candidate_id, PROPOSER)
     assert proposed["next_effect"] == "ResolveDecision"
+
+
+@pytest.mark.slow
+def test_a_bar_declaring_another_rule_version_keeps_the_promote_refusal(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """CodeRabbit on #352: the relaxed PROMOTE guard follows the frozen rubric, not the scorecard's rule reference.
+
+    With both scores zero, SPEC-01's rule would give PARK. Admission scores this bar gate-only and records
+    PROMOTE, and the scorecard's rule reference still names the registered rule's ID and hash. The route must
+    still refuse PROMOTE.
+    """
+    bound, candidate_id, ids = _reviewed_spec_01_assay(
+        tmp_path, monkeypatch, capsys, source_repo, data=0, novelty=0, bar=_version_drifted_spec_01_bar()
+    )
+    assay = _replay(bound.coordinator)["assays"][ids["assay_id"]]
+    assert assay["mechanical_recommendation"] == "PROMOTE"
+    promote_intent = spec_01_intent(spec_assay.DECIDE, candidate_id, recommendation="PROMOTE")
+    grant = _grant(bound, "ProposePromotionDecision", candidate_id, PROPOSER)
+    assert "does not evaluate" in _invoke(bound, tmp_path, capsys, promote_intent, grant, PROPOSER, refused=True)
 
 
 # 06s Phase 4a′ (P-058, 2026-09-17): the Partial return and its outcome review.
