@@ -61,6 +61,17 @@ def test_spec_01_rule_truth_table(case, expected):
     assert _spec_01_recommendation(_results(**case)) == expected
 
 
+def test_a_zero_score_blocks_promote_even_where_the_sum_would_reach_the_threshold():
+    """The brief's "neither score zero" clause, held at function level.
+
+    On SPEC-01's bar both scores are bounded to [0, 3], so a zero caps the sum at 3 and the threshold alone
+    already gives PARK: the clause changes no admissible outcome. Admission's bounds check runs before the
+    rule, so this checks the rule's own clause with an out-of-bounds score it would never see in practice.
+    """
+    assert _spec_01_recommendation(_results(data=4, novelty=0)) == "PARK"
+    assert _spec_01_recommendation(_results(data=0, novelty=4)) == "PARK"
+
+
 def test_a_bar_that_cannot_carry_the_rule_is_inadmissible():
     without_scores = [(axis, result) for axis, result in _results() if axis["axis_kind"] == "gate"]
     assert _spec_01_recommendation(without_scores) is None
