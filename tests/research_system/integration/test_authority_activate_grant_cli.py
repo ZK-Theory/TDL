@@ -17,7 +17,6 @@ import research_system.cli as cli
 from research_system.authority import LedgerAuthorityGrantResolver
 from research_system.canonical import canonical_bytes
 from research_system.config import ControlBinding
-from research_system.errors import ConfigurationError
 from research_system.ids import new_id
 from research_system.schema_registry import runtime_schema_registry
 from research_system.store.ledger import EventLedger
@@ -112,6 +111,16 @@ def test_the_owner_activates_a_grant_that_then_authorizes_its_command(tmp_path, 
     assert json.loads(capsys.readouterr().out)["status"] == "accepted"
 
 
+def _refused(tmp_path: Path, capsys, config: Path, request_path: Path, control_root: Path, code_root: Path) -> str:
+    """Run one activation the CLI must refuse: exit 1, the error on stderr, and nothing written."""
+    before = (_events(control_root, code_root), _decisions(control_root))
+    assert cli.main(["authority", "activate-grant", "--config", str(config), "--request", str(request_path)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err.startswith("error: ")
+    assert (_events(control_root, code_root), _decisions(control_root)) == before
+    return captured.err
+
+
 @pytest.mark.parametrize(
     ("override", "message"),
     (
@@ -120,14 +129,33 @@ def test_the_owner_activates_a_grant_that_then_authorizes_its_command(tmp_path, 
             {"subject_scope": {"project_id": "prj_01978abc-1000-7000-8000-000000009999", "subject": {}}},
             "must name the bound project",
         ),
+        # Refused before any write: the CLI's error handler reports each one (CodeRabbit on #351).
+        ({"authority_grant_id": "agr_not-a-uuid"}, "invalid authority_grant_id"),
+        # Admission would refuse these only after the decision was stored, so the CLI checks them first.
+        (
+            {"subject_scope": {"project_id": PROJECT_ID, "subject": {"kind": "artefact", "id": new_id("artefact")}}},
+            "wrong subject kind",
+        ),
+        ({"decided_at": "2026-10-07T12:30:00Z"}, "not current"),
+        ({"effective_at": "2026-10-08T00:00:00Z"}, "not current"),
     ),
 )
-def test_a_grant_request_that_is_not_the_owners_writes_nothing(tmp_path, monkeypatch, override, message):
+def test_a_grant_request_admission_would_refuse_writes_nothing(tmp_path, monkeypatch, capsys, override, message):
     code_root, control_root, _projection = _external_store(tmp_path, monkeypatch, schema_bound=True)
     monkeypatch.setattr(cli, "_authority_clock", lambda: NOW)
     config = _binding_config(tmp_path, code_root, control_root)
     request_path, _request_value = _request(tmp_path, **override)
-    before = (_events(control_root, code_root), _decisions(control_root))
-    with pytest.raises(ConfigurationError, match=message):
-        cli.main(["authority", "activate-grant", "--config", str(config), "--request", str(request_path)])
-    assert (_events(control_root, code_root), _decisions(control_root)) == before
+    assert message in _refused(tmp_path, capsys, config, request_path, control_root, code_root)
+
+
+def test_a_changed_request_under_an_activated_grant_id_is_refused_plainly(tmp_path, monkeypatch, capsys):
+    """The grant ID fixes the decision and command IDs, so a changed request needs a new grant ID (4c m-4)."""
+    code_root, control_root, _projection = _external_store(tmp_path, monkeypatch, schema_bound=True)
+    monkeypatch.setattr(cli, "_authority_clock", lambda: NOW)
+    config = _binding_config(tmp_path, code_root, control_root)
+    request_path, request = _request(tmp_path)
+    assert cli.main(["authority", "activate-grant", "--config", str(config), "--request", str(request_path)]) == 0
+    capsys.readouterr()
+    changed_path = tmp_path / "changed-request.json"
+    changed_path.write_bytes(canonical_bytes({**request, "decided_at": "2026-10-07T11:56:00Z"}))
+    assert "needs a new authority_grant_id" in _refused(tmp_path, capsys, config, changed_path, control_root, code_root)

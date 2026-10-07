@@ -1083,6 +1083,9 @@ def _authority_activate_grant(args: argparse.Namespace) -> int:
         OWNER_AUTHORITY_DECISION_SCHEMA_ID,
         OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
         SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        OwnerAuthorityAdministrationDecision,
+        ScopedAuthorityGrant,
+        validate_scoped_grant_activation,
     )
     from research_system.ids import validate_id
 
@@ -1090,7 +1093,10 @@ def _authority_activate_grant(args: argparse.Namespace) -> int:
     request = _read_json(args.request)
     if set(request) != _GRANT_REQUEST_FIELDS:
         raise ConfigurationError("authority grant request fields are not exact")
-    grant_id = validate_id(str(request["authority_grant_id"]), "authority_grant")
+    try:
+        grant_id = validate_id(str(request["authority_grant_id"]), "authority_grant")
+    except ValueError as exc:
+        raise ConfigurationError("authority grant request has an invalid authority_grant_id") from exc
     command_types = request["command_types"]
     if not isinstance(command_types, list) or not command_types or len(set(command_types)) != len(command_types):
         raise ConfigurationError("authority grant request command_types must be a non-empty unique list")
@@ -1169,7 +1175,32 @@ def _authority_activate_grant(args: argparse.Namespace) -> int:
     schemas.validate(
         OWNER_AUTHORITY_DECISION_SCHEMA_ID, decision, schema_version=OWNER_AUTHORITY_DECISION_SCHEMA_VERSION
     )
-    ObjectStore(binding.control_root).write("assurance_record", decision_id, 1, decision)
+    # Admission checks the grant's scope semantics and the decision's time window only after the decision is
+    # stored, so a rejection there would leave a decision behind. Both are checked here first, so a request
+    # admission would refuse for either reason writes nothing.
+    try:
+        scoped = ScopedAuthorityGrant.from_dict(grant)
+        parsed = OwnerAuthorityAdministrationDecision.from_dict(decision)
+    except ValueError as exc:
+        raise ConfigurationError(f"authority grant request does not make a valid grant and decision: {exc}") from exc
+    validate_scoped_grant_activation(scoped, schemas, owner_actor_id=context.owner_actor_id)
+    now = _authority_clock()
+    if now < parsed.effective_at or now >= parsed.expires_at or now < parsed.decided_at:
+        raise ConfigurationError(
+            f"authority grant request is not current at {now.isoformat()}: it needs effective_at and decided_at"
+            " at or before now, and expires_at after it"
+        )
+    # A rejected activation keeps its receipt under this grant's command ID, so a changed request needs a new
+    # authority_grant_id (the 4c m-4 rule). Say so plainly, not as an object-store conflict.
+    objects = ObjectStore(binding.control_root)
+    if objects.revision_exists("assurance_record", decision_id, 1) and canonical_bytes(
+        objects.read("assurance_record", decision_id, 1)
+    ) != canonical_bytes(decision):
+        raise ConfigurationError(
+            f"an owner decision for {grant_id} already exists with different content; a changed request needs"
+            " a new authority_grant_id"
+        )
+    objects.write("assurance_record", decision_id, 1, decision)
     command = {
         "command_id": f"cmd_{suffix}",
         "command_type": "ActivateAuthorityGrant",
@@ -2328,7 +2359,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "discovery"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "discovery", "authority"}:
         return int(args.handler(args))
     try:
         if args.group == "eval":
