@@ -2245,6 +2245,53 @@ scratch store created by the P5-1 procedure.
   - the runbook docs;
   - PR-F: the re-pin, after the live reservation.
 
+**PR-A construction decisions (2026-10-07):** PR-A (`pipe/g6-store-reserve-first-binding`) implements P5-1 and P5-3.
+- **The first binding uses the repair family, as P5-3 says.**
+  - **What it is:** `RepairStoreBinding` 1.1.0 (intent and command schemas) adds the owner action
+    `bind-initialized-store`, with empty stale evidence. The repair action keeps its 1.0.0 meaning.
+  - **What is new:** one object schema, `StoreBindingInitial` 1.0.0, which pins the witness's initial manifest
+    in place of a restore.
+  - **What is unchanged:** the event, `StoreBindingRepaired`, whose `prior_manifest_sha256` is the initial
+    manifest; the receipt; replay; and every record that cites a binding event.
+  - **Why not a new event type:** a first attempt with a new event type was reverted. Ten closed SPEC record
+    schemas fix `governed_code_subject.event_type` to `StoreBindingRepaired` or `StoreBindingAdvanced`, so a new
+    event type would have forced new versions of all ten (D3).
+- **Protected-surface re-acceptance** (needs Stephen's acceptance at PR review, as P-059 did). The 06h census's
+  runtime-binding digest moves from `70a6bf2f…` to
+  `f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7`. The row count stays 261: only the active
+  `RepairStoreBinding` command row moves from 1.0.0 to 1.1.0. No append site is added.
+- **The binding test.** `test_fresh_store_public_procedure.py` (slow) runs the genuine `ars` CLI as a
+  subprocess from a non-linked scratch clone, through reserve, re-pin, `store init`, the first binding and
+  `spec status`, with no fixture on any seam. It also checks the refusals:
+  - `store init` before the re-pin;
+  - `spec status` before the binding;
+  - a second first binding;
+  - a restore appearing under an initial binding;
+  - a reserve from a checkout with linked worktrees;
+  - the initial action on a restored store.
+
+**P5-7 amended (Stephen, 2026-10-07): one Task spans SOURCE to closure.**
+- **The finding.** Building PR-B showed that admission never checks a Task's `portfolio_refs`. `source_ids`
+  derives the Candidate ID from the project, the SOURCE intent's `production.task_id`, the action and the source
+  key, so it is known before the Candidate exists.
+- **The decision.** Stephen accepted the lighter design, "with the reduced test churn".
+  - The SPEC-01 Task names the Candidate's derived ID, is created, and its Attempt started, before
+    `observe_source`.
+  - The SOURCE registration's production references are verified against that Task's running Attempt.
+  - There is no separate SOURCE Task.
+  - It replaces P5-7's separate SOURCE Task and its "names no registered Candidate" rule.
+- **What the route refuses**, before any write, for `observe_source` and `correct_spec_01_source`. It refuses
+  unless all of these hold:
+  - `production.task_id` names a Task whose definition names no registered Candidate other than the one this
+    observation derives;
+  - the Task has exactly one started Attempt, and that Attempt is running;
+  - the Task is unamended since that Attempt's dispatch;
+  - the intent's dispatch, Attempt, context-packet, code-commit and environment fields equal the ledger's.
+- **What does not change:** `spec-source-intent` stays 1.0.0. Producer profile, branch, worktree and accepted
+  scope stay caller strings, a known limit.
+- **Phase 5 step 3:** create the SPEC-01 Task naming the derived Candidate ID and start its Attempt before
+  `observe_source`. Keep it running until the operator return is registered.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

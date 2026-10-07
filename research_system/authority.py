@@ -1598,6 +1598,7 @@ def initialize_authority_control_store(
     canonical_schema_root: Path | None = None,
     origin_authority_root: Path | None = None,
     approved_origin_witness_sha256: str | None = None,
+    reserve_only: bool = False,
 ) -> InitializedStore:
     """Publish one complete authority-aware control store atomically.
 
@@ -1608,9 +1609,14 @@ def initialize_authority_control_store(
         bootstrap: Approved authority bootstrap manifest.
         approved_bootstrap_sha256: Operator-approved canonical manifest digest.
         canonical_schema_root: Explicit registered schema authority, when supplied.
+        reserve_only: Stop once the stage, its identity manifest and the origin witness are durable,
+            publishing no store (P-058, 2026-10-07, P5-1). The witness pins the stage's physical
+            identity and a random store nonce, so its digest cannot be known before this point.
+            The owner commits that digest as the foundation pin, and a later initialization
+            consumes the reservation under it. A reservation is never pinned itself.
 
     Returns:
-        The published or exactly recovered store identity.
+        The published or exactly recovered store identity, or the reserved one.
 
     Raises:
         ArsError: If inputs or an existing store fail authority requirements.
@@ -1672,6 +1678,13 @@ def initialize_authority_control_store(
             resolved_codes=resolved_codes,
             selected_schema_root=selected_schema_root,
         )
+    if reserve_only:
+        if approved_origin_witness_sha256 is not None:
+            raise ArsError("a store reservation is never pinned; its digest is pinned after it is made")
+        if canonical_schema_root is None:
+            raise ArsError("a store reservation requires the explicit canonical schema root")
+        if final_root.exists():
+            raise ConflictError("a control store already exists at the reserved control root")
     if final_root.exists():
         try:
             witness_raw = witness_path.read_bytes()
@@ -1708,6 +1721,10 @@ def initialize_authority_control_store(
         approved_witness_path=witness_path,
     )
     reserved_stage = _matching_reserved_stage(final_root, reserved_witness)
+    if reserve_only and resumed is not None:
+        raise ConflictError("a complete initialization stage exists; initialize the store to publish it")
+    if reserve_only and reserved_witness is not None and reserved_stage is None:
+        raise ConflictError("the reserved origin witness has no matching stage; the reservation is lost")
     if resumed is None:
         if selected_schema_root is None:
             raise ArsError("new authority store requires a registered schema root")
@@ -1756,7 +1773,7 @@ def initialize_authority_control_store(
                 expected_sha256=approved_origin_witness_sha256,
             )
         except ConflictError:
-            if reserved_witness is not None:
+            if reserved_witness is not None or reserve_only:
                 raise
             # A competing initializer reserved the witness slot between our check and our
             # write. Its witness binds its own stage's physical identity, so the bytes differ
@@ -1776,6 +1793,8 @@ def initialize_authority_control_store(
                 approved_origin_witness_sha256=approved_origin_witness_sha256,
             )
         _bootstrap_failpoint("after-identity")
+        if reserve_only:
+            return InitializedStore(identity, staged_manifest, witness, witness_path)
         _write_durable(
             stage / "manifests" / "authority-bootstrap.json",
             canonical_bytes(value),

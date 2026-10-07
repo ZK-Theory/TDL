@@ -43,6 +43,7 @@ from research_system.store.governed_code import (
 from research_system.store.identity import (
     _restored_manifest_hash,
     load_store_origin_witness,
+    origin_witness_path,
     validate_approved_origin_witness_path,
 )
 from research_system.store.ledger import EventLedger, _take_binding_submit_guard
@@ -60,6 +61,17 @@ REPAIR_INTENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/intent/RepairStoreBi
 REPAIR_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingRepair"
 REPAIR_EVENT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/event/StoreBindingRepaired"
 REPAIR_RECEIPT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/receipt/StoreBindingRepair"
+INITIAL_OBJECT_SCHEMA_ID = "ars://wp6-6/gate6/binding-repair/object/StoreBindingInitial"
+REPAIR_COMMAND_SCHEMA_VERSION = "1.1.0"
+REPAIR_STALE_ACTION = "repair-stale-store-binding"
+# The first binding of a never-bound, freshly initialized store (P-058, 2026-10-07, P5-3). It roots the
+# chain like a stale repair and is published through the same RepairStoreBinding family, so the
+# StoreBindingRepaired event and every record that cites it keep their accepted shapes.
+BIND_INITIALIZED_ACTION = "bind-initialized-store"
+_REPAIR_INTENT_ACTIONS = {
+    "1.0.0": frozenset({REPAIR_STALE_ACTION}),
+    "1.1.0": frozenset({REPAIR_STALE_ACTION, BIND_INITIALIZED_ACTION}),
+}
 _MARKER_PATH = "runtime/.binding-advance-transaction.json"
 _REPAIR_MARKER_PATH = "runtime/.binding-repair-transaction.json"
 _STORE_MANIFEST_PATH = "manifests/store-identity.json"
@@ -337,19 +349,23 @@ class RepairStoreBinding:
         if (
             set(value) != required
             or value.get("schema_id") != REPAIR_INTENT_SCHEMA_ID
-            or value.get("schema_version") != "1.0.0"
+            or value.get("schema_version") not in _REPAIR_INTENT_ACTIONS
             or value.get("command_type") != "RepairStoreBinding"
         ):
             raise ConfigurationError("RepairStoreBinding intent schema is unsupported")
+        action = value.get("owner_action")
+        if action not in _REPAIR_INTENT_ACTIONS[str(value["schema_version"])]:
+            raise ConfigurationError("RepairStoreBinding owner action is invalid")
         stale = value.get("stale_evidence_refs")
-        if not isinstance(stale, list) or not stale or not all(isinstance(item, str) and item for item in stale):
+        if not isinstance(stale, list) or not all(isinstance(item, str) and item for item in stale):
+            raise ConfigurationError("RepairStoreBinding stale evidence is invalid")
+        # A stale repair cites its stale evidence; the first binding of an initialized store has none.
+        if bool(stale) != (action == REPAIR_STALE_ACTION):
             raise ConfigurationError("RepairStoreBinding stale evidence is invalid")
         if value.get("spec_route_ref") != _ROUTE_RELATIVE_PATH.as_posix() or value.get("spec_source_refs") != [
             path.as_posix() for path in _SOURCE_RELATIVE_PATHS
         ]:
             raise ConfigurationError("RepairStoreBinding SPEC evidence refs are invalid")
-        if value.get("owner_action") != "repair-stale-store-binding":
-            raise ConfigurationError("RepairStoreBinding owner action is invalid")
         return cls(
             Path(str(value["control_root"])),
             Path(str(value["candidate_repository_root"])),
@@ -390,6 +406,10 @@ class RepairStoreBinding:
         }
 
 
+def _repair_status(owner_action: object) -> str:
+    return "initial-binding-published" if owner_action == BIND_INITIALIZED_ACTION else "repaired"
+
+
 def _read_intent_mapping(path: Path, *, label: str, schema_id: str, schema_version: str) -> dict[str, Any]:
     """Read a caller-supplied intent as configuration, not execution history."""
 
@@ -413,12 +433,18 @@ def read_advance_intent(path: Path) -> AdvanceStoreBinding:
 
 
 def read_repair_intent(path: Path) -> RepairStoreBinding:
+    try:
+        declared = json.loads(path.read_bytes()).get("schema_version")
+    except (AttributeError, OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ConfigurationError("RepairStoreBinding intent is invalid") from exc
+    if declared not in _REPAIR_INTENT_ACTIONS:
+        raise ConfigurationError("RepairStoreBinding intent schema is unsupported")
     return RepairStoreBinding.from_mapping(
         _read_intent_mapping(
             path,
             label="RepairStoreBinding intent",
             schema_id=REPAIR_INTENT_SCHEMA_ID,
-            schema_version="1.0.0",
+            schema_version=str(declared),
         )
     )
 
@@ -793,7 +819,7 @@ class StoreBindingService:
             require_governed_manifest=False,
         )
         return {
-            "status": "repaired",
+            "status": _repair_status(binding.get("owner_action")),
             "binding_sha256": binding_sha256,
             "binding": binding,
             "receipt": self._receipt_record(receipt),
@@ -856,6 +882,8 @@ class StoreBindingService:
                 candidate,
             )
 
+        if intent.owner_action == BIND_INITIALIZED_ACTION:
+            return self._initial_plan(intent, candidate, payload_hash, locked)
         original_manifest_raw = locked.read_exact_file(_STORE_MANIFEST_PATH)
         original_manifest = _canonical_object(original_manifest_raw, label="stale store manifest")
         restore = _canonical_object(
@@ -959,14 +987,157 @@ class StoreBindingService:
             "binding_config_path": _BINDING_CONFIG_RELATIVE_PATH.as_posix(),
             "binding_config_sha256": sha256_hex(intended_config_raw),
         }
-        self.ledger.schemas.validate(REPAIR_OBJECT_SCHEMA_ID, binding, schema_version="1.0.0")
+        return self._finish_repair_plan(
+            intent,
+            candidate,
+            payload_hash,
+            binding,
+            REPAIR_OBJECT_SCHEMA_ID,
+            pointer_original=pointer_original,
+            original_manifest_raw=original_manifest_raw,
+            intended_manifest_raw=intended_manifest_raw,
+            original_config_raw=original_config_raw,
+            intended_config_raw=intended_config_raw,
+        )
+
+    @staticmethod
+    def _absent_file(locked: LockedRoot, path: str) -> bool:
+        try:
+            locked.read_exact_file(path)
+        except ConflictError as exc:
+            if isinstance(exc.__cause__, FileNotFoundError):
+                return True
+            raise
+        return False
+
+    def _initial_plan(
+        self,
+        intent: RepairStoreBinding,
+        candidate: _CandidateEvidence,
+        payload_hash: str,
+        locked: LockedRoot,
+    ) -> _RepairPlan:
+        """Plan the first binding of a never-bound, freshly initialized store (P-058, 2026-10-07, P5-3).
+
+        A fresh store has no restore transaction, so no stale repair can root its binding chain (B-2).
+        This root admits only a store whose manifest is still, byte for byte, the initial manifest its
+        origin witness pins; that is never restored, never bound and never rewritten. Its single code
+        root must be the candidate: the store is bound to the durable checkout it was initialized from.
+        """
+
+        for path, reason in (
+            (_RESTORE_TRANSACTION_PATH, "a restored store"),
+            (CURRENT_BINDING_RELATIVE_PATH.as_posix(), "a store that has a binding"),
+            (_BINDING_CONFIG_RELATIVE_PATH.as_posix(), "a store that has a binding configuration"),
+        ):
+            if not self._absent_file(locked, path):
+                raise ConflictError(f"the first binding of an initialized store cannot bind {reason}")
+        original_manifest_raw = locked.read_exact_file(_STORE_MANIFEST_PATH)
+        original_manifest = _canonical_object(original_manifest_raw, label="initialized store manifest")
+        witness_path = origin_witness_path(
+            intent.expected_origin_authority_root,
+            project_id=self.project_id,
+            initial_control_root=self.control_root,
+        )
+        _validate_origin_authority(
+            witness_path=witness_path,
+            expected_witness_sha256=intent.expected_origin_witness_sha256,
+            expected_origin_authority_root=intent.expected_origin_authority_root,
+            project_id=self.project_id,
+            store_identity=self.store_identity,
+        )
+        witness = load_store_origin_witness(witness_path, expected_sha256=intent.expected_origin_witness_sha256)
+        if (
+            original_manifest_raw != canonical_bytes(witness.initial_manifest)
+            or sha256_hex(original_manifest_raw) != witness.initial_manifest_sha256
+            or witness.initial_control_root != str(self.control_root)
+            or original_manifest.get("project_id") != self.project_id
+            or original_manifest.get("store_identity") != self.store_identity
+            or original_manifest.get("control_root") != str(self.control_root)
+        ):
+            raise IntegrityError("the initialized store manifest differs from its origin witness")
+        if original_manifest.get("code_roots") != [str(candidate.root)] or original_manifest.get("schema_root") != str(
+            candidate.schema_root
+        ):
+            raise IntegrityError("the candidate is not the initialized store's single code and schema root")
+        _validate_owner_authority(
+            locked,
+            original_manifest,
+            project_id=self.project_id,
+            owner_actor_id=intent.owner_actor_id,
+        )
+        if any(
+            event.get("event_type") in {"StoreBindingRepaired", "StoreBindingAdvanced"}
+            for event in self.ledger.iter_events()
+        ):
+            raise ConflictError("the first binding of an initialized store cannot follow another binding")
+        intended_config_raw = canonical_bytes(
+            {
+                "code_roots": [str(candidate.root)],
+                "control_root": str(self.control_root),
+                "project_id": self.project_id,
+                "schema_root": str(candidate.schema_root),
+                "store_identity": self.store_identity,
+            }
+        )
+        binding = {
+            "schema_id": "ars://internal/store-binding-recovery",
+            "schema_version": "1.0.0",
+            "project_id": self.project_id,
+            "store_identity": self.store_identity,
+            "control_root": str(self.control_root),
+            "code_roots": [str(candidate.root)],
+            "schema_root": str(candidate.schema_root),
+            "origin_witness_sha256": intent.expected_origin_witness_sha256,
+            "git_head": candidate.git_head,
+            "git_tree": candidate.git_tree,
+            "git_clean": True,
+            "schema_catalogue_sha256": candidate.schema_catalogue_sha256,
+            "route": candidate.route,
+            "sources": candidate.sources,
+            "initial_manifest_sha256": witness.initial_manifest_sha256,
+            "command_payload_hash": payload_hash,
+            "owner_actor_id": intent.owner_actor_id,
+            "owner_action": intent.owner_action,
+            "idempotency_key": intent.idempotency_key,
+            "binding_config_path": _BINDING_CONFIG_RELATIVE_PATH.as_posix(),
+            "binding_config_sha256": sha256_hex(intended_config_raw),
+        }
+        return self._finish_repair_plan(
+            intent,
+            candidate,
+            payload_hash,
+            binding,
+            INITIAL_OBJECT_SCHEMA_ID,
+            pointer_original=None,
+            original_manifest_raw=original_manifest_raw,
+            intended_manifest_raw=original_manifest_raw,
+            original_config_raw=None,
+            intended_config_raw=intended_config_raw,
+        )
+
+    def _finish_repair_plan(
+        self,
+        intent: RepairStoreBinding,
+        candidate: _CandidateEvidence,
+        payload_hash: str,
+        binding: dict[str, Any],
+        object_schema_id: str,
+        *,
+        pointer_original: bytes | None,
+        original_manifest_raw: bytes,
+        intended_manifest_raw: bytes,
+        original_config_raw: bytes | None,
+        intended_config_raw: bytes,
+    ) -> _RepairPlan:
+        self.ledger.schemas.validate(object_schema_id, binding, schema_version="1.0.0")
         command_binding = self.ledger.schemas.command_binding("RepairStoreBinding")
         if (
             command_binding is None
             or command_binding.schema_id != REPAIR_COMMAND_SCHEMA_ID
-            or command_binding.schema_version != "1.0.0"
+            or command_binding.schema_version != REPAIR_COMMAND_SCHEMA_VERSION
         ):
-            raise IntegrityError("RepairStoreBinding v1.0 is not active")
+            raise IntegrityError("RepairStoreBinding v1.1 is not active")
         self.ledger.schemas.validate(
             REPAIR_COMMAND_SCHEMA_ID,
             {
@@ -1038,7 +1209,9 @@ class StoreBindingService:
             snapshot = self.ledger.snapshot()
             if snapshot.stream_versions.get(self.project_id, 0) != plan.expected_stream_version:
                 raise ConflictError("binding repair predecessor stream version changed")
-            command_identity = self.ledger.schemas.resolve_identity(REPAIR_COMMAND_SCHEMA_ID, "1.0.0")
+            command_identity = self.ledger.schemas.resolve_identity(
+                REPAIR_COMMAND_SCHEMA_ID, REPAIR_COMMAND_SCHEMA_VERSION
+            )
             appended = append_binding(
                 {
                     "event_type": "StoreBindingRepaired",
@@ -1106,7 +1279,7 @@ class StoreBindingService:
             raise IntegrityError("binding repair receipt readback differs")
         locked.remove_exact_file(_REPAIR_MARKER_PATH, plan.marker_raw)
         return {
-            "status": "repaired",
+            "status": _repair_status(intent.owner_action),
             "binding_sha256": plan.binding_sha256,
             "binding": _canonical_object(plan.binding_raw, label="published repair binding"),
             "receipt": receipt_record,
