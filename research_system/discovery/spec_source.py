@@ -71,6 +71,10 @@ def verify_source_production(
     strings (a known limit). ``streams`` is the caller's replay of ``events``: this module sits below the
     replay layer, so it does not replay the ledger itself.
     """
+    events = tuple(events)
+    if intent["action"] == "correct_spec_01_source":
+        # The registration a correction names is checked first, as the publication path checks it.
+        registration_event(events, intent["corrects_artefact_id"])
     production = intent["production"]
     task_id = production["task_id"]
     task = streams.get(task_id)
