@@ -28,7 +28,12 @@ from tests.research_system.integration.test_spec_source import (  # noqa: F401
     source_intent,
     source_repo,
 )
-from tests.research_system.integration.test_spec_task import _OUTCOME_COMMANDS, _outcome_payload, _seed_bound_task
+from tests.research_system.integration.test_spec_task import (
+    _OUTCOME_COMMANDS,
+    _outcome_payload,
+    _seed_bound_task,
+    seed_source_task,
+)
 from tests.research_system.integration.test_spec_task import _advance as _advance_task
 from tests.research_system.integration.test_spec_task import _streams, _tail
 from tests.research_system.integration.test_wp6_1_c2_operating_lifecycle import _artefact_manifest
@@ -603,7 +608,15 @@ def _seed_task_naming(bound, candidate_id: str, monkeypatch, *, also_naming=(), 
     """Seed the operational Task that names the Candidate, with its Attempt started (P-058, 2026-09-15).
 
     ``also_naming`` adds further portfolio references; ``outcome`` ends the Attempt after it starts.
+    Since P5-7 was amended (2026-10-07) the Task usually exists already, seeded before observe_source and
+    naming this Candidate; it is then reused, and only its outcome is recorded.
     """
+    seeded = getattr(bound, "spec_task", None)
+    if seeded is not None:
+        definition = _streams(bound.coordinator)[c1.TASK_ID]["definition"]
+        missing = {candidate_id, *also_naming} - set(definition.get("portfolio_refs") or ())
+        assert not missing, f"the seeded SPEC-01 Task does not name {sorted(missing)}"
+        return _seed_bound_task(bound, outcome=outcome)
     original = c1.create_task_command
 
     def naming_candidate(*args, **kwargs):
@@ -616,6 +629,29 @@ def _seed_task_naming(bound, candidate_id: str, monkeypatch, *, also_naming=(), 
 
     monkeypatch.setattr(c1, "create_task_command", naming_candidate)
     return _seed_bound_task(bound, outcome=outcome)
+
+
+def _task_amendment(coordinator, *, number: int, version: int) -> dict:
+    """C1's Task amendment, keeping the seeded Task's portfolio references.
+
+    C1 rebuilds the replacement definition from ``create_task_command``, which names no Candidate. The
+    SPEC-01 Task is seeded naming one, so the references are carried over, and the amendment changes only
+    the fields it declares.
+    """
+    refs = list(_streams(coordinator)[c1.TASK_ID]["definition"]["portfolio_refs"])
+    original = c1.create_task_command
+
+    def keeping_refs(*args, **kwargs):
+        command = original(*args, **kwargs)
+        definition = command["payload"]["definition"]
+        definition["portfolio_refs"] = refs
+        definition.pop("content_sha256")
+        definition["content_sha256"] = sha256_hex(canonical_bytes(definition))
+        return command
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(c1, "create_task_command", keeping_refs)
+        return c1._task_amendment_command(number=number, expected_stream_version=version)
 
 
 @pytest.mark.slow
@@ -748,10 +784,9 @@ def test_spec_01_route_refuses_the_role_collapses_that_admission_accepts(tmp_pat
     candidate_id = _requested(bound, tmp_path, capsys, source_repo)
     ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
 
-    # With no Task naming the Candidate, the brief has no real operational provenance to cite.
+    # The SPEC-01 Task, seeded before observe_source, names the Candidate (P5-7 amended).
     prepare_intent = spec_01_intent(spec_assay.PREPARE, candidate_id)
     brief_grant = _grant(bound, "RegisterArtefact", ids["brief_id"], OWNER, human=True)
-    assert "Task naming Candidate" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER, refused=True)
     _seed_task_naming(bound, candidate_id, monkeypatch)
     _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER)
 
@@ -1020,6 +1055,24 @@ def test_orphaned_record_bytes_are_refused_once_their_prerequisites_lapse(tmp_pa
 
 
 @pytest.mark.slow
+def test_operator_records_refuse_a_spec_01_task_that_names_no_candidate(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """With no Task naming the Candidate, the brief has no real operational provenance to cite.
+
+    The SOURCE Task runs before observe_source (P5-7 amended) and may name no Candidate, which SOURCE admits;
+    the operator records then refuse.
+    """
+    bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
+    _seed_bound_task(bound, outcome=None)
+    assert not _streams(bound.coordinator)[c1.TASK_ID]["definition"]["portfolio_refs"]
+    candidate_id = _requested(bound, tmp_path, capsys, source_repo)
+    ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
+    prepare_intent = spec_01_intent(spec_assay.PREPARE, candidate_id)
+    brief_grant = _grant(bound, "RegisterArtefact", ids["brief_id"], OWNER, human=True)
+    assert "Task naming Candidate" in _invoke(bound, tmp_path, capsys, prepare_intent, brief_grant, OWNER, refused=True)
+    assert bound.coordinator.status(prepare_intent)["state"] == "not_started"
+
+
+@pytest.mark.slow
 def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
@@ -1049,9 +1102,7 @@ def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypa
     # The Task is amended after its Attempt was dispatched, so the Attempt never ran the Task's current
     # definition, and the return may not cite it.
     version = coordinator.ledger.snapshot().stream_versions[c1.TASK_ID]
-    assert task.seeding.submit(c1._task_amendment_command(number=9101, expected_stream_version=version)).status == (
-        "accepted"
-    )
+    assert task.seeding.submit(_task_amendment(coordinator, number=9101, version=version)).status == "accepted"
     streams = _streams(coordinator)
     assert (streams[c1.TASK_ID]["current_revision"], streams[c1.ATTEMPT_ID]["task_revision"]) == (2, 1)
     return_intent = spec_01_intent(spec_assay.RETURN, candidate_id)
@@ -1061,15 +1112,33 @@ def test_operator_records_cite_the_dispatched_attempt_exactly(tmp_path, monkeypa
     assert coordinator.status(return_intent)["state"] == "not_started"
 
 
+def test_source_refuses_a_task_naming_an_unrelated_candidate(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
+    """P5-7 amended: the SPEC-01 Task may name only Candidates its own SOURCE observations derive."""
+    from tests.research_system.integration.test_spec_source import _refused_source
+
+    bound = bind_scratch_route(tmp_path, monkeypatch)
+    observation = source_intent(source_repo)
+    other = _ingest_direct(bound, 2)
+    seed_source_task(bound, observation, also_naming=(other,))
+    ids = source_ids(PROJECT_ID, observation)
+    grant = activate_lifecycle_grant(
+        bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
+    )
+    assert "no SOURCE of it derives" in _refused_source(bound, tmp_path, capsys, observation, grant)
+
+
 @pytest.mark.slow
 def test_records_need_a_running_attempt_and_a_single_candidate_task(tmp_path, monkeypatch, capsys, source_repo):  # noqa: F811
     bound = bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=SPEC_01_FILES, genesis=False)
     coordinator = bound.coordinator
+    # The Task also names a reference that is not yet a registered Candidate. It runs before observe_source
+    # (P5-7 amended), so it names that reference from creation.
+    other = "obj_019fed25-b33e-7740-b280-000000000901"
+    seed_source_task(bound, source_intent(source_repo), also_naming=(other,))
     candidate_id = _requested(bound, tmp_path, capsys, source_repo)
     ids = spec_assay.subject_ids(PROJECT_ID, spec_01_intent(spec_assay.PREPARE, candidate_id))
-    # The Task also names a reference that is not yet a registered Candidate, and its only Attempt has failed.
-    other = "obj_019fed25-b33e-7740-b280-000000000901"
-    _seed_task_naming(bound, candidate_id, monkeypatch, also_naming=(other,), outcome="failed")
+    # Its only Attempt has failed.
+    _seed_task_naming(bound, candidate_id, monkeypatch, outcome="failed")
     assert _streams(coordinator)[c1.ATTEMPT_ID]["status"] == "failed"
 
     # A finished Attempt cannot be cited as producing a record created after it ended.
@@ -1138,8 +1207,7 @@ def test_operator_record_registration_refuses_a_ledger_that_moved_after_derivati
         built = derive(*args, **kwargs)
         # Another writer amends the Task after the brief is derived, lapsing its prerequisite before the lock.
         version = coordinator.ledger.snapshot().stream_versions[c1.TASK_ID]
-        amendment = c1._task_amendment_command(number=9101, expected_stream_version=version)
-        assert task.seeding.submit(amendment).status == "accepted"
+        assert task.seeding.submit(_task_amendment(coordinator, number=9101, version=version)).status == "accepted"
         moved.append(coordinator.ledger.snapshot())
         return built
 

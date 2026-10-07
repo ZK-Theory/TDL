@@ -95,9 +95,11 @@ def test_remote_fetch_with_master_branch(source_repo, monkeypatch):
 def test_source_registration_holds_writer_lock_through_rejection(bound_source, source_repo, monkeypatch):
     from research_system.errors import ArsError
     from research_system.store.lock import CompositeWriterLock, WriterLockContentionError
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     coordinator = bound_source.coordinator
     intent = source_intent(source_repo)
+    seed_source_task(bound_source, intent)
     artefact_id = source_ids(PROJECT_ID, intent)["artefact_id"]
     grant = activate_lifecycle_grant(
         bound_source.harness, subject_kind="artefact", subject_id=artefact_id, command_types=("RegisterArtefact",)
@@ -144,10 +146,12 @@ def test_source_registration_refuses_a_ledger_that_moved_after_derivation(
 ):
     """The document is derived before admission's writer lock; inside the lock a moved ledger refuses it."""
     from research_system.discovery import spec as spec_module
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     bound = bound_source
     coordinator = bound.coordinator
     intent = source_intent(source_repo)
+    seed_source_task(bound, intent)
     ids = source_ids(PROJECT_ID, intent)
     grant = activate_lifecycle_grant(
         bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
@@ -287,20 +291,25 @@ def bind_scratch_route(tmp_path, monkeypatch, extra_repository_files=(), genesis
 
 
 def source_intent(source_repo):
+    """A SOURCE intent whose production references are the seeded SPEC-01 Task's running Attempt.
+
+    The route verifies them against the ledger (P-058, 2026-10-07, M-2 and P5-7 amended), so they are the
+    C1 seeding's Task, dispatch, Attempt, context packet and start identities. The producer profile,
+    branch, worktree and accepted scope have no ledger record and keep the fixture manifest's strings.
+    """
+    from tests.research_system.integration import test_wp6_1_c1_readiness_lease as c1
+
     manifest = artefact_manifest()
     production = {
-        key: manifest[key]
-        for key in (
-            "task_id",
-            "dispatch_id",
-            "attempt_id",
-            "context_packet_id",
-            "producer_profile",
-            "code_commit",
-            "branch_identity",
-            "worktree_identity",
-            "environment_fingerprint",
-        )
+        "task_id": c1.TASK_ID,
+        "dispatch_id": c1.DISPATCH_ID,
+        "attempt_id": c1.ATTEMPT_ID,
+        "context_packet_id": c1.CONTEXT_ID,
+        "producer_profile": manifest["producer_profile"],
+        "code_commit": "git:sha1:" + "b" * 40,
+        "branch_identity": manifest["branch_identity"],
+        "worktree_identity": manifest["worktree_identity"],
+        "environment_fingerprint": "c" * 64,
     }
     production["accepted_scope"] = manifest["authority"]["accepted_scope"]
     return {
@@ -314,6 +323,11 @@ def source_intent(source_repo):
 
 
 def invoke_cli(bound, tmp_path, capsys, intent, verb, grant, actor=None):
+    if verb == "advance" and intent.get("action") in {"observe_source", "correct_spec_01_source"}:
+        # A SOURCE registration cites the running SPEC-01 Task, so it is seeded first (P5-7 amended).
+        from tests.research_system.integration.test_spec_task import seed_source_task
+
+        seed_source_task(bound, intent)
     intent_path = tmp_path / "intent.json"
     intent_path.write_bytes(canonical_bytes(intent))
     config_path = tmp_path / "operator.json"
@@ -331,6 +345,70 @@ def invoke_cli(bound, tmp_path, capsys, intent, verb, grant, actor=None):
         args += ["--action", intent["action"], "--input", str(intent_path)]
     assert cli.main(args) == 0
     return json.loads(capsys.readouterr().out)
+
+
+def _refused_source(bound, tmp_path, capsys, intent: dict, grant: str) -> str:
+    """Advance a SOURCE intent through the genuine CLI, expecting a refusal that appends nothing."""
+    intent_path = tmp_path / "refused-source.json"
+    intent_path.write_bytes(canonical_bytes(intent))
+    config_path = tmp_path / "refused-operator.json"
+    config_path.write_bytes(canonical_bytes({**bound.config, "authority_grant_id": grant}))
+    before = bound.coordinator.ledger.snapshot()
+    args = ["discovery", "spec", "advance", "--operator-config", str(config_path)]
+    code = cli.main([*args, "--action", intent["action"], "--input", str(intent_path)])
+    captured = capsys.readouterr()
+    assert code == 1, captured.out
+    after = bound.coordinator.ledger.snapshot()
+    assert (after.global_position, after.event_hash) == (before.global_position, before.event_hash)
+    return captured.err
+
+
+def test_source_production_is_verified_against_the_running_spec_01_task(
+    bound_source, source_repo, tmp_path, capsys, monkeypatch
+):
+    """M-2 (P-058, 2026-10-07, P5-7 amended): a SOURCE registration names a real running Task and Attempt.
+
+    Admission checks none of the manifest's production references, so the route refuses, before any
+    write, each one the ledger does not show.
+    """
+    from tests.research_system.integration import test_wp6_1_c1_readiness_lease as c1
+    from tests.research_system.integration.test_spec_task import seed_source_task, _end_attempt
+
+    bound = bound_source
+    intent = source_intent(source_repo)
+    ids = source_ids(PROJECT_ID, intent)
+    grant = activate_lifecycle_grant(
+        bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
+    )
+
+    # No Task yet: the named Task is not in the ledger.
+    assert "does not hold" in _refused_source(bound, tmp_path, capsys, intent, grant)
+
+    task = seed_source_task(bound, intent)
+    for field, forged in (
+        ("attempt_id", c1.OTHER_ATTEMPT_ID),
+        ("dispatch_id", "dsp_01978abc-7299-7000-8000-000000007299"),
+        ("context_packet_id", "ctx_01978abc-7299-7000-8000-000000007299"),
+        ("code_commit", "git:sha1:" + "d" * 40),
+        ("environment_fingerprint", "e" * 64),
+    ):
+        forged_intent = deepcopy(intent)
+        forged_intent["production"][field] = forged
+        # The derived identities depend on the Task only, so every forgery addresses the same artefact.
+        assert source_ids(PROJECT_ID, forged_intent) == ids
+        assert f"production {field} differs" in _refused_source(bound, tmp_path, capsys, forged_intent, grant)
+
+    # The genuine references register.
+    assert invoke_cli(bound, tmp_path, capsys, intent, "advance", grant)["state"] == "prepared"
+
+    # Once the Attempt has ended, a later SOURCE registration cannot cite it.
+    _end_attempt(task, "completed", ())
+    later = {**deepcopy(intent), "source_key": "paper-code-later"}
+    later_ids = source_ids(PROJECT_ID, later)
+    later_grant = activate_lifecycle_grant(
+        bound.harness, subject_kind="artefact", subject_id=later_ids["artefact_id"], command_types=("RegisterArtefact",)
+    )
+    assert "to be running" in _refused_source(bound, tmp_path, capsys, later, later_grant)
 
 
 @pytest.mark.slow
@@ -421,10 +499,13 @@ def test_correction_publication_failures_and_governed_backup(bound_source, sourc
     from research_system.canonical import sha256_hex
     from tests.research_system.integration.test_artefact_authority_commands import command
     from tests.research_system.integration.test_wp64_create_backup import _registry
+    from tests.research_system.integration.test_spec_task import seed_source_task
 
     bound = bound_source
     coordinator = bound.coordinator
     intent = source_intent(source_repo)
+    # Seeded before the failure's ledger snapshot, so only the failed publication is measured.
+    seed_source_task(bound, intent)
     ids = source_ids(PROJECT_ID, intent)
     grant = activate_lifecycle_grant(
         bound.harness, subject_kind="artefact", subject_id=ids["artefact_id"], command_types=("RegisterArtefact",)
