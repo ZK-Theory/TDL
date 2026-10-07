@@ -8,14 +8,19 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 import pytest
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / ".githooks" / "pre-commit"
 VALIDATOR = REPO_ROOT / ".claude" / "hooks" / "contract_binding_check.py"
+PRE_COMMIT_CONFIG = REPO_ROOT / ".pre-commit-config.yaml"
+UV_LOCK = REPO_ROOT / "uv.lock"
+RUFF_PRE_COMMIT_REPO = "https://github.com/astral-sh/ruff-pre-commit"
 
 
 def _gate_3_source() -> str:
@@ -57,6 +62,46 @@ def test_the_interpreter_running_the_validator_can_run_pytest() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+# Gate 1 runs ruff from .pre-commit-config.yaml; CI and `uv run ruff` use the uv.lock ruff. At
+# v0.8.4 vs 0.14.9 the two formatters disagreed (assert-message wrapping), so a file formatted with
+# the documented command failed the commit gate and was rewritten back (obs
+# 2026-10-07-pre-commit-ruff-pin-disagrees-with-locked-ruff). One version, set by the lockfile.
+def _locked_ruff_version(lock_text: str) -> str:
+    versions = {package["version"] for package in tomllib.loads(lock_text)["package"] if package["name"] == "ruff"}
+    assert len(versions) == 1, f"uv.lock pins ruff {sorted(versions)}; expected exactly one version"
+    return versions.pop()
+
+
+def _pre_commit_ruff_rev(config_text: str) -> str:
+    repos = [repo for repo in yaml.safe_load(config_text)["repos"] if repo["repo"] == RUFF_PRE_COMMIT_REPO]
+    assert len(repos) == 1, f"expected exactly one {RUFF_PRE_COMMIT_REPO} entry, found {len(repos)}"
+    assert {hook["id"] for hook in repos[0]["hooks"]} == {"ruff", "ruff-format"}
+    return str(repos[0]["rev"])
+
+
+def _ruff_pin_mismatch(config: Path, lock: Path) -> str | None:
+    """Return why the pre-commit ruff differs from the locked ruff, or None if they match."""
+    locked = _locked_ruff_version(lock.read_text(encoding="utf-8"))
+    rev = _pre_commit_ruff_rev(config.read_text(encoding="utf-8"))
+    return None if rev == f"v{locked}" else f"{config.name} pins ruff {rev}; uv.lock pins {locked}"
+
+
+def test_pre_commit_ruff_is_the_locked_ruff() -> None:
+    """The commit gate formats and lints with the same ruff as CI and ``uv run ruff``."""
+    assert _ruff_pin_mismatch(PRE_COMMIT_CONFIG, UV_LOCK) is None
+
+
+def test_the_ruff_pin_control_refuses_a_drifted_rev(tmp_path: Path) -> None:
+    """Negative control: the same config pinned to the pre-2026-10-07 rev v0.8.4 is refused."""
+    text = PRE_COMMIT_CONFIG.read_text(encoding="utf-8")
+    rev = _pre_commit_ruff_rev(text)
+    assert f"rev: {rev}" in text and rev != "v0.8.4", "the control would edit nothing"
+    drifted = tmp_path / ".pre-commit-config.yaml"
+    drifted.write_text(text.replace(f"rev: {rev}", "rev: v0.8.4"), encoding="utf-8")
+    locked = _locked_ruff_version(UV_LOCK.read_text(encoding="utf-8"))
+    assert _ruff_pin_mismatch(drifted, UV_LOCK) == f".pre-commit-config.yaml pins ruff v0.8.4; uv.lock pins {locked}"
 
 
 def _git_bash() -> Path | None:
@@ -596,9 +641,9 @@ def test_pre_commit_restores_only_the_generated_region_and_preserves_a_concurren
     assert RESTORED in completed.stderr
     assert GATE_3_BLOCKED in completed.stderr
     for path in REPOWISE_OWNED:
-        assert (repo / path).read_bytes() == before[
-            path
-        ] + OUTSIDE_LINE, f"{path}: expected the generated region restored and the concurrent edit kept"
+        assert (repo / path).read_bytes() == before[path] + OUTSIDE_LINE, (
+            f"{path}: expected the generated region restored and the concurrent edit kept"
+        )
 
 
 @pytest.mark.integration

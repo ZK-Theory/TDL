@@ -1,6 +1,8 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4  # Use latest stable version
+    # Must equal the ruff version in uv.lock, which CI and `uv run ruff` use. Bump both together;
+    # tests/tools/test_pre_commit_hook.py::test_pre_commit_ruff_is_the_locked_ruff enforces it.
+    rev: v0.14.9
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
