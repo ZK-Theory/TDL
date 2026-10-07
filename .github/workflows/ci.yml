@@ -89,9 +89,12 @@ jobs:
       contents: read
 
     steps:
+      # Full history, like every job that runs research_system tests
+      # (tests/tools/test_ci_platform_policy.py).
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python 3.13

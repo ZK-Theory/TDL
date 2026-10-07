@@ -73,6 +73,85 @@ def test_bash_scripts_declare_bash(path: Path) -> None:
             )
 
 
+# research_system contract tests read pinned historical commits. On a depth-1 checkout they
+# fail for the environment, not the code: six of eight suite shards on PR #342 (obs
+# 2026-10-07-suite-lane-shallow-checkout-fails-history-tests).
+SHALLOW_FETCH_FLAGS = ("--depth", "--shallow", "--deepen")
+RESEARCH_SYSTEM_TEST_JOBS = {
+    ("ci.yml", "windows-store-lock"),
+    ("ars-artefact-currency.yml", "contract-and-session-currency"),
+    ("research-system-suite.yml", "suite"),
+}
+
+
+def _runs_research_system_tests(job: dict[str, Any]) -> bool:
+    """A job runs research_system tests if it invokes pytest on them or on a suite shard."""
+    script = "\n".join(step.get("run", "") for step in job.get("steps", []))
+    return "pytest" in script and ("tests/research_system" in script or "tools/research_system_shards.py" in script)
+
+
+def _checks_out_full_history(job: dict[str, Any]) -> bool:
+    """Judge the job's first checkout: ``actions/checkout`` or a hand-rolled ``git fetch``."""
+    for step in job.get("steps", []):
+        if step.get("uses", "").startswith("actions/checkout@"):
+            return step.get("with", {}).get("fetch-depth") == "0"
+        script = step.get("run", "")
+        if "git fetch" in script or "git clone" in script:
+            return not any(flag in script for flag in SHALLOW_FETCH_FLAGS)
+    return False
+
+
+def _shallow_research_system_jobs(document: dict[str, Any]) -> list[str]:
+    return [
+        name
+        for name, job in document["jobs"].items()
+        if _runs_research_system_tests(job) and not _checks_out_full_history(job)
+    ]
+
+
+def test_research_system_job_discovery_is_not_vacuous() -> None:
+    """A detector that matched no job would make the full-history control pass on anything."""
+    found = {
+        (path.name, name)
+        for path in WORKFLOWS
+        for name, job in _load(path)["jobs"].items()
+        if _runs_research_system_tests(job)
+    }
+    assert RESEARCH_SYSTEM_TEST_JOBS <= found
+
+
+@pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
+def test_research_system_test_jobs_check_out_full_history(path: Path) -> None:
+    """Every job that runs research_system tests has the history those tests read."""
+    assert (
+        _shallow_research_system_jobs(_load(path)) == []
+    ), f"{path.name}: these jobs run research_system tests on a shallow checkout"
+
+
+@pytest.mark.parametrize(
+    ("workflow", "full", "shallow", "job"),
+    [
+        ("research-system-suite.yml", "          fetch-depth: 0\n", "", "suite"),
+        ("ci.yml", "          fetch-depth: 0\n", "", "windows-store-lock"),
+        (
+            "ars-artefact-currency.yml",
+            'git fetch --no-tags origin "${GITHUB_REF}"',
+            'git fetch --no-tags --depth=1 origin "${GITHUB_REF}"',
+            "contract-and-session-currency",
+        ),
+    ],
+)
+def test_the_full_history_control_fails_on_a_shallow_copy(
+    tmp_path: Path, workflow: str, full: str, shallow: str, job: str
+) -> None:
+    """Negative control: the same workflow with its depth made shallow is refused."""
+    text = (WORKFLOW_DIR / workflow).read_text(encoding="utf-8")
+    assert full in text, f"{workflow} no longer contains {full!r}; the control would edit nothing"
+    copy = tmp_path / workflow
+    copy.write_text(text.replace(full, shallow), encoding="utf-8")
+    assert job in _shallow_research_system_jobs(_load(copy))
+
+
 def test_removed_linux_lanes_stay_removed() -> None:
     """The two Linux-only lanes removed on 2026-09-11 are not quietly restored."""
     jobs = _load(WORKFLOW_DIR / "ci.yml")["jobs"]
