@@ -2153,6 +2153,98 @@ routed to Phase 5 prep (option A of the 4c handback).
   | m-4 | An admission refusal of a time-free effect repeats for the same actor and grant. | Phase 5 runbook note: retry under a new grant. |
   | i-1 | `spec_result.py`'s docstring says "the owner's use authority". | Wording fix at a later touch. |
 
+**Phase 5 prep design decisions (2026-10-07):** Stephen reviewed the prep design pass
+(`implementation/06s-phase5-prep-design-pass-2026-10-07.md`, merged in #346 at `3559251f`) and accepted every
+recommendation, P5-1 to P5-12, "unless or until we find another blocker".
+- **The measurement.** Every probe ran the genuine CLI from a non-linked scratch clone at `b0cda615`, with no
+  foundation monkeypatch.
+  - The witness digest cannot be pinned blind. Init draws a random store nonce, and the witness pins the
+    identity of the stage folder init creates.
+  - Reserving the witness and stage, pinning the reserved digest, and then running the unchanged `store init`
+    succeeds.
+  - A freshly initialized store then has no public path to its first binding. `spec status` refuses, and
+    `repair-binding` needs a cleared restore transaction (`binding_service.py:862`). `advance-binding` needs a
+    predecessor.
+  - Every scratch SPEC store in the tests is bound by hand-written fixtures. This is **B-2**, a Blocking gap
+    beyond B-1.
+- **Decisions.**
+  1. **P5-1, the reservation (D5 exception granted).** Add `ars store reserve`. It runs init's existing code to
+     its `after-identity` point and stops. It takes the origin-authority root explicitly and prints the exact
+     foundation fields, with the pre-init tail `(0, "0"*64)`. The re-pin commit then merges, and the unchanged
+     `store init` consumes the reservation under the pin.
+  2. **P5-2, the foundation.** The re-pin replaces the live store. The live store stays historical evidence, and
+     a later read uses a pre-re-pin checkout.
+     - The re-pin rewrites the expected values of `test_foundation_origin_witness_contract.py` (marked
+       `live_store`).
+     - The frozen SCALE packages, which record the live foundation as current, stay unchanged. No gate compares
+       them with the committed foundation.
+  3. **P5-3, the first binding (D5 exception granted).** One new owner action binds a never-bound,
+     freshly initialized store. Its admission requires:
+     - no binding pointer and no restore transaction;
+     - a store manifest equal to the origin witness's initial manifest;
+     - the candidate to be the manifest's single code root.
+
+     It publishes a 1.0.0-shaped root binding. `current_binding` accepts that initial root, with the
+     witness's initial manifest standing in for the restore join. The contrived restore (option A) and dropping
+     the staleness requirement (option B2) were rejected.
+  4. **P5-4, step 6.** The 1.0.0 root admits only the exact bound SHA, so step 6 replays from the frozen checkout
+     at that SHA after the docs PR merges. That PR is not pulled into the checkout, and no advance path from
+     the initial root is built.
+  5. **P5-5, the durable checkout (M-1).** A dedicated non-linked clone, `C:/Users/steph/TDL-ARS-G6-Checkout`,
+     cloned from GitHub with local `main` at the bound SHA. It is the foundation's only code root and its schema
+     root. No worktree is added to it and nothing is pulled into it after step 1.
+  6. **P5-6, the roots and project.** Control root `C:/Users/steph/TDL-ARS-G6-Control` and origin authority
+     `C:/Users/steph/TDL-ARS-G6-Origin-Authority`, both new. The project stays
+     `prj_01978abc-1000-7000-8000-000000001000`.
+  7. **P5-7, SOURCE provenance (M-2).** The SOURCE registration cites a separate SOURCE Task with a running
+     Attempt. The route refuses, before any write, unless:
+     - the named Task names no registered Candidate;
+     - it has one started, running Attempt and is unamended since that Attempt's dispatch;
+     - the intent's dispatch, Attempt, context-packet, code-commit and environment fields equal the ledger's.
+
+     `spec-source-intent` stays 1.0.0. Producer profile, branch, worktree and accepted scope stay caller
+     strings, a known limit.
+  8. **P5-8, SPEC-01's rule (D5 exception granted for W11 admission).** Admission evaluates the rubric's declared
+     algorithm. A registered legacy algorithm yields:
+     - PROMOTE when Axis 1 passes, Axis 2 + Axis 3 ≥ 4 and neither is 0;
+     - KILL when Axis 1 fails;
+     - PARK otherwise.
+
+     The fixture algorithm keeps today's behaviour. The route's blanket PROMOTE refusal narrows to bars whose
+     algorithm admission does not evaluate.
+  9. **P5-9, the Assay bar.** SPEC-01's content replaces both committed Assay authority files. The current
+     fixture bytes move to test fixtures, and the route tests keep their behaviour. A dedicated non-owner actor
+     signs the content: author, reviewer and acceptor are three identities, and the fresh run's actor plan is a
+     prep output.
+  10. **P5-10, `adopt_default`.** After PROMOTE, the SPEC route permits only `retain_experimental_benchmark`.
+  11. **P5-11, the census first.** Before any PR is cut, a disposable driver walks the live sequence through the
+      public CLI only and records every refusal. This includes grant activation and Task/Attempt seeding, which
+      tests replace with adapters. Its report fixes the PR list.
+  12. **P5-12, the delta assurance.** The full 4c selection plus the new nodes runs on the post-prep SHA, through
+      the 4c runner with a new node list. P-058's window and budget apply, and a recorded machine check comes
+      before each window. Each prep PR is certified with its own packet plus the SPEC-01 public path as canary.
+- **Live sequence.** Design pass §4, authorization points A1 to A7. The re-pin merges after the live
+  reservation and before `store init`.
+- **Migration consequence.** None yet. No code, schema or store changes until the construction PRs.
+
+**Census result (2026-10-07):** the C0 census (`implementation/06s-phase5-prep-census-2026-10-07.md`) ran on a
+scratch store created by the P5-1 procedure.
+- **Result.** 22 of 22 commands passed through the public `ars command submit`: grant activation, the whole Task
+  and Attempt lifecycle, Attempt completion and evidence registration.
+- **One new gap, B-3 (Material, not blocking).** The owner's administration decision that `ActivateAuthorityGrant`
+  verifies has no public writer; only internal code places it in the control object store.
+- **B-3 under Stephen's standing instruction** ("go with the recommended path … unless or until we find another
+  blocker"): PR-G adds `ars authority activate-grant`. It derives and writes the owner decision and submits the
+  activation, with admission unchanged.
+- **The construction PR list is now fixed:**
+  - PR-A: reserve and the first binding;
+  - PR-B: SOURCE provenance;
+  - PR-C: the Assay bar and SPEC-01's rule;
+  - PR-D: `adopt_default`;
+  - PR-G: the grant activation command;
+  - the runbook docs;
+  - PR-F: the re-pin, after the live reservation.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
