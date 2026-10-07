@@ -2196,6 +2196,48 @@ re-accepted here at exact bytes.<br>
 runtime behaviour, and does not touch the WP6.3 private assurance pack (handled separately by
 restoring the pinned skill bytes) or any external control store.
 
+### P-060 - 06t: split the artefact-authority pins by what they assert, after Gate 6 closes
+
+**Date:** 2026-10-07<br>
+**Status:** Accepted by Stephen (Option C ticked in 06t §7; activation timing decided in session,
+2026-10-07). Deferred: no contract change is made until the slice is dispatched.<br>
+**Context:** `.research-system/contracts/artefact-authority-interface.v1.yaml` (06i, interface digest
+`dd085c86fdd5f673e294df42a655aa51404ad8fac5232b52c50787f81edfb998`, `candidate_state: proposed`) pins
+47 call sites to exact source paths, so a pure module move under `research_system/` is a contract
+amendment. 06t analysed the four pin classes and the trade-offs (observation
+`2026-08-12-file-map-frozen-since-wp1`, limb 2; carried onto main by #335). At `e5179b57` the contract,
+both identity manifests and `test_06i_stage_a_candidate.py` are unchanged since `ced524b`, and the
+interface is still `candidate_state: proposed`.<br>
+**Decision:**
+- **Option C.** The 38 call-graph pins (11 `dispatch_bindings`, 25 `transitive_root_bindings`,
+  2 `public_export` entrypoints) become symbol-bound. The discovered path is kept as a non-normative
+  `observed_in` field that the test does not compare. The 9 storage pins
+  (`direct_storage_inventory` and `dynamic_object_store_kind_exclusions`) stay path-bound, because for
+  them the module is the privilege boundary. Option B (symbol-bind everything) is rejected.
+- **Required control.** The same change adds the invariant that every pinned `owner.qualname` has
+  exactly one definition site under `research_system/`, with a negative control that writes a second
+  definition into a `tmp_path` module and watches the check fail. Without it, Option C does not ship.
+- **Scope of the slice.** `test_06i_stage_a_candidate.py`, the interface YAML and both identity
+  manifests (`.research-system/contracts/candidates/06i-artefact-authority-v1/` and
+  `.research-system/contracts/artefact-authority-v1/`), regenerated in lockstep. No `research_system/`
+  change. The resulting candidate identity is presented to Stephen for review. The adjacent finding in
+  06t §6 (the command-token assertion in `_cli_handlers_and_tokens`) is not part of this decision.
+- **Activation: not before Gate 6 closes.** The slice is a standalone job, dispatched by Stephen only
+  after 06s §8 reports Gate 6 INTEGRATED. Phase 4c certifies a main SHA whose CI currency group includes
+  `test_06i_stage_a_candidate.py`; Phase 5 step 1 binds the reviewed main SHA; and Phase 5 step 6
+  requires documentation-only governed-code descent from that SHA to final main. A contract and test
+  change merged in between would either change the reviewed subject or break that descent check.
+- **Hold.** The 06i candidate does not leave `candidate_state: proposed` before the slice lands.
+  Amending after acceptance would supersede an owner-accepted authority object. If an acceptance of the
+  06i candidate is proposed first, this decision is raised to Stephen before it proceeds.<br>
+**Binding:** None mechanized now, and none is needed before activation. The hold is guarded by the
+acceptance act itself: accepting the candidate changes the pinned bytes, which regenerates both
+identity manifests and needs Stephen's review, where this entry applies. At activation, the uniqueness
+invariant and its negative control are the slice's binding.<br>
+**Boundary:** Adds nothing to Gate 6 or to the 06s §4 closure contract, and is not a Gate 7
+prerequisite. Changes no contract, manifest, test or runtime behaviour now. No Jira issue yet; the
+delivered 06i capability is KAN-96 (Done, under KAN-65).
+
 ## Decision protocol
 
 Each future decision entry must record:
