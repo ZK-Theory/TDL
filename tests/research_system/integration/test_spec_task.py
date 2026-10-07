@@ -162,13 +162,49 @@ def _outcome_payload(outcome: str, candidates: tuple) -> dict:
     }
 
 
+def seed_source_task(bound, observation: dict, *, also_naming: tuple = ()):
+    """Seed the running SPEC-01 Task before ``observe_source`` (P-058, 2026-10-07, P5-7 amended).
+
+    One Task spans SOURCE to closure: it names the Candidate this observation derives (and
+    ``also_naming``), and its Attempt runs before the SOURCE registration cites it. A Task already
+    seeded on ``bound`` is reused, so a later observation runs under the same Task.
+    """
+    from research_system.discovery.spec_source import source_ids
+    from tests.research_system.factories import PROJECT_ID
+    from tests.research_system.integration import test_wp6_1_c1_readiness_lease as c1
+
+    if getattr(bound, "spec_task", None) is not None:
+        return bound.spec_task
+    candidate_id = source_ids(PROJECT_ID, observation)["candidate_id"]
+    original = c1.create_task_command
+
+    def naming_candidate(*args, **kwargs):
+        command = original(*args, **kwargs)
+        definition = command["payload"]["definition"]
+        definition["portfolio_refs"] = [candidate_id, *also_naming]
+        definition.pop("content_sha256")
+        definition["content_sha256"] = sha256_hex(canonical_bytes(definition))
+        return command
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(c1, "create_task_command", naming_candidate)
+        return _seed_bound_task(bound, outcome=None)
+
+
 def _seed_bound_task(bound_source, *, outcome: str | None, candidates: tuple = ()):  # noqa: F811
     """Supply Task and Attempt evidence through existing governed contracts.
 
     The seeding service is the established governed test adapter on the same scratch
     control store. The SPEC route keeps the coordinator's plain CommandService, so
     every route effect resolves real authority rather than an auto-provisioned grant.
+    A Task already seeded on the bound route (``seed_source_task``) is reused: only its
+    outcome is recorded.
     """
+    seeded = getattr(bound_source, "spec_task", None)
+    if seeded is not None:
+        if outcome is not None:
+            _end_attempt(seeded, outcome, candidates)
+        return seeded
     coordinator = bound_source.coordinator
     seeding = GovernedTestCommandService(
         coordinator.binding.control_root,
@@ -187,16 +223,6 @@ def _seed_bound_task(bound_source, *, outcome: str | None, candidates: tuple = (
     # request must bind. Activate it first; admission then reuses it without an append.
     activate_lifecycle_grant(bound_source.harness, subject_kind="resource", subject_id=RESOURCE_GRANT_ID)
     _seed_running_attempt(seed_harness)
-    if outcome is not None:
-        ended = _c1_command(
-            _command_id(9001),
-            _OUTCOME_COMMANDS[outcome],
-            ATTEMPT_ID,
-            coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
-            _outcome_payload(outcome, candidates),
-        )
-        receipt = seeding.submit(ended)
-        assert receipt.status == "accepted", receipt
 
     grants = {
         "task": activate_lifecycle_grant(
@@ -225,7 +251,23 @@ def _seed_bound_task(bound_source, *, outcome: str | None, candidates: tuple = (
             grant_id=REVIEWER_GRANT_ID,
         ),
     }
-    return SimpleNamespace(bound=bound_source, coordinator=coordinator, seeding=seeding, grants=grants)
+    task = SimpleNamespace(bound=bound_source, coordinator=coordinator, seeding=seeding, grants=grants)
+    bound_source.spec_task = task
+    if outcome is not None:
+        _end_attempt(task, outcome, candidates)
+    return task
+
+
+def _end_attempt(task, outcome: str, candidates: tuple) -> None:
+    ended = _c1_command(
+        _command_id(9001),
+        _OUTCOME_COMMANDS[outcome],
+        ATTEMPT_ID,
+        task.coordinator.ledger.snapshot().stream_versions[ATTEMPT_ID],
+        _outcome_payload(outcome, candidates),
+    )
+    receipt = task.seeding.submit(ended)
+    assert receipt.status == "accepted", receipt
 
 
 def _streams(coordinator) -> dict:

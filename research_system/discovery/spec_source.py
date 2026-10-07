@@ -35,6 +35,98 @@ def source_ids(project_id: str, intent: dict) -> dict[str, str]:
     }
 
 
+_LEDGER_PRODUCTION_FIELDS = ("dispatch_id", "attempt_id", "context_packet_id", "code_commit", "environment_fingerprint")
+
+
+def _lineage_candidate(project_id: str, intent: dict, objects) -> str:
+    """The Candidate a SOURCE lineage derives: its observation's, followed back through corrections."""
+    seen: set[str] = set()
+    while intent["action"] == "correct_spec_01_source":
+        artefact_id = intent["corrects_artefact_id"]
+        if artefact_id in seen or not objects.revision_exists(DOCUMENT_KIND, artefact_id, 1):
+            raise IntegrityError("SOURCE correction lineage has no registered observation")
+        seen.add(artefact_id)
+        intent = objects.read(DOCUMENT_KIND, artefact_id, 1)["intent"]
+    return source_ids(project_id, intent)["candidate_id"]
+
+
+def verify_source_production(
+    intent: dict,
+    events: Iterable[dict],
+    *,
+    project_id: str,
+    registered_candidates: Iterable[str],
+    objects,
+    schemas,
+    authority_state_validator,
+) -> None:
+    """Refuse SOURCE production references the ledger does not show (P-058, 2026-10-07, M-2 and P5-7).
+
+    The SOURCE manifest copies ``production`` from the intent, and admission checks none of it, so the
+    route checks it against the one Task it names and that Task's started Attempt, as it does for the
+    operator records and the project-use decision. The Task is the SPEC-01 Task, started before
+    ``observe_source``; it may name the Candidate this lineage derives, and no other registered one.
+    Its Attempt must be running and dispatched on the Task's current revision, and the intent's
+    dispatch, Attempt, context packet, code commit and environment fingerprint must be that Attempt's.
+    The producer profile, branch, worktree and accepted scope have no ledger record and stay caller
+    strings (a known limit).
+    """
+    from research_system.discovery.spec_replay import replay
+
+    production = intent["production"]
+    task_id = production["task_id"]
+    events = tuple(events)
+    streams = replay(events, schema_registry=schemas, authority_state_validator=authority_state_validator)["streams"]
+    task = streams.get(task_id)
+    if not isinstance(task, dict) or not str(task_id).startswith("tsk_"):
+        raise IntegrityError(f"SOURCE production names Task {task_id}, which the ledger does not hold")
+    # The Task may name only Candidates that SOURCE observations citing this same Task derive: this one,
+    # and any earlier one (a revisit observation runs under the SPEC-01 Task too).
+    allowed = {_lineage_candidate(project_id, intent, objects)}
+    for event in events:
+        manifest = (
+            (event.get("payload") or {}).get("manifest") if event.get("event_type") == "ArtefactRegistered" else None
+        )
+        if (
+            isinstance(manifest, dict)
+            and manifest.get("task_id") == task_id
+            and manifest.get("artefact_type") in {"spec_source_observation", "spec_01_source_correction"}
+            and objects.revision_exists(DOCUMENT_KIND, event["stream_id"], 1)
+        ):
+            allowed.add(
+                _lineage_candidate(project_id, objects.read(DOCUMENT_KIND, event["stream_id"], 1)["intent"], objects)
+            )
+    named = set((task.get("definition") or {}).get("portfolio_refs") or ())
+    if named & (set(registered_candidates) - allowed):
+        raise IntegrityError(f"SOURCE production Task {task_id} names a registered Candidate no SOURCE of it derives")
+    attempts = [
+        stream_id
+        for stream_id, stream in streams.items()
+        if str(stream_id).startswith("att_")
+        and isinstance(stream, dict)
+        and stream.get("task_id") == task_id
+        and isinstance(stream.get("start"), dict)
+    ]
+    if len(attempts) != 1:
+        raise IntegrityError(f"SOURCE production requires exactly one started Attempt of Task {task_id}")
+    attempt = streams[attempts[0]]
+    if attempt.get("task_revision") != task.get("current_revision"):
+        raise IntegrityError(f"SOURCE production requires Task {task_id} unamended since its Attempt's dispatch")
+    if attempt.get("status") != "running":
+        raise IntegrityError(f"SOURCE production requires Attempt {attempts[0]} to be running")
+    start = attempt["start"]
+    ledger_production = {
+        "dispatch_id": attempt.get("dispatch_id"),
+        "attempt_id": attempts[0],
+        "context_packet_id": start.get("context_packet_id"),
+        "code_commit": start.get("code_identity"),
+        "environment_fingerprint": start.get("environment_fingerprint"),
+    }
+    for field in _LEDGER_PRODUCTION_FIELDS:
+        if production[field] != ledger_production[field]:
+            raise IntegrityError(f"SOURCE production {field} differs from Task {task_id}'s running Attempt")
+
+
 def registration_ref(event: dict) -> dict:
     return {
         "artefact_id": event["stream_id"],
