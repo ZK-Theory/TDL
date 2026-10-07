@@ -662,6 +662,15 @@ certified PR.
 - **Runbook (4c review m-4).** After an admission refusal of a time-free effect, retry under a new
   grant: the same command identity returns the stored refusal.
 
+**Amended by P-058 (2026-10-07, prep design decisions).** Stephen accepted the prep design pass
+(`implementation/06s-phase5-prep-design-pass-2026-10-07.md`), recommendations P5-1 to P5-12.
+- **B-2:** a freshly initialized store has no public path to its first binding. Prep adds `ars store reserve` and
+  one owner action for the first binding of an initialized store, under granted D5 exceptions.
+- **Step 1** reserves, merges the re-pin, initializes and binds, in that order (design pass §4, A1 to A7).
+- **Step 6** replays from the frozen checkout at the bound SHA. The 1.0.0 root binding admits no
+  documentation-only successor.
+- **Prep construction** starts with a public-CLI census, whose report fixes the PR list.
+
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
    Use the inherited reviewed-divergence successor for the legacy predecessor;
