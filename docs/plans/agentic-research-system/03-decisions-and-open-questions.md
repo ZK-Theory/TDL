@@ -2227,6 +2227,24 @@ recommendation, P5-1 to P5-12, "unless or until we find another blocker".
   reservation and before `store init`.
 - **Migration consequence.** None yet. No code, schema or store changes until the construction PRs.
 
+**Census result (2026-10-07):** the C0 census (`implementation/06s-phase5-prep-census-2026-10-07.md`) ran on a
+scratch store created by the P5-1 procedure.
+- **Result.** 22 of 22 commands passed through the public `ars command submit`: grant activation, the whole Task
+  and Attempt lifecycle, Attempt completion and evidence registration.
+- **One new gap, B-3 (Material, not blocking).** The owner's administration decision that `ActivateAuthorityGrant`
+  verifies has no public writer; only internal code places it in the control object store.
+- **B-3 under Stephen's standing instruction** ("go with the recommended path … unless or until we find another
+  blocker"): PR-G adds `ars authority activate-grant`. It derives and writes the owner decision and submits the
+  activation, with admission unchanged.
+- **The construction PR list is now fixed:**
+  - PR-A: reserve and the first binding;
+  - PR-B: SOURCE provenance;
+  - PR-C: the Assay bar and SPEC-01's rule;
+  - PR-D: `adopt_default`;
+  - PR-G: the grant activation command;
+  - the runbook docs;
+  - PR-F: the re-pin, after the live reservation.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
