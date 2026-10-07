@@ -374,9 +374,18 @@ PARK; hash-only, wrong-binding and unknown-field rejection.
 
 ### Phase 4 — Remaining branches and assembled proof — KAN-109
 
-**Status (2026-10-05): 4a, 4a′, 4b-1, 4b-2a and 4b-2b COMPLETE / INTEGRATED. 4c remains;**
-**its handoff is `handoffs/01M4677SY7MNV0FA274DM87YME-wp6-phase4c-assembly-handoff.md`.**
-Phase 4 as a whole, and Gate 6, remain INCOMPLETE.
+**Status (2026-10-07): Phase 4 COMPLETE. 4a, 4a′, 4b-1, 4b-2a and 4b-2b are integrated, and 4c**
+**is complete at `e5179b57` with its blocking review finding routed to Phase 5 prep (P-058, 4c**
+**disposition, 2026-10-07). Phase 5 prep is next; its handoff is**
+**`handoffs/01M4AJCXSVTDDDDAYZTZWZ9AQK-wp6-phase5-prep-handoff.md`.** Gate 6 remains INCOMPLETE.
+- **4c**, on `e5179b57811f74346707a4fe5fe7c407772cb3dc` (main after #338):
+  - **Assembled selection:** 310 nodes in 64 groups, run 2026-10-07 from 02:00 on 8 workers. Every node
+    reconciled once against its JUnit record: 309 passed and 1 documented skip (the network probe). The time
+    budget failed: 13 groups ran over 60 minutes and the packet took 5h00m58s.
+  - **Boundary review:** a fresh-context review returned FAIL on one Blocking finding, B-1. The committed
+    foundation names only the live store, so the fresh store can be neither created nor addressed through
+    the public CLI. Stephen routed B-1 to Phase 5 prep. The report is
+    `reviews/06s-phase4c-boundary-review-e5179b57-2026-10-07.md`.
 - **4a′**, PR #296, merged at `dc04e8303a3217061015500ac4ff5f54a4872576`:
   `return_spec_01_partial` and `review_spec_01_partial`, with the closed
   `spec-operator-partial-return` 1.0.0 record and `spec-assay-intent` 1.1.0. The Partial path
@@ -620,6 +629,38 @@ and the live store stays historical evidence and is not appended to.
 invocation. The fresh store's ledger is about as long as the test stores', so an `advance`
 costs about what the tests measure. The store binding's revalidation, which re-checks the
 whole schema catalogue about five times per invocation, stays unchanged under D5.
+
+**Amended by P-058 (2026-10-07, 4c disposition).** Phase 5 prep becomes a bounded construction
+sub-phase with its own design pass and Stephen's dispatch. Each code change ships in its own
+certified PR.
+- **The fresh store.** Phase 5 uses one fresh store, created once. Today the committed foundation
+  names only the live store, `store init` refuses any other root, and the SPEC CLI refuses any store
+  the foundation does not name (4c review B-1). Prep designs the smallest owner-authorized procedure
+  that creates the store, with no general store-creation feature (D5):
+  1. create the control root;
+  2. compute its origin-witness pin, which covers the root's physical identity;
+  3. commit the foundation re-pin;
+  4. run `store init`.
+
+  It also decides whether the fresh store replaces the live store in the foundation or sits beside
+  it, the roots, and the project identity. Each live operation remains separately authorized.
+- **The durable checkout (4c review M-1).** #341 refuses linked worktrees and agent worktree
+  directories as schema and code roots, and every route invocation re-verifies a clean checkout at
+  the bound head. Prep chooses one non-linked checkout, which stays clean and frozen from step 1 to
+  step 6, and makes it the foundation's schema and code root.
+- **SOURCE provenance (M-2).** The SOURCE registration's production references are derived from the
+  ledger and verified, as the operator records' and the project-use decision's already are, so that
+  they name a real running SOURCE Task and Attempt.
+- **Earlier prep items stand:** the Assay authority content and its signing identity, where
+  SPEC-01's rule is evaluated, `adopt_default` against the SPEC-02 no-claim rule, the binding's
+  re-check cost, and the Task created before `prepare_spec_01`.
+- **Step 1 binds the main SHA after prep, not `e5179b57`.** That SHA first gets a delta assurance:
+  - a re-run of the assembled selection on it, full or delta-selected, as the prep design pass
+    decides;
+  - a fresh-context review of the `e5179b57` to prep-SHA diff, which confirms that B-1, M-1 and M-2
+    are closed.
+- **Runbook (4c review m-4).** After an admission refusal of a time-free effect, retry under a new
+  grant: the same command identity returns the stored refusal.
 
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.

@@ -2109,6 +2109,50 @@ as a known limit, not escalated. It was measured before any fix was chosen.
        PR's decision table.
      - The public-route tests that take minutes are marked `slow`.
 
+**4c disposition (2026-10-07):** Stephen accepted 4c as complete, with the boundary review's Blocking finding
+routed to Phase 5 prep (option A of the 4c handback).
+- **Subject.** `e5179b57811f74346707a4fe5fe7c407772cb3dc`, main after #338. It includes #331's split of the
+  SPEC-02 refusals test and six platform PRs merged after the last SPEC certification: #313, #322, #324, #325,
+  #333 and #341.
+- **Assembled selection.**
+  - **Scope.** 310 nodes in 64 groups, as Stephen accepted on 2026-10-06: the Phase 0 STORE packet (06s §12,
+    69 nodes), the Phase 1–4 packets (125) and the CI `contract-and-session-currency` list with
+    `test_schema_registry.py` (116).
+  - **Grouping.** A test that took 15 minutes or more runs alone. Other integration tests run in groups of at
+    most five tests and 30 minutes. Light unit and contract files run whole.
+  - **Result.** It ran from 02:00 on 2026-10-07 on 8 workers. Every node reconciled once against its JUnit
+    record: 309 passed, and 1 was the documented skip (the network probe
+    `test_neurips2024_exact_public_registration`). Nothing failed or errored, nothing was cut off, no run
+    needed the environment retry, and the tree was clean afterwards.
+  - **STORE pre-check.** At the same SHA the evening before, it passed 69/69. #320 fixed the 2026-10-02
+    failures in `test_current_binding.py` and `test_store_binding_service.py`.
+- **Budget: failed.**
+  - 13 groups ran over 60 minutes, and the packet took 5h00m58s.
+  - The worst was the complete SPEC-02 path at 166.6 minutes, against 54.0 in #331. Summed test time was
+    39.7 h, against 14.8 h for the same tests in #331.
+  - The STORE tests ran 2.4 times as long as the pre-check at the same SHA, so machine conditions and the
+    platform PRs were confounded.
+  - **A/B (2026-10-07, 07:52).** The public SPEC-01 path test ran at #331's certified `5d2a259c` and at
+    `e5179b57` side by side, under the same load: 356.0 s and 356.7 s. The platform PRs did not slow the
+    route. The breach was machine conditions during the window, whose source was not established, so the
+    tests' cost is unchanged. Before a certification window, the machine is checked for other heavy jobs.
+- **Boundary review.** A fresh-context Claude Code session reviewed the SHA in its own detached worktree, from
+  `reviews/06s-phase4c-boundary-review-brief-2026-10-06.md`. Its report is
+  `reviews/06s-phase4c-boundary-review-e5179b57-2026-10-07.md`. It found no authority, owner or paid-gate
+  bypass, no durable corruption or mispublication, and no replay divergence. Verdict: FAIL on one Blocking
+  finding. Stephen's dispositions:
+
+  | ID | Finding | Disposition |
+  |---|---|---|
+  | B-1 | The committed foundation names only the live store. `store init` refuses another root, and the SPEC CLI refuses a store the foundation does not name, so Phase 5 cannot create or address its fresh store. The re-pin is governed configuration, so the bound SHA cannot be `e5179b57`. The origin-witness digest must be pinned before `store init` writes it. Verified by reading `foundation.yaml`, `cli.py`, `config.py` and `identity.py` at the SHA. | Routed to Phase 5 prep: one fresh store, created once by an owner-authorized procedure. Step 1 binds the post-prep SHA after a delta assurance (06s Phase 5, 2026-10-07). |
+  | M-1 | Under #341, every Phase 5 invocation must run from one non-linked checkout outside the agent worktree directories, kept clean at the bound head. The foundation's `code_roots` lists agent worktrees. | Phase 5 prep: choose and freeze that checkout. |
+  | M-2 | The SOURCE registration's manifest copies its production references from the caller's intent, and nothing verifies them. | Phase 5 prep: derive them from the ledger and verify them, as for the operator records. A code change in its own certified PR. |
+  | m-1 | The SPEC-02 aliases (`return_spec_02`, `review_spec_02`) are not exposed, and no decision covered that. | Declined: the drop is confirmed, as 4a′ did for SPEC-01. |
+  | m-2 | The SPEC-02 approval binds the Spike plan by content, not by reference. | Known limit. |
+  | m-3 | `correct_spec_01_source` lacks project-use's governing-review pre-check, so it can stall. It fails closed, off the PARK path. | Known limit. |
+  | m-4 | An admission refusal of a time-free effect repeats for the same actor and grant. | Phase 5 runbook note: retry under a new grant. |
+  | i-1 | `spec_result.py`'s docstring says "the owner's use authority". | Wording fix at a later touch. |
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
