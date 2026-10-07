@@ -1053,6 +1053,173 @@ def context_packet_transition(args: argparse.Namespace) -> int:
     return 0
 
 
+_GRANT_REQUEST_FIELDS = frozenset(
+    {
+        "owner_actor_id",
+        "authority_grant_id",
+        "actor_id",
+        "allowed_actor_classes",
+        "command_types",
+        "subject_scope",
+        "risk_ceiling",
+        "effective_at",
+        "expires_at",
+        "decided_at",
+        "reason",
+    }
+)
+
+
+def _authority_activate_grant(args: argparse.Namespace) -> int:
+    """Activate one scoped command grant as the authority owner (P-058, 2026-10-07, census B-3).
+
+    ``ActivateAuthorityGrant`` admission verifies an owner administration decision that it loads from the
+    control store. Until now only internal code placed that decision. This command derives it from the
+    store's administration context and the requested grant, places it (idempotently: the same request
+    writes the same bytes), and submits the activation as the owner under the root grant. Admission is
+    unchanged, and nothing is written for a caller who is not the authority owner.
+    """
+    from research_system.authority import (
+        OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+        OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+        SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+    )
+    from research_system.ids import validate_id
+
+    binding = ControlBinding.load(args.config)
+    request = _read_json(args.request)
+    if set(request) != _GRANT_REQUEST_FIELDS:
+        raise ConfigurationError("authority grant request fields are not exact")
+    grant_id = validate_id(str(request["authority_grant_id"]), "authority_grant")
+    command_types = request["command_types"]
+    if not isinstance(command_types, list) or not command_types or len(set(command_types)) != len(command_types):
+        raise ConfigurationError("authority grant request command_types must be a non-empty unique list")
+    scope = request["subject_scope"]
+    if not isinstance(scope, dict) or scope.get("project_id") != binding.project_id:
+        raise ConfigurationError("authority grant request subject scope must name the bound project")
+    schemas = runtime_schema_registry(binding.schema_root)
+    resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    context = resolver.administration_context()
+    if request["owner_actor_id"] != context.owner_actor_id:
+        raise ConfigurationError("only the authority owner activates a grant")
+    allowed_commands = []
+    for command_type in command_types:
+        command_binding = schemas.command_binding(str(command_type))
+        if command_binding is None:
+            raise ConfigurationError(f"no active command binding for {command_type}")
+        identity = schemas.resolve_identity(command_binding.schema_id, command_binding.schema_version)
+        allowed_commands.append(
+            {
+                "command_type": command_type,
+                "schema_id": identity.schema_id,
+                "schema_version": identity.schema_version,
+                "schema_sha256": identity.sha256,
+            }
+        )
+    grant_schema = schemas.resolve_identity("ars://core/scoped-authority-grant", SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION)
+    grant = {
+        "schema_id": "ars://core/scoped-authority-grant",
+        "schema_version": SCOPED_AUTHORITY_GRANT_SCHEMA_VERSION,
+        "authority_grant_id": grant_id,
+        "actor_id": request["actor_id"],
+        "allowed_actor_classes": request["allowed_actor_classes"],
+        "allowed_commands": allowed_commands,
+        "allowed_policy_actions": [],
+        "subject_scope": scope,
+        "risk_ceiling": request["risk_ceiling"],
+        "effective_at": request["effective_at"],
+        "expires_at": request["expires_at"],
+        "delegable": False,
+        "revoked": False,
+    }
+    schemas.validate(grant["schema_id"], grant, schema_version=grant["schema_version"])
+    suffix = grant_id.split("_", 1)[1]
+    decision_id = f"arec_{suffix}"
+    decision = {
+        "schema_id": OWNER_AUTHORITY_DECISION_SCHEMA_ID,
+        "schema_version": OWNER_AUTHORITY_DECISION_SCHEMA_VERSION,
+        "record_id": decision_id,
+        "revision": 1,
+        "project_id": context.project_id,
+        "store_identity": context.store_identity,
+        "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+        "root_grant_id": context.root_grant_id,
+        "root_grant_sha256": context.root_grant_sha256,
+        "owner_actor_id": context.owner_actor_id,
+        "action": "activate_authority_grant",
+        "target_grant_id": grant_id,
+        "target_grant_sha256": sha256_hex(canonical_bytes(grant)),
+        "target_grant_schema_id": grant_schema.schema_id,
+        "target_grant_schema_version": grant_schema.schema_version,
+        "target_grant_schema_sha256": grant_schema.sha256,
+        "subject_scope": scope,
+        "effective_at": grant["effective_at"],
+        "expires_at": grant["expires_at"],
+        "one_time_use": True,
+        "state": "active",
+        "decided_at": request["decided_at"],
+    }
+    schemas.validate(
+        OWNER_AUTHORITY_DECISION_SCHEMA_ID, decision, schema_version=OWNER_AUTHORITY_DECISION_SCHEMA_VERSION
+    )
+    ObjectStore(binding.control_root).write("assurance_record", decision_id, 1, decision)
+    command = {
+        "command_id": f"cmd_{suffix}",
+        "command_type": "ActivateAuthorityGrant",
+        "schema_id": "ars://core/command/ActivateAuthorityGrant",
+        "schema_version": "1.1.0",
+        "submitted_at": request["decided_at"],
+        "actor_id": context.owner_actor_id,
+        "on_behalf_of_actor_id": None,
+        "authority_grant_id": context.root_grant_id,
+        "target_stream_id": grant_id,
+        "expected_stream_version": 0,
+        "idempotency_key": f"activate-authority-grant:{grant_id}",
+        "correlation_id": f"activate-authority-grant:{grant_id}",
+        "causation_id": None,
+        "reason": str(request["reason"]),
+        "evidence_refs": [decision_id],
+        "project_id": context.project_id,
+        "payload": {
+            "project_id": context.project_id,
+            "bootstrap_manifest_sha256": context.bootstrap_manifest_sha256,
+            "root_grant_id": context.root_grant_id,
+            "root_grant_sha256": context.root_grant_sha256,
+            "administration_decision_id": decision_id,
+            "administration_decision_sha256": sha256_hex(canonical_bytes(decision)),
+            "new_grant": grant,
+            "new_grant_sha256": sha256_hex(canonical_bytes(grant)),
+            "new_grant_schema_sha256": grant_schema.sha256,
+        },
+    }
+    receipt = CommandService(
+        binding.control_root,
+        EventLedger(binding.control_root, binding.project_id, schemas),
+        ObjectStore(binding.control_root),
+        ReceiptStore(binding.control_root),
+        schemas,
+        authority_resolver=resolver,
+        clock=_authority_clock,
+    ).submit(command)
+    _print_json(
+        {
+            "status": receipt.status,
+            "authority_grant_id": grant_id,
+            "grant_sha256": sha256_hex(canonical_bytes(grant)),
+            "administration_decision_id": decision_id,
+            "command_receipt": asdict(receipt),
+        }
+    )
+    return 0 if receipt.status == "accepted" else 1
+
+
 def _assurance_record_write(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
     record = _read_json(args.record)
@@ -2027,6 +2194,13 @@ def _parser() -> argparse.ArgumentParser:
         transition.add_argument("--authority-grant-id", required=True)
         transition.add_argument("--writer-id", required=True)
         transition.set_defaults(handler=context_packet_transition)
+
+    authority = groups.add_parser("authority")
+    authority_actions = authority.add_subparsers(dest="authority_action", required=True)
+    activate_grant = authority_actions.add_parser("activate-grant")
+    activate_grant.add_argument("--config", type=Path, required=True)
+    activate_grant.add_argument("--request", type=Path, required=True)
+    activate_grant.set_defaults(handler=_authority_activate_grant)
 
     assurance_record = groups.add_parser("assurance-record")
     assurance_record_actions = assurance_record.add_subparsers(dest="assurance_record_action", required=True)
