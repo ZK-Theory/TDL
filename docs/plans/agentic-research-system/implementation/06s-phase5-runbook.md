@@ -19,17 +19,20 @@ a live operation by itself (06s Phase 5).
    - **Merged:** PR-A (#348), PR-B (#349), PR-C (#352), PR-D (#350) and PR-G (#351).
    - **Certified:** one integrated packet at `b09813e6`, whose tree equals main `bbdcb068`. 606 of 607 passed,
      plus one opt-in skip (P-058, 2026-10-15).
-2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12):
+2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12). **Partly done
+   (2026-10-15):** the selection and the network probe passed and are recorded; the review is in progress
+   (P-058, "Delta assurance", 2026-10-15).
    - **The selection (Stephen, option A, 2026-10-15):** the 57 nodes of the 4c selection that the integrated
      packet did not run. The packet already ran the other 253 and every prep node at the same tree, and it
-     counts toward this selection.
-   - a recorded machine check before the window;
-   - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. It must confirm closed:
+     counts toward this selection. **Done:** 57 of 57 passed on M1, each reconciled once against JUnit.
+   - a recorded machine check before the window. **Done.**
+   - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. **In progress.** It must
+     confirm closed:
      - B-1, B-2 and B-3;
      - M-1 and M-2;
      - the SPEC-01 rule and bar.
-   - **The post-prep SHA, M1:** main once the prep close-out docs PR has merged. That PR changes
-     documentation only.
+   - **The post-prep SHA, M1:** `100730e0319ff975116fb1e18eb897f46d81a627`, main after #354, the prep close-out
+     docs PR. That PR changes documentation only.
 3. **A0: Stephen's decisions for the run:**
    - the owner actor ID and the actor plan (§1);
    - the authority bootstrap (§2);

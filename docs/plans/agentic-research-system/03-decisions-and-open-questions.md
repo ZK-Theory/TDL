@@ -2379,6 +2379,58 @@ tree is byte-identical to the certified PR-C head `b09813e6` (tree `6ec37ed1…`
   - **`test_observation_log_lint.py::test_reachability_reads_only_open_entries_and_skips_carried_hashes` is
     flaky.** It fails when a random 9-character hash prefix is all digits, about 1.5% of runs.
 
+**Delta assurance: the selection and the network probe passed on M1 (2026-10-15).** This is P5-12 under option
+A, KAN-110's exit. Recorded at Stephen's instruction. The fresh-context review is still running, so KAN-110 stays
+open.
+- **M1:** `100730e0319ff975116fb1e18eb897f46d81a627`, main after #354, recorded before the first write.
+  - Beyond `bbdcb068` it changes four Markdown files and nothing else, so the selection stands.
+  - It contains `bbdcb068` and `e5179b57`.
+- **The selection.**
+  - The handoff's `comm` recipe over the 4c and prep collect files re-derives the appendix's 57 lines byte for
+    byte.
+  - All 57 were collected at M1 (`57 tests collected`), an exact match with the appendix.
+- **The run.**
+  - **Setup.** The runner was `certify_delta.py`, a copy of `certify_prep.py` whose only change is its output
+    root. It ran in the linked worktree `C:/Users/steph/TDL-g6-p5` at M1, which was clean before and after.
+  - **The window.** Stephen authorized `--now`, waiving the 02:00–11:00 window. A runner already waiting for
+    that window was stopped before any group ran.
+  - **Execution.** The run began 13:54:14 and took 20 s on 8 workers, in 7 groups. Every group exited 0 and
+    executed all its nodes.
+  - **Result:** 57 passed.
+    - The JUnit reconciliation found 57 expected and 57 reported, none missing, unexpected or duplicated.
+    - Nothing failed, errored or was skipped.
+    - No group went over budget, nothing was cut off, no run needed the environment retry, and the tree was
+      clean after.
+- **Machine checks.**
+  - 13:45, before the window: 95.8% idle.
+  - At launch, by the runner: 84.4% idle, with one other agent session running.
+- **The network probe (Stephen agreed, 2026-10-15).**
+  - **Setup.** `test_spec_source.py::test_neurips2024_exact_public_registration` ran once with
+    `ARS_SOURCE_NETWORK_PROOF=1`, at exact M1 (the worktree was detached to M1 for it). It made a read-only
+    public Git fetch with no credentials, into a scratch store.
+  - **Result:** 1 passed in 114 s.
+    - `refs/tags/neurips2024` resolved to `145efcde673f1a1897eff250b77221d26c34c479`.
+    - The source's SHA-256 was `3eea9174db28f4dd5bcf4e622709280f25fd6bfe0843ff1fc2e1d1559401f9df` and its size
+      24,145,920 bytes.
+  - **Why it matters.** This probe was the one skip in both the 4c selection and the integrated prep packet. It
+    has now passed against the step 3 source.
+- **Evidence.** All under `C:/Users/steph/.codex/tmp/g6-p5/`:
+  - `delta-collect-100730e0.txt` (the node list);
+  - `certify_delta.py` and `certify_delta.diff`;
+  - `machine-check-prewindow-2026-10-15.json`;
+  - `delta-100730e0/`: `results.json`, the per-group JUnit and logs, `machine-check.json` and
+    `NOW-AUTHORIZATION.txt`;
+  - `probe-100730e0/`: `probe.xml`, `probe.log` and `AUTHORIZATION.txt`.
+- **Still open: the fresh-context review of `e5179b57..M1`.**
+  - The brief is `reviews/06s-phase5-delta-review-brief-2026-10-15.md`. Stephen dispatched the reviewer, and the
+    review is in progress.
+  - It must confirm closed:
+    - B-1, B-2 and B-3;
+    - M-1 and M-2;
+    - the SPEC-01 rule and bar.
+  - KAN-110 closes when Stephen records the review's disposition. Until then there is no successor binding and
+    no live step (runbook §0).
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
