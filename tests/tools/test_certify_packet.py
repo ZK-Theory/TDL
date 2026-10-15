@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -35,7 +36,8 @@ def _git(repo: Path, *args: str) -> str:
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """A repository with a guarded package and passing tests, committed on main."""
+    """A repository with a guarded package and passing tests, committed on main. It has no ``.gitignore``, so
+    anything the runner writes into it shows as dirt."""
     path = tmp_path / "subject"
     (path / "pkg").mkdir(parents=True)
     (path / "tests").mkdir()
@@ -58,7 +60,10 @@ def _collect(tmp_path: Path, nodes: list[str]) -> Path:
 
 
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(TOOL), *args], capture_output=True, text=True, check=False)
+    # A hosted runner leaves PYTHONDONTWRITEBYTECODE unset; a workstation that exports it hid the runner writing
+    # bytecode into its subject, so the runner gets the hosted runner's environment here.
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+    return subprocess.run([sys.executable, str(TOOL), *args], capture_output=True, text=True, check=False, env=env)
 
 
 def _head(repo: Path) -> str:
@@ -97,6 +102,30 @@ def test_a_dirty_tree_is_refused_at_launch(repo: Path, tmp_path: Path) -> None:
     result = _run("run", "--sha", _head(repo), "--worktree", str(repo), "--collect", str(collect),
                   "--out", str(tmp_path / "o"), "--dry-run")  # fmt: skip
     assert result.returncode != 0 and "not the clean SHA (at launch)" in result.stderr
+
+
+def test_the_runner_leaves_no_bytecode_in_its_subject(repo: Path, tmp_path: Path) -> None:
+    """Coverage collection wrote ``__pycache__/`` into the subject, so the next launch refused the runner's own
+    droppings (admission-controls, red on main after #362). Bytecode git does not ignore is still dirt."""
+    base = _head(repo)
+    (repo / "tests" / "test_b.py").write_text(PASSING, encoding="utf-8", newline="\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "touch test_b")
+    collect = _collect(tmp_path, ["tests/test_b.py::test_one", "tests/test_b.py::test_two"])
+    args = ["run", "--sha", _head(repo), "--worktree", str(repo), "--collect", str(collect), "--out",
+            str(tmp_path / "o"), "--base", base, "--dry-run"]  # fmt: skip
+    first = _run(*args)
+    assert first.returncode == 0, first.stderr
+    assert '"required_nodes": 2' in first.stdout, "the collection ran, so it had the chance to write bytecode"
+    assert _git(repo, "status", "--porcelain", "--ignored") == "", "the runner left nothing, not even ignored files"
+    again = _run(*args)
+    assert again.returncode == 0, again.stderr
+
+    (repo / "tests" / "__pycache__").mkdir()
+    (repo / "tests" / "__pycache__" / "test_b.cpython-313.pyc").write_bytes(b"stale")
+    refused = _run(*args)
+    assert refused.returncode != 0 and "not the clean SHA (at launch)" in refused.stderr
+    assert "tests/__pycache__/" in refused.stderr
 
 
 def test_another_sha_is_refused_at_launch(repo: Path, tmp_path: Path) -> None:

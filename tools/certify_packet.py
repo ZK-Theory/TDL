@@ -104,13 +104,20 @@ def assert_clean_subject(worktree: Path, sha: str, when: str) -> None:
 # --- contract 1: the selection covers what the diff can affect -----------------------------------------------
 
 
+def no_bytecode() -> dict[str, str]:
+    """The environment for every Python the runner starts in the subject: it must not write into the tree it
+    certifies. Collection once wrote ``__pycache__/`` there, and the next launch refused its own droppings
+    wherever git did not ignore them (a hosted runner, which leaves ``PYTHONDONTWRITEBYTECODE`` unset)."""
+    return {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+
+
 def collect_nodes(worktree: Path, files: list[str]) -> list[str]:
     if not files:
         return []
     done = subprocess.run(
-        [str(worktree_python(worktree)), "-m", "pytest", "--collect-only", "-q", "-o", "addopts=",
+        [str(worktree_python(worktree)), "-B", "-m", "pytest", "--collect-only", "-q", "-o", "addopts=",
          "-p", "no:cacheprovider", "-p", "no:cov", *files],
-        cwd=worktree, capture_output=True, text=True, check=False,
+        cwd=worktree, capture_output=True, text=True, check=False, env=no_bytecode(),
     )  # fmt: skip
     return [line.strip() for line in done.stdout.splitlines() if "::" in line and not line.startswith(" ")]
 
@@ -123,8 +130,8 @@ def required_selection(worktree: Path, base: str) -> tuple[list[str], list[str]]
     affected: list[str] = []
     if selector.exists():
         done = subprocess.run(
-            [str(worktree_python(worktree)), str(selector), "--base", base],
-            cwd=worktree, capture_output=True, text=True, check=True,
+            [str(worktree_python(worktree)), "-B", str(selector), "--base", base],
+            cwd=worktree, capture_output=True, text=True, check=True, env=no_bytecode(),
         )  # fmt: skip
         affected = sorted(line.strip() for line in done.stdout.splitlines() if line.strip())
     return touched, affected
@@ -214,7 +221,7 @@ class Packet:
         cut_off = False
         with log.open("w", encoding="utf-8") as handle:
             process = subprocess.Popen(args, cwd=self.worktree, stdout=handle, stderr=subprocess.STDOUT,
-                                       env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})  # fmt: skip
+                                       env=no_bytecode())  # fmt: skip
             (self.out / f"{label}.started.json").write_text(json.dumps({"pid": process.pid, "started": started}))
             while process.poll() is None:
                 if self.stopping.is_set():
@@ -374,7 +381,7 @@ def run_control(worktree: Path, control: dict, out: Path) -> dict:
         done = subprocess.run(
             [str(worktree_python(worktree)), "-B", "-m", "pytest", "-o", "addopts=", "-p", "no:cacheprovider",
              "-p", "no:cov", "--tb=short", *control["tests"]],
-            cwd=worktree, capture_output=True, text=True, check=False,
+            cwd=worktree, capture_output=True, text=True, check=False, env=no_bytecode(),
         )  # fmt: skip
     finally:
         path.write_bytes(original)
