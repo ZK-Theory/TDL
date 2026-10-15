@@ -420,3 +420,89 @@ def test_a_command_that_only_mentions_the_override_is_not_refused(command: str, 
     Obs 2026-09-30-system-review-prs-stopping-rule-follow-ups (PR #300).
     """
     assert _pre(command, repo) == "allow"
+
+
+# --- the primary checkout keeps its HEAD ----------------------------------------------------
+# Obs 2026-10-06-read-command-carried-a-checkout-into-the-primary-checkout: a read pipeline carried
+# `git checkout --detach` into the primary checkout, which other sessions share and which stays on main.
+
+
+@pytest.fixture
+def primary(tmp_path: Path) -> tuple[Path, Path]:
+    """A primary checkout on ``main`` (with a ``feature`` branch) and a linked worktree of it."""
+    path = tmp_path / "primary"
+    path.mkdir()
+    _git(path, "init", "-q", "-b", "main")
+    _git(path, "config", "user.email", "hook-test@example.invalid")
+    _git(path, "config", "user.name", "Hook Test")
+    (path / "a.txt").write_text("a\n", encoding="utf-8", newline="\n")
+    _git(path, "add", "a.txt")
+    _git(path, "commit", "-q", "--no-verify", "-m", "seed")
+    _git(path, "branch", "feature")
+    linked = tmp_path / "linked"
+    _git(path, "worktree", "add", "-q", "-b", "side", str(linked))
+    return path, linked
+
+
+PRIMARY_MOVES = [
+    "git checkout -q --detach",
+    "git show HEAD:a.txt > /dev/null && git checkout -q --detach",
+    "git checkout feature",
+    "git switch feature",
+    "git switch -c new-work",
+    "git reset --hard HEAD~0",
+    "git reset feature",
+    "git rebase feature",
+]
+
+PRIMARY_NON_MOVES = [
+    "git checkout -- a.txt",
+    "git checkout a.txt",
+    "git reset",
+    "git reset HEAD a.txt",
+    "git rebase --abort",
+    "git switch main",
+    "git status",
+    "git merge --ff-only feature",
+]
+
+
+@pytest.mark.parametrize("command", PRIMARY_MOVES)
+def test_a_head_move_in_the_primary_checkout_on_main_is_refused(command: str, primary: tuple[Path, Path]) -> None:
+    path, _ = primary
+    assert _pre(command, path) == "deny"
+    assert _git(path, "branch", "--show-current").strip() == "main"
+
+
+@pytest.mark.parametrize("command", PRIMARY_NON_MOVES)
+def test_reads_restores_and_merges_in_the_primary_checkout_are_allowed(
+    command: str, primary: tuple[Path, Path]
+) -> None:
+    path, _ = primary
+    assert _pre(command, path) == "allow"
+
+
+@pytest.mark.parametrize("command", PRIMARY_MOVES)
+def test_the_same_moves_in_a_linked_worktree_are_allowed(command: str, primary: tuple[Path, Path]) -> None:
+    _, linked = primary
+    assert _pre(command, linked) == "allow"
+
+
+def test_a_move_reaching_the_primary_checkout_through_dash_c_is_refused(
+    primary: tuple[Path, Path], tmp_path: Path
+) -> None:
+    path, _ = primary
+    assert _pre(f'git -C "{path}" checkout -q --detach', tmp_path) == "deny"
+
+
+def test_the_primary_checkout_off_main_is_not_guarded(primary: tuple[Path, Path]) -> None:
+    path, _ = primary
+    _git(path, "switch", "-q", "feature")
+    assert _pre("git switch main", path) == "allow"
+    assert _pre("git checkout -q --detach", path) == "allow"
+
+
+def test_the_explicit_override_admits_an_intended_move(primary: tuple[Path, Path]) -> None:
+    path, _ = primary
+    assert _pre("TDL_ALLOW_PRIMARY_MOVE=1 git checkout -q --detach", path) == "allow"
+    assert _pre("TDL_ALLOW_PRIMARY_MOVE=0 git checkout -q --detach", path) == "deny"
