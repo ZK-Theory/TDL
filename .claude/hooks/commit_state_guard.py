@@ -99,6 +99,15 @@ BACKGROUND_REASON = (
     "outcome (pipefail does not help). Run it in the foreground, or use the tool's own background "
     "option and confirm with `git log -1` that HEAD moved."
 )
+# The primary checkout stays on main for merges, and other sessions share it (CLAUDE.md, Version control). A
+# read pipeline once carried `git checkout --detach` into it, with another session's change staged
+# (obs 2026-10-06-read-command-carried-a-checkout-into-the-primary-checkout). A slip is not a decision,
+# so prose asking for care does not stop it.
+PRIMARY_MOVERS = {"checkout", "switch", "reset", "rebase"}
+PRIMARY_BRANCHES = {"main", "master"}
+PRIMARY_OVERRIDE = "TDL_ALLOW_PRIMARY_MOVE=1"
+REBASE_IN_PROGRESS = {"--abort", "--continue", "--skip", "--quit", "--edit-todo", "--show-current-patch"}
+RESET_MODES = {"--hard", "--soft", "--mixed", "--keep", "--merge"}
 OVERRIDE_REASON = (
     "TDL_ALLOW_MAIN_COMMIT is the owner's exception to the pre-commit refusal of commits on main, "
     "for use from the owner's own terminal. An agent does not set it: work reaches main through a "
@@ -398,6 +407,55 @@ def gated_by_move(parsed: list[Statement], calls: list[GitCall], commit: GitCall
     return False
 
 
+def moves_head(call: GitCall, current: str) -> bool:
+    """Whether a checkout/switch/reset/rebase would move HEAD or the current branch's tip.
+
+    Restoring paths (``checkout -- f``, ``reset HEAD f``), unstaging (a bare ``reset``), continuing or
+    aborting a rebase, and switching to the branch already checked out move nothing.
+    """
+    operands = [a for a in call.args if not a.startswith("-")]
+    if call.subcommand in BRANCH_MOVERS:
+        creating = any(a in ("-b", "-B", "-c", "-C", "--orphan", "--detach") for a in call.args)
+        if not creating and operands == [current]:
+            return False
+        return moves_branch(call)
+    if call.subcommand == "rebase":
+        return not set(call.args) & REBASE_IN_PROGRESS
+    if call.subcommand == "reset":
+        if set(call.args) & RESET_MODES:
+            return True
+        if "--" in call.args or len(operands) != 1 or operands[0] == "HEAD":
+            return False
+        return any(
+            git(directory, "rev-parse", "--verify", "--quiet", f"{operands[0]}^{{commit}}").returncode == 0
+            for directory in call.directories
+            if Path(directory).is_dir()
+        )
+    return False
+
+
+def primary_branch(directory: str) -> str | None:
+    """The branch of ``directory`` when it is a primary (non-linked) checkout on main/master, else None."""
+    if not Path(directory).is_dir():
+        return None
+    git_dir = git(directory, "rev-parse", "--absolute-git-dir")
+    common = git(directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if git_dir.returncode != 0 or common.returncode != 0:
+        return None
+    if Path(git_dir.stdout.strip()).resolve() != Path(common.stdout.strip()).resolve():
+        return None  # a linked worktree: moving its HEAD is that worktree's business
+    head = git(directory, "symbolic-ref", "-q", "--short", "HEAD")
+    branch = head.stdout.strip() if head.returncode == 0 else ""
+    return branch if branch in PRIMARY_BRANCHES else None
+
+
+def primary_move_overridden(parsed: list[Statement], call: GitCall) -> bool:
+    """Whether the git call's own segment is prefixed ``TDL_ALLOW_PRIMARY_MOVE=1``."""
+    segment = parsed[call.statement].segments[call.segment]
+    words, _ = _strip_prefixes(segment)
+    return PRIMARY_OVERRIDE in segment[: len(segment) - len(words)]
+
+
 def git(directory: str, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", directory, *args], capture_output=True, text=True, encoding="utf-8", timeout=15, check=False
@@ -470,6 +528,21 @@ def decide(payload: dict) -> dict | None:
         return emit("deny", OVERRIDE_REASON)
     if any(bypasses_hooks(call) for call in calls):
         return emit("deny", NO_VERIFY_REASON)
+
+    for call in calls:
+        if call.subcommand not in PRIMARY_MOVERS or primary_move_overridden(parsed, call):
+            continue
+        for directory in call.directories:
+            branch = primary_branch(directory)
+            if branch and moves_head(call, branch):
+                return emit(
+                    "deny",
+                    f"{directory} is the primary checkout and is on '{branch}'; `git {call.subcommand}` here "
+                    "would move its HEAD or branch tip, under any other session sharing it "
+                    "(obs 2026-10-06-read-command-carried-a-checkout-into-the-primary-checkout). Read with "
+                    "`git show <ref>:<path>` or work in a linked worktree (`git worktree add`). If this move "
+                    f"is intended, prefix the git command with {PRIMARY_OVERRIDE}.",
+                )
 
     commits = [call for call in calls if call.subcommand == "commit"]
     if not commits:
