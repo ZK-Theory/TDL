@@ -2292,6 +2292,93 @@ scratch store created by the P5-1 procedure.
 - **Phase 5 step 3:** create the SPEC-01 Task naming the derived Candidate ID and start its Attempt before
   `observe_source`. Keep it running until the operator return is registered.
 
+**Prep construction complete (2026-10-15).** Every construction PR is merged. Main is `bbdcb068` (#352), and its
+tree is byte-identical to the certified PR-C head `b09813e6` (tree `6ec37ed1…`).
+- **Merged.**
+
+  | PR | Scope | Merged as | Head |
+  |---|---|---|---|
+  | #348 | PR-A: `store reserve` and the first binding (P5-1, P5-3) | `e0bf729b` | `b25fa64b` |
+  | #349 | PR-B: SOURCE provenance (M-2, P5-7 amended) | `29e56afe` | `28e89dc4` |
+  | #350 | PR-D: `adopt_default` (P5-10) | `570c66f3` | `8061a9f7` |
+  | #351 | PR-G: `ars authority activate-grant` (B-3) | `968746ce` | `dcc035bf` |
+  | #352 | PR-C: SPEC-01's bar and rule (P5-8, P5-9) | `bbdcb068` | `b09813e6` |
+  | #353 | the Phase 5 runbook | `15776b9e` | `f790f84f` |
+
+  Stephen merged #348 to #351 on 2026-10-07, after review. #352 followed once its review fix was in.
+- **What changed during review, by PR.**
+  - **PR-B.**
+    - CI found four regressions; the full local runs found three more:
+      - an import cycle (`spec_source` imported the replay layer that imports it);
+      - three `test_spec_assay` tests: a Task-amendment helper had dropped the seeded Task's `portfolio_refs`,
+        and the "no Task naming the Candidate" refusal had become unreachable (it moved to its own test);
+      - three `test_spec_source` tests that advanced SOURCE without seeding the Task.
+    - Fixed in `98fcebea`. `1966f62d` then kept the correction's prior-registration refusal ahead of the new
+      check.
+    - CodeRabbit's finding (`28e89dc4`): every link of a SOURCE lineage must cite the production Task. A
+      correction under one Task can no longer carry another Task's observation, or its Candidate, into this
+      Task.
+  - **PR-C.**
+    - "Neither score zero" is held at function level (`ae7f62a1`). On the bounded [0,3] axes the clause changes
+      no admissible outcome, and mutation control c2 showed it.
+    - CodeRabbit's finding (`b09813e6`): the decide-time PROMOTE guard is decided on the frozen rubric the
+      scorecard binds, using admission's own predicate (ID, version and descriptor hash). The scorecard's rule
+      reference carries no version.
+  - **PR-G.** CodeRabbit's two findings (`dcc035bf`):
+    - `authority` refusals go through the CLI's error handler (exit 1);
+    - grant-scope validation and the decision's time checks now run before the owner decision is written. A
+      request that fails either check is refused with nothing written, where before admission refused it only
+      after the decision was stored;
+    - a changed request under a used grant ID is refused with "needs a new authority_grant_id" (the m-4 rule).
+      No rollback was added.
+- **Mutation controls.** All hold, each re-checked for the intended failure reason:
+  - PR-A: c1 to c5, at `515b3766`; the merged head adds only this record;
+  - PR-B: b1 to b4, at `28e89dc4`;
+  - PR-C: c1 to c4, at `b09813e6`;
+  - PR-D: d1, at `8061a9f7`;
+  - PR-G: g1 to g4, at `dcc035bf`.
+- **Certification, and how it departed from P5-12.**
+  - **The departure.** P5-12 certified each prep PR with its own packet. Four PRs merged before their packets
+    ran, so one integrated packet replaced the five. It ran at `b09813e6`, which equals main `bbdcb068`.
+  - **The selection, 607 nodes.** It is the union of the five per-PR selections, rebuilt from each PR's diff,
+    plus every test file the prep changed and the discovery architecture tests.
+    - The diff rebuild was needed because PR-B's hand-picked selection had held none of the tests CI later
+      found failing.
+  - **The result.**
+    - 606 passed and 1 skipped, the opt-in network probe `test_neurips2024_exact_public_registration`.
+    - The JUnit reconciliation found every node once. The tree was clean after.
+  - **Runs.**
+    - 2026-10-08 02:10–04:04: stopped by Stephen.
+    - 2026-10-15 07:53–08:36: resumed.
+    - 08:38–09:02, with `--now` by Stephen's decision: a re-run of the 8 groups the stop had left with
+      interrupted results.
+    - The machine check was recorded before the 2026-10-15 run.
+  - **Budget.** No run exceeded the 5-hour packet budget. One group exceeded 60 minutes:
+    `p14-spec_spike_outcome-2`, at 69.7 min on 2026-10-08. Its test passed.
+  - **Evidence.** `C:/Users/steph/.codex/tmp/g6-p5prep/prep-b09813e6/`.
+- **Not yet done: the delta assurance (P5-12, KAN-110 exit).**
+  - **The selection.** 253 of the 4c selection's 310 nodes already passed at this tree in the integrated packet.
+    57 did not run: mostly WP6.4 session-exchange contracts, 06i stage-A contracts and workflow-liveness
+    tools tests.
+  - **The fresh-context review** of `e5179b57`..post-prep has not run.
+- **Decisions (Stephen, 2026-10-15).**
+  1. **PR-B's naming rule is confirmed.** It refines the amended P5-7. That wording said the Task names "no
+     registered Candidate other than the one this observation derives", but a revisit observation under the same
+     Task derives its own Candidate. So the rule is: the SPEC-01 Task may name only Candidates that SOURCE
+     observations citing this Task derive, and each lineage stays under this Task.
+  2. **Delta assurance selection, option A.** The integrated packet counts toward the delta assurance's
+     selection. The delta assurance re-runs only the 57 nodes of the 4c selection that the packet did not run.
+     - It runs on M1, the post-prep main SHA, with JUnit reconciliation and a recorded machine check.
+     - All 57 node IDs were confirmed to exist at `bbdcb068`.
+     - The fresh-context review of `e5179b57..M1` is still required.
+- **Outside prep, recorded for the Phase 5 thread.**
+  - **The CI suite lane is red on main.** The 2026-10-07 nightly had 135 failures outside the 3-entry
+    known-failures list. About 87 are the S-014 physical preflight in the release-publication tests, which pass
+    locally (CI-runner-specific). They are not prep regressions: every PR's failures were a subset of the
+    nightly's, except PR-B's.
+  - **`test_observation_log_lint.py::test_reachability_reads_only_open_entries_and_skips_carried_hashes` is
+    flaky.** It fails when a random 9-character hash prefix is all digits, about 1.5% of runs.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
