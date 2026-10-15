@@ -19,15 +19,15 @@ a live operation by itself (06s Phase 5).
    - **Merged:** PR-A (#348), PR-B (#349), PR-C (#352), PR-D (#350) and PR-G (#351).
    - **Certified:** one integrated packet at `b09813e6`, whose tree equals main `bbdcb068`. 606 of 607 passed,
      plus one opt-in skip (P-058, 2026-10-15).
-2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12). **Partly done
-   (2026-10-15):** the selection and the network probe passed and are recorded; the review is in progress
-   (P-058, "Delta assurance", 2026-10-15).
+2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12). **Done
+   (2026-10-15):** the selection, the network probe and the review passed. Stephen recorded the dispositions
+   and KAN-110's exit (P-058, "Delta assurance complete", 2026-10-15).
    - **The selection (Stephen, option A, 2026-10-15):** the 57 nodes of the 4c selection that the integrated
      packet did not run. The packet already ran the other 253 and every prep node at the same tree, and it
      counts toward this selection. **Done:** 57 of 57 passed on M1, each reconciled once against JUnit.
    - a recorded machine check before the window. **Done.**
-   - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. **In progress.** It must
-     confirm closed:
+   - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. **Done: PASS**, with two Minor
+     residuals, m-1 and m-2, handled in §3 and §4 below. It had to confirm closed:
      - B-1, B-2 and B-3;
      - M-1 and M-2;
      - the SPEC-01 rule and bar.
@@ -81,6 +81,19 @@ agent session, and its actor ID is recorded in that session's operator config (P
 All `ars` commands run from the durable checkout as
 `C:/Users/steph/TDL-ARS-G6-Checkout/.venv/Scripts/python.exe -m research_system.cli …`, written `ars` below.
 
+**Where files go** (delta review m-2, Stephen, 2026-10-15). Nothing is written inside the durable checkout.
+- **Operator files.** Every operator-supplied file lives in the run's evidence folder, outside the checkout.
+  - **Which files:** `<bootstrap.json>`, `<foundation.yaml>` (`--foundation-output`), the binding intents, the
+    operator configs, the grant requests and every SPEC input.
+  - **Why:** an untracked file in the checkout makes the L7 binding, and every later binding load, refuse. A
+    `--foundation-output` aimed at the checkout's own `foundation.yaml` is refused only after the reservation
+    has been written.
+- **PR-F (L4)** is authored in a fresh worktree of the primary repository `C:/Users/steph/TDL`, never in the
+  durable checkout. A commit made in the checkout would make its `main` diverge from the merged M2, and L6's
+  fast-forward would fail.
+- **Check before L7:** `git -C C:/Users/steph/TDL-ARS-G6-Checkout status --porcelain=v1 --untracked-files=all`
+  prints nothing.
+
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
 | L1 | A1 | `git clone https://github.com/ZK-Theory/TDL.git C:/Users/steph/TDL-ARS-G6-Checkout`; set local `main` to the post-prep SHA `M1`; `uv sync --locked`. | Not linked (`.git` is a directory); clean; `git worktree list` shows one entry; `main` at `M1`. |
@@ -117,6 +130,8 @@ Each operation is one owner-authorized batch. Each grant is activated just befor
      - readiness, dispatch, the resource grant and lease;
      - `CreateAttempt`, `ClaimAttempt`, `StartAttempt`, with `code_identity` `git:sha1:<M2>` and the checkout's
        environment fingerprint.
+   - **Verify before `observe_source`** (delta review m-1). The Task's `portfolio_refs` include
+     `source_ids(...)["candidate_id"]` for this intent. The route does not check this, so the procedure must.
    - **Hold it.** Do not amend the Task, and keep the Attempt running until the operator return is
      registered.
 5. **The source:** `observe_source` for `https://github.com/berenslab/eff-ph.git` at `neurips2024`. Its
@@ -170,5 +185,11 @@ under it.
   The brief and route-package references are protected by the binding.
 - **What the evidence cannot show:** the producer profile, branch, worktree and accepted scope in a SOURCE
   manifest stay caller strings.
+- **One Task from SOURCE to closure is held by procedure** (delta review m-1). The route does not require the
+  SOURCE production Task to name the derived Candidate. Step 4's verify line holds it.
+- **The initial-root store's first end-to-end exercise is the live run** (delta review i-4). No test writes a
+  SPEC record, or runs backup or verify-restore, on an initial-root store. Watch steps 3 and 5.
+- **An `activate-grant` admission refusal on other grounds leaves an inert owner decision** (delta review i-1,
+  PR-G).
 - **Inherited limits:** the OR-006 context fields, the fixed OR-106 review context, and the approving-only
   outcome review (P-058).

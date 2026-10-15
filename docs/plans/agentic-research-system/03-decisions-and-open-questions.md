@@ -2431,6 +2431,44 @@ open.
   - KAN-110 closes when Stephen records the review's disposition. Until then there is no successor binding and
     no live step (runbook §0).
 
+**Delta assurance complete: the review passed, the dispositions, and KAN-110's exit (Stephen, 2026-10-15).**
+- **The review.**
+  - **Verdict:** PASS at `100730e0` against `e5179b57`, with no Blocking finding.
+  - **Who and how:** a fresh-context reviewer, working from the brief in a detached worktree at M1.
+  - **The report:** `reviews/06s-phase5-delta-review-e5179b57-100730e0-2026-10-15.md` (source sha256
+    `999b2800…`).
+- **Closure.**
+  - **B-1, B-2, B-3:** closed. B-1 is closed as a mechanism. The re-pin itself lands as PR-F, and L5 re-assures
+    M2.
+  - **The SPEC-01 rule and bar:** closed. The reviewer recomputed the truth table over the committed rubric:
+    4,096 cases, 0 mismatches.
+  - **M-1:** closed with residual m-2.
+  - **M-2:** closed with residual m-1.
+- **The executor's check.** Before this disposition, the executor confirmed both residuals at M1:
+  - `spec_source.py`'s naming check does not require the Task to name the derived Candidate;
+  - the runbook gave no location for operator files or for PR-F.
+- **Dispositions (Stephen).**
+
+  | ID | Finding | Disposition |
+  |---|---|---|
+  | m-1 (Minor) | The route does not require the SOURCE production Task to name the Candidate the observation derives, so "one Task spans SOURCE to closure" is held by procedure. The reviewer reproduced steps 1 and 2. No record is false. | **Known limit.** Runbook §4 step 4 gains a verify line: before `observe_source`, the Task's `portfolio_refs` include `source_ids(...)["candidate_id"]`. No code change, so no M3. |
+  | m-2 (Minor) | The runbook fixed no location for operator-supplied files or for authoring PR-F. A file inside the durable checkout makes the L7 binding refuse. PR-F authored there breaks L6's fast-forward. All cases fail closed. | **Fixed before L3**, as runbook text (§3): every operator file lives in the run's evidence folder, outside the checkout; PR-F is authored in a worktree of the primary repository. |
+  | i-1 (Info) | An admission refusal of `activate-grant` on grounds other than scope or time leaves an inert owner decision. | **Known limit**, already recorded in PR-G. |
+  | i-2 (Info) | `activate-grant` takes the owner from the request and a `ControlBinding`: the local trust model of P-042. | **Declined:** no new bypass. |
+  | i-3 (Info) | The 06h census runtime-binding digest moved to `f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7` (261 rows; `RepairStoreBinding` 1.0.0 → 1.1.0) without an explicit acceptance line. | **Accepted by Stephen (2026-10-15)**, as P-059 did for its pins. |
+  | i-4 (Info) | No test writes a SPEC record, or runs backup or verify-restore, on an initial-root store. Two refusals are tested through a monkeypatch or the service rather than the CLI. | **Known limit.** Steps 3 and 5 are the first end-to-end exercise, so watch them. |
+  | i-5 (Info) | The owner may resolve PARK or KILL against the mechanical result; admission gates only PROMOTE. | **Declined:** owner discretion, unchanged from 4c. |
+
+- **Coverage: accepted as reported.** The reviewer declared these unexamined:
+  - the evidence-scope content's rows (their methodological content was Stephen's PR-C review);
+  - the delivery replan §3 to §5.0;
+  - the PR descriptions of #348 to #352 beyond P-058's summary.
+- **KAN-110's exit.**
+  - **Recorded.** The delta assurance (P5-12) is complete: the 57-node selection, the network probe and the
+    review all passed, and the dispositions above are recorded.
+  - **Next:** A0, Stephen's decisions for the run (runbook §0.3).
+  - **Still gated:** no live step runs without its own authorization. The successor binding waits for L7.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
