@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.3.1"
+  version: "1.4.0"
   tier: core
   lanes: []
   roles:
@@ -85,6 +85,15 @@ Capability status: <INCOMPLETE - exact functional gap | INTEGRATED>
   provenance-tracked compute only.
 
 Trim entries that cannot apply to the next session; add task-specific ones.
+
+When the next session runs a windowed certification (a runner that checks
+"HEAD == SHA and a clean tree" at an unattended start time) and also owes docs
+or evidence commits, name two locations: a frozen run worktree at the subject
+SHA that nothing commits to, and a separate docs branch or worktree. One
+worktree cannot be both frozen and written to. A brief committed there first
+makes the 02:00 run refuse with "not the clean SHA" while nobody is watching
+(obs 2026-10-15-handoff-one-worktree-conflicts-with-clean-sha-runner).
+`tools/certify_packet.py` also checks cleanliness at launch.
 
 ## Dispatch Safety
 
