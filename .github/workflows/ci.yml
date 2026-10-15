@@ -139,9 +139,12 @@ jobs:
       contents: read
 
     steps:
+      # Full history and tags: test_check_pinned_commits.py proves every commit an accepted record under
+      # .research-system/ pins is fetchable from the remote, which a shallow clone cannot show.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python 3.13
@@ -183,6 +186,7 @@ jobs:
           tests/tools/test_review_staleness.py
           tests/tools/test_observation_log_lint.py
           tests/tools/test_retired_imperatives.py
+          tests/tools/test_check_pinned_commits.py
           --junitxml=admission-controls.xml
           -o "addopts=" -p no:cacheprovider -p no:cov
 

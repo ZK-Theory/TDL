@@ -10,6 +10,7 @@ a handoff's "every item is accounted for" was assembled by hand and was wrong by
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -375,3 +376,51 @@ def test_a_hash_that_is_not_a_commit_here_is_counted_not_dropped(tmp_path: Path)
     )
     assert result.returncode == 0, result.stderr
     assert "0 commit hash(es) checked, 0 stranded; 2 not a commit in this repository" in result.stdout
+
+
+def test_a_commit_published_only_by_a_remote_tag_is_delivered(tmp_path: Path) -> None:
+    """A tag the remote has delivers a commit; a tag only this machine has does not.
+
+    Obs 2026-10-15-accepted-contracts-pin-commits-on-local-only-branches: the stranded review commits were
+    published as tags, so tags must count, but only tags the remote actually holds.
+    """
+    clone, _, stranded = _repo_with_a_stranded_commit(tmp_path)
+    log = _obs("a", f"OPEN — pinned review commit `{stranded[:9]}`.")
+    _git(clone, "tag", "pin/review", stranded)
+    assert _run(tmp_path, log, "--reachability", str(clone)).returncode == 1
+    _git(clone, "push", "-q", "origin", "pin/review")
+    result = _run(tmp_path, log, "--reachability", str(clone))
+    assert result.returncode == 0, result.stderr
+    assert "1 commit hash(es) checked, 0 stranded" in result.stdout
+
+
+def _states(tmp_path: Path, states: dict[str, str]) -> str:
+    path = tmp_path / "states.json"
+    path.write_text(json.dumps(states), encoding="utf-8")
+    return str(path)
+
+
+def test_a_met_close_condition_is_reported(tmp_path: Path) -> None:
+    """Obs 2026-10-15-close-conditions-met-but-entries-left-open: six entries outlived their merged PRs by nine days."""
+    log = (
+        _obs("a", "OPEN", "**Progress:** fix in PR #333; rule in PR #340. Close when both merge.\n")
+        + _obs("b", "OPEN", "**Progress:** in PR #341. Close when #341 merges.\n")
+        + _obs("c", "OPEN", "**Progress:** in PR #329. Close when the lane is required.\n")
+    )
+    states = _states(tmp_path, {"333": "MERGED", "340": "MERGED", "341": "OPEN", "329": "MERGED"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert result.returncode == 1
+    assert "a: close condition met (#333, #340 merged)" in result.stderr
+    assert "b: close condition met" not in result.stderr, "an open PR leaves the condition unmet"
+    assert "c: close condition met" not in result.stderr, "a condition naming no PR is not judged"
+    assert "close conditions: 2 naming PRs checked, 1 met; 1 name no PR" in result.stdout
+
+
+def test_close_conditions_skip_closed_entries_and_unbuilt_slices(tmp_path: Path) -> None:
+    log = _obs("a", "ACTIONED — PR #341 merged as `d4d5aa00`.", "Close when #341 merges.\n") + _obs(
+        "b", "OPEN", "**Progress:** decided in PR #342. Limb 2 closes when that slice merges.\n"
+    )
+    states = _states(tmp_path, {"341": "MERGED", "342": "MERGED"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert result.returncode == 0, result.stderr
+    assert "close conditions: 0 naming PRs checked, 0 met; 1 name no PR" in result.stdout

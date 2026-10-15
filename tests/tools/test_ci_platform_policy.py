@@ -8,6 +8,7 @@ a platform gate still pointed at a job that no longer exists or runs elsewhere.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -195,6 +196,7 @@ ADMISSION_CONTROL_MODULES = (
     # the retired-plan gate that pre-commit Gate 2 runs.
     "tests/tools/test_observation_log_lint.py",
     "tests/tools/test_retired_imperatives.py",
+    "tests/tools/test_check_pinned_commits.py",
 )
 
 
@@ -207,6 +209,19 @@ def test_admission_controls_run_in_a_blocking_windows_job() -> None:
     scripts = " ".join(step.get("run", "") for step in job["steps"])
     for module in ADMISSION_CONTROL_MODULES:
         assert module in scripts, f"admission-controls does not run {module}"
+
+
+def test_admission_controls_check_out_full_history_for_the_pin_check() -> None:
+    """The pinned-commit control reads every pinned commit and the remote's tags; a shallow clone hides both.
+
+    Obs 2026-10-15-accepted-contracts-pin-commits-on-local-only-branches.
+    """
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"]["admission-controls"]
+    assert _checks_out_full_history(job)
+    shallow = copy.deepcopy(job)
+    checkout = next(step for step in shallow["steps"] if step.get("uses", "").startswith("actions/checkout@"))
+    del checkout["with"]["fetch-depth"]
+    assert not _checks_out_full_history(shallow), "negative control: the same job without fetch-depth must fail"
 
 
 def test_admission_controls_refuse_skipped_or_absent_controls() -> None:
