@@ -50,9 +50,9 @@ def test_no_job_runs_on_linux(path: Path) -> None:
     for name, job in _load(path)["jobs"].items():
         runs_on = job.get("runs-on")
         labels = runs_on if isinstance(runs_on, list) else [runs_on]
-        assert labels and all(
-            isinstance(label, str) and label.startswith("windows") for label in labels
-        ), f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        assert labels and all(isinstance(label, str) and label.startswith("windows") for label in labels), (
+            f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        )
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
@@ -123,9 +123,9 @@ def test_research_system_job_discovery_is_not_vacuous() -> None:
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
 def test_research_system_test_jobs_check_out_full_history(path: Path) -> None:
     """Every job that runs research_system tests has the history those tests read."""
-    assert (
-        _shallow_research_system_jobs(_load(path)) == []
-    ), f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    assert _shallow_research_system_jobs(_load(path)) == [], (
+        f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    )
 
 
 @pytest.mark.parametrize(
@@ -174,6 +174,8 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_merge_admission.py",
     "tests/tools/test_ci_platform_policy.py",
     "tests/tools/test_admin_bypass_guard_hook.py",
+    # The workflow-step harness the hook and lane controls share (2026-10-15 system review, Group E).
+    "tests/tools/test_workflow_steps.py",
     # Hook and gate controls (2026-09-23 system review, Campaign D). The two git-hook suites
     # went stale outside every automatic path (obs 2026-09-17-hook-test-outside-ci-rotted-
     # after-a-gate-was-added); the two harness-hook suites replace a manual selftest and no test.

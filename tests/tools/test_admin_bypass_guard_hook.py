@@ -14,11 +14,12 @@ whose controls silently skip in CI is unwatched.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from tests.tools.workflow_steps import git_bash
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / ".claude" / "hooks" / "admin-bypass-guard.sh"
@@ -26,14 +27,7 @@ SETTINGS = REPO_ROOT / ".claude" / "settings.json"
 
 
 def _bash() -> str:
-    """Resolve Git's bash rather than the WSL launcher stub, failing if none exists."""
-    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
-        if Path(candidate).exists():
-            return candidate
-    found = shutil.which("bash")
-    if not found or "system32" in found.lower():
-        pytest.fail("no usable bash: the admin-bypass guard's controls cannot run, and must not silently skip")
-    return found
+    return git_bash("the admin-bypass guard's controls cannot run")
 
 
 def _run(raw_stdin: str) -> tuple[dict, str]:

@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "tools" / "check_workflow_liveness.py"
 TARGET = ".github/workflows/ars-artefact-currency.yml"
@@ -179,7 +178,40 @@ def test_a_watchdog_that_never_ran_on_its_schedule_fails_closed(tmp_path: Path) 
     result = _run_recent(_runs(), tmp_path)
 
     assert result.returncode == 1
-    assert "never run on its schedule" in result.stderr
+    assert "no scheduled run in the fetched window" in result.stderr
+
+
+def test_the_newest_run_counts_wherever_the_api_puts_it(tmp_path: Path) -> None:
+    """Obs 2026-10-07-watchdog-liveness-reads-one-unordered-run: the endpoint returned a 2026-09-12 run first."""
+    unordered = _runs("2026-09-12T07:00:00Z", "2026-10-02T16:00:00Z", "2026-09-30T07:00:00Z")
+    result = _run_recent(unordered, tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert "2026-10-02T16:00:00+00:00" in result.stdout
+
+    only_stale = _runs("2026-09-12T07:00:00Z")
+    assert _run_recent(only_stale, tmp_path).returncode == 1, "negative control: a payload of only the stale run fails"
+
+
+def test_the_liveness_fetch_reads_a_window_not_one_row() -> None:
+    """A one-row fetch makes the checker's max() meaningless; the fetch must return every recent run."""
+    import yaml
+
+    ci = yaml.load((REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    scripts = " ".join(step.get("run", "") for step in ci["jobs"]["watchdog-schedule-liveness"]["steps"])
+    assert "per_page=1&" not in scripts and not scripts.rstrip().endswith("per_page=1")
+    assert 'per_page=1"' not in scripts and "per_page=1 " not in scripts
+    assert "per_page=100" in scripts and "created=%3E%3D" in scripts
+
+
+def test_ci_also_watches_the_research_system_suites_schedule() -> None:
+    """The nightly suite lane is a schedule too; a schedule that stops firing emits nothing."""
+    import yaml
+
+    ci = yaml.load((REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    steps = ci["jobs"]["watchdog-schedule-liveness"]["steps"]
+    scripts = " ".join(step.get("run", "") for step in steps)
+    assert "actions/workflows/research-system-suite.yml/runs?event=schedule" in scripts
+    assert "--latest-run-json suite-runs.json" in scripts
 
 
 def test_a_malformed_run_response_fails_closed(tmp_path: Path) -> None:
