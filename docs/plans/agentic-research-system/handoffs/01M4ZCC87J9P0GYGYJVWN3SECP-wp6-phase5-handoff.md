@@ -1,8 +1,9 @@
 # WP6 Gate 6 Phase 5 handoff: the delta assurance, the fresh store and the bounded live run
 
 **Capability status:** INCOMPLETE. The historical real SPEC run is PROVEN; the complete public Gate 6
-implementation is not integrated on main. Phase 5 prep construction is complete: #348 to #352 are merged, and
-an integrated packet certified main `bbdcb068` (P-058, "Prep construction complete (2026-10-15)").
+implementation is not integrated on main. Phase 5 prep construction is complete: #348 to #352 are merged. The
+integrated certification packet ran at `b09813e6`, the #352 head (P-058, "Prep construction complete
+(2026-10-15)"). Its tree, `6ec37ed1…`, is identical to main `bbdcb068`, so its result applies to that main.
 
 **Dispatch state:** ready for Stephen's explicit dispatch. Stephen made both decisions in that P-058 entry on
 2026-10-15:
@@ -51,8 +52,12 @@ remaining Phase 5 steps, in `C:\Users\steph\TDL`.
 
 1. **The delta assurance (P5-12; KAN-110's exit).** No live operation.
    - **The selection (Stephen, option A).** The 57 nodes of the 4c selection that the integrated packet did not
-     run: `comm -23` of `C:/Users/steph/.codex/tmp/g6-4c/4c-collect-e5179b57.txt` against
-     `C:/Users/steph/.codex/tmp/g6-p5prep/prep-collect-b09813e6.txt`.
+     run. They are listed in the appendix.
+     - **How the list was derived:** from `C:/Users/steph/.codex/tmp/g6-4c/4c-collect-e5179b57.txt` (4c, with CRLF
+       endings) and `C:/Users/steph/.codex/tmp/g6-p5prep/prep-collect-b09813e6.txt`. The files are in pytest
+       collection order, so normalize and sort both before comparing:
+       `LC_ALL=C comm -23 <(tr -d '\r' < 4c | grep '::' | sort -u) <(tr -d '\r' < prep | grep '::' | sort -u)`.
+       It must yield exactly the appendix's 57 lines.
      - Collect them at M1, and confirm all 57 are present. They were at `bbdcb068`.
      - Reconcile every node against JUnit.
      - If M1 changes any code or test file beyond `bbdcb068` (it should not: the close-out PR is docs only),
@@ -134,3 +139,67 @@ Lead with the applicable 06s §8 row. Then give:
 - each authorized live step with its durable verification;
 - the decisions Stephen needs to make;
 - verified Jira changes.
+
+## Appendix: the delta assurance's 57 nodes (option A)
+
+The 4c selection's nodes that the integrated packet did not run, in C-locale order. All 57 were collected at `bbdcb068`.
+
+```text
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_candidate_is_exactly_the_five_file_inert_stage_a_subject
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_command_families_bind_exact_owner_catalogue_authority_and_controls
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_consumer_inventory_is_exactly_closed_over_policy_and_production_dispatch
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_direct_artefact_storage_boundary_is_exact_including_history_and_content_reads
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_identity_manifest_binds_every_leaf_by_raw_sha256_and_git_blob
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_object_store_boundary_analysis_catches_alias_method_and_typed_wrapper_bypasses
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_resolver_and_command_failures_distinguish_rejection_from_acceptance
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_review_universe_and_p005_are_deterministic_and_no_omission
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_session_exchange_storage_inventory_names_only_the_live_artefact_writer
+tests/research_system/contracts/test_06i_stage_a_candidate.py::test_transitive_root_analysis_ignores_statically_dead_and_uncalled_nested_calls
+tests/research_system/contracts/test_wp64_session_exchange.py::test_caller_json_keywords_cannot_publish_later_revisions[acceptance_evidence]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_caller_json_keywords_cannot_publish_later_revisions[acceptor_actor_id]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_caller_json_keywords_cannot_publish_later_revisions[authority_grant_id]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_caller_json_keywords_cannot_publish_later_revisions[review_evidence]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_closed_schemas_reject_malformed_hashes_and_future_fields
+tests/research_system/contracts/test_wp64_session_exchange.py::test_document_returned_and_test_artifact_identities_must_be_disjoint
+tests/research_system/contracts/test_wp64_session_exchange.py::test_foreign_brief_identity_rejects_without_publication[attempt_id-att_01978abc-6400-7000-8000-000000000099]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_foreign_brief_identity_rejects_without_publication[handoff_id-hnd_01978abc-6400-7000-8000-000000000099]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_foreign_brief_identity_rejects_without_publication[session_id-ses_01978abc-6400-7000-8000-000000000099]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_identical_retry_converges_and_changed_inputs_conflict_without_mutation
+tests/research_system/contracts/test_wp64_session_exchange.py::test_interruption_before_r1_publication_allows_only_identical_retry
+tests/research_system/contracts/test_wp64_session_exchange.py::test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication[brief_bytes-\xef\xbb\xbfnot BOM-free]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication[git_commit_sha-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication[git_tree_sha-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication[prepared_at-2026-02-30T09:00:00Z]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_malformed_time_git_subject_or_brief_encoding_rejects_without_publication[prepared_at-2026-08-04T09:00:00+00:00]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_missing_artifact_and_self_review_reject_without_publication
+tests/research_system/contracts/test_wp64_session_exchange.py::test_prepare_session_brief_publishes_exact_provider_free_subject
+tests/research_system/contracts/test_wp64_session_exchange.py::test_r1_evidence_binds_exact_brief_artifacts_and_pending_authority
+tests/research_system/contracts/test_wp64_session_exchange.py::test_review_transition_requires_the_adjacent_r1_predecessor_without_mutation[0]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_review_transition_requires_the_adjacent_r1_predecessor_without_mutation[2]
+tests/research_system/contracts/test_wp64_session_exchange.py::test_unresolved_finding_identities_are_unique_without_reordering
+tests/research_system/integration/test_artefact_authority_commands.py::test_register_review_and_use_authority_are_real_durable_commands
+tests/research_system/integration/test_artefact_authority_commands.py::test_use_authority_rejects_without_independent_review_resolver
+tests/research_system/unit/test_artefact_consumer_boundary.py::test_contract_loader_materialization_is_exact_and_catalogue_complete
+tests/research_system/unit/test_artefact_consumer_boundary.py::test_contract_loader_rejects_wrong_independent_manifest_subject
+tests/research_system/unit/test_artefact_consumer_boundary.py::test_first_party_artefact_accesses_are_exactly_classified
+tests/research_system/unit/test_artefact_consumer_boundary.py::test_migrated_canonical_consumers_use_fixed_policy_methods_and_purposes
+tests/research_system/unit/test_artefact_runtime.py::test_control_content_reader_rejects_escape_and_foreign_root
+tests/research_system/unit/test_artefact_runtime.py::test_governing_review_store_is_write_once_and_project_bound
+tests/research_system/unit/test_artefact_runtime.py::test_production_consumers_validate_scoped_authority_replay_before_resolution
+tests/tools/test_ars_currency_workflow_controls.py::test_currency_control_jobs_cannot_be_successfully_skipped
+tests/tools/test_ars_currency_workflow_controls.py::test_currency_controls_record_their_exact_checked_out_subject
+tests/tools/test_ars_currency_workflow_controls.py::test_currency_controls_run_on_pull_requests_and_merge_groups
+tests/tools/test_check_workflow_liveness.py::test_a_malformed_run_response_fails_closed
+tests/tools/test_check_workflow_liveness.py::test_a_pull_request_run_checks_the_base_branch_workflow_set
+tests/tools/test_check_workflow_liveness.py::test_a_recent_scheduled_run_passes
+tests/tools/test_check_workflow_liveness.py::test_a_stale_scheduled_run_fails_closed
+tests/tools/test_check_workflow_liveness.py::test_a_watchdog_that_never_ran_on_its_schedule_fails_closed
+tests/tools/test_check_workflow_liveness.py::test_active_target_workflow_passes
+tests/tools/test_check_workflow_liveness.py::test_all_tracked_defaults_to_the_workflow_files_git_tracks
+tests/tools/test_check_workflow_liveness.py::test_all_tracked_fails_when_a_tracked_workflow_is_missing_from_github
+tests/tools/test_check_workflow_liveness.py::test_all_tracked_names_every_inactive_tracked_workflow
+tests/tools/test_check_workflow_liveness.py::test_all_tracked_passes_when_every_tracked_workflow_is_active
+tests/tools/test_check_workflow_liveness.py::test_ci_asserts_the_watchdogs_own_schedule_is_still_firing
+tests/tools/test_check_workflow_liveness.py::test_manually_disabled_target_workflow_fails_closed
+tests/tools/test_check_workflow_liveness.py::test_the_watchdog_checks_every_tracked_workflow
+```

@@ -2326,8 +2326,9 @@ tree is byte-identical to the certified PR-C head `b09813e6` (tree `6ec37ed1…`
       reference carries no version.
   - **PR-G.** CodeRabbit's two findings (`dcc035bf`):
     - `authority` refusals go through the CLI's error handler (exit 1);
-    - grant-scope validation and the decision's time checks run before the owner decision is written, so a
-      request admission would refuse writes nothing;
+    - grant-scope validation and the decision's time checks now run before the owner decision is written. A
+      request that fails either check is refused with nothing written, where before admission refused it only
+      after the decision was stored;
     - a changed request under a used grant ID is refused with "needs a new authority_grant_id" (the m-4 rule).
       No rollback was added.
 - **Mutation controls.** All hold, each re-checked for the intended failure reason:
