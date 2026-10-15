@@ -2469,6 +2469,72 @@ open.
   - **Next:** A0, Stephen's decisions for the run (runbook §0.3).
   - **Still gated:** no live step runs without its own authorization. The successor binding waits for L7.
 
+**A0: Stephen's decisions for the run (Stephen, 2026-10-15).** Runbook §0.3. These are decisions only: nothing
+was executed, and no store, checkout or grant exists yet.
+- **The owner actor.** Reuse `act_01978abc-1002-7000-8000-000000001002`. It was the live store's owner and the
+  census owner, and P5-6 keeps the project ID, so one human keeps one owner identity.
+- **The actor plan (runbook §1).** The bar author is fixed by #352. The other roles take 11 new UUIDv7 IDs, all
+  distinct from each other, the owner and the author:
+
+  | Role | Actor |
+  |---|---|
+  | Bar author | `act_01a1169f-019f-7fbb-b9f6-0246970f1d9a` |
+  | Rubric observer | `act_01a14020-044d-7a2a-8f17-cb417f5a80a3` |
+  | Scope observer | `act_01a14020-044f-7877-b62d-04221f9f6949` |
+  | Bar review requester | `act_01a14020-0451-7b04-bed0-137bbfb8871b` |
+  | Bar reviewer | `act_01a14020-0454-778d-9ee1-402fc21947b3` |
+  | Bar proposer | `act_01a14020-0456-792c-8a1d-18855aae1f7b` |
+  | Steward | `act_01a14020-0459-708d-ae88-bbbe336eae97` |
+  | Producer (operator) | `act_01a14020-045b-7374-b432-b180a4e67a27` |
+  | Outcome reviewer | `act_01a14020-045e-71e9-9c6a-e5d8409cbc2d` |
+  | Decision proposer | `act_01a14020-0460-7fd4-8c59-cc3e1a70d874` |
+  | Task reviewer | `act_01a14020-0462-70d7-9c6c-b563450976a0` |
+  | Project-use reviewer | `act_01a14020-0465-7cef-8e72-d4f66f4e2f7a` |
+
+- **Who runs the Task and Attempt commands (runbook §4 step 4).** The owner, as in the census (22/22 through the
+  public CLI).
+  - The route requires only that the Task reviewer be independent of the Attempt's producers: the Attempt
+    stream's actors, the lease holder and the SubmitForReview submitter (`spec_task.py:267-348`).
+  - The owner already submits for review, so this adds no collapse.
+- **The authority bootstrap (runbook §2).** `ars://core/authority-bootstrap-input` 1.0.0, validated against the
+  input, manifest and grant 1.1.0 schemas.
+  - **The owner and project:** the owner above, on project `prj_01978abc-1000-7000-8000-000000001000`.
+  - **The root grant:** `agr_01a14020-046a-76f3-a823-20f007c71cd9`, `RevokeAuthorityGrant` on the publication
+    grant, R2, with no expiry.
+  - **The publication grant:** `agr_01a14020-0468-7fb3-b8a7-d91c7fb23217`, `PublishReleaseGateDecision` on
+    `rgd_01a14020-046d-7293-ab83-25a7975fb5db`, R2, expiring `2026-12-31T23:59:59Z`.
+  - **Effective:** both grants from `2026-10-15T00:00:00Z`.
+  - **`approved_bootstrap_sha256`:**
+    `a68cfbed4bb83d5f7bba9d674dcce19e111adb26c8023d0055d49192e487138b`.
+  - **The file:** sha256 `3248306b25c2c71f59a1c9a52dfef9aa1f7f5d66a9e9838c45910f0a7118e0ae`, kept with the run's
+    evidence in `C:/Users/steph/.codex/tmp/g6-p5/a0/bootstrap.json`, outside the durable checkout. The actor plan
+    is in `actor-plan.json` beside it.
+- **D6: the paid-run subset and cost ceiling (P-056).**
+  - **The subset: SPEC-01 only.** One fresh SPEC-01 Assay of Damrich–Berens–Kobak at `neurips2024`. SPEC-02 runs
+    0 of the 126 primary configurations and 0 of the 42 reruns under this approval.
+  - **SPEC-02 later.** It still needs a valid OR-013 PROMOTE and a separate `spec_02_live_run_approval`.
+    - If that arises, the recommendation is the full frozen 126/42, within the contract's own ceiling: 7,200 s,
+      4 workers, 12,288 MB memory, 5,120 MB storage, no network. The contract fixes seven methods for every
+      fixture cell.
+  - **The cost ceiling.**
+    - **Spend:** no metered provider or API spend by ARS (£0). Both contracts already stop on provider use,
+      provider launch or credential access. No cloud compute.
+    - **Network:** public, read-only paper and Git access only. No credentials and no survey data.
+    - **Sessions:** one operator session for the SPEC-01 return, up to 4 h wall time. One session each for the
+      bar reviewer, the outcome reviewer, the Task reviewer and the project-use reviewer, up to 1 h each. All
+      run on the owner's existing agent plan.
+    - **On defect:** a production defect stops the run, with no automatic rerun.
+- **Open, for L5's scope (to decide before L4).** Since M1, main has taken #356 to #362. Several change more than
+  documentation:
+  - `research_system/evals/executors/release_tranche.py`;
+  - `test_fresh_store_public_procedure.py` and `test_store.py`;
+  - `.claude/hooks/commit_state_guard.py` and `.claude/settings.json`;
+  - the CI workflows and `tools/`.
+
+  PR-F merges onto that main. So M2 is M1 plus #356 to #362 plus PR-F, not "M1 plus PR-F" as runbook L5 assumed.
+  L5's selection and review must cover `100730e0..M2`.
+- **Next:** A1, the durable checkout (runbook §3 L1). It needs Stephen's own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
