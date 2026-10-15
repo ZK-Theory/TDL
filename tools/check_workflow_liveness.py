@@ -101,7 +101,9 @@ def _timestamp(value: object) -> datetime:
 def check_latest_scheduled_run(payload: object, *, max_age: timedelta, now: datetime) -> str:
     """Return a one-line summary, or raise ValueError when the latest scheduled run is absent or stale.
 
-    ``payload`` is ``gh api repos/.../actions/workflows/<file>/runs?event=schedule&per_page=1``. A
+    ``payload`` is ``gh api repos/.../actions/workflows/<file>/runs?event=schedule&created=>=<date>``: every
+    scheduled run in a recent window. The endpoint's order is not a contract, so the latest is the maximum
+    over every row, never the first row (obs 2026-10-07-watchdog-liveness-reads-one-unordered-run). A
     scheduled workflow that stops firing (disabled, or paused after 60 days of repository inactivity)
     emits nothing, so an empty list is the failure, not a clean state.
     """
@@ -109,7 +111,7 @@ def check_latest_scheduled_run(payload: object, *, max_age: timedelta, now: date
         raise ValueError("run response must be a JSON object with a workflow_runs list")
     runs = payload["workflow_runs"]
     if not runs:
-        raise ValueError("the workflow has never run on its schedule")
+        raise ValueError("the workflow has no scheduled run in the fetched window, so its schedule is not firing")
     if not all(isinstance(run, Mapping) for run in runs):
         raise ValueError("run response contains an invalid run row")
     latest = max(_timestamp(run.get("created_at")) for run in runs)

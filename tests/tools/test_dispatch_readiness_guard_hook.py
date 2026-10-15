@@ -12,11 +12,12 @@ hook under Git's bash and fail rather than skip without bash.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from tests.tools.workflow_steps import git_bash
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HOOK = REPO_ROOT / ".claude" / "hooks" / "dispatch-readiness-guard.sh"
@@ -31,13 +32,7 @@ READINESS_FAIL = "\n## Dispatch Readiness\n- worktree: **PASS**\n- contracts: **
 
 
 def _bash() -> str:
-    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
-        if Path(candidate).exists():
-            return candidate
-    found = shutil.which("bash")
-    if not found or "system32" in found.lower():
-        pytest.fail("no usable bash: the dispatch-readiness guard's controls cannot run, and must not silently skip")
-    return found
+    return git_bash("the dispatch-readiness guard's controls cannot run")
 
 
 def _run(raw_stdin: str) -> subprocess.CompletedProcess[str]:

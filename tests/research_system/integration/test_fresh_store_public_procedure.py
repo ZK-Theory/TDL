@@ -62,7 +62,9 @@ def _clone(destination: Path) -> Path:
         ("user.name", "Fresh store procedure"),
     ):
         _git(destination, "config", key, value)
-    _git(destination, "switch", "--quiet", "-c", "main", _git(REPO_ROOT, "rev-parse", "HEAD"))
+    # -C, not -c: a clone of a checkout that is itself on main (CI, the primary checkout) already has a
+    # local main, and `switch -c` refuses with "a branch named 'main' already exists".
+    _git(destination, "switch", "--quiet", "-C", "main", _git(REPO_ROOT, "rev-parse", "HEAD"))
     status = subprocess.run(
         ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
         check=True,

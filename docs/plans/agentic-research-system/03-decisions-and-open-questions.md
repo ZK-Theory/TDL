@@ -2379,6 +2379,96 @@ tree is byte-identical to the certified PR-C head `b09813e6` (tree `6ec37ed1…`
   - **`test_observation_log_lint.py::test_reachability_reads_only_open_entries_and_skips_carried_hashes` is
     flaky.** It fails when a random 9-character hash prefix is all digits, about 1.5% of runs.
 
+**Delta assurance: the selection and the network probe passed on M1 (2026-10-15).** This is P5-12 under option
+A, KAN-110's exit. Recorded at Stephen's instruction. The fresh-context review is still running, so KAN-110 stays
+open.
+- **M1:** `100730e0319ff975116fb1e18eb897f46d81a627`, main after #354, recorded before the first write.
+  - Beyond `bbdcb068` it changes four Markdown files and nothing else, so the selection stands.
+  - It contains `bbdcb068` and `e5179b57`.
+- **The selection.**
+  - The handoff's `comm` recipe over the 4c and prep collect files re-derives the appendix's 57 lines byte for
+    byte.
+  - All 57 were collected at M1 (`57 tests collected`), an exact match with the appendix.
+- **The run.**
+  - **Setup.** The runner was `certify_delta.py`, a copy of `certify_prep.py` whose only change is its output
+    root. It ran in the linked worktree `C:/Users/steph/TDL-g6-p5` at M1, which was clean before and after.
+  - **The window.** Stephen authorized `--now`, waiving the 02:00–11:00 window. A runner already waiting for
+    that window was stopped before any group ran.
+  - **Execution.** The run began 13:54:14 and took 20 s on 8 workers, in 7 groups. Every group exited 0 and
+    executed all its nodes.
+  - **Result:** 57 passed.
+    - The JUnit reconciliation found 57 expected and 57 reported, none missing, unexpected or duplicated.
+    - Nothing failed, errored or was skipped.
+    - No group went over budget, nothing was cut off, no run needed the environment retry, and the tree was
+      clean after.
+- **Machine checks.**
+  - 13:45, before the window: 95.8% idle.
+  - At launch, by the runner: 84.4% idle, with one other agent session running.
+- **The network probe (Stephen agreed, 2026-10-15).**
+  - **Setup.** `test_spec_source.py::test_neurips2024_exact_public_registration` ran once with
+    `ARS_SOURCE_NETWORK_PROOF=1`, at exact M1 (the worktree was detached to M1 for it). It made a read-only
+    public Git fetch with no credentials, into a scratch store.
+  - **Result:** 1 passed in 114 s.
+    - `refs/tags/neurips2024` resolved to `145efcde673f1a1897eff250b77221d26c34c479`.
+    - The source's SHA-256 was `3eea9174db28f4dd5bcf4e622709280f25fd6bfe0843ff1fc2e1d1559401f9df` and its size
+      24,145,920 bytes.
+  - **Why it matters.** This probe was the one skip in both the 4c selection and the integrated prep packet. It
+    has now passed against the step 3 source.
+- **Evidence.** All under `C:/Users/steph/.codex/tmp/g6-p5/`:
+  - `delta-collect-100730e0.txt` (the node list);
+  - `certify_delta.py` and `certify_delta.diff`;
+  - `machine-check-prewindow-2026-10-15.json`;
+  - `delta-100730e0/`: `results.json`, the per-group JUnit and logs, `machine-check.json` and
+    `NOW-AUTHORIZATION.txt`;
+  - `probe-100730e0/`: `probe.xml`, `probe.log` and `AUTHORIZATION.txt`.
+- **Still open: the fresh-context review of `e5179b57..M1`.**
+  - The brief is `reviews/06s-phase5-delta-review-brief-2026-10-15.md`. Stephen dispatched the reviewer, and the
+    review is in progress.
+  - It must confirm closed:
+    - B-1, B-2 and B-3;
+    - M-1 and M-2;
+    - the SPEC-01 rule and bar.
+  - KAN-110 closes when Stephen records the review's disposition. Until then there is no successor binding and
+    no live step (runbook §0).
+
+**Delta assurance complete: the review passed, the dispositions, and KAN-110's exit (Stephen, 2026-10-15).**
+- **The review.**
+  - **Verdict:** PASS at `100730e0` against `e5179b57`, with no Blocking finding.
+  - **Who and how:** a fresh-context reviewer, working from the brief in a detached worktree at M1.
+  - **The report:** `reviews/06s-phase5-delta-review-e5179b57-100730e0-2026-10-15.md` (source sha256
+    `999b2800…`).
+- **Closure.**
+  - **B-1, B-2, B-3:** closed. B-1 is closed as a mechanism. The re-pin itself lands as PR-F, and L5 re-assures
+    M2.
+  - **The SPEC-01 rule and bar:** closed. The reviewer recomputed the truth table over the committed rubric:
+    4,096 cases, 0 mismatches.
+  - **M-1:** closed with residual m-2.
+  - **M-2:** closed with residual m-1.
+- **The executor's check.** Before this disposition, the executor confirmed both residuals at M1:
+  - `spec_source.py`'s naming check does not require the Task to name the derived Candidate;
+  - the runbook gave no location for operator files or for PR-F.
+- **Dispositions (Stephen).**
+
+  | ID | Finding | Disposition |
+  |---|---|---|
+  | m-1 (Minor) | The route does not require the SOURCE production Task to name the Candidate the observation derives, so "one Task spans SOURCE to closure" is held by procedure. The reviewer reproduced steps 1 and 2. No record is false. | **Known limit.** Runbook §4 step 4 gains a verify line: before `observe_source`, the Task's `portfolio_refs` include `source_ids(...)["candidate_id"]`. No code change, so no M3. |
+  | m-2 (Minor) | The runbook fixed no location for operator-supplied files or for authoring PR-F. A file inside the durable checkout makes the L7 binding refuse. PR-F authored there breaks L6's fast-forward. All cases fail closed. | **Fixed before L3**, as runbook text (§3): every operator file lives in the run's evidence folder, outside the checkout; PR-F is authored in a worktree of the primary repository. |
+  | i-1 (Info) | An admission refusal of `activate-grant` on grounds other than scope or time leaves an inert owner decision. | **Known limit**, already recorded in PR-G. |
+  | i-2 (Info) | `activate-grant` takes the owner from the request and a `ControlBinding`: the local trust model of P-042. | **Declined:** no new bypass. |
+  | i-3 (Info) | The 06h census runtime-binding digest moved to `f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7` (261 rows; `RepairStoreBinding` 1.0.0 → 1.1.0) without an explicit acceptance line. | **Accepted by Stephen (2026-10-15)**, as P-059 did for its pins. |
+  | i-4 (Info) | No test writes a SPEC record, or runs backup or verify-restore, on an initial-root store. Two refusals are tested through a monkeypatch or the service rather than the CLI. | **Known limit.** Steps 3 and 5 are the first end-to-end exercise, so watch them. |
+  | i-5 (Info) | The owner may resolve PARK or KILL against the mechanical result; admission gates only PROMOTE. | **Declined:** owner discretion, unchanged from 4c. |
+
+- **Coverage: accepted as reported.** The reviewer declared these unexamined:
+  - the evidence-scope content's rows (their methodological content was Stephen's PR-C review);
+  - the delivery replan §3 to §5.0;
+  - the PR descriptions of #348 to #352 beyond P-058's summary.
+- **KAN-110's exit.**
+  - **Recorded.** The delta assurance (P5-12) is complete: the 57-node selection, the network probe and the
+    review all passed, and the dispositions above are recorded.
+  - **Next:** A0, Stephen's decisions for the run (runbook §0.3).
+  - **Still gated:** no live step runs without its own authorization. The successor binding waits for L7.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

@@ -105,6 +105,12 @@
             "command": "python \"$CLAUDE_PROJECT_DIR/tools/hook_currency.py\" --session-start",
             "timeout": 10,
             "statusMessage": "Checking the hook tree in force is the merged one..."
+          },
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/tools/review_staleness.py\" --session-start",
+            "timeout": 10,
+            "statusMessage": "Checking the weekly system review is not overdue..."
           }
         ]
       }
