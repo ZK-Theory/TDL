@@ -419,7 +419,11 @@ def execute_s014(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
     project_id = "prj_01978abc-1000-7000-8000-000000001000"
     actor_id = "act_01978abc-1002-7000-8000-000000001002"
     with tempfile.TemporaryDirectory() as directory:
-        temporary_root = Path(directory)
+        # Resolved once, so every path below is in one canonical form. GitHub's Windows runner gives
+        # tempfile an 8.3 short name (C:\Users\RUNNER~1\...); the restore preflight compares bound file
+        # paths against the resolved target root and refused the short-form paths as escaping it, which
+        # failed ~121 S-014 tests on every hosted run (diagnostic run 38745096089, 2026-10-15).
+        temporary_root = Path(directory).resolve()
         repository_root = Path(__file__).resolve().parents[3]
         schema_root = repository_root / ".research-system" / "schemas"
         schemas = runtime_schema_registry(schema_root)
@@ -734,7 +738,7 @@ def execute_s015(subject: str, payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory) / "control"
+        root = Path(directory).resolve() / "control"
         root.mkdir()
         schemas = runtime_schema_registry(Path(__file__).resolve().parents[3] / ".research-system" / "schemas")
         service, grant_ids, _ = _real_lifecycle_service(
