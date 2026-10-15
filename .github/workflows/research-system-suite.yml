@@ -196,3 +196,40 @@ jobs:
           name: junit-shard-${{ matrix.shard }}
           path: shard.xml
           if-no-files-found: warn
+
+  # The verdict reaches a person. This lane was red for its first 9 scheduled runs, and nothing
+  # carried that anywhere (obs 2026-10-15-report-only-run-findings-never-reached-the-log). A
+  # scheduled run that is not green opens one issue, or comments on the open one; a green run
+  # closes it. Pull-request runs report on the PR itself, so this runs on the schedule only.
+  nightly-verdict:
+    needs: [select, suite]
+    if: always() && github.event_name == 'schedule'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Open, update or close the red-nightly issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SUITE: ${{ needs.suite.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          title="Nightly research_system suite is red"
+          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if [ "$SUITE" = "success" ]; then
+            if [ -n "$number" ]; then
+              gh issue close "$number" --comment "Green again at $SHA: $RUN_URL"
+            fi
+          else
+            body="The scheduled research-system-suite run at $SHA ended \`$SUITE\`: $RUN_URL"
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "$body"
+            else
+              gh issue create --title "$title" --body "$body"
+            fi
+          fi

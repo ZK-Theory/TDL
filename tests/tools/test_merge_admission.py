@@ -12,7 +12,6 @@ from __future__ import annotations
 import copy
 import json
 import re
-import shutil
 import statistics
 import subprocess
 from datetime import datetime, timedelta, timezone
@@ -22,6 +21,7 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.tools.workflow_steps import git_bash
 from tools.check_merge_admission import (
     SWEEP_MAX_RUN_AGE,
     SweepGate,
@@ -942,9 +942,9 @@ def test_admission_and_sweep_jobs_can_read_workflow_run_identity() -> None:
     assert admission["permissions"].get("actions") in {"read", "write"}
     assert sweep["permissions"].get("actions") in {"read", "write"}
     body = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert (
-        "databaseId name status conclusion startedAt completedAt" in body
-    ), "attempts cannot be ordered without databaseId"
+    assert "databaseId name status conclusion startedAt completedAt" in body, (
+        "attempts cannot be ordered without databaseId"
+    )
 
 
 def test_python_captures_strip_carriage_returns_on_windows() -> None:
@@ -1255,14 +1255,7 @@ def test_the_sweep_workflow_runs_on_a_schedule_and_acts() -> None:
 
 
 def _bash() -> str:
-    """Resolve Git's bash rather than the WSL launcher stub, failing if none exists."""
-    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
-        if Path(candidate).exists():
-            return candidate
-    found = shutil.which("bash")
-    if not found or "system32" in found.lower():
-        pytest.fail("no usable bash: the workflow scripts cannot be syntax-checked, and must not silently skip")
-    return found
+    return git_bash("the workflow scripts cannot be syntax-checked")
 
 
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"

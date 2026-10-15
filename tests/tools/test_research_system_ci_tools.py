@@ -12,8 +12,6 @@ broke main on 2026-10-02.
 from __future__ import annotations
 
 import importlib.util
-import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +19,8 @@ from types import ModuleType
 
 import pytest
 import yaml
+
+from tests.tools.workflow_steps import run_step
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOLS = REPO_ROOT / "tools"
@@ -359,39 +359,23 @@ def test_the_lane_runs_these_controls_and_refuses_skips(workflow: dict) -> None:
     assert "tools/assert_no_skips.py ci-tools.xml" in script
 
 
-def _bash() -> str:
-    """Resolve Git's bash rather than the WSL launcher stub, failing if none exists."""
-    for candidate in (r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"):
-        if Path(candidate).exists():
-            return candidate
-    found = shutil.which("bash")
-    if not found or "system32" in found.lower():
-        pytest.fail("no usable bash: the shard step's controls cannot run, and must not silently skip")
-    return found
-
-
 def _run_shard_step(workflow: dict, tmp_path: Path, pytest_status: int) -> tuple[int, list[str]]:
     """Run the workflow's real shard script as GitHub runs it, with pytest replaced by a stub.
 
-    GitHub runs ``shell: bash`` as ``bash --noprofile --norc -eo pipefail {0}``. The stub records
-    the arguments it received and exits with ``pytest_status``. The shard file is written the way
-    Windows Python writes it, with CRLF line endings.
+    The stub records the arguments it received and exits with ``pytest_status``. The shard file is
+    written the way Windows Python writes it, with CRLF line endings.
     """
-    step = next(step for step in workflow["jobs"]["suite"]["steps"] if step.get("name") == "Run this shard")
-    invocation = ".venv/Scripts/python.exe -m pytest"
-    assert step["run"].count(invocation) == 1, "the stub must replace exactly the pytest invocation"
-    stub = 'fake_pytest() { printf "%s\\n" "$@" > args.txt; return "$FAKE_STATUS"; }\n'
-    (tmp_path / "step.sh").write_bytes((stub + step["run"].replace(invocation, "fake_pytest")).encode("utf-8"))
     (tmp_path / "shard.txt").write_bytes(
         b"tests/research_system/unit/test_a.py\r\ntests/research_system/unit/test_b.py\r\n"
     )
-    run = subprocess.run(
-        [_bash(), "--noprofile", "--norc", "-eo", "pipefail", "step.sh"],
-        cwd=tmp_path,
-        env={**os.environ, "FAKE_STATUS": str(pytest_status), "RUNNER_TEMP": str(tmp_path)},
-        capture_output=True,
-        text=True,
-        check=False,
+    run = run_step(
+        workflow,
+        "suite",
+        "Run this shard",
+        tmp_path,
+        replace={".venv/Scripts/python.exe -m pytest": "fake_pytest"},
+        prelude='fake_pytest() { printf "%s\\n" "$@" > args.txt; return "$FAKE_STATUS"; }\n',
+        env={"FAKE_STATUS": str(pytest_status), "RUNNER_TEMP": str(tmp_path)},
     )
     args = (tmp_path / "args.txt").read_bytes().decode("utf-8").split("\n") if (tmp_path / "args.txt").exists() else []
     return run.returncode, args
@@ -416,3 +400,53 @@ def test_shard_paths_reach_pytest_without_carriage_returns(workflow: dict, tmp_p
     _, args = _run_shard_step(workflow, tmp_path, 0)
     assert "tests/research_system/unit/test_a.py" in args and "tests/research_system/unit/test_b.py" in args
     assert not any("\r" in arg for arg in args)
+
+
+# --- the nightly verdict reaches a person --------------------------------------------------
+# Obs 2026-10-15-report-only-run-findings-never-reached-the-log: the lane was red for its first nine
+# scheduled runs and nothing carried that anywhere.
+
+
+def test_the_nightly_verdict_runs_on_the_schedule_after_every_shard(workflow: dict) -> None:
+    job = workflow["jobs"]["nightly-verdict"]
+    assert job["needs"] == ["select", "suite"]
+    assert "always()" in job["if"] and "github.event_name == 'schedule'" in job["if"]
+    assert job["permissions"] == {"contents": "read", "issues": "write"}
+    assert "permissions" not in workflow or workflow["permissions"].get("issues") is None, "issues: write only here"
+
+
+def _verdict(workflow: dict, tmp_path: Path, suite: str, existing: str) -> list[str]:
+    """Run the real verdict step with gh stubbed; return the gh calls it made."""
+    stub = (
+        'gh() { printf "%s\\n" "$*" >> calls.txt; if [ "$1 $2" = "issue list" ]; then printf "%s" "$EXISTING"; fi; }\n'
+    )
+    result = run_step(
+        workflow,
+        "nightly-verdict",
+        "Open, update or close the red-nightly issue",
+        tmp_path,
+        prelude=stub,
+        env={"SUITE": suite, "EXISTING": existing, "SHA": "abc123", "RUN_URL": "https://example.invalid/run/1"},
+    )
+    assert result.returncode == 0, result.stderr
+    calls = tmp_path / "calls.txt"
+    return [line for line in calls.read_text(encoding="utf-8").splitlines() if not line.startswith("issue list")]
+
+
+def test_a_red_night_opens_the_issue_and_a_second_comments_on_it(workflow: dict, tmp_path: Path) -> None:
+    (tmp_path / "first").mkdir()
+    assert _verdict(workflow, tmp_path / "first", "failure", "") == [
+        "issue create --title Nightly research_system suite is red --body "
+        "The scheduled research-system-suite run at abc123 ended `failure`: https://example.invalid/run/1"
+    ]
+    (tmp_path / "second").mkdir()
+    calls = _verdict(workflow, tmp_path / "second", "cancelled", "41")
+    assert len(calls) == 1 and calls[0].startswith("issue comment 41 --body ") and "`cancelled`" in calls[0]
+
+
+def test_a_green_night_closes_the_open_issue_and_otherwise_does_nothing(workflow: dict, tmp_path: Path) -> None:
+    (tmp_path / "open").mkdir()
+    calls = _verdict(workflow, tmp_path / "open", "success", "41")
+    assert calls == ["issue close 41 --comment Green again at abc123: https://example.invalid/run/1"]
+    (tmp_path / "none").mkdir()
+    assert _verdict(workflow, tmp_path / "none", "success", "") == []

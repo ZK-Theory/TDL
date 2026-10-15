@@ -170,6 +170,7 @@ jobs:
           tests/tools/test_admin_bypass_guard_hook.py
           tests/tools/test_ars_currency_workflow_controls.py
           tests/tools/test_check_workflow_liveness.py
+          tests/tools/test_workflow_steps.py
           tests/tools/test_pre_commit_hook.py
           tests/tools/test_post_commit_repowise_hook.py
           tests/tools/test_notation_guard_hook.py
@@ -220,12 +221,29 @@ jobs:
         with:
           python-version: "3.13.5"
 
-      - name: Read the watchdog's latest scheduled run from GitHub
+      # Every scheduled run of the last 7 days, not "the first one": the runs endpoint's order is not a
+      # contract, and with per_page=1 it returned a 2026-09-12 run while daily runs were succeeding, five
+      # false failures in a week (obs 2026-10-07-watchdog-liveness-reads-one-unordered-run). The checker
+      # takes the maximum created_at over every row; a daily cron gives at most 8 rows, one page.
+      - name: Read the watchdog's recent scheduled runs from GitHub
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ars-artefact-currency-watchdog.yml/runs?event=schedule&per_page=1"
-          > watchdog-runs.json
+        run: |
+          since="$(date -u -d '7 days ago' +%Y-%m-%d)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ars-artefact-currency-watchdog.yml/runs?event=schedule&created=%3E%3D${since}&per_page=100" > watchdog-runs.json
 
       - name: Fail closed if the watchdog's schedule has stopped firing
         run: python tools/check_workflow_liveness.py --latest-run-json watchdog-runs.json --max-age-hours 72
+
+      # The research_system suite's nightly schedule gets the same watch (2026-10-06 follow-up, and the
+      # 2026-10-15 system review, Group A). This checks that the schedule fires, not that it is green:
+      # the suite's own nightly-verdict job reports red nights.
+      - name: Read the research_system suite's recent scheduled runs from GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          since="$(date -u -d '7 days ago' +%Y-%m-%d)"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/research-system-suite.yml/runs?event=schedule&created=%3E%3D${since}&per_page=100" > suite-runs.json
+
+      - name: Fail closed if the research_system suite's schedule has stopped firing
+        run: python tools/check_workflow_liveness.py --latest-run-json suite-runs.json --max-age-hours 72

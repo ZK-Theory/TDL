@@ -175,6 +175,8 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_merge_admission.py",
     "tests/tools/test_ci_platform_policy.py",
     "tests/tools/test_admin_bypass_guard_hook.py",
+    # The workflow-step harness the hook and lane controls share (2026-10-15 system review, Group E).
+    "tests/tools/test_workflow_steps.py",
     # Hook and gate controls (2026-09-23 system review, Campaign D). The two git-hook suites
     # went stale outside every automatic path (obs 2026-09-17-hook-test-outside-ci-rotted-
     # after-a-gate-was-added); the two harness-hook suites replace a manual selftest and no test.
