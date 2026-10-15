@@ -4,9 +4,10 @@
 implementation is not integrated on main. Phase 5 prep construction is complete: #348 to #352 are merged, and
 an integrated packet certified main `bbdcb068` (P-058, "Prep construction complete (2026-10-15)").
 
-**Dispatch state:** ready for Stephen's explicit dispatch. Two decisions in that P-058 entry come first:
-- the PR-B naming rule;
-- whether the integrated packet counts toward the delta assurance's selection.
+**Dispatch state:** ready for Stephen's explicit dispatch. Stephen made both decisions in that P-058 entry on
+2026-10-15:
+- he confirmed the PR-B naming rule;
+- he chose option A for the delta assurance's selection.
 
 The first deliverable is the delta assurance. Nothing live happens before Stephen records it.
 
@@ -49,12 +50,13 @@ remaining Phase 5 steps, in `C:\Users\steph\TDL`.
 ### Scope, in order
 
 1. **The delta assurance (P5-12; KAN-110's exit).** No live operation.
-   - **The selection.** Follow Stephen's decision:
-     - **Option A:** the 57 nodes of the 4c selection that the integrated packet did not run;
-     - **Option B:** the full 4c selection (310 nodes) plus the prep selection (607 nodes), de-duplicated, on M1.
-
-     Build the node list by collection at M1. Derive the new nodes from the diff, never by hand. Reconcile every
-     node against JUnit.
+   - **The selection (Stephen, option A).** The 57 nodes of the 4c selection that the integrated packet did not
+     run: `comm -23` of `C:/Users/steph/.codex/tmp/g6-4c/4c-collect-e5179b57.txt` against
+     `C:/Users/steph/.codex/tmp/g6-p5prep/prep-collect-b09813e6.txt`.
+     - Collect them at M1, and confirm all 57 are present. They were at `bbdcb068`.
+     - Reconcile every node against JUnit.
+     - If M1 changes any code or test file beyond `bbdcb068` (it should not: the close-out PR is docs only),
+       stop and bring the selection back to Stephen.
    - **The window and budget.** Run in the 02:00–11:00 window under P-058's budget, with a machine check
      recorded before the window.
    - **The network probe.** Propose to Stephen running the opt-in probe

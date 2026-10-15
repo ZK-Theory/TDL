@@ -2360,13 +2360,16 @@ tree is byte-identical to the certified PR-C head `b09813e6` (tree `6ec37ed1…`
     57 did not run: mostly WP6.4 session-exchange contracts, 06i stage-A contracts and workflow-liveness
     tools tests.
   - **The fresh-context review** of `e5179b57`..post-prep has not run.
-- **Decisions for Stephen.**
-  1. Confirm PR-B's naming rule. The amended P5-7 said the Task names "no registered Candidate other than the one
-     this observation derives". A revisit observation under the same Task derives its own Candidate, so the rule
-     built is: the Task may name only Candidates that SOURCE observations citing this Task derive, each lineage
-     staying under this Task.
-  2. Whether the integrated packet counts toward the delta assurance's selection, or the full 4c plus prep
-     selection re-runs on the SHA that the Phase 5 checkout binds.
+- **Decisions (Stephen, 2026-10-15).**
+  1. **PR-B's naming rule is confirmed.** It refines the amended P5-7. That wording said the Task names "no
+     registered Candidate other than the one this observation derives", but a revisit observation under the same
+     Task derives its own Candidate. So the rule is: the SPEC-01 Task may name only Candidates that SOURCE
+     observations citing this Task derive, and each lineage stays under this Task.
+  2. **Delta assurance selection, option A.** The integrated packet counts toward the delta assurance's
+     selection. The delta assurance re-runs only the 57 nodes of the 4c selection that the packet did not run.
+     - It runs on M1, the post-prep main SHA, with JUnit reconciliation and a recorded machine check.
+     - All 57 node IDs were confirmed to exist at `bbdcb068`.
+     - The fresh-context review of `e5179b57..M1` is still required.
 - **Outside prep, recorded for the Phase 5 thread.**
   - **The CI suite lane is red on main.** The 2026-10-07 nightly had 135 failures outside the 3-entry
     known-failures list. About 87 are the S-014 physical preflight in the release-publication tests, which pass

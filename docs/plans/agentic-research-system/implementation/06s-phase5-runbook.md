@@ -20,9 +20,9 @@ a live operation by itself (06s Phase 5).
    - **Certified:** one integrated packet at `b09813e6`, whose tree equals main `bbdcb068`. 606 of 607 passed,
      plus one opt-in skip (P-058, 2026-10-15).
 2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12):
-   - **The selection:** the full 4c selection plus the new nodes. 253 of the 4c selection's 310 nodes already
-     passed in the integrated packet at the same tree. Whether that counts is Stephen's decision (P-058,
-     2026-10-15).
+   - **The selection (Stephen, option A, 2026-10-15):** the 57 nodes of the 4c selection that the integrated
+     packet did not run. The packet already ran the other 253 and every prep node at the same tree, and it
+     counts toward this selection.
    - a recorded machine check before the window;
    - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. It must confirm closed:
      - B-1, B-2 and B-3;
