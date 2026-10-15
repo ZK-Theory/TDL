@@ -3,9 +3,11 @@
 **Capability status:** INCOMPLETE. The historical real SPEC run is PROVEN; the complete public Gate 6
 implementation is not integrated on main.
 
-**Date:** 2026-10-07. **Status:** a draft for Stephen. It is prepared from the accepted prep design
-(`06s-phase5-prep-design-pass-2026-10-07.md`, P5-1 to P5-12), the C0 census
-(`06s-phase5-prep-census-2026-10-07.md`) and the prep PRs (#348 to #351, plus PR-C).
+**Date:** 2026-10-07, updated 2026-10-15 for the merged prep. **Status:** a draft for Stephen. It is prepared
+from:
+- the accepted prep design (`06s-phase5-prep-design-pass-2026-10-07.md`, P5-1 to P5-12);
+- the C0 census (`06s-phase5-prep-census-2026-10-07.md`);
+- the merged prep PRs, #348 to #352 (P-058, "Prep construction complete (2026-10-15)").
 
 **Rule for every step marked A#:** I prepare the exact command and inputs, Stephen authorizes that step
 alone, I run only that step, and the durable result is verified before the next one. Nothing here authorizes
@@ -13,12 +15,21 @@ a live operation by itself (06s Phase 5).
 
 ## 0. Before any live step
 
-1. **Prep PRs merged:** PR-A (#348), PR-B (#349), PR-C, PR-D (#350), PR-G (#351), each certified.
+1. **Prep PRs merged and certified (done, 2026-10-15).**
+   - **Merged:** PR-A (#348), PR-B (#349), PR-C (#352), PR-D (#350) and PR-G (#351).
+   - **Certified:** one integrated packet at `b09813e6`, whose tree equals main `bbdcb068`. 606 of 607 passed,
+     plus one opt-in skip (P-058, 2026-10-15).
 2. **Delta assurance passed** on the post-prep main SHA, and Stephen recorded it (P5-12):
-   - the full 4c selection plus the new nodes;
+   - **The selection:** the full 4c selection plus the new nodes. 253 of the 4c selection's 310 nodes already
+     passed in the integrated packet at the same tree. Whether that counts is Stephen's decision (P-058,
+     2026-10-15).
    - a recorded machine check before the window;
-   - a fresh-context review of the `e5179b57` to post-prep diff. It must confirm B-1, B-2, M-1, M-2, the
-     SPEC-01 rule and bar, and B-3 closed.
+   - **The review:** a fresh-context review of the `e5179b57` to post-prep diff. It must confirm closed:
+     - B-1, B-2 and B-3;
+     - M-1 and M-2;
+     - the SPEC-01 rule and bar.
+   - **The post-prep SHA, M1:** main once the prep close-out docs PR has merged. That PR changes
+     documentation only.
 3. **A0: Stephen's decisions for the run:**
    - the owner actor ID and the actor plan (§1);
    - the authority bootstrap (§2);
@@ -27,7 +38,7 @@ a live operation by itself (06s Phase 5).
 ## 1. Actor plan
 
 Every effect needs an actor with an activated grant, and the route refuses the role collapses P-058
-recorded. The identities below are the fewest the route admits. The author is fixed by PR-C's committed bar;
+recorded. The identities below are the fewest the route admits. The author is fixed by the committed SPEC-01 bar (#352);
 the others are allocated at A0 (`ars` accepts any `act_` UUIDv7). Each non-owner actor is an owner-operated
 agent session, and its actor ID is recorded in that session's operator config (P-042).
 
@@ -84,6 +95,13 @@ Each operation is one owner-authorized batch. Each grant is activated just befor
 1. **Grants:** `ars authority activate-grant --config <checkout control binding> --request <request.json>`,
    one request per actor, command set and subject (§1). Each request's `decided_at` is fixed when it is
    prepared, so a retry is exact.
+   - **What the CLI refuses before writing anything** (`error: …`, exit 1):
+     - a request whose commands do not fit its subject kind;
+     - a request that is not current at run time. `effective_at` and `decided_at` must be at or before the
+       moment the command runs, and `expires_at` after it. So prepare `decided_at` a little before the
+       authorized run.
+   - **A changed request** needs a new `authority_grant_id`. The grant ID fixes the decision and command IDs,
+     and a rejected activation keeps its receipt (#351).
 2. **W11 genesis:** `ars discovery spec advance --action bootstrap_genesis` (the owner).
 3. **The Assay bar:** `bootstrap_assay_authority`. Eight effects, each by its own actor in §1's order.
 4. **The SPEC-01 Task, before `observe_source`** (P5-7 amended).
@@ -100,7 +118,10 @@ Each operation is one owner-authorized batch. Each grant is activated just befor
      registered.
 5. **The source:** `observe_source` for `https://github.com/berenslab/eff-ph.git` at `neurips2024`. Its
    `production` repeats the running Attempt's dispatch, Attempt, context packet, code and environment
-   exactly; PR-B refuses anything else.
+   exactly; the route refuses anything else (#349).
+   - **Corrections** (`correct_spec_01_source`) run under the same SPEC-01 Task. Every link of a SOURCE lineage
+     must cite that Task, or the route refuses.
+   - **The Task may name** only Candidates that SOURCE observations citing it derive.
 6. **SPEC-01:**
    - `request_spec_01` (the steward);
    - `prepare_spec_01` (the owner);
@@ -113,7 +134,8 @@ Each operation is one owner-authorized batch. Each grant is activated just befor
 8. **Result:** `ars discovery spec result --task-id … --format json` and `--format markdown`, after a fresh
    process.
 
-What SPEC-01's own bar does (PR-C):
+What SPEC-01's own bar does (#352). Admission evaluates its rule only for the registered algorithm ID, version
+and descriptor hash, and the route's PROMOTE guard checks the same, on the frozen rubric:
 - topology failing gives a mechanical KILL;
 - any further PROMOTE requirement failing gives PARK;
 - PROMOTE needs Axis 2 + Axis 3 ≥ 4 with neither zero; otherwise PARK.

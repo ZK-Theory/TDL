@@ -671,6 +671,12 @@ certified PR.
   documentation-only successor.
 - **Prep construction** starts with a public-CLI census, whose report fixes the PR list.
 
+**Amended by P-058 (2026-10-15, prep construction complete).** #348 to #352 are merged. An integrated packet at
+`b09813e6` certified main `bbdcb068`: 606 of 607 passed, plus one opt-in skip. The two are tree-identical.
+- **Still before step 1:** the delta assurance on the post-prep SHA, then Stephen's record of it.
+- **The handoff** is `handoffs/01M4ZCC87J9P0GYGYJVWN3SECP-wp6-phase5-handoff.md`, and the live sequence is
+  `implementation/06s-phase5-runbook.md`.
+
 1. **Successor binding:** use the merged binding-service path and its local/
    refreshed-remote/live-remote equality checks for the reviewed main SHA.
    Use the inherited reviewed-divergence successor for the legacy predecessor;
