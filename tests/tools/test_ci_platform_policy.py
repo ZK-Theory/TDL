@@ -8,6 +8,7 @@ a platform gate still pointed at a job that no longer exists or runs elsewhere.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -50,9 +51,9 @@ def test_no_job_runs_on_linux(path: Path) -> None:
     for name, job in _load(path)["jobs"].items():
         runs_on = job.get("runs-on")
         labels = runs_on if isinstance(runs_on, list) else [runs_on]
-        assert labels and all(
-            isinstance(label, str) and label.startswith("windows") for label in labels
-        ), f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        assert labels and all(isinstance(label, str) and label.startswith("windows") for label in labels), (
+            f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        )
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
@@ -123,9 +124,9 @@ def test_research_system_job_discovery_is_not_vacuous() -> None:
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
 def test_research_system_test_jobs_check_out_full_history(path: Path) -> None:
     """Every job that runs research_system tests has the history those tests read."""
-    assert (
-        _shallow_research_system_jobs(_load(path)) == []
-    ), f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    assert _shallow_research_system_jobs(_load(path)) == [], (
+        f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    )
 
 
 @pytest.mark.parametrize(
@@ -194,6 +195,7 @@ ADMISSION_CONTROL_MODULES = (
     # the retired-plan gate that pre-commit Gate 2 runs.
     "tests/tools/test_observation_log_lint.py",
     "tests/tools/test_retired_imperatives.py",
+    "tests/tools/test_check_pinned_commits.py",
 )
 
 
@@ -206,6 +208,19 @@ def test_admission_controls_run_in_a_blocking_windows_job() -> None:
     scripts = " ".join(step.get("run", "") for step in job["steps"])
     for module in ADMISSION_CONTROL_MODULES:
         assert module in scripts, f"admission-controls does not run {module}"
+
+
+def test_admission_controls_check_out_full_history_for_the_pin_check() -> None:
+    """The pinned-commit control reads every pinned commit and the remote's tags; a shallow clone hides both.
+
+    Obs 2026-10-15-accepted-contracts-pin-commits-on-local-only-branches.
+    """
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"]["admission-controls"]
+    assert _checks_out_full_history(job)
+    shallow = copy.deepcopy(job)
+    checkout = next(step for step in shallow["steps"] if step.get("uses", "").startswith("actions/checkout@"))
+    del checkout["with"]["fetch-depth"]
+    assert not _checks_out_full_history(shallow), "negative control: the same job without fetch-depth must fail"
 
 
 def test_admission_controls_refuse_skipped_or_absent_controls() -> None:

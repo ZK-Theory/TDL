@@ -30,22 +30,30 @@ Checks:
   repeated and missing ids are named, and each row's Count, and the Total, must match its ids. The
   table must end with one row labelled Total: a ledger that omits it states no count to check.
 * **Reachability** (``--reachability REPO``). Every commit an OPEN, ESCALATED or PARTIALLY entry cites
-  must be on a remote-tracking ref of REPO; a commit that exists only on a local branch has not been
-  delivered (obs 2026-10-06-owner-decided-work-stranded-on-local-branches). A hash written as
+  must be on a remote-tracking ref or a tag the remote has (``tools/commit_reachability.py``); a commit that
+  exists only on a local branch or a local tag has not been delivered (obs 2026-10-06-owner-decided-work-stranded-on-local-branches). A hash written as
   ``was <sha>`` was carried onto a new commit and is skipped. Hashes that are not commits in REPO are
   counted in the summary, not dropped.
+* **Close conditions** (``--close-conditions REPO``). An OPEN entry whose "close when #N merges" clause names
+  only merged PRs is reported: six entries sat open for nine days after their PRs merged (obs
+  2026-10-15-close-conditions-met-but-entries-left-open).
 
-Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reachability REPO]
+Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reachability REPO] [--close-conditions REPO]
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from commit_reachability import Publication  # noqa: E402
 
 _CLOSING = ("ACTIONED", "CLOSED", "DECLINED")
 # A commit hash must carry a hex letter, or be introduced by the word "commit": an all-digit run is
@@ -281,8 +289,59 @@ def _git_out(repo: Path, *args: str) -> str | None:
     return done.stdout.strip() if done.returncode == 0 else None
 
 
+# "Close when #333 and #340 merge", "close when #341 merges": the clause up to the end of its sentence.
+_CLOSE_WHEN = re.compile(r"(?i)\bclose[sd]?\s+when\b([^.\n]*)")
+_PR = re.compile(r"#(\d+)\b")
+
+
+def _gh_pr_state(repo: Path, number: int) -> str | None:
+    done = subprocess.run(
+        ["gh", "pr", "view", str(number), "--json", "state", "--jq", ".state"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def close_conditions(
+    entries: list[tuple[str, str, str]], state_of: Callable[[int], str | None]
+) -> tuple[list[str], str]:
+    """Report every OPEN entry whose "close when #N merges" condition names only merged PRs.
+
+    Obs 2026-10-15-close-conditions-met-but-entries-left-open: six entries carried such conditions for nine
+    days after every PR they named had merged. The session that wrote the condition had ended before the
+    merge, so nobody was present to act on it. A condition that names no PR (``close when the lane is
+    required``) is counted, not judged.
+    """
+    problems: list[str] = []
+    checked = unnumbered = 0
+    for ident, status, block in entries:
+        if not is_open(status):
+            continue
+        for match in _CLOSE_WHEN.finditer(block):
+            clause = match.group(1)
+            numbers = [int(n) for n in dict.fromkeys(_PR.findall(clause))]
+            if not numbers and re.search(r"(?i)\b(?:both|all|they|these|each)\b.*\bmerge", clause):
+                # "Close when both merge": the PRs are the ones named earlier in the same paragraph. A clause
+                # about something unbuilt ("closes when that slice merges") names no PR and stays unjudged.
+                paragraph = block[block.rfind("\n\n", 0, match.start()) + 1 : match.start()]
+                numbers = [int(n) for n in dict.fromkeys(_PR.findall(paragraph))]
+            if not numbers:
+                unnumbered += 1
+                continue
+            checked += 1
+            states = {n: state_of(n) for n in numbers}
+            if all(state == "MERGED" for state in states.values()):
+                named = ", ".join(f"#{n}" for n in numbers)
+                problems.append(f"{ident}: close condition met ({named} merged); close it, naming the merge commit(s)")
+    summary = f"close conditions: {checked} naming PRs checked, {len(problems)} met; {unnumbered} name no PR"
+    return problems, summary
+
+
 def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[str], str]:
-    """Report every commit an open entry cites that sits on no remote-tracking ref of ``repo``.
+    """Report every commit an open entry cites that is on no remote-tracking ref or remote tag of ``repo``.
 
     Obs 2026-10-06-owner-decided-work-stranded-on-local-branches: a gate and a proposal described as
     built and awaiting a decision existed only on never-pushed local branches for four weeks. A hash that
@@ -291,6 +350,7 @@ def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[
     """
     problems: list[str] = []
     checked = foreign = 0
+    publication = Publication(repo)
     for ident, status, block in entries:
         if not is_open(status):
             continue
@@ -302,13 +362,16 @@ def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[
                 foreign += 1
                 continue
             checked += 1
-            if not _git_out(repo, "for-each-ref", "--contains", sha, "--format=%(refname)", "refs/remotes"):
+            if publication.published_by(sha) is None:
                 problems.append(
-                    f"{ident}: cites commit {sha}, which is on no remote-tracking ref; push it or say where it went"
+                    f"{ident}: cites commit {sha}, which is on no remote-tracking ref or remote tag; "
+                    "push it or say where it went"
                 )
     summary = f"reachability: {checked} commit hash(es) checked, {len(problems)} stranded"
     if foreign:
         summary += f"; {foreign} not a commit in this repository"
+    if problems and publication.tag_note:
+        summary += f"; {publication.tag_note}"
     return problems, summary
 
 
@@ -320,7 +383,19 @@ def main(argv: list[str] | None = None) -> int:
         "--reachability",
         type=Path,
         metavar="REPO",
-        help="Git checkout in which every commit an OPEN entry cites must be on a remote-tracking ref.",
+        help="Git checkout in which every commit an OPEN entry cites must be on a remote branch or remote tag.",
+    )
+    parser.add_argument(
+        "--close-conditions",
+        type=Path,
+        metavar="REPO",
+        help="Report OPEN entries whose 'close when #N merges' PRs have all merged (reads PR state with gh in REPO).",
+    )
+    parser.add_argument(
+        "--pr-states",
+        type=Path,
+        metavar="JSON",
+        help='With --close-conditions: read PR states from {"<number>": "MERGED"|"OPEN"|"CLOSED"} instead of gh.',
     )
     args = parser.parse_args(argv)
 
@@ -358,6 +433,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.reachability:
         stranded, summary = reachability(entries, args.reachability)
         problems += stranded
+        print(summary)
+
+    if args.close_conditions:
+        if args.pr_states:
+            known_states = json.loads(args.pr_states.read_text(encoding="utf-8"))
+
+            def state_of(number: int) -> str | None:
+                return known_states.get(str(number))
+        else:
+
+            def state_of(number: int) -> str | None:
+                return _gh_pr_state(args.close_conditions, number)
+
+        met, summary = close_conditions(entries, state_of)
+        problems += met
         print(summary)
 
     for line in problems:
