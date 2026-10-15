@@ -50,9 +50,9 @@ def test_no_job_runs_on_linux(path: Path) -> None:
     for name, job in _load(path)["jobs"].items():
         runs_on = job.get("runs-on")
         labels = runs_on if isinstance(runs_on, list) else [runs_on]
-        assert labels and all(
-            isinstance(label, str) and label.startswith("windows") for label in labels
-        ), f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        assert labels and all(isinstance(label, str) and label.startswith("windows") for label in labels), (
+            f"{path.name}:{name} runs on {runs_on!r}; the project supports Windows only"
+        )
 
 
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
@@ -123,9 +123,9 @@ def test_research_system_job_discovery_is_not_vacuous() -> None:
 @pytest.mark.parametrize("path", WORKFLOWS, ids=lambda path: path.name)
 def test_research_system_test_jobs_check_out_full_history(path: Path) -> None:
     """Every job that runs research_system tests has the history those tests read."""
-    assert (
-        _shallow_research_system_jobs(_load(path)) == []
-    ), f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    assert _shallow_research_system_jobs(_load(path)) == [], (
+        f"{path.name}: these jobs run research_system tests on a shallow checkout"
+    )
 
 
 @pytest.mark.parametrize(
@@ -183,6 +183,7 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_dispatch_readiness_guard_hook.py",
     "tests/tools/test_no_dot_git_hooks_writers.py",
     "tests/tools/test_mutation_check.py",
+    "tests/tools/test_certify_packet.py",
     "tests/tools/test_assert_no_skips.py",
     "tests/tools/test_commit_state_guard_hook.py",
     "tests/tools/test_crlf_byte_surface.py",
