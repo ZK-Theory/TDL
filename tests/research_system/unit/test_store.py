@@ -223,8 +223,16 @@ def test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing(
     subprocess.run(["icacls", str(held), "/deny", f"{everyone}:(RD)"], check=True, capture_output=True)
     opened: list = []
     try:
-        with pytest.raises(PermissionError):
-            os.listdir(held)  # precondition: the deny-list ACE is in force
+        try:
+            os.listdir(held)
+        except PermissionError:
+            pass  # precondition: the deny-list ACE is in force
+        else:
+            # GitHub's hosted Windows runner does not enforce this ACE for its account, so the
+            # directory under test is not one that denies listing (nightly research-system-suite,
+            # 2026-10-07 to 2026-10-15). Without the precondition the test cannot exercise the fence;
+            # say so rather than report a product failure.
+            pytest.skip("the deny-list ACE is not enforced for this account; precondition unavailable")
         _open_held_directory_anchor(seam, held, opened)
         refused = _attempt_directory_replacement(held)
         assert refused is not None and getattr(refused, "winerror", None) == 32
