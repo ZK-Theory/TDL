@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: core
   lanes:
     - output-provenance
@@ -114,6 +114,10 @@ internals, so they survive refactors.
       and the asserted failure text.
 - [ ] Every race or interleaving test reports passes out of N isolated runs
       (N at least 50, or a deterministic interleaving harness).
+- [ ] Each headline sentence of the governing decision (an invariant such as
+      "one Task spans SOURCE to closure") has its own negative control, not
+      only the decision's enumerated refusals. An amendment that lists checks
+      can still leave its stated invariant unenforced.
 - [ ] The self-test questions below were answered from the record.
 
 ## Escalate Or Stop When

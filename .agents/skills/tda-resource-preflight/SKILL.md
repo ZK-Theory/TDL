@@ -2,7 +2,7 @@
 name: tda-resource-preflight
 description: Use before launching compute that may exceed ~30 minutes — bootstraps, permutation nulls, Markov batteries, MICE refits, per-cluster or per-individual batteries, PH at high landmark count, large ETL / memory-sensitive dataframe work, or a test group, certification packet, or mutation-control battery expected to run that long.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: core
   lanes:
     - output-provenance
@@ -168,13 +168,32 @@ any test run expected to exceed ~30 minutes:
    entry when a test's time rises more than 25% between sub-phases. The runner
    enforces each budget with a check that fails. A budget recorded only as a
    note is not a budget.
-4. When a run is legitimately long after that decision, make it resumable
-   rather than trying to detach it from the session (WMI- and Start-Process-
-   launched children died within seconds of the tool call returning). Each group
-   writes its result on completion and a start file with PID and time, pytest
-   runs with `-v`, and an environment failure (for example "Git inspection is
-   unavailable" across many groups in the same second) is classified and
-   re-queued once, with both attempts recorded, not reported as a test failure.
+4. When a run is legitimately long after that decision, make it resumable.
+   Do not rely on any single detach method. In an attended session, launch in a
+   terminal tab. Unattended runs cannot use one, because it needs approval. The
+   detach evidence conflicts. On 2026-09-25, WMI- and Start-Process-launched
+   children died within seconds of the tool call returning. On 2026-10-07,
+   `Invoke-CimMethod Win32_Process Create` running a script file kept seven
+   pytest children alive for about 110 minutes. So any detached run writes a
+   status file, and someone checks it after a few minutes. Each group writes its
+   result on completion and a start file with PID and time, and pytest runs with
+   `-v`. An environment failure (for example "Git inspection is unavailable"
+   across many groups in the same second) is classified and re-queued once,
+   with both attempts recorded, not reported as a test failure.
+5. A resumable runner trusts its own records, so each record must hold what
+   makes it true:
+   - Key every saved result by the commit SHA, the selection's hash and, for a
+     mutation control, the mutation text. Refuse to reuse a record whose stored
+     inputs differ from the invocation.
+   - A group stopped by the runner's own shutdown (Ctrl-C, pytest exit 2, or a
+     log ending in `KeyboardInterrupt`) leaves no result, or is marked
+     `interrupted`. Resume re-runs it.
+   - A mutation control holds only when the failure it observes is the one the
+     guard produces: record the expected message per control. An environment
+     failure makes the control inconclusive, never held. A control that does
+     not fire is a finding: either the clause is redundant under the admissible
+     inputs (record why, and keep or remove it) or a test is missing (add it).
+   - After any stop, report exit codes per group, not a count of result files.
 
 ## WSL Background Compute
 
@@ -216,6 +235,8 @@ stderr line becomes a `NativeCommandError` and aborts the run. Use
 - [ ] Candidate worker counts, measured outcomes, and the optimal safe selected
       count are recorded; no fixed worker floor was assumed.
 - [ ] Checkpoint/resume strategy and progress reporting specified.
+- [ ] Resume records keyed by SHA and selection; interrupted groups re-run;
+      each control's expected failure recorded.
 - [ ] Output overwrite protection and seeds specified.
 - [ ] Wall-time estimate recorded before launch.
 - [ ] Progress cadence shorter than operator patience; an immediate launch
