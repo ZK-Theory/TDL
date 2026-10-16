@@ -102,13 +102,20 @@ All `ars` commands run from the durable checkout as
 - **Check before L7:** `git -C C:/Users/steph/TDL-ARS-G6-Checkout status --porcelain=v1 --untracked-files=all`
   prints nothing.
 
+**Status (2026-10-16):**
+- **L1 to L3 are done and verified.**
+  - **Store identity:** `5e3b95a9…`.
+  - **Witness:** `1a7aa957…`.
+- **L4** is PR #365 (`a40b3f01`), awaiting Stephen's review and merge.
+- **The record:** P-058, "Live steps A1 to A4".
+
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
 | L1 | A1 | `git clone https://github.com/ZK-Theory/TDL.git C:/Users/steph/TDL-ARS-G6-Checkout`; set local `main` to the post-prep SHA `M1`; `uv sync --locked`. | Not linked (`.git` is a directory); clean; `git worktree list` shows one entry; `main` at `M1`. |
 | L2 | A2 | Create the empty `C:/Users/steph/TDL-ARS-G6-Origin-Authority`. | `C:/Users/steph/TDL-ARS-G6-Control` does not exist. |
 | L3 | A3 | `ars store reserve --code-root C:/Users/steph/TDL-ARS-G6-Checkout --control-root C:/Users/steph/TDL-ARS-G6-Control --origin-authority-root C:/Users/steph/TDL-ARS-G6-Origin-Authority --project-id prj_01978abc-1000-7000-8000-000000001000 --authority-bootstrap <bootstrap.json> --foundation-output <foundation.yaml>` | One stage, one witness and no store. The printed digest is the witness's bytes. |
 | L4 | A4 | **PR-F:** commit `<foundation.yaml>` as `.research-system/config/foundation.yaml`. In the same commit, update `test_foundation_origin_witness_contract.py`'s expected values. Stephen reviews and merges, giving `M2`. | The diff is only the foundation and its contract test. |
-| L5 | A5 | **Delta assurance on `M2`**, scoped to `100730e0..M2`: M2 is `M1` plus #356 to #362 (several non-docs) plus PR-F (A0, 2026-10-15). Stephen decides its scope before L4 and records it. | 06s Phase 5 amendment. |
+| L5 | A5 | **Delta assurance on `M2`**, scoped to `100730e0..M2`: M2 is `M1` plus #355 to #364 plus PR-F. Scope (Stephen, 2026-10-16): `test_fresh_store_public_procedure.py`, the STORE packet (06s §12), `unit/test_store.py`, the five `release_tranche` test files, test files of any further non-docs change, and a short fresh-context review of the non-docs diff; the `live_store` foundation contract test moves to L6. | 06s Phase 5 amendment. |
 | L6 | A6 | Fast-forward the checkout's `main` to `M2` (the only update in Phase 5), then `ars store init --code-root <checkout> --control-root C:/Users/steph/TDL-ARS-G6-Control --project-id … --authority-bootstrap <bootstrap.json>`. | Identity and witness digest equal the pins; no stage is left; `ApprovedProjectBinding` loads. |
 | L7 | A7: **step 1** | `ars store repair-binding --intent <first-binding.json>`, where the intent is `RepairStoreBinding` 1.1.0, `owner_action: bind-initialized-store`, `stale_evidence_refs: []`, the checkout as candidate, a 30-minute validity window, and the owner. | `status: initial-binding-published`, and `ars discovery spec status --operator-config <owner.json>` succeeds. **From here, nothing is pulled into the checkout and no worktree is added.** |
 

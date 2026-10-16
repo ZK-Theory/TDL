@@ -2535,6 +2535,57 @@ was executed, and no store, checkout or grant exists yet.
   L5's selection and review must cover `100730e0..M2`.
 - **Next:** A1, the durable checkout (runbook §3 L1). It needs Stephen's own authorization.
 
+**Live steps A1 to A4, and the L5 scope (Stephen, 2026-10-15/16).** Each step was prepared as one exact script,
+authorized by Stephen on its own, run alone, and verified from durable state before the next. The scripts, logs and
+authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
+- **A1, the durable checkout (L1).**
+  - **What ran:** `run-a1.sh` (sha256 `69ace3fc…`), at 23:53Z on 2026-10-15. It cloned
+    `C:/Users/steph/TDL-ARS-G6-Checkout` from GitHub, set `main` to M1 `100730e0` and ran `uv sync --locked`.
+  - **Verified:** `.git` is a directory; there is one worktree; the status is empty, untracked files included;
+    HEAD is `main` at M1; `research_system` imports from the checkout. A fresh-shell re-check agreed.
+- **A2, the origin-authority root (L2).**
+  - **What ran:** `run-a2.sh` (sha256 `4b32e5d3…`), which created the empty
+    `C:/Users/steph/TDL-ARS-G6-Origin-Authority`.
+  - **Verified:** it is empty, the control root does not exist, and the checkout is clean at M1.
+- **A3, the reservation (L3).**
+  - **What ran:** `run-a3.sh` (sha256 `3cc1afe7…`), at 23:55Z. It ran `ars store reserve` from the evidence
+    folder, with the A0 bootstrap (`3248306b…`) and `--foundation-output` outside the checkout (delta review m-2).
+  - **Result:** status `reserved`.
+    - **Store identity:** `5e3b95a956a8a416accd697f250088b5c8723924eb68544f01064ede6eb18d69`.
+    - **Witness:** `store-origins\sha256-200ee8f2ddb6ee387d208d57b8c427bb961ec3d7d0e021f53356fe0055095996.json`,
+      sha256 `1a7aa957917f20d537fbc99e23e23fc094f60e94906d80e4a2250577d7ffe7c4`.
+    - **On disk:** one stage, `.TDL-ARS-G6-Control.authority-stage-a68cfbed4bb8-8abc9894`, and no store.
+    - **The foundation:** file sha256 `0bf20c381ccb821d30f4950bf06178bfa8381cb8821092f513b1b82a4a0897e0`.
+  - **Verified:** the printed digest equals the witness bytes, and the foundation file equals the printed
+    foundation. The checkout stayed clean at M1. A fresh-shell re-check agreed.
+- **A4, PR-F (L4).**
+  - **What was authored:** in the primary-repo worktree `C:/Users/steph/TDL-g6-pr-f`, branch
+    `pipe/g6-phase5-repin`, commit `a40b3f01`, cut from main `0f037415`. It holds the foundation, byte for
+    byte, and the `live_store` contract test with the new pins.
+  - **Verified before pushing:**
+    - hooks and the contract gates pass;
+    - `test_fresh_store_public_procedure.py` passes 3/3 at `a40b3f01`;
+    - the contract test's value assertions pass. Its load fails until L6 creates the control root ("approved
+      project binding path is unavailable").
+  - **What A4 did:** pushed the branch and opened [PR #365](https://github.com/ZK-Theory/TDL/pull/365). Stephen
+    reviews and merges it, which gives M2.
+- **Checked and harmless.** The WP6.4 `tda-scale` packs record the old foundation as `current_exact`. That record
+  is pinned at commit `03107b48`, and no code or test compares it with the live file.
+- **The L5 scope (Stephen, 2026-10-16).** The delta assurance on M2 covers `100730e0..M2`.
+  - **The selection, JUnit-reconciled:**
+    - `test_fresh_store_public_procedure.py`;
+    - the Phase 0 STORE packet (06s §12);
+    - `unit/test_store.py`;
+    - the five test files that exercise `release_tranche`: `test_gate5_release_tranche.py`,
+      `test_gate5_release_tranche_fixture_corpus.py`, `test_wp64_real_a8_evidence.py`,
+      `test_context_packet_lifecycle.py` and `unit/test_coverage.py`;
+    - the test files of any further non-docs change that lands before M2.
+  - **The window:** 02:00–11:00, unless Stephen says `--now`.
+  - **A review:** a short fresh-context review of the non-docs diff. PR-F is the executor's construction, and the
+    review also confirms that the SYS tooling, hook and CI changes do not touch the route's runtime.
+  - **The `live_store` foundation contract test** moves to L6's verification.
+- **Next:** Stephen's review and merge of #365, then A5 (L5) on M2. It needs his authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
