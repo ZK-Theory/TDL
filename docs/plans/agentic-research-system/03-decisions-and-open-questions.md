@@ -2586,6 +2586,34 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   - **The `live_store` foundation contract test** moves to L6's verification.
 - **Next:** Stephen's review and merge of #365, then A5 (L5) on M2. It needs his authorization.
 
+**L5 review: PASS, and M2 (Stephen, 2026-10-16).**
+- **M2:** `4d867d85574dcf90300f059ab1fd52324be3c85a`, main after #365 (PR-F). The foundation on main is the A3
+  file, byte for byte (`0bf20c38…`). Nothing else non-docs landed after PR-F's base (#363 and #366 are docs).
+- **The review.**
+  - **Verdict:** PASS at `4d867d85` against `100730e0`, with no Blocking or Material finding.
+  - **Who and how:** a fresh-context reviewer, working from the brief, in a detached worktree at M2.
+  - **The report:** `reviews/06s-phase5-l5-review-100730e0-4d867d85-2026-10-16.md` (source sha256 `5057bed8…`).
+    The brief is beside it.
+  - **What it established:**
+    - the 1.0.0 foundation is accepted by every consumer L6 and L7 use: `store init`,
+      `ApprovedProjectBinding.load`, `repair-binding --owner_action bind-initialized-store` and
+      `load_current_binding`. The reviewer checked this in code, and with a scratch probe that ran reserve,
+      re-pin, init, bind and load on a clone of M2 (passed, 79 s);
+    - no change outside `research_system/` and `.research-system/` reaches the `ars` runtime.
+- **Dispositions (Stephen: record only).**
+
+  | ID | Finding | Disposition |
+  |---|---|---|
+  | F1 (Minor) | The #360 primary-checkout guard (`.claude/hooks/commit_state_guard.py`) treats any non-linked checkout on `main` as primary. So in a Claude Code session it would deny L6's fast-forward if that were written as `reset --hard`, `checkout`, `switch` or `rebase`. `merge --ff-only` passes. Fails closed. | **Recorded in the runbook.** L6's fast-forward is `git -C <checkout> fetch origin`, then `git -C <checkout> merge --ff-only 4d867d85574dcf90300f059ab1fd52324be3c85a`. The hook is unchanged before L6, and its wider-than-named scope is logged as an observation. |
+  | F2 (Minor) | #364 turned a missing deny-list-ACE precondition in `unit/test_store.py` into a skip, and the runner counts executed tests per batch. On this machine the test still runs (2 passed, 0 skipped). | **At L5 reconciliation:** confirm both `test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing` nodes are passed, not skipped. Follow-up: skip only on CI. |
+  | F3 (Info) | The harness PostToolUse recorder writes `.git/tdl-session-branches/<id>` in any checkout a Claude Code session reads with git, including the durable checkout. Git reports nothing inside `.git`, and the checkout's status stays empty. | **Recorded as harmless hook state.** It is not a write to the worktree. |
+  | F4 (Info) | The genuine-CLI procedure test never calls `ApprovedProjectBinding.load` on the re-pinned foundation. | **After Phase 5**, fold that assertion into the test. On the live file, the `live_store` contract test covers it at L6. |
+  | F5 (Info) | The WP6.4 `tda-scale` packs' `current_foundation` record is stale. | **Confirmed harmless:** no code or test compares it with the live file. |
+
+- **Still open for A5:** the 327-node selection runs at 02:00 on 2026-10-17 (recorded as partial at Stephen's
+  decision). When it ends, its JUnit is reconciled (including F2's check) and Stephen records it.
+- **Next:** A6, the fast-forward and `store init`. It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
