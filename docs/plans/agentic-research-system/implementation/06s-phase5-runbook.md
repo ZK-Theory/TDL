@@ -38,28 +38,36 @@ a live operation by itself (06s Phase 5).
    - the authority bootstrap (§2);
    - the paid-run subset and cost ceiling (06s Phase 5 step 3, D6).
 
+   **Done (2026-10-15):** P-058, "A0: Stephen's decisions for the run".
+   - **Owner:** `act_01978abc-1002-7000-8000-000000001002`.
+   - **The other actors:** in the §1 table.
+   - **Bootstrap digest:** `a68cfbed4bb83d5f7bba9d674dcce19e111adb26c8023d0055d49192e487138b`.
+   - **D6:** SPEC-01 only, with SPEC-02 at 0/126 + 0/42.
+   - **For L5:** main has moved past M1 with non-docs PRs, so M2 is not "M1 plus PR-F". L5's scope is
+     `100730e0..M2` (see L5).
+
 ## 1. Actor plan
 
 Every effect needs an actor with an activated grant, and the route refuses the role collapses P-058
 recorded. The identities below are the fewest the route admits. The author is fixed by the committed SPEC-01 bar (#352);
-the others are allocated at A0 (`ars` accepts any `act_` UUIDv7). Each non-owner actor is an owner-operated
+the others were allocated at A0 (2026-10-15; `ars` accepts any `act_` UUIDv7). Each non-owner actor is an owner-operated
 agent session, and its actor ID is recorded in that session's operator config (P-042).
 
 | Role | Actor | Commands | Must differ from |
 |---|---|---|---|
-| Owner (Stephen, human) | the bootstrap owner | genesis; the bar's `ResolveDecision`; source registration; brief, return and project-use registration; `ResolveDecision` on the Assay; Task closure (SubmitForReview, AcceptTask, RequestReview, AssignReview, SatisfyReview); `SetArtefactUseAuthority`; every grant activation | every reviewer and proposer |
+| Owner (Stephen, human) | `act_01978abc-1002-7000-8000-000000001002` (the bootstrap owner) | genesis; the Task and Attempt commands of §4 step 4 (A0); the bar's `ResolveDecision`; source registration; brief, return and project-use registration; `ResolveDecision` on the Assay; Task closure (SubmitForReview, AcceptTask, RequestReview, AssignReview, SatisfyReview); `SetArtefactUseAuthority`; every grant activation | every reviewer and proposer |
 | Bar author | `act_01a1169f-019f-7fbb-b9f6-0246970f1d9a` (fixed by the bar) | `RegisterAssayRubricContent`, `RegisterAssayEvidenceScopeContent` | the bar requester, reviewer and observers |
-| Rubric observer | allocate | `ObserveW11AuthorityFile` (rubric) | the author |
-| Scope observer | allocate | `ObserveW11AuthorityFile` (scope) | the author |
-| Bar review requester | allocate | `RequestW11AuthorityReview` | the author |
-| Bar reviewer | allocate | `RecordW11AuthorityReview` | the author, the requester and the prospective producer |
-| Bar proposer | allocate | `ProposeW11AuthorityDecision` | the bar reviewer |
-| Steward | allocate | `RequestAssay`, `RequestDiscoveryOutcomeReview` | the producer and the owner |
-| Producer (operator) | allocate; named in the bar acceptance | `RecordAssayScore` (re-supplies the exact return) | the reviewers and the proposer |
-| Outcome reviewer | allocate | `ReviewDiscoveryOutcome` | the producer, the steward and the owner |
-| Decision proposer | allocate | `ProposePromotionDecision` | the producer, the outcome reviewer and the owner |
-| Task reviewer | allocate | `StartReview`, `RecordReviewVerdict` | the owner |
-| Project-use reviewer | allocate | `RecordScientificReview` | the owner |
+| Rubric observer | `act_01a14020-044d-7a2a-8f17-cb417f5a80a3` | `ObserveW11AuthorityFile` (rubric) | the author |
+| Scope observer | `act_01a14020-044f-7877-b62d-04221f9f6949` | `ObserveW11AuthorityFile` (scope) | the author |
+| Bar review requester | `act_01a14020-0451-7b04-bed0-137bbfb8871b` | `RequestW11AuthorityReview` | the author |
+| Bar reviewer | `act_01a14020-0454-778d-9ee1-402fc21947b3` | `RecordW11AuthorityReview` | the author, the requester and the prospective producer |
+| Bar proposer | `act_01a14020-0456-792c-8a1d-18855aae1f7b` | `ProposeW11AuthorityDecision` | the bar reviewer |
+| Steward | `act_01a14020-0459-708d-ae88-bbbe336eae97` | `RequestAssay`, `RequestDiscoveryOutcomeReview` | the producer and the owner |
+| Producer (operator) | `act_01a14020-045b-7374-b432-b180a4e67a27`; named in the bar acceptance | `RecordAssayScore` (re-supplies the exact return) | the reviewers and the proposer |
+| Outcome reviewer | `act_01a14020-045e-71e9-9c6a-e5d8409cbc2d` | `ReviewDiscoveryOutcome` | the producer, the steward and the owner |
+| Decision proposer | `act_01a14020-0460-7fd4-8c59-cc3e1a70d874` | `ProposePromotionDecision` | the producer, the outcome reviewer and the owner |
+| Task reviewer | `act_01a14020-0462-70d7-9c6c-b563450976a0` | `StartReview`, `RecordReviewVerdict` | the owner |
+| Project-use reviewer | `act_01a14020-0465-7cef-8e72-d4f66f4e2f7a` | `RecordScientificReview` | the owner |
 
 ## 2. The fresh store's authority bootstrap (A0)
 
@@ -100,7 +108,7 @@ All `ars` commands run from the durable checkout as
 | L2 | A2 | Create the empty `C:/Users/steph/TDL-ARS-G6-Origin-Authority`. | `C:/Users/steph/TDL-ARS-G6-Control` does not exist. |
 | L3 | A3 | `ars store reserve --code-root C:/Users/steph/TDL-ARS-G6-Checkout --control-root C:/Users/steph/TDL-ARS-G6-Control --origin-authority-root C:/Users/steph/TDL-ARS-G6-Origin-Authority --project-id prj_01978abc-1000-7000-8000-000000001000 --authority-bootstrap <bootstrap.json> --foundation-output <foundation.yaml>` | One stage, one witness and no store. The printed digest is the witness's bytes. |
 | L4 | A4 | **PR-F:** commit `<foundation.yaml>` as `.research-system/config/foundation.yaml`. In the same commit, update `test_foundation_origin_witness_contract.py`'s expected values. Stephen reviews and merges, giving `M2`. | The diff is only the foundation and its contract test. |
-| L5 | A5 | **Delta assurance on `M2`** (it is `M1` plus PR-F); Stephen records it. | 06s Phase 5 amendment. |
+| L5 | A5 | **Delta assurance on `M2`**, scoped to `100730e0..M2`: M2 is `M1` plus #356 to #362 (several non-docs) plus PR-F (A0, 2026-10-15). Stephen decides its scope before L4 and records it. | 06s Phase 5 amendment. |
 | L6 | A6 | Fast-forward the checkout's `main` to `M2` (the only update in Phase 5), then `ars store init --code-root <checkout> --control-root C:/Users/steph/TDL-ARS-G6-Control --project-id … --authority-bootstrap <bootstrap.json>`. | Identity and witness digest equal the pins; no stage is left; `ApprovedProjectBinding` loads. |
 | L7 | A7: **step 1** | `ars store repair-binding --intent <first-binding.json>`, where the intent is `RepairStoreBinding` 1.1.0, `owner_action: bind-initialized-store`, `stale_evidence_refs: []`, the checkout as candidate, a 30-minute validity window, and the owner. | `status: initial-binding-published`, and `ars discovery spec status --operator-config <owner.json>` succeeds. **From here, nothing is pulled into the checkout and no worktree is added.** |
 
