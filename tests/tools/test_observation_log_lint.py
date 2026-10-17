@@ -342,6 +342,19 @@ def _repo_with_a_stranded_commit(tmp_path: Path) -> tuple[Path, str, str]:
     return clone, pushed, _git(clone, "rev-parse", "HEAD")
 
 
+def _cite(sha: str) -> str:
+    """The shortest prefix of ``sha``, at least nine characters, that the lint reads as a commit hash.
+
+    The lint takes a hex token as a hash only if it carries a hex letter, so a bare ``sha[:9]`` of a
+    commit made at test time was all digits about 1.5% of the time and the test went red at random
+    (Obs 2026-10-17-lint-tests-cite-random-sha-prefixes-the-lint-rejects).
+    """
+    end = 9
+    while sha[:end].isdigit():
+        end += 1
+    return sha[:end]
+
+
 def test_an_open_entry_citing_a_local_only_commit_is_reported(tmp_path: Path) -> None:
     """A "built" limb whose commit was never pushed must not read as delivered.
 
@@ -349,23 +362,44 @@ def test_an_open_entry_citing_a_local_only_commit_is_reported(tmp_path: Path) ->
     never-pushed branches for four weeks while the log, and two review packets, called them built.
     """
     clone, pushed, stranded = _repo_with_a_stranded_commit(tmp_path)
-    log = _obs("a", f"OPEN — the gate is built on a branch (`{stranded[:9]}`).")
+    log = _obs("a", f"OPEN — the gate is built on a branch (`{_cite(stranded)}`).")
     result = _run(tmp_path, log, "--reachability", str(clone))
     assert result.returncode == 1
-    assert f"a: cites commit {stranded[:9]}, which is on no remote-tracking ref" in result.stderr
+    assert f"a: cites commit {_cite(stranded)}, which is on no remote-tracking ref" in result.stderr
 
-    delivered = _run(tmp_path, _obs("b", f"OPEN — limb 1 merged in {pushed[:9]}."), "--reachability", str(clone))
+    delivered = _run(tmp_path, _obs("b", f"OPEN — limb 1 merged in {_cite(pushed)}."), "--reachability", str(clone))
     assert delivered.returncode == 0, delivered.stderr
     assert "reachability: 1 commit hash(es) checked, 0 stranded" in delivered.stdout
 
 
 def test_reachability_reads_only_open_entries_and_skips_carried_hashes(tmp_path: Path) -> None:
     clone, pushed, stranded = _repo_with_a_stranded_commit(tmp_path)
-    closed = _obs("a", f"ACTIONED — fixed in {stranded[:9]}.")
-    carried = _obs("b", f"OPEN — carried as `{pushed[:9]}` (was `{stranded[:9]}`).")
+    closed = _obs("a", f"ACTIONED — fixed in {_cite(stranded)}.")
+    carried = _obs("b", f"OPEN — carried as `{_cite(pushed)}` (was `{_cite(stranded)}`).")
     result = _run(tmp_path, closed + carried, "--reachability", str(clone))
     assert result.returncode == 0, result.stderr
     assert "1 commit hash(es) checked, 0 stranded" in result.stdout
+
+
+def test_cite_extends_an_all_digit_prefix_until_it_carries_a_letter() -> None:
+    assert _cite("277127183a" + "0" * 30) == "277127183a"
+    assert _cite("2771271830b" + "0" * 29) == "2771271830b"
+    assert _cite("abc1234560" + "0" * 30) == "abc123456"
+
+
+def test_an_all_digit_short_hash_is_not_read_as_a_commit(tmp_path: Path) -> None:
+    """Pins the lint's letter rule against a stranded-looking all-digit citation.
+
+    The prefix ``277127183`` is one that turned CI red (run 38860478864). The lint reads an all-digit
+    run as a date or a count, not a hash, so an open entry citing a commit only by such a prefix is
+    neither checked nor counted as foreign: the reachability gate does not see it at all. Changing that
+    rule is an owner decision; this control makes any change to it visible.
+    """
+    clone, _, _ = _repo_with_a_stranded_commit(tmp_path)
+    result = _run(tmp_path, _obs("a", "OPEN — built on a branch (`277127183`)."), "--reachability", str(clone))
+    assert result.returncode == 0, result.stderr
+    assert "reachability: 0 commit hash(es) checked, 0 stranded" in result.stdout
+    assert "not a commit in this repository" not in result.stdout
 
 
 def test_a_hash_that_is_not_a_commit_here_is_counted_not_dropped(tmp_path: Path) -> None:
@@ -385,7 +419,7 @@ def test_a_commit_published_only_by_a_remote_tag_is_delivered(tmp_path: Path) ->
     published as tags, so tags must count, but only tags the remote actually holds.
     """
     clone, _, stranded = _repo_with_a_stranded_commit(tmp_path)
-    log = _obs("a", f"OPEN — pinned review commit `{stranded[:9]}`.")
+    log = _obs("a", f"OPEN — pinned review commit `{_cite(stranded)}`.")
     _git(clone, "tag", "pin/review", stranded)
     assert _run(tmp_path, log, "--reachability", str(clone)).returncode == 1
     _git(clone, "push", "-q", "origin", "pin/review")
