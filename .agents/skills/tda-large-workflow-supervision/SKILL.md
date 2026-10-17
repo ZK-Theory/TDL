@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.5.0"
+  version: "1.6.0"
   tier: optional
   lanes: []
   roles:
@@ -82,6 +82,25 @@ PR-head verdict. Re-run tests affected by manually resolved or overlapping
 symbols, and re-resolve every exact-reference pin against the merge `HEAD`.
 Treat the push-to-main CI receipt as the positive execution signal; a stale pin
 or affected-test failure keeps the campaign incomplete.
+
+## Live-Step Scripts
+
+A live step (a script that makes a durable effect, then verifies it) runs its
+verification code only after the effect. So preparation must exercise that code
+before the effect, not only check the script's syntax and inputs:
+
+- Dry-run every verification command's tooling in the interpreter the script
+  will use: `python -c "import pytest"` in the chosen venv, `--version` for each
+  CLI. A venv synced without `--extra dev` has no pytest.
+- Run each parse line against the prepared inputs. Bash under Git for Windows
+  reading Windows Python output keeps a trailing `\r`, so strip it
+  (`tr -d '\r'`) or have Python write `\n`.
+- Order the cheap durable-state checks before any tool that might be missing.
+- Edit step scripts with Edit, never `sed`: shell escaping turns `\r` into a
+  literal carriage return.
+
+(Obs 2026-10-17-live-step-script-assumed-a-tool-its-venv-lacks and
+2026-10-17-windows-python-crlf-broke-a-live-step-scripts-read.)
 
 ## Dispatch Envelope
 
