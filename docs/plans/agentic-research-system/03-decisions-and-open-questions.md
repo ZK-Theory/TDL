@@ -2725,6 +2725,44 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** batch 2, the Assay bar (`bootstrap_assay_authority`, runbook §4 item 3): eight effects, each by its
   own actor under its own grant. It needs its own authorization.
 
+**Step 3 batch 2: SPEC-01's Assay bar is accepted (Stephen, 2026-10-17).** Runbook §4, item 3.
+- **The inputs.** The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b2/`.
+  - **The bar intent** (`fdd99b5c…`) names the bar reviewer `act_01a14020-0454-…` and the prospective producer
+    `act_01a14020-045b-…`.
+  - **Eight one-time grants** (R3, effective 2026-10-17, expiring 2026-12-31, `decided_at` `04:15:29Z`), each with
+    its own operator config. The step-to-actor map is in `steps.json` (`0f487833…`).
+- **The first run stopped safely.** `run-s3b2.sh` (`1078b63f…`) activated grant 1 (`agr_01a14812-6b38-…`), and the
+  activation was accepted. The script's own check then failed: Windows Python ends printed lines with CRLF, so
+  the grant ID the shell read back carried a `\r` and compared unequal.
+  - **The state at the stop,** confirmed from durable records: the ledger at 6 events, no bar effect, the bar
+    not listed in status, and the checkout clean.
+  - **The fix,** authorized separately by Stephen as v2: `run-s3b2-v2.sh` (`a0b470f7…`). It differs only in passing
+    the shell's two reads of Python output through `tr -d '\r'`, and in keeping the first run's
+    `activate-1.json` as `activate-1.first-run.json`.
+- **The v2 run, from 05:03Z.**
+  - **Grant 1:** re-activated as an exact retry, with the same receipt and status `accepted`. It appended nothing.
+  - **The eight effects, in route order:** each one's grant was activated just before its use, and each ran as
+    its own actor, with `next_effect` checked first.
+
+  | # | Command | Actor |
+  |---|---|---|
+  | 1 | `RegisterAssayRubricContent` | the bar author `act_01a1169f-…` |
+  | 2 | `RegisterAssayEvidenceScopeContent` | the bar author |
+  | 3 | `ObserveW11AuthorityFile` (rubric) | the rubric observer |
+  | 4 | `ObserveW11AuthorityFile` (scope) | the scope observer |
+  | 5 | `RequestW11AuthorityReview` | the bar review requester |
+  | 6 | `RecordW11AuthorityReview` | the bar reviewer |
+  | 7 | `ProposeW11AuthorityDecision` | the bar proposer |
+  | 8 | `ResolveDecision` | the owner |
+
+  - **Each step:** receipt `accepted`, and the last effect is by the expected actor under its grant.
+- **The result.** `bootstrap_assay_authority` is `completed`, with 8 effects by 7 distinct actors under 8
+  distinct grants. The ledger went from 6 to 22 events. An exact retry of step 8 returned the same receipt and
+  appended nothing. A fresh-shell status agrees, and the checkout is clean at M2.
+- **Evidence:** `s3b2.log` (`ed9e90bb…`), the per-step `activate-N.json` and `advance-N.json` (`advance-8.json`
+  `59d30034…`), `status-after.json` (`78edf304…`), and both authorization notes.
+- **Next:** batch 3, the SPEC-01 Task before `observe_source` (runbook §4 item 4). It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

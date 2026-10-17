@@ -113,8 +113,9 @@ All `ars` commands run from the durable checkout as
 - **L7 is done (2026-10-17): Phase 5 step 1.** The first binding `594ab323…` is published at M2.
 - **Step 3 batch 1 is done (2026-10-17).** The genesis grant `agr_01a147fc…` is active, and `bootstrap_genesis` is
   completed (§4 items 1 and 2).
+- **Step 3 batch 2 is done (2026-10-17).** SPEC-01's Assay bar is accepted: 8 effects by 7 actors (§4 item 3).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
-  "A7 (L7)" and "Step 3 batch 1".
+  "A7 (L7)", "Step 3 batch 1" and "Step 3 batch 2".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
