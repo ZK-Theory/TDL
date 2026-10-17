@@ -1,6 +1,9 @@
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+
+import pytest
 
 from research_system.authority import (
     LedgerAuthorityGrantResolver,
@@ -10,6 +13,8 @@ from research_system.authority import (
 from research_system.command.service import CommandService
 from research_system.canonical import canonical_bytes
 from research_system.cli import main
+from research_system.config import ApprovedProjectBinding
+from research_system.errors import ConfigurationError
 from research_system.evals.release_publication import verify_replayed_release
 from research_system.projection.replay import replay
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
@@ -20,6 +25,7 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     RELEASE_DECISION_ID,
+    approved_foundation,
     authority_bootstrap,
     publish_release_command,
     synthetic_publication_evidence,
@@ -69,6 +75,63 @@ def publication_service(tmp_path):
     return service, ledger, schemas, bootstrap
 
 
+def durable_code_root(tmp_path):
+    """Return a code root outside any linked worktree, holding a copy of the repository schemas."""
+    code_root = tmp_path / "foundation-repo"
+    if not code_root.exists():
+        shutil.copytree(SCHEMAS, code_root / ".research-system" / "schemas")
+    return code_root
+
+
+def unmaterialized_foundation(monkeypatch, tmp_path, identity, *, control_root=None):
+    """Pin a test-owned canonical foundation whose control_root holds no store.
+
+    The committed foundation names the operator's live roots, so the refusal it produces depends on the host:
+    a hosted runner stops at "path is unavailable", a linked worktree at "code roots do not include". This
+    foundation is valid up to the store check on every host, so the CLI reaches the materialization refusal.
+    Its code root is a temporary copy, because a schema root inside a linked worktree is refused earlier.
+    ``control_root`` overrides the empty directory, for the control that shows the same foundation admits a
+    materialized store.
+    """
+    if control_root is None:
+        control_root = tmp_path / "unmaterialized-control"
+        control_root.mkdir()
+    code_root = durable_code_root(tmp_path)
+    return approved_foundation(
+        monkeypatch,
+        code_root / ".research-system" / "config" / "foundation.yaml",
+        code_roots=[code_root],
+        control_root=control_root,
+        store_identity=str(identity),
+        witness=identity.witness,
+        witness_path=identity.witness_path,
+        schema_root=code_root / ".research-system" / "schemas",
+        origin_authority_root=identity.witness_path.parent.parent,
+    )
+
+
+def test_unmaterialized_foundation_differs_from_an_admitted_one_only_by_the_store(tmp_path, monkeypatch) -> None:
+    """Control for the two refusal tests below: the injected foundation is refused for the store alone."""
+    control_root = tmp_path / "control"
+    origin_authority_root = tmp_path / "origin-authority"
+    origin_authority_root.mkdir()
+    bootstrap = authority_bootstrap()
+    identity = initialize_authority_control_store(
+        [durable_code_root(tmp_path)],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        origin_authority_root=origin_authority_root,
+    )
+    admitted = ApprovedProjectBinding.load(
+        unmaterialized_foundation(monkeypatch, tmp_path, identity, control_root=control_root)
+    )
+    assert admitted.control_root == control_root.resolve()
+    with pytest.raises(ConfigurationError, match="approved control_root has no matching materialized store"):
+        ApprovedProjectBinding.load(unmaterialized_foundation(monkeypatch, tmp_path, identity))
+
+
 def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
     tmp_path,
 ) -> None:
@@ -105,6 +168,7 @@ def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
 def test_offline_cli_publish_requires_materialized_canonical_foundation(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
     control_root = tmp_path / "cli-control"
     origin_authority_root = tmp_path / "origin-authority"
@@ -118,6 +182,7 @@ def test_offline_cli_publish_requires_materialized_canonical_foundation(
         authority_bootstrap_sha256(bootstrap),
         origin_authority_root=origin_authority_root,
     )
+    unmaterialized_foundation(monkeypatch, tmp_path, identity)
     config = tmp_path / "control-binding.yaml"
     config.write_bytes(
         canonical_bytes(
@@ -162,6 +227,7 @@ def test_offline_cli_publish_requires_materialized_canonical_foundation(
 def test_real_offline_cli_publish_requires_materialized_canonical_foundation(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
     coverage = ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
     source_path = tmp_path / "real-source.json"
@@ -198,6 +264,7 @@ def test_real_offline_cli_publish_requires_materialized_canonical_foundation(
         authority_bootstrap_sha256(bootstrap),
         origin_authority_root=origin_authority_root,
     )
+    unmaterialized_foundation(monkeypatch, tmp_path, identity)
     config = tmp_path / "real-binding.json"
     config.write_bytes(
         canonical_bytes(
