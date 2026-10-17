@@ -2709,7 +2709,8 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   - **What it grants:** to the owner `act_01978abc-1002…`, as class `human`, the single command
     `ImportAcceptedW11CatalogueGenesis`.
   - **Its scope:** subject `scope_definition` `obj_019fed25-b33e-7740-b280-000000000001`, the accepted W11
-    catalogue stream. Risk ceiling R3, effective 2026-10-17, expires 2026-12-31, one-time use.
+    catalogue stream. Risk ceiling R3, effective 2026-10-17, expires 2026-12-31. Its owner decision is
+    one-time use: it authorizes exactly one activation. The grant itself is not single-use.
   - **`decided_at`:** `2026-10-17T03:51:11Z`, fixed at preparation.
   - **The result:** status `accepted`, owner decision `arec_01a147fc-…`, grant sha256 `69aa2a76…`. The grant
     resolves to the owner. An exact retry returned the same receipt and appended nothing.
@@ -2729,8 +2730,8 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **The inputs.** The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b2/`.
   - **The bar intent** (`fdd99b5c…`) names the bar reviewer `act_01a14020-0454-…` and the prospective producer
     `act_01a14020-045b-…`.
-  - **Eight one-time grants** (R3, effective 2026-10-17, expiring 2026-12-31, `decided_at` `04:15:29Z`), each with
-    its own operator config. The step-to-actor map is in `steps.json` (`0f487833…`).
+  - **Eight grants, one per effect** (R3, effective 2026-10-17, expiring 2026-12-31, `decided_at` `04:15:29Z`),
+    each with its own operator config. Each owner decision is one-time use. The step-to-actor map is in `steps.json` (`0f487833…`).
 - **The first run stopped safely.** `run-s3b2.sh` (`1078b63f…`) activated grant 1 (`agr_01a14812-6b38-…`), and the
   activation was accepted. The script's own check then failed: Windows Python ends printed lines with CRLF, so
   the grant ID the shell read back carried a `\r` and compared unequal.
@@ -2762,6 +2763,61 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Evidence:** `s3b2.log` (`ed9e90bb…`), the per-step `activate-N.json` and `advance-N.json` (`advance-8.json`
   `59d30034…`), `status-after.json` (`78edf304…`), and both authorization notes.
 - **Next:** batch 3, the SPEC-01 Task before `observe_source` (runbook §4 item 4). It needs its own authorization.
+
+**Step 3 batch 3: decisions, the Task definition and a passing scratch rehearsal (Stephen, 2026-10-17).** Runbook
+§4 item 4. Nothing live has run for this batch. The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b3/`
+(`batch3-design.md`, `rehearsal-notes.md`).
+- **Why it needed design.** Batch 3 submits raw C1 lifecycle commands, and the caller writes every field. The C0
+  census ran this sequence with synthetic fixture values, so each needs a genuine one.
+- **Stephen's decisions** (the six recommendations, accepted as written):
+  1. **The source key** is `damrich-berens-kobak-neurips2024`, which fixes the Candidate ID
+     `obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7` for Task `tsk_01a14850-ab08-73c6-aef0-f3eb01a139d9`
+     (`spec_source.source_ids`).
+  2. **The Task definition:**
+     - **Scope:** the D6 subset.
+     - **Authorities:** `Stephen`, except review, which names the Task reviewer.
+     - **Risk:** R3.
+     - **Resource policy:** the committed bounded profile policy `pol_0198825f-…` 1.1.0.
+     - **Root binding:** read-only, to the durable checkout at M2.
+     - **`portfolio_refs`:** the Candidate.
+
+     The full text is in `task-definition.json`, with `content_sha256`
+     `f52ddda3487bf9946d6312c33a41acc3f1f74757a52cd9baa54063cb1f40c16e`, for Stephen's review.
+  3. **The environment fingerprint:** sha256 of the canonical JSON of the Python version, the platform, the
+     `uv.lock` sha256 and M2. Rehearsed value: `01f53658dd59…`.
+  4. **The resource request and lease:** the `bounded` profile, network `public-read-only`, no external writes.
+  5. **The host and boot identities:** derived from the machine name and its last boot time.
+  6. **The context packet and process identity:** fresh IDs with no compiled context packet.
+- **Option A (Stephen, 2026-10-17): a 1 h envelope.**
+  - **The cause.** The bounded profile caps a resource grant at 3,600 s (`operations/profiles.py`): its expiry is
+    `min(deadline, issued_at + max_runtime_s)`, with no renewal. That conflicts with D6's 4 h operator session, and
+    rehearsal 2 refused the 4 h lease.
+  - **The decision:** keep `bounded` with an honest 1 h envelope. The lease and the resource deadline end 1 h
+    after stamping, and the runtime maximum is 3,600 s.
+  - **The consequence is a known limit.** The SPEC-01 Attempt stays `running` for the operator return after the
+    lease lapses. `CompleteAttempt` needs only a running Attempt, and the SPEC-01 route rows do not consult the
+    lease.
+- **The rehearsal, on scratch stores** made by the reserve, init and first-binding procedure in scratch clones of
+  M2.
+  - **Rehearsal 1:** stopped at `ClaimExecutionLease` (`resource_grant_binding_mismatch`). The lease
+    `holder_profile` must equal the request's `requesting_profile` and the dispatch's `target_profile`, so one
+    profile string now serves all three.
+  - **Rehearsal 2:** stopped on the 1 h cap above.
+  - **Rehearsal 3:** all 17 steps accepted.
+    - **The steps:** five owner grant activations and twelve C1 commands, `CreateTask` through `StartAttempt`.
+    - **The read-only checks:** the Attempt is `running`; the Task names the Candidate (m-1); and the route's own
+      `verify_source_production` accepts the prepared SOURCE intent against the replayed ledger.
+    - **Exact resume:** a second run skipped every step and appended nothing.
+- **Known limits for the live batch:**
+  - the lapsed lease (option A);
+  - the fingerprint is a declared convention;
+  - the host and boot identities are asserted;
+  - there is no compiled context packet.
+- **A record correction.** The batch 1 and 2 blocks above called the grants "one-time use". `one_time_use` is on
+  the owner's administration decision: it authorizes exactly one activation. The grant is not single-use; the
+  census used one grant for several commands in its scope. Both blocks are corrected.
+- **Next:** the exact live script for batch 3, which runs the same driver against the live store from the durable
+  checkout, for Stephen's authorization.
 
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
