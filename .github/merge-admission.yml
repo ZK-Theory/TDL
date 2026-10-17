@@ -13,16 +13,15 @@ thread_finality:
   # Every producer listed here must have submitted a review whose commit oid is
   # the exact merge candidate before admission is evaluated. A producer that has
   # not yet reached that terminal state blocks the candidate; it does not pass.
-  # Logins verified against ZK-Theory/TDL PR #262 review history (2026-08-23).
   #
-  # Codex only (decided by Stephen, 2026-09-11). CodeRabbit reviewed 1 of the 4
-  # PRs merged before that date (#277, #279, #280 got "Review skipped: manual
-  # review required for this OSS repository"), so requiring it would block
-  # nearly every PR. Its threads still block whenever it does post them: thread
-  # finality checks every unresolved thread regardless of author. When Codex is
-  # at its usage limit, admission waits for it rather than passing.
-  review_producers:
-    - chatgpt-codex-connector
+  # None is required (decided by Stephen, 2026-10-17). Codex
+  # (chatgpt-codex-connector), the only producer since 2026-09-11, was removed:
+  # Stephen no longer uses it, and its quota held PRs at merge-admission for
+  # hours. CodeRabbit is not added: it is triggered by hand and skipped most PRs
+  # when it ran unprompted. Thread finality still blocks on every unresolved,
+  # non-outdated thread, whoever wrote it. The key must stay present: a missing
+  # key fails closed, and only this explicit empty list means "none".
+  review_producers: []
 
 platform_order:
   # The project supports Windows only (decided 2026-09-11), so the decisive
