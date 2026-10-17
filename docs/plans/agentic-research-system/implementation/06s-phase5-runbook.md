@@ -108,7 +108,9 @@ All `ars` commands run from the durable checkout as
   - **Witness:** `1a7aa957…`.
 - **L4** is PR #365 (`a40b3f01`), merged as M2 `4d867d85`.
 - **L5 is done (2026-10-17):** the review passed, and the selection passed 327/327.
-- **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2" and "L5 delta assurance on M2".
+- **L6 is done (2026-10-17).** The checkout is at M2, and the store is initialized: identity `5e3b95a9…`, witness
+  `1a7aa957…`.
+- **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2" and "A6 (L6)".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

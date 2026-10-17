@@ -2640,6 +2640,35 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** A6 (L6), the durable checkout's fast-forward to M2 with `fetch` then `merge --ff-only`, then
   `store init`. It needs its own authorization.
 
+**A6 (L6): the checkout at M2, and the fresh store initialized (Stephen, 2026-10-17).**
+- **What ran:** `run-a6.sh` (sha256 `dbcc32b4…`), from 02:02Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/a6/`: the script, `a6.log`, `init-output.json` (`bf670b77…`),
+  `foundation-contract.xml` and the authorization note.
+- **The fast-forward.** `git -C <checkout> fetch origin`, then `merge --ff-only 4d867d85…`: the durable checkout's
+  only update in Phase 5.
+  - **Verified:** `main` at M2, the status empty with untracked files included, one worktree, and the foundation
+    file `0bf20c38…`.
+  - **The lock:** `uv.lock` and `pyproject.toml` are unchanged from M1 to M2, so no sync ran.
+- **`store init`.** It ran from the evidence folder with the A0 bootstrap, and consumed the A3 reservation under the
+  PR-F pin.
+  - **Store identity:** `5e3b95a956a8a416accd697f250088b5c8723924eb68544f01064ede6eb18d69`.
+  - **Origin witness:** `1a7aa957917f20d537fbc99e23e23fc094f60e94906d80e4a2250577d7ffe7c4`.
+  - **Bootstrap manifest:** `a68cfbed4bb83d5f7bba9d674dcce19e111adb26c8023d0055d49192e487138b`.
+  - **On disk:** the control root `C:/Users/steph/TDL-ARS-G6-Control` holds `events`, `manifests`, `objects`,
+    `receipts`, `runtime` and `snapshots`. No stage is left.
+- **Verified (L6).**
+  - The identity and witness digest equal the pins, and so does the bootstrap digest.
+  - `ApprovedProjectBinding` loads from the checkout's foundation, with control root `TDL-ARS-G6-Control`.
+  - The `live_store` foundation contract test passed, 1/1 (moved to L6 by the L5 scope).
+  - The checkout is clean at M2.
+- **How the contract test ran.** The script stopped at that test. The checkout's venv was synced at A1 without dev
+  extras and has no pytest, and that stop also skipped the script's closing cleanliness check. The test was
+  then run from the worktree `TDL-g6-p5` at M2, whose foundation and test file are byte-identical to the
+  checkout's. Its load resolves the checkout's schema root and the new control root. A separate check confirmed
+  the checkout clean at M2. Nothing was installed into the checkout.
+- **Next:** A7 (L7, step 1), the first binding through `ars store repair-binding` with the
+  `bind-initialized-store` action, then `spec status`. It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
