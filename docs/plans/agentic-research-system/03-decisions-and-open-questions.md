@@ -2669,6 +2669,37 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** A7 (L7, step 1), the first binding through `ars store repair-binding` with the
   `bind-initialized-store` action, then `spec status`. It needs its own authorization.
 
+**A7 (L7): the first binding is published, and Phase 5 step 1 is complete (Stephen, 2026-10-17).**
+- **What ran:** `run-a7.sh` (sha256 `0aa86ad0…`), from 03:19Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/a7/`: the script, `a7.log` (`6b81d35e…`), the intent `first-binding.json`
+  (`09e7af88…`), `bind-output.json` (`786ce925…`), the status outputs and the authorization note.
+- **The inputs.**
+  - **The intent:** `RepairStoreBinding` 1.1.0, from the prepared template (`d97ded91…`), with `owner_action:
+    bind-initialized-store`, `stale_evidence_refs: []`, the durable checkout as candidate and schema root, the
+    pins, the owner `act_01978abc-1002…` and the idempotency key `g6-phase5-first-binding-2026-10-17`. Its
+    30-minute validity window was stamped once at run time.
+  - **The owner config:** `owner-status.json` (`217cc19e…`), a `SpecOperatorConfig@1.0.0` for the read-only
+    `spec status`. Its grant ID, `agr_01a147d4-4551-701f-…`, is never activated. Step 3 uses one config per actor,
+    each naming that actor's activated grant.
+- **The result.**
+  - **Before:** the read-only `spec status` was refused with "current store binding is unavailable" (the B-2
+    premise), and the ledger held 2 events.
+  - **The binding:** `ars store repair-binding` returned `initial-binding-published` and appended 1 event (3
+    events).
+  - **`binding_sha256`:** `594ab32398599aee7ca3f5c201c3b28bfbc6285af7f081e8b249a45d0a0ce34f`.
+  - **What it binds:** `git_head` M2 `4d867d85…`, tree `ae446314…`, clean; `owner_action`
+    `bind-initialized-store`; the initial manifest `b9a9921e…`; witness `1a7aa957…`; the schema catalogue
+    `37973233…`; route `fad7c5a9…`; the SPEC-01 brief `d3b1eac0…` and the SPEC-02 contract `f005f4c9…`.
+- **Verified (L7).**
+  - An exact retry returned the same `binding_sha256` and appended nothing.
+  - `ars discovery spec status --operator-config owner-status.json` succeeds, lists the route's actions, and
+    appended nothing.
+  - `load_current_binding` returns `594ab323…`, also from a fresh shell.
+  - The checkout is clean at M2, with one worktree.
+- **From here,** nothing is pulled into the checkout and no worktree is added (runbook L7) until step 6.
+- **Next:** Phase 5 step 3, the bounded run (runbook §4). Each owner-authorized batch needs its own authorization;
+  the first is the grant activations and `bootstrap_genesis`.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
