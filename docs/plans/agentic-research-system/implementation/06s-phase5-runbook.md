@@ -118,9 +118,11 @@ All `ars` commands run from the durable checkout as
   `obj_a9ba6213-…`, and its Attempt is running (§4 item 4). The lease is 1 h (option A).
 - **Step 3 batch 4 is done (2026-10-17).** `observe_source` registered `neurips2024` at `145efcde…` (sha256
   `3eea9174…`) and the Candidate (§4 item 5).
+- **Step 3 batch 5 is done (2026-10-17).** The steward requested the Assay, and the owner issued the brief
+  `art_13fdb997-…` (§4 item 6, first two steps).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
-  "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live" and
-  "Step 3 batch 4, live".
+  "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
+  "Step 3 batch 4, live" and "Step 3 batch 5, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

@@ -2887,6 +2887,35 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** batch 5, `request_spec_01` by the steward and `prepare_spec_01` by the owner, which issues the operator
   brief (runbook §4 item 6). It needs its own authorization.
 
+**Step 3 batch 5, live: the Assay is requested and the operator brief is issued (Stephen, 2026-10-17).** Runbook
+§4 item 6, first two steps.
+- **The rehearsal first.** The first scratch attempt stopped correctly: "request_spec_01 requires an accepted Assay
+  bar", because the scratch store had never had batch 2's bar. Its only write was one grant activation.
+  `rehearse_bar.py` then ran batch 2's own eight bar effects on the scratch store from batch 2's exact inputs, and
+  `batch5.py` (`0ab60c87…`) passed: both actions completed, both retries appended nothing, and the brief bound the
+  source and the Attempt.
+- **What ran live:** `run-s3b5.sh` (sha256 `952df4b9…`), from 12:40Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b5/live/`: `s3b5.log` (`dee1f7a8…`), `advance-request.json` (`a6576864…`),
+  `advance-prepare.json` (`17661854…`), `brief.json` (`45f0d20a…`), the retries and the authorization note.
+- **The result.** The live ledger went from 45 to 51 events.
+  - **`request_spec_01` (OR-003, `RequestAssay`):** by the steward `act_01a14020-0459-…`, in its own session, under
+    `agr_01a148ba-8cf5-…`, scoped to the Candidate `obj_a9ba6213-…`. It appended 3 events. The route refuses the
+    producer or the owner as requester.
+  - **`prepare_spec_01` (`RegisterArtefact`):** by the owner under `agr_01a148ba-8cf8-…`, issuing the operator brief
+    `art_13fdb997-1fb2-74bb-8967-ab9a1ae930e0` for the Assay `asy_58d83420-807f-7917-80ef-666b340e7f32`.
+- **Verified.**
+  - Both actions completed, by the expected actor under the expected grant.
+  - Both exact retries returned the same receipt and appended nothing.
+  - The brief's `brief_source` sha256 is the route package's SPEC-01 source, `d3b1eac0…`.
+  - The brief's `task` equals the running Attempt's identities: the Task and its revision, the Attempt, the
+    dispatch, the context packet, code `git:sha1:4d867d85…` and fingerprint `01f53658…`.
+  - A fresh-shell status shows `observe_source`, genesis, the bar, `request_spec_01` and `prepare_spec_01`
+    completed.
+  - The checkout is clean at M2.
+- **Next:** the operator's SPEC-01 work from the issued brief, by the producer `act_01a14020-045b-…` in a separate
+  owner-operated session. It drafts the operator return; nothing is registered until `return_spec_01_complete`,
+  which needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
