@@ -114,8 +114,10 @@ All `ars` commands run from the durable checkout as
 - **Step 3 batch 1 is done (2026-10-17).** The genesis grant `agr_01a147fc…` is active, and `bootstrap_genesis` is
   completed (§4 items 1 and 2).
 - **Step 3 batch 2 is done (2026-10-17).** SPEC-01's Assay bar is accepted: 8 effects by 7 actors (§4 item 3).
+- **Step 3 batch 3 is done (2026-10-17).** The SPEC-01 Task `tsk_01a14850-ab08-…` names the Candidate
+  `obj_a9ba6213-…`, and its Attempt is running (§4 item 4). The lease is 1 h (option A).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
-  "A7 (L7)", "Step 3 batch 1" and "Step 3 batch 2".
+  "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…" and "Step 3 batch 3, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

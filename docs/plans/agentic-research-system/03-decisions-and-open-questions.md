@@ -2819,6 +2819,39 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** the exact live script for batch 3, which runs the same driver against the live store from the durable
   checkout, for Stephen's authorization.
 
+**Step 3 batch 3, live: the SPEC-01 Task is created and its Attempt is running (Stephen, 2026-10-17).**
+- **What ran:** `run-s3b3.sh` (sha256 `c069aed9…`), from 05:46Z, authorized alone. It ran the rehearsed driver
+  (`driver.py` `7731ff72…`) from the durable checkout's interpreter and code.
+  - **Its inputs, all hash-pinned:** the config `d6777f33…`, `values.json`, `task-definition.json` and
+    `grant-1..5.json`.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b3/live/`: `s3b3.log` (`5d22a2c2…`), `driver.log`,
+    `runtime.json` (`87d41013…`), every step's input, stdout and result, and the authorization note.
+- **The result: all 17 steps accepted, exactly as rehearsed.** The live ledger went from 22 to 40 events.
+  - **The owner grants:** five, activated just before their use (`agr_01a14850-ab62-…`, `-ab63-…`, `-ab64-…`,
+    `-ab65-7dfe-…` and `-ab65-78a2-…`).
+  - **The Task:** `CreateTask` for `tsk_01a14850-ab08-73c6-aef0-f3eb01a139d9`, with the definition Stephen reviewed
+    (`content_sha256` `f52ddda3…`), naming the Candidate `obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7`. Then
+    `RequestReadiness` and `ApproveReadiness`.
+  - **The dispatch:** `IssueDispatch`, `RecordDispatchDelivery` and `AcknowledgeDispatch`.
+  - **The resource grant and lease:**
+    - `RequestResourceGrant`, with the asserted host and boot identities;
+    - `ClaimExecutionLease`, 1 h (option A), expiring `2026-10-17T06:46:39Z`;
+    - `ClaimDispatch`, which appended two events.
+  - **The Attempt:** `CreateAttempt`, `ClaimAttempt` and `StartAttempt` for
+    `att_01a14850-ab08-7e7e-930d-9942f8ec546e`. Its `code_identity` is `git:sha1:4d867d85…` (M2) and its environment
+    fingerprint `01f53658dd59…`, equal to the rehearsal's.
+- **Verified,** also from a fresh shell with the driver's read-only `--verify-only`:
+  - the Attempt is `running`;
+  - the Task's `portfolio_refs` include the Candidate, and its rederivation from the Task ID and source key agrees
+    (m-1);
+  - the route's own `verify_source_production` accepts `live/source-intent.json` (`6023d76e…`, byte-identical to the
+    rehearsal's) against the replayed live ledger;
+  - the checkout is clean at M2.
+- **Hold.** The Task is not amended, and the Attempt stays running until the operator return is registered (P5-7
+  amended). The lease lapses at 06:46:39Z, the option A known limit.
+- **Next:** batch 4, `observe_source` for `neurips2024` with that SOURCE intent and its grants (runbook §4 item 5).
+  It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
