@@ -1,4 +1,5 @@
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from tests.research_system.factories import (
     AUTHORITY_GRANT_ID,
     PROJECT_ID,
     RELEASE_DECISION_ID,
+    approved_foundation,
     authority_bootstrap,
     publish_release_command,
     synthetic_publication_evidence,
@@ -30,6 +32,47 @@ from tests.research_system.factories import (
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMAS = ROOT / ".research-system" / "schemas"
 COMMAND_ID = "cmd_01978abc-3001-7000-8000-000000003001"
+
+
+def _approve_an_unmaterialized_store(monkeypatch, tmp_path: Path) -> None:
+    """Make the canonical foundation approve a control root that has no materialized store.
+
+    These tests used to read the committed foundation and pass only because the operator's live store
+    failed to load: its restore binding pins a deleted worktree. On a clean runner that store is absent,
+    so an earlier check refused first ("approved project binding path is unavailable"). A store that
+    loads makes them fail too. Approving a decoy store and then removing its identity manifest gives
+    the intended state on every machine.
+    """
+    code_root = tmp_path / "decoy-code"
+    schema_root = code_root / ".research-system" / "schemas"
+    shutil.copytree(SCHEMAS, schema_root)
+    control_root = tmp_path / "decoy-control"
+    origin_root = tmp_path / "decoy-origin-authority"
+    origin_root.mkdir()
+    bootstrap = authority_bootstrap()
+    identity = initialize_authority_control_store(
+        [code_root],
+        control_root,
+        PROJECT_ID,
+        bootstrap,
+        authority_bootstrap_sha256(bootstrap),
+        canonical_schema_root=schema_root,
+        origin_authority_root=origin_root,
+    )
+    approved_foundation(
+        monkeypatch,
+        code_root / ".research-system" / "config" / "foundation.yaml",
+        code_roots=[code_root],
+        control_root=control_root,
+        store_identity=identity,
+        witness=identity.witness,
+        witness_path=identity.witness_path,
+        schema_root=schema_root,
+        origin_authority_root=origin_root,
+    )
+    (control_root / "manifests" / "store-identity.json").unlink()
+
+
 RETRY_ID = "cmd_01978abc-3002-7000-8000-000000003002"
 
 
@@ -105,7 +148,9 @@ def test_canonical_resolver_command_ledger_replay_and_release_are_bound(
 def test_offline_cli_publish_requires_materialized_canonical_foundation(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
+    _approve_an_unmaterialized_store(monkeypatch, tmp_path)
     control_root = tmp_path / "cli-control"
     origin_authority_root = tmp_path / "origin-authority"
     origin_authority_root.mkdir()
@@ -162,7 +207,9 @@ def test_offline_cli_publish_requires_materialized_canonical_foundation(
 def test_real_offline_cli_publish_requires_materialized_canonical_foundation(
     tmp_path,
     capsys,
+    monkeypatch,
 ) -> None:
+    _approve_an_unmaterialized_store(monkeypatch, tmp_path)
     coverage = ROOT / ".research-system" / "evals" / "p0-coverage.yaml"
     source_path = tmp_path / "real-source.json"
     assert (
