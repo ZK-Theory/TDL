@@ -434,16 +434,41 @@ def moves_head(call: GitCall, current: str) -> bool:
     return False
 
 
+_PROJECT_COMMON: list[Path | None] = []
+
+
+def project_common_dir() -> Path | None:
+    """The git common dir of this project's repository: ``$CLAUDE_PROJECT_DIR``, else the repo holding this hook.
+
+    Obs 2026-10-16-commit-state-guard-reaches-the-durable-checkout: the guard matched every non-linked clone on
+    main (the Gate 6 durable checkout included) and the recorder wrote into every repository a command touched.
+    Both are now scoped to, or stored under, the project's own repository.
+    """
+    if not _PROJECT_COMMON:
+        root = os.environ.get("CLAUDE_PROJECT_DIR") or str(Path(__file__).resolve().parents[2])
+        common = git(root, "rev-parse", "--path-format=absolute", "--git-common-dir") if Path(root).is_dir() else None
+        ok = common is not None and common.returncode == 0 and common.stdout.strip()
+        _PROJECT_COMMON.append(Path(common.stdout.strip()).resolve() if ok else None)
+    return _PROJECT_COMMON[0]
+
+
 def primary_branch(directory: str) -> str | None:
-    """The branch of ``directory`` when it is a primary (non-linked) checkout on main/master, else None."""
+    """The branch of ``directory`` when it is THIS project's primary (non-linked) checkout on main/master.
+
+    Another repository's checkout on main, such as the durable Gate 6 checkout, is not the primary checkout
+    this guard protects, whatever its shape.
+    """
     if not Path(directory).is_dir():
         return None
     git_dir = git(directory, "rev-parse", "--absolute-git-dir")
     common = git(directory, "rev-parse", "--path-format=absolute", "--git-common-dir")
     if git_dir.returncode != 0 or common.returncode != 0:
         return None
-    if Path(git_dir.stdout.strip()).resolve() != Path(common.stdout.strip()).resolve():
+    common_dir = Path(common.stdout.strip()).resolve()
+    if Path(git_dir.stdout.strip()).resolve() != common_dir:
         return None  # a linked worktree: moving its HEAD is that worktree's business
+    if common_dir != project_common_dir():
+        return None  # another repository: not this project's primary checkout
     head = git(directory, "symbolic-ref", "-q", "--short", "HEAD")
     branch = head.stdout.strip() if head.returncode == 0 else ""
     return branch if branch in PRIMARY_BRANCHES else None
@@ -478,7 +503,14 @@ def branch_and_state(directory: str, session: str) -> tuple[str, Path] | None:
         oid = git(directory, "rev-parse", "--verify", "--quiet", "HEAD").stdout.strip()
         branch = f"{DETACHED[:-1]} at {oid})" if oid else DETACHED
     name = hashlib.sha256(session.encode("utf-8")).hexdigest()[:32]
-    return branch, Path(git_dir.stdout.strip()) / STATE_DIR / name
+    # Records live under the project's own git dir, one folder per repository, so a read in any other
+    # checkout (the durable Gate 6 checkout among them) writes nothing there.
+    home = project_common_dir()
+    target = Path(git_dir.stdout.strip()).resolve()
+    if home is None:
+        return branch, target / STATE_DIR / name
+    repo_key = hashlib.sha256(str(target).lower().encode("utf-8")).hexdigest()[:16]
+    return branch, home / STATE_DIR / repo_key / name
 
 
 def load(record: Path) -> str | None:
@@ -490,7 +522,7 @@ def load(record: Path) -> str | None:
 
 def save(record: Path, branch: str) -> None:
     """Write this session's record atomically, then prune the oldest records beyond MAX_SESSIONS."""
-    record.parent.mkdir(exist_ok=True)
+    record.parent.mkdir(parents=True, exist_ok=True)
     temporary = record.with_name(f"{record.name}.{os.getpid()}.tmp")
     temporary.write_text(branch + "\n", encoding="utf-8", newline="\n")
     os.replace(temporary, record)
