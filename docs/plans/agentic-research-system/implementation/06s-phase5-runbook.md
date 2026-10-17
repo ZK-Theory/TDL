@@ -106,8 +106,18 @@ All `ars` commands run from the durable checkout as
 - **L1 to L3 are done and verified.**
   - **Store identity:** `5e3b95a9…`.
   - **Witness:** `1a7aa957…`.
-- **L4** is PR #365 (`a40b3f01`), awaiting Stephen's review and merge.
-- **The record:** P-058, "Live steps A1 to A4".
+- **L4** is PR #365 (`a40b3f01`), merged as M2 `4d867d85`.
+- **L5 is done (2026-10-17):** the review passed, and the selection passed 327/327.
+- **L6 is done (2026-10-17).** The checkout is at M2, and the store is initialized: identity `5e3b95a9…`, witness
+  `1a7aa957…`.
+- **L7 is done (2026-10-17): Phase 5 step 1.** The first binding `594ab323…` is published at M2.
+- **Step 3 batch 1 is done (2026-10-17).** The genesis grant `agr_01a147fc…` is active, and `bootstrap_genesis` is
+  completed (§4 items 1 and 2).
+- **Step 3 batch 2 is done (2026-10-17).** SPEC-01's Assay bar is accepted: 8 effects by 7 actors (§4 item 3).
+- **Step 3 batch 3 is done (2026-10-17).** The SPEC-01 Task `tsk_01a14850-ab08-…` names the Candidate
+  `obj_a9ba6213-…`, and its Attempt is running (§4 item 4). The lease is 1 h (option A).
+- **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
+  "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…" and "Step 3 batch 3, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
@@ -116,7 +126,7 @@ All `ars` commands run from the durable checkout as
 | L3 | A3 | `ars store reserve --code-root C:/Users/steph/TDL-ARS-G6-Checkout --control-root C:/Users/steph/TDL-ARS-G6-Control --origin-authority-root C:/Users/steph/TDL-ARS-G6-Origin-Authority --project-id prj_01978abc-1000-7000-8000-000000001000 --authority-bootstrap <bootstrap.json> --foundation-output <foundation.yaml>` | One stage, one witness and no store. The printed digest is the witness's bytes. |
 | L4 | A4 | **PR-F:** commit `<foundation.yaml>` as `.research-system/config/foundation.yaml`. In the same commit, update `test_foundation_origin_witness_contract.py`'s expected values. Stephen reviews and merges, giving `M2`. | The diff is only the foundation and its contract test. |
 | L5 | A5 | **Delta assurance on `M2`**, scoped to `100730e0..M2`: M2 is `M1` plus #355 to #364 plus PR-F. Scope (Stephen, 2026-10-16): `test_fresh_store_public_procedure.py`, the STORE packet (06s §12), `unit/test_store.py`, the five `release_tranche` test files, test files of any further non-docs change, and a short fresh-context review of the non-docs diff; the `live_store` foundation contract test moves to L6. | 06s Phase 5 amendment. |
-| L6 | A6 | Fast-forward the checkout's `main` to `M2` (the only update in Phase 5), then `ars store init --code-root <checkout> --control-root C:/Users/steph/TDL-ARS-G6-Control --project-id … --authority-bootstrap <bootstrap.json>`. | Identity and witness digest equal the pins; no stage is left; `ApprovedProjectBinding` loads. |
+| L6 | A6 | Fast-forward the checkout's `main` to `M2` (the only update in Phase 5) with `git -C <checkout> fetch origin` then `git -C <checkout> merge --ff-only <M2>`, never `reset`/`checkout`/`switch`/`rebase` (L5 review F1: the harness primary-checkout guard denies those on a non-linked `main`); M2 is `4d867d85574dcf90300f059ab1fd52324be3c85a`. Then `ars store init --code-root <checkout> --control-root C:/Users/steph/TDL-ARS-G6-Control --project-id … --authority-bootstrap <bootstrap.json>`. | Identity and witness digest equal the pins; no stage is left; `ApprovedProjectBinding` loads. |
 | L7 | A7: **step 1** | `ars store repair-binding --intent <first-binding.json>`, where the intent is `RepairStoreBinding` 1.1.0, `owner_action: bind-initialized-store`, `stale_evidence_refs: []`, the checkout as candidate, a 30-minute validity window, and the owner. | `status: initial-binding-published`, and `ars discovery spec status --operator-config <owner.json>` succeeds. **From here, nothing is pulled into the checkout and no worktree is added.** |
 
 ## 4. Step 3, the bounded run: order of operations

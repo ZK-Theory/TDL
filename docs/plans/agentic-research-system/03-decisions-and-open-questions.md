@@ -2586,6 +2586,272 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   - **The `live_store` foundation contract test** moves to L6's verification.
 - **Next:** Stephen's review and merge of #365, then A5 (L5) on M2. It needs his authorization.
 
+**L5 review: PASS, and M2 (Stephen, 2026-10-16).**
+- **M2:** `4d867d85574dcf90300f059ab1fd52324be3c85a`, main after #365 (PR-F). The foundation on main is the A3
+  file, byte for byte (`0bf20c38…`). Nothing else non-docs landed after PR-F's base (#363 and #366 are docs).
+- **The review.**
+  - **Verdict:** PASS at `4d867d85` against `100730e0`, with no Blocking or Material finding.
+  - **Who and how:** a fresh-context reviewer, working from the brief, in a detached worktree at M2.
+  - **The report:** `reviews/06s-phase5-l5-review-100730e0-4d867d85-2026-10-16.md` (source sha256 `5057bed8…`).
+    The brief is beside it.
+  - **What it established:**
+    - the 1.0.0 foundation is accepted by every consumer L6 and L7 use: `store init`,
+      `ApprovedProjectBinding.load`, `repair-binding --owner_action bind-initialized-store` and
+      `load_current_binding`. The reviewer checked this in code, and with a scratch probe that ran reserve,
+      re-pin, init, bind and load on a clone of M2 (passed, 79 s);
+    - no change outside `research_system/` and `.research-system/` reaches the `ars` runtime.
+- **Dispositions (Stephen: record only).**
+
+  | ID | Finding | Disposition |
+  |---|---|---|
+  | F1 (Minor) | The #360 primary-checkout guard (`.claude/hooks/commit_state_guard.py`) treats any non-linked checkout on `main` as primary. So in a Claude Code session it would deny L6's fast-forward if that were written as `reset --hard`, `checkout`, `switch` or `rebase`. `merge --ff-only` passes. Fails closed. | **Recorded in the runbook.** L6's fast-forward is `git -C <checkout> fetch origin`, then `git -C <checkout> merge --ff-only 4d867d85574dcf90300f059ab1fd52324be3c85a`. The hook is unchanged before L6, and its wider-than-named scope is logged as an observation. |
+  | F2 (Minor) | #364 turned a missing deny-list-ACE precondition in `unit/test_store.py` into a skip, and the runner counts executed tests per batch. On this machine the test still runs (2 passed, 0 skipped). | **At L5 reconciliation:** confirm both `test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing` nodes are passed, not skipped. Follow-up: skip only on CI. |
+  | F3 (Info) | The harness PostToolUse recorder writes `.git/tdl-session-branches/<id>` in any checkout a Claude Code session reads with git, including the durable checkout. Git reports nothing inside `.git`, and the checkout's status stays empty. | **Recorded as harmless hook state.** It is not a write to the worktree. |
+  | F4 (Info) | The genuine-CLI procedure test never calls `ApprovedProjectBinding.load` on the re-pinned foundation. | **After Phase 5**, fold that assertion into the test. On the live file, the `live_store` contract test covers it at L6. |
+  | F5 (Info) | The WP6.4 `tda-scale` packs' `current_foundation` record is stale. | **Confirmed harmless:** no code or test compares it with the live file. |
+
+- **Still open for A5:** the 327-node selection runs at 02:00 on 2026-10-17 (recorded as partial at Stephen's
+  decision). When it ends, its JUnit is reconciled (including F2's check) and Stephen records it.
+- **Next:** A6, the fast-forward and `store init`. It needs its own authorization.
+
+**L5 delta assurance on M2: passed; A5 closed (Stephen, 2026-10-17).**
+- **The subject:** M2, `4d867d85574dcf90300f059ab1fd52324be3c85a`.
+- **The run.**
+  - **Where:** the worktree `C:/Users/steph/TDL-g6-p5`, detached at M2, clean before and after.
+  - **The runner:** the committed `tools/certify_packet.py` (#362), with `--base 100730e0` and
+    `--partial-reason` citing Stephen's L5 scope.
+  - **Timing:** from 02:00:00 on 2026-10-17, 23 minutes on 8 workers.
+  - **The selection:** 327 nodes in 72 groups, selection hash `60ccf9d7…`.
+- **The result: 327 passed.**
+  - The JUnit reconciliation (independent of the runner's summary) found 327 expected and 327 reported, none
+    missing, unexpected or duplicated. Nothing failed, errored or was skipped.
+  - All 72 groups exited 0. No run needed the environment retry, nothing was cut off and no group went over budget.
+    The slowest group was `store_binding_service-1`, at 23.0 minutes.
+- **F2 confirmed.** Both `test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing` nodes, the
+  `registered-root` and `registered-member` cases, **passed**, not skipped.
+- **The partial selection.** The runner's diff rule required 3,579 nodes, 3,279 more than this selection. The run
+  records Stephen's narrower scope as partial. PR-F's PR-lane affected suite had passed on CI (`select` plus
+  `suite` 1 to 8).
+- **The machine check.** It was recorded before the window, on 2026-10-16 at 08:07 (81.3% idle). The committed
+  runner records cleanliness at launch and at window start, but no machine check of its own.
+- **Evidence:** `C:/Users/steph/.codex/tmp/g6-p5/l5/out/4d867d85-60ccf9d7/`. `results.json` (sha256 `4384605c…`)
+  is there with the per-group JUnit and logs; `l5-collect-4d867d85.txt` is beside it.
+- **A5 is closed.** With the L5 review's PASS above, the delta assurance on M2 is complete.
+- **Next:** A6 (L6), the durable checkout's fast-forward to M2 with `fetch` then `merge --ff-only`, then
+  `store init`. It needs its own authorization.
+
+**A6 (L6): the checkout at M2, and the fresh store initialized (Stephen, 2026-10-17).**
+- **What ran:** `run-a6.sh` (sha256 `dbcc32b4…`), from 02:02Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/a6/`: the script, `a6.log`, `init-output.json` (`bf670b77…`),
+  `foundation-contract.xml` and the authorization note.
+- **The fast-forward.** `git -C <checkout> fetch origin`, then `merge --ff-only 4d867d85…`: the durable checkout's
+  only update in Phase 5.
+  - **Verified:** `main` at M2, the status empty with untracked files included, one worktree, and the foundation
+    file `0bf20c38…`.
+  - **The lock:** `uv.lock` and `pyproject.toml` are unchanged from M1 to M2, so no sync ran.
+- **`store init`.** It ran from the evidence folder with the A0 bootstrap, and consumed the A3 reservation under the
+  PR-F pin.
+  - **Store identity:** `5e3b95a956a8a416accd697f250088b5c8723924eb68544f01064ede6eb18d69`.
+  - **Origin witness:** `1a7aa957917f20d537fbc99e23e23fc094f60e94906d80e4a2250577d7ffe7c4`.
+  - **Bootstrap manifest:** `a68cfbed4bb83d5f7bba9d674dcce19e111adb26c8023d0055d49192e487138b`.
+  - **On disk:** the control root `C:/Users/steph/TDL-ARS-G6-Control` holds `events`, `manifests`, `objects`,
+    `receipts`, `runtime` and `snapshots`. No stage is left.
+- **Verified (L6).**
+  - The identity and witness digest equal the pins, and so does the bootstrap digest.
+  - `ApprovedProjectBinding` loads from the checkout's foundation, with control root `TDL-ARS-G6-Control`.
+  - The `live_store` foundation contract test passed, 1/1 (moved to L6 by the L5 scope).
+  - The checkout is clean at M2.
+- **How the contract test ran.** The script stopped at that test. The checkout's venv was synced at A1 without dev
+  extras and has no pytest, and that stop also skipped the script's closing cleanliness check. The test was
+  then run from the worktree `TDL-g6-p5` at M2, whose foundation and test file are byte-identical to the
+  checkout's. Its load resolves the checkout's schema root and the new control root. A separate check confirmed
+  the checkout clean at M2. Nothing was installed into the checkout.
+- **Next:** A7 (L7, step 1), the first binding through `ars store repair-binding` with the
+  `bind-initialized-store` action, then `spec status`. It needs its own authorization.
+
+**A7 (L7): the first binding is published, and Phase 5 step 1 is complete (Stephen, 2026-10-17).**
+- **What ran:** `run-a7.sh` (sha256 `0aa86ad0…`), from 03:19Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/a7/`: the script, `a7.log` (`6b81d35e…`), the intent `first-binding.json`
+  (`09e7af88…`), `bind-output.json` (`786ce925…`), the status outputs and the authorization note.
+- **The inputs.**
+  - **The intent:** `RepairStoreBinding` 1.1.0, from the prepared template (`d97ded91…`), with `owner_action:
+    bind-initialized-store`, `stale_evidence_refs: []`, the durable checkout as candidate and schema root, the
+    pins, the owner `act_01978abc-1002…` and the idempotency key `g6-phase5-first-binding-2026-10-17`. Its
+    30-minute validity window was stamped once at run time.
+  - **The owner config:** `owner-status.json` (`217cc19e…`), a `SpecOperatorConfig@1.0.0` for the read-only
+    `spec status`. Its grant ID, `agr_01a147d4-4551-701f-…`, is never activated. Step 3 uses one config per actor,
+    each naming that actor's activated grant.
+- **The result.**
+  - **Before:** the read-only `spec status` was refused with "current store binding is unavailable" (the B-2
+    premise), and the ledger held 2 events.
+  - **The binding:** `ars store repair-binding` returned `initial-binding-published` and appended 1 event (3
+    events).
+  - **`binding_sha256`:** `594ab32398599aee7ca3f5c201c3b28bfbc6285af7f081e8b249a45d0a0ce34f`.
+  - **What it binds:** `git_head` M2 `4d867d85…`, tree `ae446314…`, clean; `owner_action`
+    `bind-initialized-store`; the initial manifest `b9a9921e…`; witness `1a7aa957…`; the schema catalogue
+    `37973233…`; route `fad7c5a9…`; the SPEC-01 brief `d3b1eac0…` and the SPEC-02 contract `f005f4c9…`.
+- **Verified (L7).**
+  - An exact retry returned the same `binding_sha256` and appended nothing.
+  - `ars discovery spec status --operator-config owner-status.json` succeeds, lists the route's actions, and
+    appended nothing.
+  - `load_current_binding` returns `594ab323…`, also from a fresh shell.
+  - The checkout is clean at M2, with one worktree.
+- **From here,** nothing is pulled into the checkout and no worktree is added (runbook L7) until step 6.
+- **Next:** Phase 5 step 3, the bounded run (runbook §4). Each owner-authorized batch needs its own authorization;
+  the first is the grant activations and `bootstrap_genesis`.
+
+**Step 3 batch 1: the genesis grant and W11 genesis (Stephen, 2026-10-17).** Runbook §4, items 1 and 2.
+- **What ran:** `run-s3b1.sh` (sha256 `f929268b…`), from 04:06Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b1/`: the inputs, `s3b1.log` (`f4fea58f…`), `activate-output.json`
+  (`8a094c02…`), `genesis-output.json` (`a68e9dc0…`), the status files and the authorization note.
+- **The grant (item 1).** `ars authority activate-grant`, with `--config owner-control-binding.json`
+  (`d6777f33…`, equal to A7's `binding_config_sha256`), activated `agr_01a147fc-2c7c-71e9-b2aa-51c8c863aa80`.
+  - **What it grants:** to the owner `act_01978abc-1002…`, as class `human`, the single command
+    `ImportAcceptedW11CatalogueGenesis`.
+  - **Its scope:** subject `scope_definition` `obj_019fed25-b33e-7740-b280-000000000001`, the accepted W11
+    catalogue stream. Risk ceiling R3, effective 2026-10-17, expires 2026-12-31. Its owner decision is
+    one-time use: it authorizes exactly one activation. The grant itself is not single-use.
+  - **`decided_at`:** `2026-10-17T03:51:11Z`, fixed at preparation.
+  - **The result:** status `accepted`, owner decision `arec_01a147fc-…`, grant sha256 `69aa2a76…`. The grant
+    resolves to the owner. An exact retry returned the same receipt and appended nothing.
+- **W11 genesis (item 2).** `ars discovery spec advance --action bootstrap_genesis`, run as the owner under that
+  grant, gave state `completed`.
+  - **The effect:** one, OR-140, command `cmd_d561d9cc-…`, event `evt_01a1480b-81d5-…` (hash `5ad31bc3…`), with
+    receipt `accepted`.
+  - **Retry:** an exact retry returned the same receipt and appended nothing.
+- **Verified.**
+  - The ledger went from 3 events to 4 after activation and 5 after genesis, and the retries left it unchanged.
+  - `spec status` lists `bootstrap_genesis` exactly once, as `completed`, also from a fresh shell.
+  - The checkout is clean at M2.
+- **Next:** batch 2, the Assay bar (`bootstrap_assay_authority`, runbook §4 item 3): eight effects, each by its
+  own actor under its own grant. It needs its own authorization.
+
+**Step 3 batch 2: SPEC-01's Assay bar is accepted (Stephen, 2026-10-17).** Runbook §4, item 3.
+- **The inputs.** The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b2/`.
+  - **The bar intent** (`fdd99b5c…`) names the bar reviewer `act_01a14020-0454-…` and the prospective producer
+    `act_01a14020-045b-…`.
+  - **Eight grants, one per effect** (R3, effective 2026-10-17, expiring 2026-12-31, `decided_at` `04:15:29Z`),
+    each with its own operator config. Each owner decision is one-time use. The step-to-actor map is in `steps.json` (`0f487833…`).
+- **The first run stopped safely.** `run-s3b2.sh` (`1078b63f…`) activated grant 1 (`agr_01a14812-6b38-…`), and the
+  activation was accepted. The script's own check then failed: Windows Python ends printed lines with CRLF, so
+  the grant ID the shell read back carried a `\r` and compared unequal.
+  - **The state at the stop,** confirmed from durable records: the ledger at 6 events, no bar effect, the bar
+    not listed in status, and the checkout clean.
+  - **The fix,** authorized separately by Stephen as v2: `run-s3b2-v2.sh` (`a0b470f7…`). It differs only in passing
+    the shell's two reads of Python output through `tr -d '\r'`, and in keeping the first run's
+    `activate-1.json` as `activate-1.first-run.json`.
+- **The v2 run, from 05:03Z.**
+  - **Grant 1:** re-activated as an exact retry, with the same receipt and status `accepted`. It appended nothing.
+  - **The eight effects, in route order:** each one's grant was activated just before its use, and each ran as
+    its own actor, with `next_effect` checked first.
+
+  | # | Command | Actor |
+  |---|---|---|
+  | 1 | `RegisterAssayRubricContent` | the bar author `act_01a1169f-…` |
+  | 2 | `RegisterAssayEvidenceScopeContent` | the bar author |
+  | 3 | `ObserveW11AuthorityFile` (rubric) | the rubric observer |
+  | 4 | `ObserveW11AuthorityFile` (scope) | the scope observer |
+  | 5 | `RequestW11AuthorityReview` | the bar review requester |
+  | 6 | `RecordW11AuthorityReview` | the bar reviewer |
+  | 7 | `ProposeW11AuthorityDecision` | the bar proposer |
+  | 8 | `ResolveDecision` | the owner |
+
+  - **Each step:** receipt `accepted`, and the last effect is by the expected actor under its grant.
+- **The result.** `bootstrap_assay_authority` is `completed`, with 8 effects by 7 distinct actors under 8
+  distinct grants. The ledger went from 6 to 22 events. An exact retry of step 8 returned the same receipt and
+  appended nothing. A fresh-shell status agrees, and the checkout is clean at M2.
+- **Evidence:** `s3b2.log` (`ed9e90bb…`), the per-step `activate-N.json` and `advance-N.json` (`advance-8.json`
+  `59d30034…`), `status-after.json` (`78edf304…`), and both authorization notes.
+- **Next:** batch 3, the SPEC-01 Task before `observe_source` (runbook §4 item 4). It needs its own authorization.
+
+**Step 3 batch 3: decisions, the Task definition and a passing scratch rehearsal (Stephen, 2026-10-17).** Runbook
+§4 item 4. Nothing live has run for this batch. The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b3/`
+(`batch3-design.md`, `rehearsal-notes.md`).
+- **Why it needed design.** Batch 3 submits raw C1 lifecycle commands, and the caller writes every field. The C0
+  census ran this sequence with synthetic fixture values, so each needs a genuine one.
+- **Stephen's decisions** (the six recommendations, accepted as written):
+  1. **The source key** is `damrich-berens-kobak-neurips2024`, which fixes the Candidate ID
+     `obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7` for Task `tsk_01a14850-ab08-73c6-aef0-f3eb01a139d9`
+     (`spec_source.source_ids`).
+  2. **The Task definition:**
+     - **Scope:** the D6 subset.
+     - **Authorities:** `Stephen`, except review, which names the Task reviewer.
+     - **Risk:** R3.
+     - **Resource policy:** the committed bounded profile policy `pol_0198825f-…` 1.1.0.
+     - **Root binding:** read-only, to the durable checkout at M2.
+     - **`portfolio_refs`:** the Candidate.
+
+     The full text is in `task-definition.json`, with `content_sha256`
+     `f52ddda3487bf9946d6312c33a41acc3f1f74757a52cd9baa54063cb1f40c16e`, for Stephen's review.
+  3. **The environment fingerprint:** sha256 of the canonical JSON of the Python version, the platform, the
+     `uv.lock` sha256 and M2. Rehearsed value: `01f53658dd59…`.
+  4. **The resource request and lease:** the `bounded` profile, network `public-read-only`, no external writes.
+  5. **The host and boot identities:** derived from the machine name and its last boot time.
+  6. **The context packet and process identity:** fresh IDs with no compiled context packet.
+- **Option A (Stephen, 2026-10-17): a 1 h envelope.**
+  - **The cause.** The bounded profile caps a resource grant at 3,600 s (`operations/profiles.py`): its expiry is
+    `min(deadline, issued_at + max_runtime_s)`, with no renewal. That conflicts with D6's 4 h operator session, and
+    rehearsal 2 refused the 4 h lease.
+  - **The decision:** keep `bounded` with an honest 1 h envelope. The lease and the resource deadline end 1 h
+    after stamping, and the runtime maximum is 3,600 s.
+  - **The consequence is a known limit.** The SPEC-01 Attempt stays `running` for the operator return after the
+    lease lapses. `CompleteAttempt` needs only a running Attempt, and the SPEC-01 route rows do not consult the
+    lease.
+- **The rehearsal, on scratch stores** made by the reserve, init and first-binding procedure in scratch clones of
+  M2.
+  - **Rehearsal 1:** stopped at `ClaimExecutionLease` (`resource_grant_binding_mismatch`). The lease
+    `holder_profile` must equal the request's `requesting_profile` and the dispatch's `target_profile`, so one
+    profile string now serves all three.
+  - **Rehearsal 2:** stopped on the 1 h cap above.
+  - **Rehearsal 3:** all 17 steps accepted.
+    - **The steps:** five owner grant activations and twelve C1 commands, `CreateTask` through `StartAttempt`.
+    - **The read-only checks:** the Attempt is `running`; the Task names the Candidate (m-1); and the route's own
+      `verify_source_production` accepts the prepared SOURCE intent against the replayed ledger.
+    - **Exact resume:** a second run skipped every step and appended nothing.
+- **Known limits for the live batch:**
+  - the lapsed lease (option A);
+  - the fingerprint is a declared convention;
+  - the host and boot identities are asserted;
+  - there is no compiled context packet.
+- **A record correction.** The batch 1 and 2 blocks above called the grants "one-time use". `one_time_use` is on
+  the owner's administration decision: it authorizes exactly one activation. The grant is not single-use; the
+  census used one grant for several commands in its scope. Both blocks are corrected.
+- **Next:** the exact live script for batch 3, which runs the same driver against the live store from the durable
+  checkout, for Stephen's authorization.
+
+**Step 3 batch 3, live: the SPEC-01 Task is created and its Attempt is running (Stephen, 2026-10-17).**
+- **What ran:** `run-s3b3.sh` (sha256 `c069aed9…`), from 05:46Z, authorized alone. It ran the rehearsed driver
+  (`driver.py` `7731ff72…`) from the durable checkout's interpreter and code.
+  - **Its inputs, all hash-pinned:** the config `d6777f33…`, `values.json`, `task-definition.json` and
+    `grant-1..5.json`.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b3/live/`: `s3b3.log` (`5d22a2c2…`), `driver.log`,
+    `runtime.json` (`87d41013…`), every step's input, stdout and result, and the authorization note.
+- **The result: all 17 steps accepted, exactly as rehearsed.** The live ledger went from 22 to 40 events.
+  - **The owner grants:** five, activated just before their use (`agr_01a14850-ab62-…`, `-ab63-…`, `-ab64-…`,
+    `-ab65-7dfe-…` and `-ab65-78a2-…`).
+  - **The Task:** `CreateTask` for `tsk_01a14850-ab08-73c6-aef0-f3eb01a139d9`, with the definition Stephen reviewed
+    (`content_sha256` `f52ddda3…`), naming the Candidate `obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7`. Then
+    `RequestReadiness` and `ApproveReadiness`.
+  - **The dispatch:** `IssueDispatch`, `RecordDispatchDelivery` and `AcknowledgeDispatch`.
+  - **The resource grant and lease:**
+    - `RequestResourceGrant`, with the asserted host and boot identities;
+    - `ClaimExecutionLease`, 1 h (option A), expiring `2026-10-17T06:46:39Z`;
+    - `ClaimDispatch`, which appended two events.
+  - **The Attempt:** `CreateAttempt`, `ClaimAttempt` and `StartAttempt` for
+    `att_01a14850-ab08-7e7e-930d-9942f8ec546e`. Its `code_identity` is `git:sha1:4d867d85…` (M2) and its environment
+    fingerprint `01f53658dd59…`, equal to the rehearsal's.
+- **Verified,** also from a fresh shell with the driver's read-only `--verify-only`:
+  - the Attempt is `running`;
+  - the Task's `portfolio_refs` include the Candidate, and its rederivation from the Task ID and source key agrees
+    (m-1);
+  - the route's own `verify_source_production` accepts `live/source-intent.json` (`6023d76e…`, byte-identical to the
+    rehearsal's) against the replayed live ledger;
+  - the checkout is clean at M2.
+- **Hold.** The Task is not amended, and the Attempt stays running until the operator return is registered (P5-7
+  amended). The lease lapses at 06:46:39Z, the option A known limit.
+- **Next:** batch 4, `observe_source` for `neurips2024` with that SOURCE intent and its grants (runbook §4 item 5).
+  It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
