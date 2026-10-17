@@ -2852,6 +2852,41 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** batch 4, `observe_source` for `neurips2024` with that SOURCE intent and its grants (runbook §4 item 5).
   It needs its own authorization.
 
+**Step 3 batch 4, live: the SOURCE is registered and the Candidate exists (Stephen, 2026-10-17).** Runbook §4 item 5.
+- **The rehearsal first.** On the batch 3 scratch store, which holds the same Task, Attempt and IDs, `batch4.py`
+  (`5615a1d1…`) first ran W11 genesis, because OR-029 refuses Scout ingestion before it. Then:
+  - effect 1 fetched and registered the public source at exactly the values the public-registration probe pinned;
+  - effect 2, OR-029, registered the Candidate;
+  - an exact retry appended nothing.
+- **What ran live:** `run-s3b4.sh` (sha256 `e71c6fb6…`), from 06:58Z, authorized alone. It ran `batch4.py` from the
+  durable checkout, as the owner.
+  - **Its inputs, all hash-pinned:** the SOURCE intent `6023d76e…` that the route's verifier accepted after
+    batch 3, and two grant requests with their configs.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b4/live/`: `s3b4.log` (`2e59dcd7…`), each step's
+    output (`2-advance-register.json` `96dc0af3…`, `4-advance-ingest.json` `cdd4447e…`), the retry and the
+    authorization note.
+  - **The hold, re-checked first** (read-only, with the batch 3 driver's `--verify-only`): the Attempt was still
+    running and the verifier still accepted the intent.
+- **The result.** The live ledger went from 40 to 45 events.
+  - **Grant 1:** `agr_01a14887-592d-…`, `RegisterArtefact` on the SOURCE artefact
+    `art_87c22454-9078-7e77-a83f-9ded3957f05e`.
+  - **Effect 1, `RegisterArtefact`:** the route's SOURCE verifier, then the read-only public Git fetch of
+    `https://github.com/berenslab/eff-ph.git`, with no credentials.
+    - `refs/tags/neurips2024` resolved to `145efcde673f1a1897eff250b77221d26c34c479`.
+    - The source's sha256 is `3eea9174db28f4dd5bcf4e622709280f25fd6bfe0843ff1fc2e1d1559401f9df`.
+  - **Grant 2:** `agr_01a14887-592e-…`, `IngestScoutObservationBatch` on the observation
+    `obj_a24e7360-236c-7143-a9c7-8e71ea6ddd94`.
+  - **Effect 2, OR-029:** the Scout observation batch, which registered the Candidate
+    `obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7` (two events).
+- **Verified.**
+  - An exact retry returned `completed` and appended nothing.
+  - The Candidate is in the replayed Discovery candidates.
+  - A fresh-shell `spec status` shows `observe_source` completed with 2 effects, alongside genesis (1) and the bar
+    (8).
+  - The checkout is clean at M2.
+- **Next:** batch 5, `request_spec_01` by the steward and `prepare_spec_01` by the owner, which issues the operator
+  brief (runbook §4 item 6). It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
