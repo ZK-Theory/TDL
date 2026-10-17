@@ -106,8 +106,9 @@ All `ars` commands run from the durable checkout as
 - **L1 to L3 are done and verified.**
   - **Store identity:** `5e3b95a9…`.
   - **Witness:** `1a7aa957…`.
-- **L4** is PR #365 (`a40b3f01`), awaiting Stephen's review and merge.
-- **The record:** P-058, "Live steps A1 to A4".
+- **L4** is PR #365 (`a40b3f01`), merged as M2 `4d867d85`.
+- **L5 is done (2026-10-17):** the review passed, and the selection passed 327/327.
+- **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2" and "L5 delta assurance on M2".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

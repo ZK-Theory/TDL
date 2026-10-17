@@ -2614,6 +2614,32 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   decision). When it ends, its JUnit is reconciled (including F2's check) and Stephen records it.
 - **Next:** A6, the fast-forward and `store init`. It needs its own authorization.
 
+**L5 delta assurance on M2: passed; A5 closed (Stephen, 2026-10-17).**
+- **The subject:** M2, `4d867d85574dcf90300f059ab1fd52324be3c85a`.
+- **The run.**
+  - **Where:** the worktree `C:/Users/steph/TDL-g6-p5`, detached at M2, clean before and after.
+  - **The runner:** the committed `tools/certify_packet.py` (#362), with `--base 100730e0` and
+    `--partial-reason` citing Stephen's L5 scope.
+  - **Timing:** from 02:00:00 on 2026-10-17, 23 minutes on 8 workers.
+  - **The selection:** 327 nodes in 72 groups, selection hash `60ccf9d7…`.
+- **The result: 327 passed.**
+  - The JUnit reconciliation (independent of the runner's summary) found 327 expected and 327 reported, none
+    missing, unexpected or duplicated. Nothing failed, errored or was skipped.
+  - All 72 groups exited 0. No run needed the environment retry, nothing was cut off and no group went over budget.
+    The slowest group was `store_binding_service-1`, at 23.0 minutes.
+- **F2 confirmed.** Both `test_windows_delete_protected_anchor_fences_a_directory_that_denies_listing` nodes, the
+  `registered-root` and `registered-member` cases, **passed**, not skipped.
+- **The partial selection.** The runner's diff rule required 3,579 nodes, 3,279 more than this selection. The run
+  records Stephen's narrower scope as partial. PR-F's PR-lane affected suite had passed on CI (`select` plus
+  `suite` 1 to 8).
+- **The machine check.** It was recorded before the window, on 2026-10-16 at 08:07 (81.3% idle). The committed
+  runner records cleanliness at launch and at window start, but no machine check of its own.
+- **Evidence:** `C:/Users/steph/.codex/tmp/g6-p5/l5/out/4d867d85-60ccf9d7/`. `results.json` (sha256 `4384605c…`)
+  is there with the per-group JUnit and logs; `l5-collect-4d867d85.txt` is beside it.
+- **A5 is closed.** With the L5 review's PASS above, the delta assurance on M2 is complete.
+- **Next:** A6 (L6), the durable checkout's fast-forward to M2 with `fetch` then `merge --ff-only`, then
+  `store init`. It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
