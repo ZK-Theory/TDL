@@ -55,7 +55,7 @@ def pinned_ids(root: Path) -> dict[str, list[Path]]:
 
 def check(repo: Path, root: Path) -> tuple[list[str], str]:
     """Return (problems, summary) for every id pinned under ``root``."""
-    publication = Publication(repo)
+    publication = Publication(repo, accept_pull_refs=False)  # a CI clone never fetches refs/pull/*
     problems: list[str] = []
     counts = {"commit": 0, "tree/blob": 0, "foreign": 0}
     shallow = (repo / ".git" / "shallow").is_file() or ((repo / ".git").is_file() and _gitdir_shallow(repo))

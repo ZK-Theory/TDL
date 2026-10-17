@@ -53,7 +53,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from commit_reachability import Publication  # noqa: E402
+from commit_reachability import Publication, merged_pull_request  # noqa: E402
 
 _CLOSING = ("ACTIONED", "CLOSED", "DECLINED")
 # A commit hash must carry a hex letter, or be introduced by the word "commit": an all-digit run is
@@ -350,7 +350,9 @@ def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[
     """
     problems: list[str] = []
     checked = foreign = 0
-    publication = Publication(repo)
+    # A squash-merged PR's commits reached their reader: its head is refs/pull/<n>/head, and a commit inside it
+    # is found through GitHub's commit-to-PR association (obs 2026-10-17-squash-merge-strands-the-pr-commits-...).
+    publication = Publication(repo, pulls_lookup=merged_pull_request)
     for ident, status, block in entries:
         if not is_open(status):
             continue

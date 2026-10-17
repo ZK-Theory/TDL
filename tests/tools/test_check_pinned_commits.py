@@ -120,6 +120,36 @@ def test_blob_pins_present_in_the_checkout_pass(tmp_path: Path) -> None:
     assert "1 tree/blob(s) present" in result.stdout
 
 
+def test_a_squash_merged_pr_head_counts_for_the_log_but_not_for_a_pin(tmp_path: Path) -> None:
+    """Obs 2026-10-17-squash-merge-strands-the-pr-commits-entries-cite.
+
+    GitHub keeps a deleted PR branch's head as refs/pull/<n>/head. For the observation log that is delivery.
+    For a pinned record it is not: a CI clone (fetch-depth: 0) fetches branches and tags, never refs/pull/*.
+    """
+    clone, _, stranded = _clone(tmp_path)
+    origin = tmp_path / "origin.git"
+    _git(clone, "push", "-q", "origin", f"{stranded}:refs/pull/7/head")
+    assert Publication(clone).published_by(stranded) == "refs/pull/7/head"
+    assert Publication(clone, accept_pull_refs=False).published_by(stranded) is None
+    _pin(clone, stranded)
+    assert _run(clone).returncode == 1, "a pin on a PR-only commit is still unverifiable from a CI clone"
+    assert origin.is_dir()
+
+
+def test_a_commit_inside_a_merged_pr_counts_only_through_the_lookup(tmp_path: Path) -> None:
+    """A squash-merged PR's intermediate commit is no PR head; GitHub's commit-to-PR association finds it."""
+    clone, _, first = _clone(tmp_path)
+    _git(clone, "switch", "-q", "review/local-only")
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "second")
+    head = _git(clone, "rev-parse", "HEAD")
+    _git(clone, "push", "-q", "origin", f"{head}:refs/pull/8/head")
+    assert Publication(clone).published_by(first) is None, "an intermediate commit is not a PR head"
+    found = Publication(clone, pulls_lookup=lambda _repo, sha: 8 if sha == first else None)
+    assert found.published_by(first) == "merged PR #8"
+    nowhere = Publication(clone, pulls_lookup=lambda _repo, _sha: None)
+    assert nowhere.published_by(first) is None, "negative control: no branch, tag, PR head or merged PR"
+
+
 def test_the_live_repository_pins_are_published() -> None:
     """Every id pinned under this repository's .research-system/ is published or declared foreign."""
     if (REPO_ROOT / ".git" / "shallow").is_file():
