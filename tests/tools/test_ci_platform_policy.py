@@ -188,6 +188,7 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_mutation_check.py",
     "tests/tools/test_certify_packet.py",
     "tests/tools/test_assert_no_skips.py",
+    "tests/tools/test_ci_parity.py",
     "tests/tools/test_commit_state_guard_hook.py",
     "tests/tools/test_crlf_byte_surface.py",
     "tests/tools/test_system_review_hook_gates.py",
