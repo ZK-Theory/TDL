@@ -550,3 +550,56 @@ None is a numerical or statistical failure, so none is an invariant-battery item
 6. Staged one skill edit (`tda-resource-preflight` 1.2.0).
 7. Updated `last-review-date.txt` to `2026-10-15`.
 8. Opened this packet as a PR.
+
+---
+
+## Outcome (2026-10-17)
+
+On 2026-10-15 you approved every group and asked for the gate, invariant and process items to be resolved
+too. The campaign ran on 2026-10-15 to 2026-10-17. Every PR below is merged unless marked.
+
+| Group | Resolution | PRs (merge commit) |
+|---|---|---|
+| A | Five pinned review commits published as `pin/*` tags; the pinned-commit check runs in admission-controls; the S-014 root cause (an 8.3 short-name TEMP on the hosted runner) is fixed | #357 (`78324490`), #358 (`6a25b362`) |
+| B | The nightly-verdict issue (it opened #367 on the first red night); the review-staleness line at session start; `--close-conditions` in the lint | #359 (`0f8be24f`), #360 (`335b7eeb`), #357 |
+| C | `tools/certify_packet.py` with its five record contracts | #362 (`6f6227f7`), #364 (`0f037415`) |
+| D | Both fresh-store entries closed on #348 and #351 | — |
+| E | Watchdog reads a 7-day window; the shared workflow-step harness | #359 |
+| F | The primary-checkout guard, then scoped to this project's checkout (review F1/F3) | #360, #373 (`12453e72`) |
+| G | `tda-resource-preflight` 1.2.0, `tda-handoff` 1.4.0 | #361 (`dae9f197`) |
+| H | Both residual limbs deferred to Gate 7+ intake | — |
+| I | Routed to the Phase 5 session; `contract-first-tdd` 1.4.0 checklist line | #361 |
+| zktheoryweb | The Zotero refresh is opt-in | zktheoryweb #23, **open** |
+| codex_workflow | Deferred: Codex is no longer in use | — |
+
+Follow-ups found during the campaign:
+- Squash-merged PR commits now count as delivered: #371 (`01e50428`).
+- The guard's scope: #373.
+- The CI-parity fixture and the live-step rules: #374 (`bfb38d25`).
+- Two publish-refusal tests had passed on the live store's breakage. They now pin their own foundation: #372 (`1dc06d54`), from another session. My duplicate #369 was closed.
+- Deterministic test citations: #370 (`9987a39c`).
+
+**Declined on evidence:** narrowing the affected-tests pin clause. On the L5 diff the narrowed rule selected 90
+files, the same as the current rule (93 with helper propagation). The over-selection came from a hub code change, not
+the pin clause. `--partial-reason` remains the remedy for owner-accepted narrower scopes.
+
+**Nightly lane:**
+
+| Night | Failures outside the baseline |
+|---|---:|
+| 2026-10-15 | 138 |
+| 2026-10-16 | 2 |
+| 2026-10-17 | 2, the two tests #372 fixed; that run predates the merge |
+
+Dispatch run 39044280842 checks merged `main`.
+
+**Observation log:** 6 OPEN, down from 34 at the 2026-10-17 restart. 44 closed entries were archived to
+`archive/log-2026-10-17.md`. The lint reports 0 stranded commits and no unmet close conditions. Still open:
+
+| Entry | Waiting on |
+|---|---|
+| `2026-10-02-full-suite-red-on-main-unseen`, `2026-10-03-shared-seam-change-merged-without-its-dependents` | three green scheduled nights, then your ruleset edit making the lane required |
+| `2026-10-05-build-mutates-tracked-zotero-cache` | zktheoryweb #23 |
+| `2026-10-15-amended-decision-property-left-unmechanized` | the Phase 5 session; `spec_source.py` is unchanged on `main` |
+| `2026-10-17-cli-tests-read-the-committed-foundation-unpinned` | a decision on an autouse sentinel that refuses an unpinned canonical foundation |
+| `2026-10-17-merge-admission-waiver-has-no-mechanism` | a decision on a head-scoped owner waiver for thread-finality; it loosens a required gate |
