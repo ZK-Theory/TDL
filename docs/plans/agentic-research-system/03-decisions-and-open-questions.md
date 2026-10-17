@@ -2700,6 +2700,31 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** Phase 5 step 3, the bounded run (runbook §4). Each owner-authorized batch needs its own authorization;
   the first is the grant activations and `bootstrap_genesis`.
 
+**Step 3 batch 1: the genesis grant and W11 genesis (Stephen, 2026-10-17).** Runbook §4, items 1 and 2.
+- **What ran:** `run-s3b1.sh` (sha256 `f929268b…`), from 04:06Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b1/`: the inputs, `s3b1.log` (`f4fea58f…`), `activate-output.json`
+  (`8a094c02…`), `genesis-output.json` (`a68e9dc0…`), the status files and the authorization note.
+- **The grant (item 1).** `ars authority activate-grant`, with `--config owner-control-binding.json`
+  (`d6777f33…`, equal to A7's `binding_config_sha256`), activated `agr_01a147fc-2c7c-71e9-b2aa-51c8c863aa80`.
+  - **What it grants:** to the owner `act_01978abc-1002…`, as class `human`, the single command
+    `ImportAcceptedW11CatalogueGenesis`.
+  - **Its scope:** subject `scope_definition` `obj_019fed25-b33e-7740-b280-000000000001`, the accepted W11
+    catalogue stream. Risk ceiling R3, effective 2026-10-17, expires 2026-12-31, one-time use.
+  - **`decided_at`:** `2026-10-17T03:51:11Z`, fixed at preparation.
+  - **The result:** status `accepted`, owner decision `arec_01a147fc-…`, grant sha256 `69aa2a76…`. The grant
+    resolves to the owner. An exact retry returned the same receipt and appended nothing.
+- **W11 genesis (item 2).** `ars discovery spec advance --action bootstrap_genesis`, run as the owner under that
+  grant, gave state `completed`.
+  - **The effect:** one, OR-140, command `cmd_d561d9cc-…`, event `evt_01a1480b-81d5-…` (hash `5ad31bc3…`), with
+    receipt `accepted`.
+  - **Retry:** an exact retry returned the same receipt and appended nothing.
+- **Verified.**
+  - The ledger went from 3 events to 4 after activation and 5 after genesis, and the retries left it unchanged.
+  - `spec status` lists `bootstrap_genesis` exactly once, as `completed`, also from a fresh shell.
+  - The checkout is clean at M2.
+- **Next:** batch 2, the Assay bar (`bootstrap_assay_authority`, runbook §4 item 3): eight effects, each by its
+  own actor under its own grant. It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
