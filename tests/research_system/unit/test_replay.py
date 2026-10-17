@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.cli import main
@@ -997,6 +998,20 @@ def test_s006_cli_requires_materialized_canonical_origin_pins(tmp_path, monkeypa
         ),
     )
     control_root = tmp_path / "control"
+    # A test-owned foundation whose origin witness path is not the canonical one for this control root. The test
+    # used to read the committed foundation, so its refusal depended on which store that file happened to name
+    # (obs 2026-10-17-cli-tests-read-the-committed-foundation-unpinned).
+    origin_root = tmp_path / "origin-authority"
+    foundation = yaml.safe_load((REPO_ROOT / ".research-system" / "config" / "foundation.yaml").read_text("utf-8"))
+    foundation.update(
+        origin_authority_root=str(origin_root),
+        origin_witness_path=str(origin_root / "not-the-canonical-witness.json"),
+        origin_witness_sha256="0" * 64,
+    )
+    pinned = tmp_path / "foundation.yaml"
+    pinned.write_text(yaml.safe_dump(foundation, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr("research_system.config.canonical_foundation_path", lambda: pinned)
+    monkeypatch.setattr("research_system.cli.canonical_foundation_path", lambda: pinned)
     bootstrap_path = write_authority_bootstrap_input(tmp_path / "authority-bootstrap.json")
     with pytest.raises(ConfigurationError, match="canonical foundation origin witness path is not canonical"):
         main(
