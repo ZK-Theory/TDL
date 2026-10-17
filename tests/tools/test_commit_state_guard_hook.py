@@ -16,6 +16,7 @@ bash against real repositories, and fail rather than skip without bash.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -53,8 +54,21 @@ def repo(tmp_path: Path) -> Path:
     return path
 
 
-def _run(raw_stdin: str) -> tuple[dict | None, str]:
-    """Run the hook on raw stdin; return (parsed stdout JSON or None when silent, stderr)."""
+def _run(raw_stdin: str, project: Path | str | None = None) -> tuple[dict | None, str]:
+    """Run the hook on raw stdin; return (parsed stdout JSON or None when silent, stderr).
+
+    ``project`` is the session's ``CLAUDE_PROJECT_DIR``: the repository whose primary checkout the guard protects
+    and under whose git dir the recorder stores its records. It defaults to the payload's own cwd, so a fixture
+    repository is its own project and nothing is written into this repository's ``.git``.
+    """
+    env = {**os.environ}
+    if project is None:
+        try:
+            project = json.loads(raw_stdin).get("cwd")
+        except ValueError:
+            project = None  # a malformed payload: the hook must fail open on its own
+    if project is not None:
+        env["CLAUDE_PROJECT_DIR"] = str(project)
     result = subprocess.run(
         [_bash(), str(HOOK)],
         input=raw_stdin,
@@ -62,12 +76,15 @@ def _run(raw_stdin: str) -> tuple[dict | None, str]:
         text=True,
         encoding="utf-8",
         timeout=60,
+        env=env,
     )
     assert result.returncode == 0, result.stderr
     return (json.loads(result.stdout) if result.stdout.strip() else None), result.stderr
 
 
-def _pre(command: str, cwd: Path | str, session: str = "s1", tool: str = "Bash") -> str:
+def _pre(
+    command: str, cwd: Path | str, session: str = "s1", tool: str = "Bash", project: Path | str | None = None
+) -> str:
     payload = {
         "session_id": session,
         "cwd": str(cwd),
@@ -75,12 +92,12 @@ def _pre(command: str, cwd: Path | str, session: str = "s1", tool: str = "Bash")
         "tool_name": tool,
         "tool_input": {"command": command},
     }
-    output, _ = _run(json.dumps(payload))
+    output, _ = _run(json.dumps(payload), project)
     assert output is not None, "PreToolUse must always emit a decision"
     return output["hookSpecificOutput"]["permissionDecision"]
 
 
-def _post(command: str, cwd: Path, session: str = "s1") -> None:
+def _post(command: str, cwd: Path, session: str = "s1", project: Path | str | None = None) -> None:
     payload = {
         "session_id": session,
         "cwd": str(cwd),
@@ -89,7 +106,7 @@ def _post(command: str, cwd: Path, session: str = "s1") -> None:
         "tool_input": {"command": command},
         "tool_response": {"stdout": "", "stderr": ""},
     }
-    output, _ = _run(json.dumps(payload))
+    output, _ = _run(json.dumps(payload), project)
     assert output is None, "the PostToolUse recorder must stay silent"
 
 
@@ -226,7 +243,7 @@ def test_powershell_paths_keep_their_backslashes(repo: Path, tmp_path: Path) -> 
     _post("git status", repo)
     _git(repo, "checkout", "-q", "other")
 
-    assert _pre(f"git -C {windows} commit -m x", tmp_path, tool="PowerShell") == "deny"
+    assert _pre(f"git -C {windows} commit -m x", tmp_path, tool="PowerShell", project=repo) == "deny"
 
 
 @pytest.mark.parametrize(
@@ -275,8 +292,8 @@ def test_env_dash_c_moves_the_commit_target(repo: Path, tmp_path: Path) -> None:
     _post("git status", repo)
     _git(repo, "checkout", "-q", "other")
 
-    assert _pre(f"env -C {repo.as_posix()} git commit -m x", tmp_path) == "deny"
-    assert _pre(f"env --chdir={repo.as_posix()} git commit -m x", tmp_path) == "deny"
+    assert _pre(f"env -C {repo.as_posix()} git commit -m x", tmp_path, project=repo) == "deny"
+    assert _pre(f"env --chdir={repo.as_posix()} git commit -m x", tmp_path, project=repo) == "deny"
 
 
 def test_a_checkout_that_restores_a_path_is_not_a_branch_move(repo: Path) -> None:
@@ -486,7 +503,7 @@ def test_a_move_reaching_the_primary_checkout_through_dash_c_is_refused(
     primary: tuple[Path, Path], tmp_path: Path
 ) -> None:
     path, _ = primary
-    assert _pre(f'git -C "{path}" checkout -q --detach', tmp_path) == "deny"
+    assert _pre(f'git -C "{path}" checkout -q --detach', tmp_path, project=path) == "deny"
 
 
 def test_the_primary_checkout_off_main_is_not_guarded(primary: tuple[Path, Path]) -> None:
@@ -500,3 +517,42 @@ def test_the_explicit_override_admits_an_intended_move(primary: tuple[Path, Path
     path, _ = primary
     assert _pre("TDL_ALLOW_PRIMARY_MOVE=1 git checkout -q --detach", path) == "allow"
     assert _pre("TDL_ALLOW_PRIMARY_MOVE=0 git checkout -q --detach", path) == "deny"
+
+
+# --- the guard's scope is this project's primary checkout ----------------------------------------
+# Obs 2026-10-16-commit-state-guard-reaches-the-durable-checkout: the predicate matched every non-linked clone on
+# main (the Gate 6 durable checkout among them), and the recorder wrote into every repository a command touched.
+
+
+@pytest.fixture
+def durable(tmp_path: Path, primary: tuple[Path, Path]) -> Path:
+    """A separate, non-linked clone on main: shaped like a primary checkout, but another repository's."""
+    path, _ = primary
+    clone = tmp_path / "durable"
+    subprocess.run(["git", "clone", "-q", str(path), str(clone)], capture_output=True, text=True, check=True)
+    return clone
+
+
+@pytest.mark.parametrize("command", PRIMARY_MOVES)
+def test_another_clone_on_main_is_not_this_projects_primary_checkout(
+    command: str, primary: tuple[Path, Path], durable: Path
+) -> None:
+    path, _ = primary
+    assert _pre(command, durable, project=path) == "allow"
+    assert _pre(command, path, project=path) == "deny", "positive control: the real primary is still guarded"
+
+
+def test_the_recorder_writes_nothing_into_another_repository(primary: tuple[Path, Path], durable: Path) -> None:
+    path, _ = primary
+    _post("git status", durable, project=path)
+    assert not (durable / ".git" / "tdl-session-branches").exists(), "a read wrote into the other checkout"
+    records = list((path / ".git" / "tdl-session-branches").rglob("*"))
+    assert any(p.is_file() for p in records), "the record lives under the project's own git dir"
+
+
+def test_branch_drift_in_another_repository_is_still_caught(primary: tuple[Path, Path], durable: Path) -> None:
+    """Moving the records must not drop the drift protection for commits made outside the project."""
+    path, _ = primary
+    _post("git status", durable, project=path)
+    _git(durable, "switch", "-q", "-c", "elsewhere")  # another session moves HEAD
+    assert _pre("git commit -m x", durable, project=path) == "deny"
