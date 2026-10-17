@@ -36,6 +36,7 @@ from tools.check_merge_admission import (
     platform_producer,
     platform_status,
     queue_disposition,
+    review_producers,
     sweep_actions,
 )
 
@@ -67,12 +68,17 @@ def _pull_request(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _thread_finality(snapshot: dict[str, Any], config: dict[str, Any], *, candidate: str = PR262_CANDIDATE) -> None:
-    """Run the thread-finality gate with the committed producer list."""
+    """Run the thread-finality gate with the producer list ``config`` carries."""
     evaluate_thread_finality(
         snapshot,
         candidate_sha=candidate,
         review_producers=config["thread_finality"]["review_producers"],
     )
+
+
+# The committed gate requires no producer (2026-10-17). The producer-state machinery stays, so a reviewer can be
+# required again by config alone; these tests exercise it with Codex's recorded PR #262 history as the producer.
+WITH_A_PRODUCER: dict[str, Any] = {"thread_finality": {"review_producers": ["chatgpt-codex-connector"]}}
 
 
 def _platform_kwargs(config: dict[str, Any], candidate: str, platform: str | None) -> dict[str, Any]:
@@ -140,7 +146,7 @@ def test_a_producer_that_has_not_reviewed_the_candidate_blocks(
         if not (review["author"]["login"] == "chatgpt-codex-connector" and review["commit"]["oid"] == PR262_CANDIDATE)
     ]
     with pytest.raises(ValueError, match="have not reached a terminal state"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_evidence_from_an_earlier_head_is_refused(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
@@ -156,9 +162,28 @@ def test_truncated_thread_evidence_is_refused(snapshot: dict[str, Any], config: 
         _thread_finality(snapshot, config)
 
 
-def test_codex_is_the_only_required_review_producer(config: dict[str, Any]) -> None:
-    """Decided 2026-09-11: CodeRabbit skipped most PRs, so requiring it would block nearly every merge."""
-    assert config["thread_finality"]["review_producers"] == ["chatgpt-codex-connector"]
+def test_no_review_producer_is_required(config: dict[str, Any]) -> None:
+    """Decided by Stephen 2026-10-17: Codex removed; CodeRabbit is triggered by hand and is not required either."""
+    assert config["thread_finality"]["review_producers"] == []
+    assert review_producers(config) == []
+
+
+def test_a_candidate_with_no_codex_review_and_no_live_thread_is_admitted(
+    snapshot: dict[str, Any], config: dict[str, Any]
+) -> None:
+    """The committed gate no longer waits on Codex; under the old list the same evidence blocks."""
+    _without_codex_review(snapshot)
+    _thread_finality(snapshot, config)
+    with pytest.raises(ValueError, match="chatgpt-codex-connector has not reviewed or reacted on this head"):
+        _thread_finality(snapshot, WITH_A_PRODUCER)
+
+
+@pytest.mark.parametrize("section", [{}, {"review_producers": None}, {"review_producers": "chatgpt-codex-connector"},
+                                     {"review_producers": [1]}])  # fmt: skip
+def test_only_an_explicit_empty_list_means_no_producer(section: dict[str, Any]) -> None:
+    """A missing or malformed producer list fails closed; it is never read as "none required"."""
+    with pytest.raises(ValueError, match="review_producers"):
+        review_producers({"thread_finality": section})
 
 
 def test_a_coderabbit_thread_still_blocks_without_coderabbit_being_required(
@@ -233,33 +258,33 @@ def test_a_codex_plus_one_after_the_candidates_first_check_admits(
 ) -> None:
     """Codex's clean signal is a reaction, not a review; one made after this head arrived is terminal."""
     _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z")
-    _thread_finality(snapshot, config)
+    _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_stale_plus_one_from_an_earlier_head_still_blocks(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """The decided negative control: a +1 older than the candidate's first check describes another head."""
     _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
     with pytest.raises(ValueError, match=r"\+1 predates this head.*@codex review"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_plus_one_cannot_be_bound_when_no_check_has_started(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """With no started check there is no lower bound on the push time, so the reaction binds to nothing."""
     _react(_without_codex_review(snapshot, started_at=None), at="2026-08-23T07:35:12Z")
     with pytest.raises(ValueError, match="no check run has started"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_another_users_plus_one_is_not_a_codex_signal(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z", login="stephendor")
     with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_non_thumbs_up_reaction_is_not_a_clean_signal(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z", content="EYES")
     with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_codex_review_naming_another_commit_after_the_push_voids_the_plus_one(
@@ -276,7 +301,7 @@ def test_a_codex_review_naming_another_commit_after_the_push_voids_the_plus_one(
         }
     )
     with pytest.raises(ValueError, match="names another commit"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_foreign_review_older_than_the_accepted_plus_one_does_not_void_it(
@@ -293,7 +318,7 @@ def test_a_foreign_review_older_than_the_accepted_plus_one_does_not_void_it(
             "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
         }
     )
-    _thread_finality(snapshot, config)
+    _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_quota_on_this_head_outranks_a_stale_plus_one(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
@@ -301,7 +326,7 @@ def test_quota_on_this_head_outranks_a_stale_plus_one(snapshot: dict[str, Any], 
     _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
     _comment(snapshot, at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
     with pytest.raises(ValueError, match=r"usage limit.*waiver"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_comment_window_that_cannot_reach_this_heads_arrival_is_not_called_untriggered(
@@ -311,7 +336,7 @@ def test_a_comment_window_that_cannot_reach_this_heads_arrival_is_not_called_unt
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:50:00Z", body="a later discussion comment")
     _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
     with pytest.raises(ValueError, match="usage limit is unknown"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_comment_window_that_reaches_back_past_this_heads_arrival_is_complete(
@@ -321,14 +346,14 @@ def test_a_comment_window_that_reaches_back_past_this_heads_arrival_is_complete(
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:00:00Z", body="an older comment")
     _pull_request(snapshot)["comments"]["pageInfo"]["hasPreviousPage"] = True
     with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_usage_limit_on_this_head_is_named_with_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """Quota is not 'still reviewing': the head will never be reviewed automatically."""
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
     with pytest.raises(ValueError, match=r"usage limit.*@codex review.*waiver"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_usage_limit_on_an_earlier_head_does_not_label_this_one(
@@ -337,13 +362,13 @@ def test_a_usage_limit_on_an_earlier_head_does_not_label_this_one(
     """A quota comment older than this head's first check was about another head: this one is untriggered."""
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:00:00Z", body=QUOTA_BODY)
     with pytest.raises(ValueError, match="has not reviewed or reacted on this head"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_an_untriggered_head_names_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     _without_codex_review(snapshot)
     with pytest.raises(ValueError, match=r"has not reviewed or reacted on this head.*@codex review"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_a_clean_plus_one_does_not_excuse_a_live_thread(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
@@ -351,7 +376,7 @@ def test_a_clean_plus_one_does_not_excuse_a_live_thread(snapshot: dict[str, Any]
     _react(_without_codex_review(snapshot), at="2026-08-23T07:35:12Z")
     _pull_request(snapshot)["reviewThreads"]["nodes"][0].update({"isResolved": False, "isOutdated": False})
     with pytest.raises(ValueError, match="unresolved non-outdated review thread"):
-        _thread_finality(snapshot, config)
+        _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
 def test_the_admission_snapshot_requests_reactions_comments_and_check_start_times() -> None:
@@ -1729,4 +1754,4 @@ def test_config_is_a_shallow_copy_not_shared(config: dict[str, Any], snapshot: d
     mutated = copy.deepcopy(snapshot)
     _pull_request(mutated)["reviewThreads"]["nodes"] = []
     assert _pull_request(snapshot)["reviewThreads"]["nodes"], "snapshot fixture must be per-test"
-    assert config["thread_finality"]["review_producers"]
+    assert "review_producers" in config["thread_finality"]

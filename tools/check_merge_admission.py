@@ -1042,12 +1042,26 @@ def _section(config: Mapping[str, Any], name: str) -> Mapping[str, Any]:
     return section
 
 
-def _string_list(section: Mapping[str, Any], key: str) -> list[str]:
-    """Return a configured list of strings, raising on any other shape."""
+def _string_list(section: Mapping[str, Any], key: str, *, allow_empty: bool = False) -> list[str]:
+    """Return a configured list of strings, raising on any other shape.
+
+    ``allow_empty`` admits an explicit ``[]``; a missing key, ``null`` or any other shape still fails closed.
+    """
     values = section.get(key)
-    if not isinstance(values, list) or not values or not all(isinstance(value, str) for value in values):
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        raise ValueError(f"configuration key {key!r} must be a list of strings")
+    if not values and not allow_empty:
         raise ValueError(f"configuration key {key!r} must be a non-empty list of strings")
     return list(values)
+
+
+def review_producers(config: Mapping[str, Any]) -> list[str]:
+    """Return the required review producers; an explicit empty list means none is required.
+
+    Codex was removed on 2026-10-17 (decided by Stephen), leaving no required producer. Thread finality
+    still blocks on every live thread, whoever wrote it.
+    """
+    return _string_list(_section(config, "thread_finality"), "review_producers", allow_empty=True)
 
 
 def platform_producer(config: Mapping[str, Any]) -> PlatformProducer:
@@ -1153,7 +1167,7 @@ def main(argv: list[str] | None = None) -> int:
             listing = json.loads(args.snapshot.read_text(encoding="utf-8"))
             if not isinstance(listing, (Mapping, list)):
                 raise ValueError("--snapshot must contain a JSON object or a list of page objects")
-            producers = _string_list(_section(config, "thread_finality"), "review_producers")
+            producers = review_producers(config)
             verdict = "\n".join(sweep_actions(listing, gate=sweep_gate(config), producers=producers))
         elif args.gate == "sweep-cadence":
             verdict = evaluate_sweep_cadence(_load_json(args.runs, "--runs"), now=_now_utc(args.now))
@@ -1168,7 +1182,7 @@ def main(argv: list[str] | None = None) -> int:
                 evaluate_thread_finality(
                     payload,
                     candidate_sha=candidate_sha,
-                    review_producers=_string_list(_section(config, "thread_finality"), "review_producers"),
+                    review_producers=review_producers(config),
                 )
                 verdict = f"thread-finality: no live review threads on candidate {candidate_sha}"
             else:

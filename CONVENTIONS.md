@@ -728,8 +728,14 @@ Three journal-targeted papers replacing the original four technique-first papers
   `GATE_FILES` in `tests/tools/test_ci_platform_policy.py`. That test fails if a
   gate file lacks an owner, or if CODEOWNERS reaches beyond the gate.
 
-  Codex (`chatgpt-codex-connector`) is the only required review producer.
-  CodeRabbit's threads still block when it posts them.
+  No review producer is required (`review_producers: []` in
+  `.github/merge-admission.yml`). Codex (`chatgpt-codex-connector`) was the only
+  required producer from 2026-09-11 and was removed on 2026-10-17: Stephen no
+  longer uses it. CodeRabbit is triggered by hand and is not required either.
+  Thread finality still blocks on every unresolved, non-outdated thread,
+  whoever wrote it, so CodeRabbit's threads still block when it posts them.
+  Only an explicit empty list means "none". A missing or malformed key fails
+  closed. Decided by Stephen, 2026-10-17.
 
   **Agent sessions never take the bypass.** P-049's only bypass actor is the
   repository admin role with `bypass_mode: pull_request`. Every agent acts
