@@ -134,10 +134,13 @@ All `ars` commands run from the durable checkout as
   - the Attempt is completed, naming the SOURCE observation and the operator return (option A);
   - the Task is submitted;
   - the Task review `rev_01a158ed-…` is requested and assigned to the Task reviewer.
+- **Step 3 batch 11 is done (2026-10-20).** This is closure part 2: the independent Task review approved, the
+  owner satisfied it, and the SPEC-01 Task is accepted, selecting the two artefacts. `close_task` is complete.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
-  "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan" and "Step 3 batch 10, live".
+  "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live" and
+  "Step 3 batch 11, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

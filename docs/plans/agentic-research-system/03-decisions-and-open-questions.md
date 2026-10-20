@@ -3190,6 +3190,65 @@ item 7, closure part 1.
 - **Next:** the Task reviewer works in a separate, fresh-context session from the Task-review package and drafts
   the verdict evidence. Then batch 11 runs, under its own authorization.
 
+**Step 3 batch 11, live: the Task review approves, and the SPEC-01 Task is accepted (Stephen, 2026-10-20).** Runbook
+§4 item 7, closure part 2.
+- **The Task-review session.**
+  - **Who:** the Task reviewer `act_01a14020-0462-…`, in a separate, fresh-context session (`local_f2505387-…`,
+    Claude Opus 5.5).
+  - **What it worked from:** `s3-b11/task-reviewer-session-brief.md` and eight inputs, assembled read-only from
+    the live store with every hash checked against the ledger:
+    - the stored Task object;
+    - the ledger's 75 events;
+    - the two candidates' stored bytes;
+    - the scorecard;
+    - the review request, assignment and submission;
+    - SPEC-01's brief and rubric.
+
+    The manifest is `4c5f979e…`, and the context is `ctx_01a15a04-…`.
+  - **What it touched:** it registered nothing and read no other session. Afterwards the inputs were
+    byte-identical and the store was at 75.
+- **The verdict: approve.**
+  - The submission is the Attempt's.
+  - Criterion 1 holds: the sealed producer relation `7d32f19b…`, and `AssayScored` by the producer.
+  - Criterion 2 holds: the outcome review is independent of its requester and the producer.
+  - Criterion 3 holds: the owner's `DecisionResolved` PARK.
+  - Check 5 found no breach of the bounded scope, non-goals or prohibited shortcuts.
+  - Criteria 4 and 5 were judged procedural, as accepted.
+  - The draft (`b525891d…`) passes `check_task_verdict.py`. Its trace ref is `review-notes.md` (`3bf9efe3…`),
+    since the route's verdict carries no findings field.
+- **Findings, in the notes.**
+  - **F1:** the unreleased lease departs from the resource request's stated release obligation (accepted).
+  - **F2:** the session-time limits are not evidenced on the ledger.
+  - **F5:** the return is bound to the outcome review as required evidence.
+  - **L5:** the review request's `subject_hashes` value `9da8e928…` did not reproduce from the inputs. I
+    reproduced it read-only: it is the sha256 of the replayed Task stream state before the request.
+- **The rehearsal first.** `batch11.py` (`7fa2dc53…`) ran effects 4 to 7 on the scratch store from 75 to 82
+  events, and a rerun appended nothing.
+  - **The inputs** came from `prepare.py`:
+    - the Task reviewer's agent grant for `StartReview` and `RecordReviewVerdict`, in a new session;
+    - the owner's separate grants for `SatisfyReview` and `AcceptTask`;
+    - the verdict intent `c6bc410a…`, which is the close_task intent plus the draft unchanged;
+    - the owner's satisfaction evidence `ecc31d3c…`: an approval-policy ref, the review notes' hash, and the gate
+      `spec-01-task-acceptance-gate`.
+- **What ran live:** `run-s3b11.sh` (sha256 `f3436b2a…`), from 16:30Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b12/live/`: `s3b11.log` (`b3349f1f…`), `advance-RecordReviewVerdict.json`
+  (`59dd137a…`), `advance-AcceptTask.json` (`f540c374…`, byte-equal to the retry), `task-closure.json`
+  (`a48f6b70…`), and the authorization note.
+- **The result.** The live ledger went from 75 to 82 events:
+  - three grant activations;
+  - `ReviewStarted` and `ReviewVerdictRecorded`, by the Task reviewer;
+  - `ReviewSatisfied` and `TaskAccepted`, by the owner.
+- **Verified.**
+  - Each effect ran by the expected actor under its own grant, and `close_task` completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 82 events:
+    - the verdict is `approve`, carrying the draft field for field;
+    - the satisfaction carries the owner's evidence;
+    - the Task is `accepted`, the Task review `satisfied` and the Attempt `completed`;
+    - the acceptance selects the two candidates and records all five criteria, the accepted known limit.
+  - The checkout is clean at M2.
+- **Next:** batch 12, `register_project_use_decision`, in Stephen's words, under its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
