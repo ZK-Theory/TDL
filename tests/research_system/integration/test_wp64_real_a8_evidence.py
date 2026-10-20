@@ -250,11 +250,20 @@ def test_mechanics_only_positive_capture_covers_restart_and_recovery(
     validate_real_a8_candidate(capture.candidate)
 
 
-def test_mechanics_only_null_foundation_fails_before_output(tmp_path: Path) -> None:
+def test_mechanics_only_null_foundation_fails_before_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A test-owned null foundation: the committed one with a control root that is never materialized. The test
+    # used the committed foundation itself, which is null only on a host where its roots are absent; once a host
+    # holds the store it names, the refusal never comes (obs 2026-10-17-cli-tests-read-the-committed-foundation-
+    # unpinned).
+    null_foundation = yaml.safe_load((REPO_ROOT / ".research-system" / "config" / "foundation.yaml").read_text("utf-8"))
+    null_foundation["control_root"] = str(tmp_path / "never-materialized-control")
+    foundation_path = tmp_path / "foundation.yaml"
+    foundation_path.write_text(yaml.safe_dump(null_foundation, sort_keys=False), encoding="utf-8", newline="\n")
+    monkeypatch.setattr(harness_module, "canonical_foundation_path", lambda: foundation_path)
     expected_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True).strip()
     output = tmp_path / "candidate-output"
     request = A8ProofRequest(
-        foundation_path=REPO_ROOT / ".research-system" / "config" / "foundation.yaml",
+        foundation_path=foundation_path,
         binding_path=tmp_path / "unused-binding.yaml",
         runtime_inputs_path=tmp_path / "unused-runtime-inputs.json",
         output_root=output,
