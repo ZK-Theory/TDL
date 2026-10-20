@@ -120,9 +120,12 @@ All `ars` commands run from the durable checkout as
   `3eea9174…`) and the Candidate (§4 item 5).
 - **Step 3 batch 5 is done (2026-10-17).** The steward requested the Assay, and the owner issued the brief
   `art_13fdb997-…` (§4 item 6, first two steps).
+- **Step 3 batch 6 is done (2026-10-20).** The owner registered the operator return `art_fc1c4531-…`, byte-equal
+  to the producer's draft `568447c7…`. The producer re-supplied it at `RecordAssayScore`, and the Assay is scored
+  PARK (§4 item 6, the return).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
-  "Step 3 batch 4, live" and "Step 3 batch 5, live".
+  "Step 3 batch 4, live", "Step 3 batch 5, live" and "Step 3 batch 6, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
