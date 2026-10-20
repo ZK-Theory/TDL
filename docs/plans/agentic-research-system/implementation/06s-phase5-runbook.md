@@ -128,10 +128,12 @@ All `ars` commands run from the durable checkout as
   verdict follows the independent review session, under its own authorization.
 - **Step 3 batch 8 is done (2026-10-20).** The outcome reviewer recorded the independent approving verdict. The
   review is satisfied and the Assay is reviewed, with PARK (§4 item 6, `review_spec_01_complete` complete).
+- **Step 3 batch 9 is done (2026-10-20).** `decide_spec_01`: the proposer recommended PARK, and the owner resolved
+  Decision `dec_1c6c1254-…` PARK with seven revisit triggers. The Candidate is parked (§4 item 6 complete).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
-  "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live" and
-  "Step 3 batch 8, live".
+  "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
+  "Step 3 batch 8, live" and "Step 3 batch 9, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

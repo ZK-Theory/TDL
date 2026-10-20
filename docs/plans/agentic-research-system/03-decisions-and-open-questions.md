@@ -3066,6 +3066,57 @@ outcome review's second effect.
 - **Next:** `decide_spec_01`. The decision proposer proposes (OR-012), and the owner resolves (OR-013). Stephen
   decides, under its own authorization.
 
+**Step 3 batch 9, live: the owner parks the SPEC-01 Candidate (Stephen, 2026-10-20).** Runbook §4 item 6, the
+decision.
+- **The decision.** Stephen decided in chat, from `s3-b9/decision-sheet.md`:
+  - **The proposer's recommendation:** PARK.
+  - **The owner's selection:** PARK.
+  - **The revisit triggers,** as drafted:
+    - R1 to R5, the operator's revisit predicates;
+    - R6, the outcome reviewer's untracked point: an explicit connected-components check as a SPEC-02
+      amendment;
+    - the rule, as a seventh string: revisit only when R1 to R6 all hold, because R1 to R3 alone make only a
+      synthetic reproduction runnable.
+- **What admission allowed.**
+  - **PARK:** with revisit triggers.
+  - **KILL:** admissible, but the brief requires a directly verified decisive failure, and none was verified.
+  - **PROMOTE:** refused without a mechanical PROMOTE.
+- **Carried into the decision:** the outcome reviewer's findings, and the limits:
+  - the route records only approving reviews;
+  - the review was inputs-only;
+  - topology and paper-claim assurance were out of the review's scope;
+  - the producer and the reviewer ran on the same model family as the session running the route.
+- **The rehearsal first.** `batch9.py` (`c16a7798…`) ran both effects on the scratch store from 62 to 68 events,
+  and a rerun appended nothing.
+  - **The intents:**
+    - `decide-intent.json` (`0c106113…`, recommendation PARK);
+    - `resolve-intent.json` (`3576a411…`), the same intent plus `resolution-evidence.json` (`310e53ce…`).
+  - **The grants and configs** came from `prepare.py`, checked read-only against the live binding. The owner
+    keeps its A0 session.
+- **What ran live:** `run-s3b9.sh` (sha256 `dc939afe…`), from 10:33Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b9/live/`: `s3b9.log` (`70139d81…`), `advance-propose.json` (`0b7766aa…`),
+  `advance-resolve.json` (`355bed60…`, byte-equal to `retry-resolve.json`), `decision.json` (`05442fe0…`), the
+  decision note and the authorization note.
+- **The result.** The live ledger went from 62 to 68 events.
+  - **`ProposePromotionDecision` (OR-012):** by the decision proposer `act_01a14020-0460-…`, under
+    `agr_01a158d8-e0e0-…`. It appended `DecisionProposed` on `dec_1c6c1254-da10-716b-8def-c72f4232bddf` and
+    `CandidatePromotionRequested`, citing `scorecard:09c9eb50…` and `review:rev_0e21fa01-…`.
+  - **`ResolveDecision` (OR-013):** by the owner, under a human-only grant, `agr_01a158d8-e0ea-…`. It appended
+    `DecisionResolved` and `CandidatePromotionApplied`. The route names these Candidate events "promotion"
+    whatever the option; the relation carries PARK.
+- **Verified.**
+  - Both effects ran by the expected actor under the expected grant, and the action completed.
+  - The proposer is neither the owner, the producer nor the outcome reviewer.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 68 events:
+    - the Decision is `resolved` with PARK, decided by the owner;
+    - it considered the review `rev_0e21fa01-…`;
+    - its seven revisit triggers are exactly the owner's;
+    - the Candidate is `parked`, the Assay is `reviewed` with PARK, and the Attempt is still running.
+  - The checkout is clean at M2.
+- **Next:** closure (runbook §4 item 7): end the Attempt, register the evidence artefacts, run `close_task`, then
+  `register_project_use_decision` and `accept_project_use_decision`. Each part needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
