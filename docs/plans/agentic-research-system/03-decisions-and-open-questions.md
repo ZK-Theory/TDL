@@ -3117,6 +3117,79 @@ decision.
 - **Next:** closure (runbook §4 item 7): end the Attempt, register the evidence artefacts, run `close_task`, then
   `register_project_use_decision` and `accept_project_use_decision`. Each part needs its own authorization.
 
+**Closure plan (Stephen, 2026-10-20).** Stephen accepted `s3-b10/closure-plan.md` (`35aa559f…`) as recommended.
+- **Four live batches.** Each Task-level review is requested live before its reviewer works, as in batches 7 and 8:
+  - batch 10: `CompleteAttempt`, then `close_task` effects 1 to 3;
+  - the Task-review session;
+  - batch 11: `close_task` effects 4 to 7;
+  - batch 12: `register_project_use_decision`;
+  - the project-use review session;
+  - batch 13: `accept_project_use_decision`.
+- **Option A: the Attempt's evidence.** The Attempt names the two route-registered outputs that the Task
+  definition's `expected_artefact_types` lists: the SOURCE observation `art_87c22454-…` and the operator return
+  `art_fc1c4531-…`, which carries the scorecard. Nothing new is registered.
+  - **Why not B:** registering new evidence through C1 `RegisterArtefact` would record a manifest whose bytes
+    admission does not read.
+  - **Probed on scratch first:** `CompleteAttempt` was accepted with the lease long lapsed, and `SubmitForReview`
+    accepted both as distinct registered candidates. Scratch was then restored to 68 inside its original root.
+- **The Task review request:** as drafted in the plan.
+  - **Type and lanes:** `provenance`, on the lanes `output` and `provenance`.
+  - **The question:** whether the exact Task subject satisfies its bounded contract on the ledger.
+  - **Governing refs:** the Task definition `f52ddda3…`, A0, D6 and runbook §4.
+  - **Required evidence:** the two candidates by content hash, the scorecard, the outcome review and the Decision.
+  - **Deadline and escalation:** 2026-11-19, and owner-ruling.
+- **Known limit: acceptance asserts all five criteria.** `AcceptTask`'s route-derived payload records every
+  acceptance criterion as satisfied (`spec_task.py:710`).
+  - **Criterion 4,** Task closure, is the acceptance itself.
+  - **Criterion 5,** the reviewed project-use decision, can exist only after acceptance, because the project-use
+    route requires an accepted Task.
+  - **The Task cannot be amended:** the project-use route refuses a Task amended since dispatch.
+  - **So:** the Task reviewer judges criteria 1 to 3 on the evidence and 4 to 5 as procedural. Batches 12 and 13
+    discharge criterion 5 after the ledger already asserts it.
+- **Known limit: the lapsed lease is not released.** The bounded lease lapsed on 2026-10-17 (option A). Closure
+  does not need its release (`spec_task.py`: "never from attempt completion, lease release or result presence"),
+  so the resource request's release obligation stays unmet. This extends the option A known limit.
+- **Also carried:**
+  - the Task review's verdict evidence has no `findings` or `limitations` fields, so findings live in the
+    reviewer's notes, cited by sha256;
+  - the route records only `approve`.
+
+**Step 3 batch 10, live: the Attempt ends, and the Task review is requested (Stephen, 2026-10-20).** Runbook §4
+item 7, closure part 1.
+- **The rehearsal first.** `batch10.py` ran on the scratch store from 68 to 75 events: `CompleteAttempt`, then
+  `SubmitForReview`, `RequestReview` and `AssignReview`.
+  - **One stop, in my own check.** The final check compared the submitted candidate hashes with the live-pinned
+    ones, but scratch registered its own bytes.
+  - **The fix:** the check now compares against the store's own registrations, and against the pinned hashes in
+    live mode only. `batch10.py` is now `bd9f0a21…`, and the resumed run passed, skipping every recorded step.
+  - **Inputs:** from `prepare.py`, read-only against the live ledger for the two content hashes. There are three
+    owner grants:
+    - `CompleteAttempt` on the Attempt;
+    - `SubmitForReview` alone on the Task (`AcceptTask` gets its own grant in batch 11);
+    - `RequestReview` and `AssignReview` on the new review (`SatisfyReview` waits for batch 11).
+- **What ran live:** `run-s3b10.sh` (sha256 `e199e93c…`), from 15:11Z, authorized alone. It ran
+  `complete-attempt.json` (`5e7d1942…`) and the three intents.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b10/live/`: `s3b10.log` (`29aaac16…`),
+    `complete-attempt.json` (`8fd0f090…`), `advance-AssignReview.json` (`361a6a59…`, byte-equal to the retry),
+    `task-review-request.json` (`faca7386…`), and the authorization note.
+- **The result.** The live ledger went from 68 to 75 events, all by the owner:
+  - three grant activations;
+  - `AttemptCompleted`, naming `art_87c22454-…` and `art_fc1c4531-…` with `candidate_output_recorded`;
+  - `TaskSubmittedForReview` on `tsk_01a14850-…`;
+  - `ReviewRequested` and `ReviewAssigned` on the Task review `rev_01a158ed-5755-76ee-a925-928f5fd95ac6`.
+- **Verified.**
+  - Each effect ran under its own grant, and the exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 75 events:
+    - the Attempt is `completed`, by the exact prepared command;
+    - the submission carries both candidates with their registered hashes, `b46dfda8…` and `fc07ca42…`, the
+      latter being the outcome review's `operator-return:` ref;
+    - the request equals the owner's field by field;
+    - the review is `assigned` to the Task reviewer `act_01a14020-0462-…`;
+    - the Task is `review_pending`, and the Candidate is still `parked`.
+  - The checkout is clean at M2.
+- **Next:** the Task reviewer works in a separate, fresh-context session from the Task-review package and drafts
+  the verdict evidence. Then batch 11 runs, under its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
