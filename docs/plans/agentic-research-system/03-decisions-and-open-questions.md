@@ -2959,6 +2959,58 @@ Runbook §4 item 6, the return.
 - **Next:** `review_spec_01_complete`, requested by the steward and recorded by an independent outcome reviewer.
   It needs its own authorization.
 
+**Step 3 batch 7, live: the steward requests the outcome review (Stephen, 2026-10-20).** Runbook §4 item 6, the
+outcome review's first effect.
+- **Why it is split.** `review_spec_01_complete` has two effects:
+  - `RequestDiscoveryOutcomeReview` (OR-034), by the steward;
+  - `ReviewDiscoveryOutcome` (OR-006), by the outcome reviewer `act_01a14020-045e-…`, with the reviewer's verdict
+    evidence.
+
+  The request runs first, so that the independent reviewer works from the live review contract. This follows
+  the pattern of batches 5 and 6, where the brief was issued before the operator worked. The verdict needs its
+  own later authorization. The route records only an approving verdict (an inherited limit). If the reviewer
+  will not approve, the owner rules.
+- **The rehearsal first.** `batch7.py` ran the whole action on the scratch store:
+  - the request, 56 to 59 events;
+  - then the verdict, with a placeholder evidence object labelled rehearsal-only, 59 to 62 events, leaving the
+    review `satisfied`.
+
+  The runner's last check expected the Assay still `scored` after the verdict, so it stopped. It is `reviewed`
+  by then. I fixed the check (`batch7.py` is now `dd54fe94…`), and the resumed run passed.
+- **Scratch reset to after the request.** A copy of the store directory was refused: "store physical root
+  identity differs from approved origin witness". The witness binds the root directory's device and inode. I
+  moved the original root back and replaced only its contents with the post-request snapshot. The request path
+  then passed again with the final runner. Scratch is at 59, with the review pending, ready to rehearse the real
+  verdict.
+- **What ran live:** `run-s3b7.sh` (sha256 `b24850c4…`), from 07:13Z, authorized alone.
+  - The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b8/live-request/`: `s3b7.log` (`27697878…`),
+    `advance-request.json` (`d227f61b…`, byte-equal to `retry-request.json`), `review-request.json`
+    (`bd18354d…`), and the authorization note.
+  - The inputs came from `prepare.py`, which checked each grant request's exact fields, its active command
+    binding and each operator config read-only against the live binding.
+- **The result.** The live ledger went from 56 to 59 events: the grant activation `agr_01a1581f-0e6c-…`,
+  `ReviewRequested` on `rev_0e21fa01-150d-77e2-a07f-237b8789f726`, and `AssayOutcomeReviewRequested` on the Assay,
+  both by the steward in a new session.
+- **Verified.**
+  - The effect ran by the steward under the expected grant. The action stands `prepared`, next
+    `ReviewDiscoveryOutcome`.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 59 events and found the review `pending`:
+    - its subject is the registered scorecard `09c9eb50…`;
+    - its required evidence is `scorecard:09c9eb50…` and `operator-return:fc07ca42…`, the registered return's
+      content hash;
+    - its grade is `independent`, its capability `assay-independent-review`, and its deadline
+      2026-11-19T05:45Z, 30 days after the score.
+  - The Assay is still `scored`, and the Attempt is still running.
+  - My first fresh-check script expected the event type `AssayReviewRequested`, from the route table. The stored
+    type is `AssayOutcomeReviewRequested`, which is the runtime's name for OR-034. I corrected the script, and it
+    passed. The ledger was never in question.
+  - The checkout is clean at M2.
+- **Next:**
+  - The outcome reviewer works in a separate, fresh-context session from `s3-b8/outcome-reviewer-session-brief.md`
+    and drafts the verdict evidence. It registers nothing.
+  - Then `ReviewDiscoveryOutcome` runs, rehearsed on scratch with the real draft, under its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
