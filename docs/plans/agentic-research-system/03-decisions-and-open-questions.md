@@ -2916,6 +2916,49 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   owner-operated session. It drafts the operator return; nothing is registered until `return_spec_01_complete`,
   which needs its own authorization.
 
+**Step 3 batch 6, live: the operator return is registered and the Assay is scored PARK (Stephen, 2026-10-20).**
+Runbook §4 item 6, the return.
+- **The operator session.** The producer `act_01a14020-045b-…` worked in a separate, fresh-context session from
+  `s3-b6/producer-session-brief.md` and registered nothing.
+  - **The draft:** `s3-b6/output/operator-return-draft.json`, sha256 `568447c7…` (29,749 bytes). The pre-flight
+    checker passes.
+  - **The axes:** topology true; data feasibility 2 and novelty 1, so 3, below PROMOTE's 4. Four further gates are
+    false: the non-redundant primary claim, the named estimand and representation freeze, the SPEC-02 design within
+    the envelope, and no unresolved paper/code discrepancy.
+  - **Two paper/code discrepancies (D1, D2).** D1: `get_toy_data` re-seeds one RandomState for both the basis and
+    the noise, so the noise is not independent as the paper says (found by reading the code, not running it). D2:
+    the paper's ripser commit `140670f` is not on the branch, and it does not build the binary the code invokes.
+  - **Open points for the outcome review:** the session attributed the score shortfall to novelty alone, and it
+    could not re-derive the source hash `3eea9174…` (it verified the commit and tree instead).
+  - **Beyond the brief:** the session also wrote owner-action prompts, a decision sheet and a SPEC-02 amendment
+    draft. Nothing here relies on them.
+- **The rehearsal first.** `batch6.py` (`7c7aaa16…`) ran on the scratch store from 51 to 56 events. Both effects
+  completed, admission's recommendation was PARK, the runner's own recomputation of the bar rule from the ten axis
+  values was also PARK, and a full rerun skipped both effects and appended nothing.
+- **What ran live:** `run-s3b6.sh` (sha256 `acc9f79c…`), from 05:43Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b7/live/`: `s3b6.log` (`91f88547…`), `advance-register.json`
+  (`216c6232…`), `advance-score.json` (`5c1a707f…`, byte-equal to `retry-score.json`), `return.json`
+  (`86ea24df…`), and the authorization note.
+- **The result.** The live ledger went from 51 to 56 events.
+  - **`RegisterArtefact`:** by the owner under `agr_01a157ce-589d-…`, scoped to the return artefact. It registered
+    the return `art_fc1c4531-4398-761c-8787-e2355e7c1ebd`, and the action stood `prepared`.
+  - **`RecordAssayScore` (OR-004):** by the producer, in a new session, under `agr_01a157ce-589f-…`, scoped to the
+    Candidate. It re-supplied the same return bytes and appended `AssayScored` and `CandidateAssayLinked`.
+- **Verified.**
+  - Both effects ran by the expected actor under the expected grant, and the action completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - The registered `operator_return` equals the draft, and the return binds the brief `art_13fdb997-…` and its
+    Task.
+  - The scorecard's producer is the producer, and its mechanical recommendation is PARK. That agrees with the bar
+    rule recomputed from the axis values.
+  - A fresh, read-only process replayed the ledger at 56 events. The Assay is `scored` with scorecard
+    `09c9eb50…`, the same as the return's. The Candidate is `assay_scored`, and the Attempt is still running.
+  - The checkout is clean at M2.
+  - The scorecard hash differs from the rehearsal's (`73ff7f2e…`). A field diff shows only three ledger-reference
+    hashes differ: the bar acceptance, the Assay request and the Candidate. Each store has its own events.
+- **Next:** `review_spec_01_complete`, requested by the steward and recorded by an independent outcome reviewer.
+  It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
