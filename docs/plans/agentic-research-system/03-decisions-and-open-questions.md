@@ -3011,6 +3011,61 @@ outcome review's first effect.
     and drafts the verdict evidence. It registers nothing.
   - Then `ReviewDiscoveryOutcome` runs, rehearsed on scratch with the real draft, under its own authorization.
 
+**Step 3 batch 8, live: the independent outcome review approves (Stephen, 2026-10-20).** Runbook §4 item 6, the
+outcome review's second effect.
+- **The review session.**
+  - **Who:** the outcome reviewer `act_01a14020-045e-…`, in a separate, fresh-context session
+    (`local_79528633-…`, Claude Opus 5.5).
+  - **What it worked from:** `s3-b8/outcome-reviewer-session-brief.md` and eight inputs. The assembly checked
+    every input against the ledger: the stored return's bytes (`fc07ca42…`, the review's `operator-return:` ref),
+    the scorecard (`09c9eb50…`, the subject), the stored brief (`7b4f9eb2…`), the draft, SPEC-01's brief, rubric
+    and evidence scope, and the live review request. The manifest is `81e8673c…`, and the context is
+    `ctx_01a1582f-…`.
+  - **What it touched:** it registered nothing and read no other session. Its only writes were in
+    `s3-b8/review-output/`. Afterwards the inputs were byte-identical, the store was at 59, and both checkouts were
+    clean.
+- **The verdict: approve.** Checks 1 to 4 hold:
+  - the registered `operator_return` equals the draft, as parsed JSON (key order differs);
+  - the ten scorecard axes match the return;
+  - PARK follows from the bar;
+  - the brief, Task, producer and subject bindings hold.
+
+  The draft `verdict-evidence-draft.json` (`901003af…`) passes `check_verdict.py`.
+  - **Eight findings, none blocking, none changing PARK:**
+    - the topology pass rests on no verified decisive failure, not a positive demonstration;
+    - the disconnected-graph amendment is not tracked by a revisit predicate;
+    - the benchmark gate passes despite D1;
+    - the shortfall code sits on novelty only;
+    - the return cites the issued brief as `45f0d20a…`, not `7b4f9eb2…`;
+    - the per-axis evidence refs name the rubric and scope;
+    - D1 and D2 rest on the producer's static reading alone;
+    - none of these contradicts a score.
+  - **The brief hash, checked.** On the fifth point, `45f0d20a…` is batch 5's pretty-printed `brief.json`.
+    Parsed, it is the same object as the stored brief `7b4f9eb2…`.
+  - **Seven limitations,** including inputs-only, topology and paper-claim out of scope, and approve-only.
+- **The rehearsal first.** `batch7.py --effects verdict` ran on the scratch store from 59 to 62 events with
+  `verdict-intent.json` (`196ca580…`, the request intent plus the draft unchanged). The review went `satisfied`,
+  and a rerun appended nothing.
+- **What ran live:** `run-s3b8.sh` (sha256 `7e0bd7b7…`), from 10:16Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b8/live-verdict/`: `s3b8.log` (`ff9f140d…`), `advance-verdict.json`
+  (`7fa10632…`, byte-equal to `retry-verdict.json`), `review-verdict.json` (`0c419efc…`), and the authorization
+  note.
+- **The result.** The live ledger went from 59 to 62 events: the grant activation `agr_01a1581f-0e77-…`, then
+  `ReviewVerdictRecorded` on `rev_0e21fa01-…` and `AssayReviewed` on the Assay, both by the outcome reviewer.
+- **Verified.**
+  - The effect ran by the outcome reviewer under the expected grant, and `review_spec_01_complete` completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 62 events:
+    - the review is `satisfied`, with `approve`, by the outcome reviewer;
+    - the reviewer is neither the requester nor the producer;
+    - the verdict's unchanged subject is the scorecard `09c9eb50…`;
+    - every supplied evidence field is recorded as drafted.
+  - The Assay is `reviewed` with mechanical PARK, the Candidate is `assay_scored`, and the Attempt is still
+    running.
+  - The checkout is clean at M2.
+- **Next:** `decide_spec_01`. The decision proposer proposes (OR-012), and the owner resolves (OR-013). Stephen
+  decides, under its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
