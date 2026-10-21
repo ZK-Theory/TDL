@@ -16,8 +16,9 @@ thread_finality:
   #
   # None is required (decided by Stephen, 2026-10-17). Codex
   # (chatgpt-codex-connector), the only producer since 2026-09-11, was removed:
-  # Stephen no longer uses it, and its quota held PRs at merge-admission for
-  # hours. CodeRabbit is not added: it is triggered by hand and skipped most PRs
+  # it is not required (its quota held PRs at merge-admission for
+  # hours), though the integration stays installed and still reviews new PRs
+  # (2026-10-21). CodeRabbit is not added: it is triggered by hand and skipped most PRs
   # when it ran unprompted. Thread finality still blocks on every unresolved,
   # non-outdated thread, whoever wrote it. The key must stay present: a missing
   # key fails closed, and only this explicit empty list means "none".

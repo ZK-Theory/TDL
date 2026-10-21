@@ -242,7 +242,7 @@ def _producer_state(
             "so the reaction's target is ambiguous; comment '@codex review' for a review of this head"
         )
     # No current +1. Quota on this head is checked before any stale-reaction diagnosis: it changes the
-    # remedy (wait for the reset or record a waiver) whatever an earlier head received.
+    # remedy (wait for the reset, or the owner removes the producer) whatever an earlier head received.
     quota = _quota_state(pull_request, producer, arrived)
     if quota is not None:
         return quota
@@ -289,7 +289,8 @@ def _quota_state(pull_request: Mapping[str, Any], producer: str, arrived: dateti
         if created > arrived and any(marker in body for marker in _USAGE_LIMIT_MARKERS):
             return (
                 f"{producer} hit its usage limit on this head ({created.isoformat()}) and will not review it "
-                "automatically; comment '@codex review' once the quota resets, or record an owner waiver"
+                "automatically; comment '@codex review' once the quota resets, or the owner removes it from "
+                "review_producers (there is no waiver path)"
             )
     page_info = connection.get("pageInfo")
     if not isinstance(page_info, Mapping) or not isinstance(page_info.get("hasPreviousPage"), bool):
