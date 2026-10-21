@@ -170,13 +170,15 @@ All `ars` commands run from the durable checkout as
     bounds hold.
   - **The record corrections** (m-1 to m-8, with m-2 and m-3 material) are applied, including this runbook's §1.
   - **Remaining:** Stephen's closure, the docs-only final PR, and the frozen-checkout replay.
+- **Phase 5 is closed (Stephen, 2026-10-21).** See P-058, "06s Gate 6 Phase 5 is closed". This record is the
+  docs-only final PR. The frozen-checkout replay at M2 follows its merge (P5-4) and is recorded after it.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
   "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
   "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
   "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live", "Step 4, live and read-only",
-  "Step 5, live" and "Step 6: the independent final evidence review".
+  "Step 5, live", "Step 6: the independent final evidence review" and "06s Gate 6 Phase 5 is closed".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|

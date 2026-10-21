@@ -3557,6 +3557,57 @@ P5-4, first part.
   - the docs-only final PR, merged on GitHub and not pulled into the checkout;
   - the frozen-checkout replay, `run-s6-replay.sh <final PR number>`, under its own authorization.
 
+**06s Gate 6 Phase 5 is closed (Stephen, 2026-10-21).**
+
+**The run.** The bounded live run of the SPEC-01 route on the fresh store `TDL-ARS-G6-Control` ran from genesis
+to an accepted project-use result, at 91 events. Each live step was:
+- prepared as an exact, hash-pinned script;
+- authorized by me alone;
+- rehearsed first on a scratch store;
+- verified from durable state;
+- recorded here.
+
+**How the actors acted.**
+- **Who submitted:** the non-owner actors' effects were submitted by the batch runners, each from that actor's own
+  operator config and ARS actor session.
+- **Who judged:** separate fresh-context sessions did the judgement work, and each draft was submitted unchanged
+  and checked by hash:
+  - the operator's return;
+  - the outcome review;
+  - the Task review;
+  - the project-use review.
+- **The bar review:** it was the route's fixed OR-106 literals. No bar-review session ran.
+
+**The outcome.** A PARK of the Damrich–Berens–Kobak spectral-distance Candidate, mechanical under SPEC-01's bar
+(2 + 1 < 4, with four further gates failing). It was independently reviewed and decided by me, with six revisit
+triggers and the rule. It is retained as an experimental benchmark candidate only, with no scientific claim, on the
+D6 subset: SPEC-02 ran nothing.
+
+**Assurance.**
+- **Independent reviews** of the outcome, the Task and the project-use decision all approved.
+- **The independent final evidence review** found PASS WITH FINDINGS. Its findings m-1 to m-8 are corrected in the
+  record, with m-2 and m-3 treated as material.
+- **Recovery:** a governed same-disk backup and an evidence-only restore verification passed their identity,
+  ledger, artefact and byte comparisons.
+- **The replay:** this record is the docs-only final PR. After it merges, the frozen checkout at M2 replays the run
+  (P5-4). That replay is recorded in the Computational-Log, and in the next record update.
+
+**Known limits carried.**
+- The 1 h bounded lease (option A): it lapsed and was not released.
+- Two internal-API seams:
+  - the governing scientific-review record placed through the internal store (option A, batch 13);
+  - the verify-restore payload built from the internal, read-only restore preflight (step 5).
+- Task acceptance asserting all five criteria, though criterion 5 could only follow it.
+- Approve-only reviews, whose findings live off the ledger.
+- The bar review as fixed literals.
+- One model family across every session, including the reviewers.
+
+**Follow-ups:**
+- public writers for the governing scientific-review record and the verify-restore payload;
+- the project-use review's F7 items (dtype and tolerance binding; the unversioned diffusion figures) at any SPEC-01
+  revisit;
+- KAN-103 closes on this record.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
