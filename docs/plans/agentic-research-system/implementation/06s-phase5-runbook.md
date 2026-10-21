@@ -112,7 +112,7 @@ All `ars` commands run from the durable checkout as
 - **Check before L7:** `git -C C:/Users/steph/TDL-ARS-G6-Checkout status --porcelain=v1 --untracked-files=all`
   prints nothing.
 
-**Status (2026-10-16):**
+**Status (2026-10-16, updated through 2026-10-21):**
 - **L1 to L3 are done and verified.**
   - **Store identity:** `5e3b95a9…`.
   - **Witness:** `1a7aa957…`.

@@ -3245,6 +3245,12 @@ item 7, closure part 1.
     - the verdict intent `c6bc410a…`, which is the close_task intent plus the draft unchanged;
     - the owner's satisfaction evidence `ecc31d3c…`: an approval-policy ref, the review notes' hash, and the gate
       `spec-01-task-acceptance-gate`.
+      - **What the gate name is:** only `SatisfyReview`'s required evidence label.
+      - **Where the governing records are:** the Task review request's `governing_refs`. They are the Task
+        definition `f52ddda3…` (its acceptance criteria), P-058 A0 and D6, and runbook §4 (P-058, "Closure plan").
+      - **The research assurance behind them:** the SPEC-01 bar and decision rule (#352, accepted in batch 2),
+        and the delta assurance on M1 and M2 (P-058, "L5 delta assurance on M2").
+      - Clarified 2026-10-21 in answer to review.
 - **What ran live:** `run-s3b11.sh` (sha256 `f3436b2a…`), from 16:30Z, authorized alone. The evidence is in
   `C:/Users/steph/.codex/tmp/g6-p5/s3-b12/live/`: `s3b11.log` (`b3349f1f…`), `advance-RecordReviewVerdict.json`
   (`59dd137a…`), `advance-AcceptTask.json` (`f540c374…`, byte-equal to the retry), `task-closure.json`
@@ -3270,12 +3276,17 @@ census B-3 kind, found while preparing batch 12.
   project-use reviewer and then `SetArtefactUseAuthority` by the owner. `SetArtefactUseAuthority` admission
   (`command/service.py:4733-4792`) requires the review's single `evidence_refs` entry to resolve to a governing
   scientific-review record in `objects/assurance_record`. The record (`ars://evidence/governing-scientific-review`
-  1.0.0) must name:
-  - the review;
-  - the decision's content hash;
-  - the reviewer;
+  1.0.0) is checked in full. It must carry:
+  - `schema_id` `ars://evidence/governing-scientific-review` and `schema_version` `1.0.0`;
+  - the ledger's `project_id`;
+  - the review (`review_id`), which must equal the recorded review's;
+  - the decision's content hash (`subject_sha256`);
+  - the reviewer (`reviewer_actor_id`), which must equal the reviewing actor;
   - `eligible: true`, `related: false` and `status: active`;
-  - a sufficient grade.
+  - an `independence_grade` at or above the rule's minimum.
+
+  Its canonical sha256 must also equal its resolution (`service.py:4762-4786`). This list is complete; it was
+  completed on 2026-10-21 in answer to review.
 - **The review is refused first.** The route runs the same rule before recording the review (`spec.py:288-302`),
   so the first effect is refused.
 - **No public path writes the record.**
@@ -3542,6 +3553,15 @@ P5-4, first part.
   - **i-2:** each batch's authorization note sits in the batch folder (for example `s3-b3/AUTHORIZATION.txt`), not
     in `live/` as the batch blocks say. The folders are offset from the batch numbers: batch 6's evidence is in
     `s3-b7/`, batch 11's in `s3-b12/`, and batch 13's in `s3-b16/`. Each block names its exact path.
+- **Where the run's evidence lives, and how to check it** (added 2026-10-21 in answer to review). Every
+  `C:/Users/steph/.codex/tmp/g6-p5/…` path in Phase 5's blocks is in the run's evidence root.
+  - **Where it is:** on Stephen's owner machine, outside the repository by design. It holds the live logs,
+    pinned scripts, authorization notes and review packages, and none of it is committed.
+  - **How to check it:** its complete sha256 index, 104,531 files as of position 91, is
+    `s3-b19/inputs/evidence-index.json` (`66d45785…`), part of the final review's package (manifest `25575a21…`).
+    Any hash a block cites can be checked against it.
+  - **What is backed up:** the live store and six external evidence files are in step 5's governed backup.
+  - **Access:** the owner's local filesystem. Nothing is published elsewhere.
 - **The reviewer's limits.**
   - It read only the inputs and the evidence root.
   - Scratch rehearsals outside the evidence root (all but batch 3's) cannot exclude an unrecorded rehearsal stop.
