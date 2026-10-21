@@ -22,6 +22,10 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [main]
+  # The merge queue builds a synthetic commit; a required check that never runs on it stalls every
+  # queued PR (Codex review of #382). Every required workflow carries this trigger.
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -95,10 +99,14 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
+          MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           set -euo pipefail
           if [ "$EVENT" = "pull_request" ]; then
             python tools/affected_research_tests.py --base "origin/$BASE_REF" > selection.txt
+          elif [ "$EVENT" = "merge_group" ]; then
+            # github.base_ref is empty here; the queue names its base commit instead.
+            python tools/affected_research_tests.py --base "$MERGE_BASE_SHA" > selection.txt
           else
             python tools/research_system_shards.py --of 1 --shard 1 > selection.txt
           fi
@@ -196,6 +204,40 @@ jobs:
           name: junit-shard-${{ matrix.shard }}
           path: shard.xml
           if-no-files-found: warn
+
+  # One check a ruleset can require (obs 2026-10-20-suite-lane-has-no-stable-required-check-name). The
+  # shards report as `suite (1)`..`suite (8)`, or as one skipped `suite` when nothing is selected, so
+  # neither name can be required. A failed `select` also skips `suite`; that must fail here, not read
+  # as "nothing selected".
+  suite-verdict:
+    needs: [ci-tools, select, suite]
+    if: always()
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Judge the lane
+        env:
+          CI_TOOLS: ${{ needs.ci-tools.result }}
+          SELECT: ${{ needs.select.result }}
+          SUITE: ${{ needs.suite.result }}
+          COUNT: ${{ needs.select.outputs.count }}
+        run: |
+          set -euo pipefail
+          echo "ci-tools=$CI_TOOLS select=$SELECT suite=$SUITE selected=${COUNT:-?}"
+          if [ "$CI_TOOLS" != "success" ] || [ "$SELECT" != "success" ]; then
+            echo "::error::the lane's controls or its selection did not succeed"
+            exit 1
+          fi
+          if [ "$SUITE" = "success" ]; then
+            exit 0
+          fi
+          if [ "$SUITE" = "skipped" ] && [ "$COUNT" = "0" ]; then
+            echo "nothing selected"
+            exit 0
+          fi
+          echo "::error::suite ended '$SUITE' with ${COUNT:-?} file(s) selected"
+          exit 1
 
   # The verdict reaches a person. This lane was red for its first 9 scheduled runs, and nothing
   # carried that anywhere (obs 2026-10-15-report-only-run-findings-never-reached-the-log). A

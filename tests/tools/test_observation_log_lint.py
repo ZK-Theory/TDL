@@ -458,3 +458,28 @@ def test_close_conditions_skip_closed_entries_and_unbuilt_slices(tmp_path: Path)
     result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
     assert result.returncode == 0, result.stderr
     assert "close conditions: 0 naming PRs checked, 0 met; 1 name no PR" in result.stdout
+
+
+def test_a_cross_repo_close_condition_is_judged_in_its_own_repository(tmp_path: Path) -> None:
+    """Obs 2026-10-20-close-conditions-lint-blind-to-cross-repo-prs: a zktheoryweb PR named by URL went unjudged."""
+    zk = "**Target:** zktheoryweb build\n"
+    log = _obs(
+        "url",
+        "OPEN",
+        zk + "**Progress:** fix in https://github.com/stephendor/zktheoryweb/pull/23. Close when that PR merges.\n",
+    ) + _obs("qualified", "OPEN", zk + "**Progress:** Close when stephendor/zktheoryweb#24 merges.\n")
+    merged = {"stephendor/zktheoryweb#23": "MERGED", "stephendor/zktheoryweb#24": "OPEN", "23": "OPEN", "24": "MERGED"}
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", _states(tmp_path, merged))
+    assert result.returncode == 1
+    assert "url: close condition met (stephendor/zktheoryweb#23 merged)" in result.stderr
+    assert "qualified: close condition met" not in result.stderr, "judged by TDL's #24, not zktheoryweb's"
+    assert "close conditions: 2 naming PRs checked, 1 met; 0 name no PR" in result.stdout
+
+
+def test_a_bare_pr_number_in_an_entry_about_another_tree_is_ambiguous(tmp_path: Path) -> None:
+    """A bare #N would be resolved in TDL, so under a zktheoryweb Target it is reported, never judged."""
+    log = _obs("a", "OPEN", "**Target:** zktheoryweb build\n**Progress:** Close when #23 merges.\n")
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", _states(tmp_path, {"23": "OPEN"}))
+    assert result.returncode == 1
+    assert "a: close condition names #23 in an entry about another tree" in result.stderr
+    assert "0 naming PRs checked, 0 met; 0 name no PR; 1 ambiguous" in result.stdout

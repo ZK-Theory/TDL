@@ -9,6 +9,7 @@ a platform gate still pointed at a job that no longer exists or runs elsewhere.
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
@@ -272,3 +273,29 @@ def test_every_gate_file_exists_and_has_a_code_owner() -> None:
 def test_codeowners_names_no_file_outside_the_gate() -> None:
     """Positive control on scope: code-owner review must not spread to ordinary PRs unannounced."""
     assert set(_codeowners_rules()) == {f"/{path}" for path in GATE_FILES}
+
+
+GIT_GUIDANCE = REPO_ROOT / ".claude" / "instructions" / "git.instructions.md"
+_PRODUCERS_BY_NAME = {"codex": "chatgpt-codex-connector", "coderabbit": "coderabbitai"}
+
+
+def _guidance_contradictions(guidance: str, producers: list[str]) -> list[str]:
+    """Return each reviewer the guidance says merge admission needs that ``review_producers`` does not list.
+
+    Obs 2026-10-20-git-guidance-still-requires-codex-after-producer-removal: #376 emptied ``review_producers``
+    and updated CONVENTIONS, but the git instructions agents load still said admission needs Codex.
+    """
+    named = re.findall(r"(?i)merge admission (?:needs|requires|waits (?:on|for)) (codex|coderabbit)\b", guidance)
+    return sorted({name.lower() for name in named if _PRODUCERS_BY_NAME[name.lower()] not in producers})
+
+
+def test_git_guidance_names_no_reviewer_admission_does_not_require() -> None:
+    config = yaml.safe_load(ADMISSION_CONFIG.read_text(encoding="utf-8"))
+    producers = config["thread_finality"]["review_producers"]
+    assert _guidance_contradictions(GIT_GUIDANCE.read_text(encoding="utf-8"), producers) == []
+
+
+def test_the_guidance_control_fails_on_the_pre_fix_wording() -> None:
+    stale = "- Merge admission needs Codex to reach a terminal state on the exact head."
+    assert _guidance_contradictions(stale, []) == ["codex"]
+    assert _guidance_contradictions(stale, ["chatgpt-codex-connector"]) == []

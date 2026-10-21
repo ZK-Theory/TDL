@@ -730,12 +730,16 @@ Three journal-targeted papers replacing the original four technique-first papers
 
   No review producer is required (`review_producers: []` in
   `.github/merge-admission.yml`). Codex (`chatgpt-codex-connector`) was the only
-  required producer from 2026-09-11 and was removed on 2026-10-17: Stephen no
-  longer uses it. CodeRabbit is triggered by hand and is not required either.
+  required producer from 2026-09-11 and was removed on 2026-10-17. The
+  integration stays installed and still reviews new PRs (kept by Stephen,
+  2026-10-21); it is simply not required. CodeRabbit is triggered by hand and is
+  not required either.
   Thread finality still blocks on every unresolved, non-outdated thread,
   whoever wrote it, so CodeRabbit's threads still block when it posts them.
   Only an explicit empty list means "none". A missing or malformed key fails
-  closed. Decided by Stephen, 2026-10-17.
+  closed. Decided by Stephen, 2026-10-17. There is no owner waiver for thread
+  finality: an unwanted finding is answered and its thread resolved (declined
+  2026-10-21, system review 2026-10-20 Group B).
 
   **Agent sessions never take the bypass.** P-049's only bypass actor is the
   repository admin role with `bypass_mode: pull_request`. Every agent acts
