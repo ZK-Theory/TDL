@@ -36,7 +36,9 @@ Checks:
   counted in the summary, not dropped.
 * **Close conditions** (``--close-conditions REPO``). An OPEN entry whose "close when #N merges" clause names
   only merged PRs is reported: six entries sat open for nine days after their PRs merged (obs
-  2026-10-15-close-conditions-met-but-entries-left-open).
+  2026-10-15-close-conditions-met-but-entries-left-open). Pull URLs and ``owner/repo#N`` are resolved in their own
+  repository; a bare ``#N`` in an entry about another tree is reported as ambiguous (obs
+  2026-10-20-close-conditions-lint-blind-to-cross-repo-prs).
 
 Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reachability REPO] [--close-conditions REPO]
 """
@@ -291,22 +293,50 @@ def _git_out(repo: Path, *args: str) -> str | None:
 
 # "Close when #333 and #340 merge", "close when #341 merges": the clause up to the end of its sentence.
 _CLOSE_WHEN = re.compile(r"(?i)\bclose[sd]?\s+when\b([^.\n]*)")
-_PR = re.compile(r"#(\d+)\b")
+# A PR reference: a GitHub pull URL, ``owner/repo#N``, or a bare ``#N`` (this repository). The URL keeps its
+# own dots, so it is matched against the whole paragraph, not the sentence-bounded clause.
+_PR_REF = re.compile(
+    r"github\.com/(?P<url_repo>[\w.-]+/[\w.-]+)/pull/(?P<url_n>\d+)"
+    r"|(?<![\w/])(?P<repo>[\w.-]+/[\w.-]+)#(?P<n>\d+)\b"
+    r"|(?<![\w/])#(?P<bare>\d+)\b"
+)
+# "Close when both merge", "close when that PR merges": the PRs are named earlier in the same paragraph.
+_BACK_REFERENCE = re.compile(r"(?i)\b(?:both|all|they|these|each)\b.*\bmerge|\b(?:that|the|this)\s+PRs?\b")
+# Trees the shared log covers besides TDL (owner decisions 2026-09-25 and 2026-10-02). A bare ``#N`` in an
+# entry about one of them cannot be resolved here.
+_OTHER_TREES = re.compile(r"(?i)zktheoryweb|mathuni|counting lives|codex_workflow")
+_FIELD = re.compile(r"(?m)^\*\*(?:Target|Environment):\*\*\s*(.*)$")
+
+PullRef = tuple[str | None, int]
 
 
-def _gh_pr_state(repo: Path, number: int) -> str | None:
-    done = subprocess.run(
-        ["gh", "pr", "view", str(number), "--json", "state", "--jq", ".state"],
-        cwd=repo,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+def _refs(text: str) -> list[PullRef]:
+    found: list[PullRef] = []
+    for m in _PR_REF.finditer(text):
+        if m.group("url_n"):
+            found.append((m.group("url_repo"), int(m.group("url_n"))))
+        elif m.group("n"):
+            found.append((m.group("repo"), int(m.group("n"))))
+        else:
+            found.append((None, int(m.group("bare"))))
+    return list(dict.fromkeys(found))
+
+
+def _label(ref: PullRef) -> str:
+    repo, number = ref
+    return f"{repo}#{number}" if repo else f"#{number}"
+
+
+def _gh_pr_state(repo: Path, number: int, slug: str | None = None) -> str | None:
+    command = ["gh", "pr", "view", str(number), "--json", "state", "--jq", ".state"]
+    if slug:
+        command += ["--repo", slug]
+    done = subprocess.run(command, cwd=repo, capture_output=True, text=True, check=False)
     return done.stdout.strip() if done.returncode == 0 else None
 
 
 def close_conditions(
-    entries: list[tuple[str, str, str]], state_of: Callable[[int], str | None]
+    entries: list[tuple[str, str, str]], state_of: Callable[[str | None, int], str | None]
 ) -> tuple[list[str], str]:
     """Report every OPEN entry whose "close when #N merges" condition names only merged PRs.
 
@@ -314,29 +344,47 @@ def close_conditions(
     days after every PR they named had merged. The session that wrote the condition had ended before the
     merge, so nobody was present to act on it. A condition that names no PR (``close when the lane is
     required``) is counted, not judged.
+
+    Obs 2026-10-20-close-conditions-lint-blind-to-cross-repo-prs: a zktheoryweb entry named its PR by URL and
+    stayed open three days after it merged, and a bare ``#N`` there would have been judged by this repository's
+    PR of that number. So URLs and ``owner/repo#N`` are resolved in their own repository, and a bare ``#N`` in
+    an entry whose Target or Environment names another tree is reported as ambiguous, not judged.
     """
     problems: list[str] = []
-    checked = unnumbered = 0
+    checked = unnumbered = met = 0
     for ident, status, block in entries:
         if not is_open(status):
             continue
+        other_tree = any(_OTHER_TREES.search(field) for field in _FIELD.findall(block))
         for match in _CLOSE_WHEN.finditer(block):
-            clause = match.group(1)
-            numbers = [int(n) for n in dict.fromkeys(_PR.findall(clause))]
-            if not numbers and re.search(r"(?i)\b(?:both|all|they|these|each)\b.*\bmerge", clause):
-                # "Close when both merge": the PRs are the ones named earlier in the same paragraph. A clause
-                # about something unbuilt ("closes when that slice merges") names no PR and stays unjudged.
-                paragraph = block[block.rfind("\n\n", 0, match.start()) + 1 : match.start()]
-                numbers = [int(n) for n in dict.fromkeys(_PR.findall(paragraph))]
-            if not numbers:
+            # The clause runs to the end of its sentence: a full stop that ends a line or precedes a space, so the
+            # dots inside a pull URL do not cut it short.
+            end = re.search(r"\.(?=\s|$)|\n", block[match.start(1) :])
+            clause = block[match.start(1) : match.start(1) + end.start()] if end else block[match.start(1) :]
+            refs = _refs(clause)
+            if not refs and _BACK_REFERENCE.search(clause):
+                # A clause about something unbuilt ("closes when that slice merges") names no PR and stays unjudged.
+                paragraph = block[block.rfind("\n\n", 0, match.start()) + 1 : match.end()]
+                refs = _refs(paragraph)
+            if not refs:
                 unnumbered += 1
                 continue
+            bare = [ref for ref in refs if ref[0] is None]
+            if other_tree and bare:
+                problems.append(
+                    f"{ident}: close condition names {', '.join(_label(r) for r in bare)} in an entry about another "
+                    "tree; write it as owner/repo#N or a pull URL so it is checked in the right repository"
+                )
+                continue
             checked += 1
-            states = {n: state_of(n) for n in numbers}
-            if all(state == "MERGED" for state in states.values()):
-                named = ", ".join(f"#{n}" for n in numbers)
+            if all(state_of(repo, number) == "MERGED" for repo, number in refs):
+                met += 1
+                named = ", ".join(_label(r) for r in refs)
                 problems.append(f"{ident}: close condition met ({named} merged); close it, naming the merge commit(s)")
-    summary = f"close conditions: {checked} naming PRs checked, {len(problems)} met; {unnumbered} name no PR"
+    ambiguous = len(problems) - met
+    summary = f"close conditions: {checked} naming PRs checked, {met} met; {unnumbered} name no PR"
+    if ambiguous:
+        summary += f"; {ambiguous} ambiguous"
     return problems, summary
 
 
@@ -397,7 +445,10 @@ def main(argv: list[str] | None = None) -> int:
         "--pr-states",
         type=Path,
         metavar="JSON",
-        help='With --close-conditions: read PR states from {"<number>": "MERGED"|"OPEN"|"CLOSED"} instead of gh.',
+        help=(
+            'With --close-conditions: read PR states from {"<number>" or "<owner/repo>#<number>": '
+            '"MERGED"|"OPEN"|"CLOSED"} instead of gh.'
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -441,12 +492,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.pr_states:
             known_states = json.loads(args.pr_states.read_text(encoding="utf-8"))
 
-            def state_of(number: int) -> str | None:
-                return known_states.get(str(number))
+            def state_of(repo: str | None, number: int) -> str | None:
+                return known_states.get(f"{repo}#{number}" if repo else str(number))
         else:
 
-            def state_of(number: int) -> str | None:
-                return _gh_pr_state(args.close_conditions, number)
+            def state_of(repo: str | None, number: int) -> str | None:
+                return _gh_pr_state(args.close_conditions, number, repo)
 
         met, summary = close_conditions(entries, state_of)
         problems += met
