@@ -50,8 +50,18 @@ a live operation by itself (06s Phase 5).
 
 Every effect needs an actor with an activated grant, and the route refuses the role collapses P-058
 recorded. The identities below are the fewest the route admits. The author is fixed by the committed SPEC-01 bar (#352);
-the others were allocated at A0 (2026-10-15; `ars` accepts any `act_` UUIDv7). Each non-owner actor is an owner-operated
-agent session, and its actor ID is recorded in that session's operator config (P-042).
+the others were allocated at A0 (2026-10-15; `ars` accepts any `act_` UUIDv7).
+
+**How each actor acted** (corrected 2026-10-21, final review m-2, a material record correction; P-042). The
+earlier sentence here said "Each non-owner actor is an owner-operated agent session". That was not what happened.
+- **Who submitted:** each non-owner actor's effects were submitted by the batch's hash-pinned runner, from that
+  actor's own operator config and ARS actor session, under Stephen's per-batch authorization.
+- **Who judged:** separate, fresh-context agent sessions did the judgement work. The producer drafted the return,
+  and the outcome, Task and project-use reviewers drafted their verdicts. Each draft was submitted unchanged and
+  checked by hash.
+- **Who had no separate session:** the bar author, the two observers, the bar review requester, the bar reviewer,
+  the bar proposer, the steward and the decision proposer. Their effects are mechanical.
+- **The bar review:** it was the route's fixed OR-106 review context. No bar-review session ran (m-3).
 
 | Role | Actor | Commands | Must differ from |
 |---|---|---|---|
@@ -102,7 +112,7 @@ All `ars` commands run from the durable checkout as
 - **Check before L7:** `git -C C:/Users/steph/TDL-ARS-G6-Checkout status --porcelain=v1 --untracked-files=all`
   prints nothing.
 
-**Status (2026-10-16):**
+**Status (2026-10-16, updated through 2026-10-21):**
 - **L1 to L3 are done and verified.**
   - **Store identity:** `5e3b95a9…`.
   - **Witness:** `1a7aa957…`.
@@ -120,9 +130,55 @@ All `ars` commands run from the durable checkout as
   `3eea9174…`) and the Candidate (§4 item 5).
 - **Step 3 batch 5 is done (2026-10-17).** The steward requested the Assay, and the owner issued the brief
   `art_13fdb997-…` (§4 item 6, first two steps).
+- **Step 3 batch 6 is done (2026-10-20).** The owner registered the operator return `art_fc1c4531-…`, equal as
+  parsed JSON to the producer's draft `568447c7…` (the stored document re-serializes it, so the draft's own bytes
+  are not stored; final review m-1). The producer re-supplied it at `RecordAssayScore`, and the Assay is scored
+  PARK (§4 item 6, the return).
+- **Step 3 batch 7 is done (2026-10-20).** The steward requested the outcome review `rev_0e21fa01-…`. It is
+  pending on the registered scorecard, with a deadline of 2026-11-19 (§4 item 6, the review's first effect). The
+  verdict follows the independent review session, under its own authorization.
+- **Step 3 batch 8 is done (2026-10-20).** The outcome reviewer recorded the independent approving verdict. The
+  review is satisfied and the Assay is reviewed, with PARK (§4 item 6, `review_spec_01_complete` complete).
+- **Step 3 batch 9 is done (2026-10-20).** `decide_spec_01`: the proposer recommended PARK, and the owner resolved
+  Decision `dec_1c6c1254-…` PARK with six revisit triggers, R1 to R6, and the revisit rule (seven strings; final
+  review m-8). The Candidate is parked (§4 item 6 complete).
+- **Step 3 batch 10 is done (2026-10-20).** This is closure part 1 (§4 item 7), under the accepted closure plan:
+  - the Attempt is completed, naming the SOURCE observation and the operator return (option A);
+  - the Task is submitted;
+  - the Task review `rev_01a158ed-…` is requested and assigned to the Task reviewer.
+- **Step 3 batch 11 is done (2026-10-20).** This is closure part 2: the independent Task review approved, the
+  owner satisfied it, and the SPEC-01 Task is accepted, selecting the two artefacts. `close_task` is complete.
+- **Step 3 batch 12 is done (2026-10-21).** This is closure part 3: the owner registered the ProjectUseDecision
+  `art_fbd584af-…` with the accepted words, and the result is pending.
+  - **Batch 13 runs under option A.** The project-use review's governing scientific-review record has no public
+    writer, so the owner places it through the internal store (a known limit, probed on scratch).
+- **Step 3 batch 13 is done (2026-10-21).** This is closure part 4, under option A:
+  - the independent project-use review approved;
+  - the owner placed the reviewed governing record and set use authority;
+  - the project-use result is **accepted**.
+
+  §4 item 7 is complete, at 88 live events.
+- **Step 4 is done (2026-10-21).** The result renders `accepted` as JSON and Markdown from fresh processes, byte for
+  byte as before. All ten Task-isolation and PARK-wording checks pass, and nothing was written (§4 item 8, §5
+  step 4).
+- **Step 5 is done (2026-10-21).** The governed backup `bkr_01a15d2c-…` is in `TDL-ARS-WP64-Backups`, and an
+  evidence-only `RestoreVerified` was recorded on a same-disk restore copy in `TDL-ARS-WP64-Restore-Verification`.
+  The identity, ledger, artefact and byte comparisons pass, at 91 live events.
+  - **Known limit:** the `VerifyRestore` payload comes from the internal, read-only restore preflight.
+- **Step 6, the final evidence review, is done (2026-10-21).**
+  - **The verdict:** PASS WITH FINDINGS. All 91 events map to authorized steps, and the separation, outcomes and
+    bounds hold.
+  - **The record corrections** (m-1 to m-8, with m-2 and m-3 material) are applied, including this runbook's §1.
+  - **Remaining:** Stephen's closure, the docs-only final PR, and the frozen-checkout replay.
+- **Phase 5 is closed (Stephen, 2026-10-21).** See P-058, "06s Gate 6 Phase 5 is closed". This record is the
+  docs-only final PR. The frozen-checkout replay at M2 follows its merge (P5-4) and is recorded after it.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
-  "Step 3 batch 4, live" and "Step 3 batch 5, live".
+  "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
+  "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
+  "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
+  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live", "Step 4, live and read-only",
+  "Step 5, live", "Step 6: the independent final evidence review" and "06s Gate 6 Phase 5 is closed".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
@@ -223,3 +279,14 @@ under it.
   PR-G).
 - **Inherited limits:** the OR-006 context fields, the fixed OR-106 review context, and the approving-only
   outcome review (P-058).
+- **Project-use acceptance has no public writer for its governing evidence** (found 2026-10-20). Admission
+  requires a governing scientific-review record that only the internal `GoverningScientificReviewStore.publish`
+  writes.
+  - **This run:** option A, where the owner places it from a hash-pinned script.
+  - **Follow-up:** a certified public writer, as PR-G was for B-3.
+  - **Off the ledger:** the record cannot carry the review's findings.
+- **Verify-restore's command payload has no public deriver** (found 2026-10-21). `ars store verify-restore` takes a
+  `VerifyRestore` command whose payload must carry the restore preflight's results.
+  - **This run:** step 5 built it from the internal, read-only `verify_restore_before_writer_lease`, as the WP6.4
+    test does. The CLI re-runs the full preflight before admitting.
+  - **Follow-up:** a public command that derives the payload.

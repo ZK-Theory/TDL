@@ -2535,9 +2535,12 @@ was executed, and no store, checkout or grant exists yet.
   L5's selection and review must cover `100730e0..M2`.
 - **Next:** A1, the durable checkout (runbook §3 L1). It needs Stephen's own authorization.
 
-**Live steps A1 to A4, and the L5 scope (Stephen, 2026-10-15/16).** Each step was prepared as one exact script,
-authorized by Stephen on its own, run alone, and verified from durable state before the next. The scripts, logs and
-authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
+**Live steps A1 to A4, and the L5 scope (Stephen, 2026-10-15/16).** Each step was authorized by Stephen on its
+own, run alone, and verified from durable state before the next.
+- **A1 to A3** were each one exact script. Their scripts, logs and authorization notes are in
+  `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a3/`.
+- **A4** was the push of `a40b3f01` and the opening of PR #365, under its own authorization. `a4/` holds that note
+  and the pre-push procedure-test log. This sentence was corrected on 2026-10-21 (final review m-6).
 - **A1, the durable checkout (L1).**
   - **What ran:** `run-a1.sh` (sha256 `69ace3fc…`), at 23:53Z on 2026-10-15. It cloned
     `C:/Users/steph/TDL-ARS-G6-Checkout` from GitHub, set `main` to M1 `100730e0` and ran `uv sync --locked`.
@@ -2757,6 +2760,10 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   | 8 | `ResolveDecision` | the owner |
 
   - **Each step:** receipt `accepted`, and the last effect is by the expected actor under its grant.
+  - **No bar-review session ran** (added 2026-10-21, final review m-3, a material record correction).
+    `RecordW11AuthorityReview` recorded the route's fixed OR-106 review context under the bar reviewer's identity,
+    which is the inherited known limit. The bar's substance rests on #352's review and the delta assurance. All
+    eight effects were submitted by batch 2's runner, from each actor's operator config (runbook §1).
 - **The result.** `bootstrap_assay_authority` is `completed`, with 8 effects by 7 distinct actors under 8
   distinct grants. The ledger went from 6 to 22 events. An exact retry of step 8 returned the same receipt and
   appended nothing. A fresh-shell status agrees, and the checkout is clean at M2.
@@ -2898,7 +2905,7 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   `C:/Users/steph/.codex/tmp/g6-p5/s3-b5/live/`: `s3b5.log` (`dee1f7a8…`), `advance-request.json` (`a6576864…`),
   `advance-prepare.json` (`17661854…`), `brief.json` (`45f0d20a…`), the retries and the authorization note.
 - **The result.** The live ledger went from 45 to 51 events.
-  - **`request_spec_01` (OR-003, `RequestAssay`):** by the steward `act_01a14020-0459-…`, in its own session, under
+  - **`request_spec_01` (OR-003, `RequestAssay`):** by the steward `act_01a14020-0459-…`, in its own ARS actor session (submitted by the batch runner; runbook §1), under
     `agr_01a148ba-8cf5-…`, scoped to the Candidate `obj_a9ba6213-…`. It appended 3 events. The route refuses the
     producer or the owner as requester.
   - **`prepare_spec_01` (`RegisterArtefact`):** by the owner under `agr_01a148ba-8cf8-…`, issuing the operator brief
@@ -2915,6 +2922,711 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
 - **Next:** the operator's SPEC-01 work from the issued brief, by the producer `act_01a14020-045b-…` in a separate
   owner-operated session. It drafts the operator return; nothing is registered until `return_spec_01_complete`,
   which needs its own authorization.
+
+**Step 3 batch 6, live: the operator return is registered and the Assay is scored PARK (Stephen, 2026-10-20).**
+Runbook §4 item 6, the return.
+- **The operator session.** The producer `act_01a14020-045b-…` worked in a separate, fresh-context session from
+  `s3-b6/producer-session-brief.md` and registered nothing.
+  - **The draft:** `s3-b6/output/operator-return-draft.json`, sha256 `568447c7…` (29,749 bytes). The pre-flight
+    checker passes.
+  - **The axes:** topology true; data feasibility 2 and novelty 1, so 3, below PROMOTE's 4. Four further gates are
+    false: the non-redundant primary claim, the named estimand and representation freeze, the SPEC-02 design within
+    the envelope, and no unresolved paper/code discrepancy.
+  - **Two paper/code discrepancies (D1, D2).** D1: `get_toy_data` re-seeds one RandomState for both the basis and
+    the noise, so the noise is not independent as the paper says (found by reading the code, not running it). D2:
+    the paper's ripser commit `140670f` is not on the branch, and it does not build the binary the code invokes.
+  - **Open points for the outcome review:** the session attributed the score shortfall to novelty alone, and it
+    could not re-derive the source hash `3eea9174…` (it verified the commit and tree instead).
+  - **Beyond the brief:** the session also wrote owner-action prompts, a decision sheet and a SPEC-02 amendment
+    draft. Nothing here relies on them.
+- **The rehearsal first.** `batch6.py` (`7c7aaa16…`) ran on the scratch store from 51 to 56 events. Both effects
+  completed, admission's recommendation was PARK, the runner's own recomputation of the bar rule from the ten axis
+  values was also PARK, and a full rerun skipped both effects and appended nothing.
+- **What ran live:** `run-s3b6.sh` (sha256 `acc9f79c…`), from 05:43Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b7/live/`: `s3b6.log` (`91f88547…`), `advance-register.json`
+  (`216c6232…`), `advance-score.json` (`5c1a707f…`, byte-equal to `retry-score.json`), `return.json`
+  (`86ea24df…`), and the authorization note.
+- **The result.** The live ledger went from 51 to 56 events.
+  - **`RegisterArtefact`:** by the owner under `agr_01a157ce-589d-…`, scoped to the return artefact. It registered
+    the return `art_fc1c4531-4398-761c-8787-e2355e7c1ebd`, and the action stood `prepared`.
+  - **`RecordAssayScore` (OR-004):** by the producer, in a new ARS actor session (submitted by the batch runner with
+    the producer session's draft unchanged; runbook §1), under `agr_01a157ce-589f-…`, scoped to the
+    Candidate. It re-supplied the same return bytes and appended `AssayScored` and `CandidateAssayLinked`.
+- **Verified.**
+  - Both effects ran by the expected actor under the expected grant, and the action completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - The registered `operator_return` equals the draft, and the return binds the brief `art_13fdb997-…` and its
+    Task.
+  - The scorecard's producer is the producer, and its mechanical recommendation is PARK. That agrees with the bar
+    rule recomputed from the axis values.
+  - A fresh, read-only process replayed the ledger at 56 events. The Assay is `scored` with scorecard
+    `09c9eb50…`, the same as the return's. The Candidate is `assay_scored`, and the Attempt is still running.
+  - The checkout is clean at M2.
+  - The scorecard hash differs from the rehearsal's (`73ff7f2e…`). A field diff shows only three ledger-reference
+    hashes differ: the bar acceptance, the Assay request and the Candidate. Each store has its own events.
+- **Next:** `review_spec_01_complete`, requested by the steward and recorded by an independent outcome reviewer.
+  It needs its own authorization.
+
+**Step 3 batch 7, live: the steward requests the outcome review (Stephen, 2026-10-20).** Runbook §4 item 6, the
+outcome review's first effect.
+- **Why it is split.** `review_spec_01_complete` has two effects:
+  - `RequestDiscoveryOutcomeReview` (OR-034), by the steward;
+  - `ReviewDiscoveryOutcome` (OR-006), by the outcome reviewer `act_01a14020-045e-…`, with the reviewer's verdict
+    evidence.
+
+  The request runs first, so that the independent reviewer works from the live review contract. This follows
+  the pattern of batches 5 and 6, where the brief was issued before the operator worked. The verdict needs its
+  own later authorization. The route records only an approving verdict (an inherited limit). If the reviewer
+  will not approve, the owner rules.
+- **The rehearsal first.** `batch7.py` ran the whole action on the scratch store:
+  - the request, 56 to 59 events;
+  - then the verdict, with a placeholder evidence object labelled rehearsal-only, 59 to 62 events, leaving the
+    review `satisfied`.
+
+  The runner's last check expected the Assay still `scored` after the verdict, so it stopped. It is `reviewed`
+  by then. I fixed the check (`batch7.py` is now `dd54fe94…`), and the resumed run passed.
+- **Scratch reset to after the request.** A copy of the store directory was refused: "store physical root
+  identity differs from approved origin witness". The witness binds the root directory's device and inode. I
+  moved the original root back and replaced only its contents with the post-request snapshot. The request path
+  then passed again with the final runner. Scratch is at 59, with the review pending, ready to rehearse the real
+  verdict.
+- **What ran live:** `run-s3b7.sh` (sha256 `b24850c4…`), from 07:13Z, authorized alone.
+  - The evidence is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b8/live-request/`: `s3b7.log` (`27697878…`),
+    `advance-request.json` (`d227f61b…`, byte-equal to `retry-request.json`), `review-request.json`
+    (`bd18354d…`), and the authorization note.
+  - The inputs came from `prepare.py`, which checked each grant request's exact fields, its active command
+    binding and each operator config read-only against the live binding.
+- **The result.** The live ledger went from 56 to 59 events: the grant activation `agr_01a1581f-0e6c-…`,
+  `ReviewRequested` on `rev_0e21fa01-150d-77e2-a07f-237b8789f726`, and `AssayOutcomeReviewRequested` on the Assay,
+  both by the steward, in a new ARS actor session (submitted by the batch runner; runbook §1).
+- **Verified.**
+  - The effect ran by the steward under the expected grant. The action stands `prepared`, next
+    `ReviewDiscoveryOutcome`.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 59 events and found the review `pending`:
+    - its subject is the registered scorecard `09c9eb50…`;
+    - its required evidence is `scorecard:09c9eb50…` and `operator-return:fc07ca42…`, the registered return's
+      content hash;
+    - its grade is `independent`, its capability `assay-independent-review`, and its deadline
+      2026-11-19T05:45Z, 30 days after the score.
+  - The Assay is still `scored`, and the Attempt is still running.
+  - My first fresh-check script expected the event type `AssayReviewRequested`, from the route table. The stored
+    type is `AssayOutcomeReviewRequested`, which is the runtime's name for OR-034. I corrected the script, and it
+    passed. The ledger was never in question.
+  - The checkout is clean at M2.
+- **Next:**
+  - The outcome reviewer works in a separate, fresh-context session from `s3-b8/outcome-reviewer-session-brief.md`
+    and drafts the verdict evidence. It registers nothing.
+  - Then `ReviewDiscoveryOutcome` runs, rehearsed on scratch with the real draft, under its own authorization.
+
+**Step 3 batch 8, live: the independent outcome review approves (Stephen, 2026-10-20).** Runbook §4 item 6, the
+outcome review's second effect.
+- **The review session.**
+  - **Who:** the outcome reviewer `act_01a14020-045e-…`, in a separate, fresh-context session
+    (`local_79528633-…`, Claude Opus 5.5).
+  - **What it worked from:** `s3-b8/outcome-reviewer-session-brief.md` and eight inputs. The assembly checked
+    every input against the ledger: the stored return's bytes (`fc07ca42…`, the review's `operator-return:` ref),
+    the scorecard (`09c9eb50…`, the subject), the stored brief (`7b4f9eb2…`), the draft, SPEC-01's brief, rubric
+    and evidence scope, and the live review request. The manifest is `81e8673c…`, and the context is
+    `ctx_01a1582f-…`.
+  - **What it touched:** it registered nothing and read no other session. Its only writes were in
+    `s3-b8/review-output/`. Afterwards the inputs were byte-identical, the store was at 59, and both checkouts were
+    clean.
+- **The verdict: approve.** Checks 1 to 4 hold:
+  - the registered `operator_return` equals the draft, as parsed JSON (key order differs);
+  - the ten scorecard axes match the return;
+  - PARK follows from the bar;
+  - the brief, Task, producer and subject bindings hold.
+
+  The draft `verdict-evidence-draft.json` (`901003af…`) passes `check_verdict.py`.
+  - **Eight findings, none blocking, none changing PARK:**
+    - the topology pass rests on no verified decisive failure, not a positive demonstration;
+    - the disconnected-graph amendment is not tracked by a revisit predicate;
+    - the benchmark gate passes despite D1;
+    - the shortfall code sits on novelty only;
+    - the return cites the issued brief as `45f0d20a…`, not `7b4f9eb2…`;
+    - the per-axis evidence refs name the rubric and scope;
+    - D1 and D2 rest on the producer's static reading alone;
+    - none of these contradicts a score.
+  - **The brief hash, checked.** On the fifth point, `45f0d20a…` is batch 5's pretty-printed `brief.json`.
+    Parsed, it is the same object as the stored brief `7b4f9eb2…`.
+  - **Seven limitations,** including inputs-only, topology and paper-claim out of scope, and approve-only.
+- **The rehearsal first.** `batch7.py --effects verdict` ran on the scratch store from 59 to 62 events with
+  `verdict-intent.json` (`196ca580…`, the request intent plus the draft unchanged). The review went `satisfied`,
+  and a rerun appended nothing.
+- **What ran live:** `run-s3b8.sh` (sha256 `7e0bd7b7…`), from 10:16Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b8/live-verdict/`: `s3b8.log` (`ff9f140d…`), `advance-verdict.json`
+  (`7fa10632…`, byte-equal to `retry-verdict.json`), `review-verdict.json` (`0c419efc…`), and the authorization
+  note.
+- **The result.** The live ledger went from 59 to 62 events: the grant activation `agr_01a1581f-0e77-…`, then
+  `ReviewVerdictRecorded` on `rev_0e21fa01-…` and `AssayReviewed` on the Assay, both by the outcome reviewer.
+- **Verified.**
+  - The effect ran by the outcome reviewer under the expected grant, and `review_spec_01_complete` completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 62 events:
+    - the review is `satisfied`, with `approve`, by the outcome reviewer;
+    - the reviewer is neither the requester nor the producer;
+    - the verdict's unchanged subject is the scorecard `09c9eb50…`;
+    - every supplied evidence field is recorded as drafted.
+  - The Assay is `reviewed` with mechanical PARK, the Candidate is `assay_scored`, and the Attempt is still
+    running.
+  - The checkout is clean at M2.
+- **Next:** `decide_spec_01`. The decision proposer proposes (OR-012), and the owner resolves (OR-013). Stephen
+  decides, under its own authorization.
+
+**Step 3 batch 9, live: the owner parks the SPEC-01 Candidate (Stephen, 2026-10-20).** Runbook §4 item 6, the
+decision.
+- **The decision.** Stephen decided in chat, from `s3-b9/decision-sheet.md`:
+  - **The proposer's recommendation:** PARK.
+  - **The owner's selection:** PARK.
+  - **The revisit triggers,** as drafted:
+    - R1 to R5, the operator's revisit predicates;
+    - R6, the outcome reviewer's untracked point: an explicit connected-components check as a SPEC-02
+      amendment;
+    - the rule, as a seventh string: revisit only when R1 to R6 all hold, because R1 to R3 alone make only a
+      synthetic reproduction runnable.
+- **What admission allowed.**
+  - **PARK:** with revisit triggers.
+  - **KILL:** admissible, but the brief requires a directly verified decisive failure, and none was verified.
+  - **PROMOTE:** refused without a mechanical PROMOTE.
+- **Carried into the decision:** the outcome reviewer's findings, and the limits:
+  - the route records only approving reviews;
+  - the review was inputs-only;
+  - topology and paper-claim assurance were out of the review's scope;
+  - the producer and the reviewer ran on the same model family as the session running the route.
+- **The rehearsal first.** `batch9.py` (`c16a7798…`) ran both effects on the scratch store from 62 to 68 events,
+  and a rerun appended nothing.
+  - **The intents:**
+    - `decide-intent.json` (`0c106113…`, recommendation PARK);
+    - `resolve-intent.json` (`3576a411…`), the same intent plus `resolution-evidence.json` (`310e53ce…`).
+  - **The grants and configs** came from `prepare.py`, checked read-only against the live binding. The owner
+    keeps its A0 session.
+- **What ran live:** `run-s3b9.sh` (sha256 `dc939afe…`), from 10:33Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b9/live/`: `s3b9.log` (`70139d81…`), `advance-propose.json` (`0b7766aa…`),
+  `advance-resolve.json` (`355bed60…`, byte-equal to `retry-resolve.json`), `decision.json` (`05442fe0…`), the
+  decision note and the authorization note.
+- **The result.** The live ledger went from 62 to 68 events.
+  - **`ProposePromotionDecision` (OR-012):** by the decision proposer `act_01a14020-0460-…`, under
+    `agr_01a158d8-e0e0-…`. It appended `DecisionProposed` on `dec_1c6c1254-da10-716b-8def-c72f4232bddf` and
+    `CandidatePromotionRequested`, citing `scorecard:09c9eb50…` and `review:rev_0e21fa01-…`.
+  - **`ResolveDecision` (OR-013):** by the owner, under a human-only grant, `agr_01a158d8-e0ea-…`. It appended
+    `DecisionResolved` and `CandidatePromotionApplied`. The route names these Candidate events "promotion"
+    whatever the option; the relation carries PARK.
+- **Verified.**
+  - Both effects ran by the expected actor under the expected grant, and the action completed.
+  - The proposer is neither the owner, the producer nor the outcome reviewer.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 68 events:
+    - the Decision is `resolved` with PARK, decided by the owner;
+    - it considered the review `rev_0e21fa01-…`;
+    - its seven revisit triggers are exactly the owner's;
+    - the Candidate is `parked`, the Assay is `reviewed` with PARK, and the Attempt is still running.
+  - The checkout is clean at M2.
+- **Next:** closure (runbook §4 item 7): end the Attempt, register the evidence artefacts, run `close_task`, then
+  `register_project_use_decision` and `accept_project_use_decision`. Each part needs its own authorization.
+
+**Closure plan (Stephen, 2026-10-20).** Stephen accepted `s3-b10/closure-plan.md` (`35aa559f…`) as recommended.
+- **Four live batches.** Each Task-level review is requested live before its reviewer works, as in batches 7 and 8:
+  - batch 10: `CompleteAttempt`, then `close_task` effects 1 to 3;
+  - the Task-review session;
+  - batch 11: `close_task` effects 4 to 7;
+  - batch 12: `register_project_use_decision`;
+  - the project-use review session;
+  - batch 13: `accept_project_use_decision`.
+- **Option A: the Attempt's evidence.** The Attempt names the two route-registered outputs that the Task
+  definition's `expected_artefact_types` lists: the SOURCE observation `art_87c22454-…` and the operator return
+  `art_fc1c4531-…`, which carries the scorecard. Nothing new is registered.
+  - **Why not B:** registering new evidence through C1 `RegisterArtefact` would record a manifest whose bytes
+    admission does not read.
+  - **Probed on scratch first:** `CompleteAttempt` was accepted with the lease long lapsed, and `SubmitForReview`
+    accepted both as distinct registered candidates. Scratch was then restored to 68 inside its original root.
+- **The Task review request:** as drafted in the plan.
+  - **Type and lanes:** `provenance`, on the lanes `output` and `provenance`.
+  - **The question:** whether the exact Task subject satisfies its bounded contract on the ledger.
+  - **Governing refs:** the Task definition `f52ddda3…`, A0, D6 and runbook §4.
+  - **Required evidence:** the two candidates by content hash, the scorecard, the outcome review and the Decision.
+  - **Deadline and escalation:** 2026-11-19, and owner-ruling.
+- **Known limit: acceptance asserts all five criteria.** `AcceptTask`'s route-derived payload records every
+  acceptance criterion as satisfied (`spec_task.py:710`).
+  - **Criterion 4,** Task closure, is the acceptance itself.
+  - **Criterion 5,** the reviewed project-use decision, can exist only after acceptance, because the project-use
+    route requires an accepted Task.
+  - **The Task cannot be amended:** the project-use route refuses a Task amended since dispatch.
+  - **So:** the Task reviewer judges criteria 1 to 3 on the evidence and 4 to 5 as procedural. Batches 12 and 13
+    discharge criterion 5 after the ledger already asserts it.
+- **Known limit: the lapsed lease is not released.** The bounded lease lapsed on 2026-10-17 (option A). Closure
+  does not need its release (`spec_task.py`: "never from attempt completion, lease release or result presence"),
+  so the resource request's release obligation stays unmet. This extends the option A known limit.
+- **Also carried:**
+  - the Task review's verdict evidence has no `findings` or `limitations` fields, so findings live in the
+    reviewer's notes, cited by sha256;
+  - the route records only `approve`.
+
+**Step 3 batch 10, live: the Attempt ends, and the Task review is requested (Stephen, 2026-10-20).** Runbook §4
+item 7, closure part 1.
+- **The rehearsal first.** `batch10.py` ran on the scratch store from 68 to 75 events: `CompleteAttempt`, then
+  `SubmitForReview`, `RequestReview` and `AssignReview`.
+  - **One stop, in my own check.** The final check compared the submitted candidate hashes with the live-pinned
+    ones, but scratch registered its own bytes.
+  - **The fix:** the check now compares against the store's own registrations, and against the pinned hashes in
+    live mode only. `batch10.py` is now `bd9f0a21…`, and the resumed run passed, skipping every recorded step.
+  - **Inputs:** from `prepare.py`, read-only against the live ledger for the two content hashes. There are three
+    owner grants:
+    - `CompleteAttempt` on the Attempt;
+    - `SubmitForReview` alone on the Task (`AcceptTask` gets its own grant in batch 11);
+    - `RequestReview` and `AssignReview` on the new review (`SatisfyReview` waits for batch 11).
+- **What ran live:** `run-s3b10.sh` (sha256 `e199e93c…`), from 15:11Z, authorized alone. It ran
+  `complete-attempt.json` (`5e7d1942…`) and the three intents.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b10/live/`: `s3b10.log` (`29aaac16…`),
+    `complete-attempt.json` (`8fd0f090…`), `advance-AssignReview.json` (`361a6a59…`, byte-equal to the retry),
+    `task-review-request.json` (`faca7386…`), and the authorization note.
+- **The result.** The live ledger went from 68 to 75 events, all by the owner:
+  - three grant activations;
+  - `AttemptCompleted`, naming `art_87c22454-…` and `art_fc1c4531-…` with `candidate_output_recorded`;
+  - `TaskSubmittedForReview` on `tsk_01a14850-…`;
+  - `ReviewRequested` and `ReviewAssigned` on the Task review `rev_01a158ed-5755-76ee-a925-928f5fd95ac6`.
+- **Verified.**
+  - Each effect ran under its own grant, and the exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 75 events:
+    - the Attempt is `completed`, by the exact prepared command;
+    - the submission carries both candidates with their registered hashes, `b46dfda8…` and `fc07ca42…`, the
+      latter being the outcome review's `operator-return:` ref;
+    - the request equals the owner's field by field;
+    - the review is `assigned` to the Task reviewer `act_01a14020-0462-…`;
+    - the Task is `review_pending`, and the Candidate is still `parked`.
+  - The checkout is clean at M2.
+- **Next:** the Task reviewer works in a separate, fresh-context session from the Task-review package and drafts
+  the verdict evidence. Then batch 11 runs, under its own authorization.
+
+**Step 3 batch 11, live: the Task review approves, and the SPEC-01 Task is accepted (Stephen, 2026-10-20).** Runbook
+§4 item 7, closure part 2.
+- **The Task-review session.**
+  - **Who:** the Task reviewer `act_01a14020-0462-…`, in a separate, fresh-context session (`local_f2505387-…`,
+    Claude Opus 5.5).
+  - **What it worked from:** `s3-b11/task-reviewer-session-brief.md` and eight inputs, assembled read-only from
+    the live store with every hash checked against the ledger:
+    - the stored Task object;
+    - the ledger's 75 events;
+    - the two candidates' stored bytes;
+    - the scorecard;
+    - the review request, assignment and submission;
+    - SPEC-01's brief and rubric.
+
+    The manifest is `4c5f979e…`, and the context is `ctx_01a15a04-…`.
+  - **What it touched:** it registered nothing and read no other session. Afterwards the inputs were
+    byte-identical and the store was at 75.
+- **The verdict: approve.**
+  - The submission is the Attempt's.
+  - Criterion 1 holds: the sealed producer relation `7d32f19b…`, and `AssayScored` by the producer.
+  - Criterion 2 holds: the outcome review is independent of its requester and the producer.
+  - Criterion 3 holds: the owner's `DecisionResolved` PARK.
+  - Check 5 found no breach of the bounded scope, non-goals or prohibited shortcuts.
+  - Criteria 4 and 5 were judged procedural, as accepted.
+  - The draft (`b525891d…`) passes `check_task_verdict.py`. Its trace ref is `review-notes.md` (`3bf9efe3…`),
+    since the route's verdict carries no findings field.
+- **Findings, in the notes** (F1 to F7 and L1 to L7; selected here. Completed 2026-10-21, final review m-4.)
+  - **F1:** the unreleased lease departs from the resource request's stated release obligation (accepted).
+  - **F2:** the session-time limits are not evidenced on the ledger.
+  - **F3:** the brief package `art_13fdb997-…` is a third registered artefact under the Attempt, read as in scope.
+  - **F4:** "Promotion" in the Candidate events is route vocabulary for PARK.
+  - **F5:** the return is bound to the outcome review as required evidence.
+  - **F6:** the outcome review's findings remain open at the scientific level; D1 and D2 were re-derived by no
+    reviewer.
+  - **F7:** the return document's `producer_actor_id` is the registering owner, and the scorecard's is the
+    producer.
+  - **L5:** the review request's `subject_hashes` value `9da8e928…` did not reproduce from the inputs. I
+    reproduced it read-only: it is the sha256 of the replayed Task stream state before the request.
+- **The rehearsal first.** `batch11.py` (`7fa2dc53…`) ran effects 4 to 7 on the scratch store from 75 to 82
+  events, and a rerun appended nothing.
+  - **The inputs** came from `prepare.py`:
+    - the Task reviewer's agent grant for `StartReview` and `RecordReviewVerdict`, in a new ARS actor session (the
+      runner submitted the review session's draft unchanged; runbook §1);
+    - the owner's separate grants for `SatisfyReview` and `AcceptTask`;
+    - the verdict intent `c6bc410a…`, which is the close_task intent plus the draft unchanged;
+    - the owner's satisfaction evidence `ecc31d3c…`: an approval-policy ref, the review notes' hash, and the gate
+      `spec-01-task-acceptance-gate`.
+      - **What the gate name is:** only `SatisfyReview`'s required evidence label.
+      - **Where the governing records are:** the Task review request's `governing_refs`. They are the Task
+        definition `f52ddda3…` (its acceptance criteria), P-058 A0 and D6, and runbook §4 (P-058, "Closure plan").
+      - **The research assurance behind them:** the SPEC-01 bar and decision rule (#352, accepted in batch 2),
+        and the delta assurance on M1 and M2 (P-058, "L5 delta assurance on M2").
+      - Clarified 2026-10-21 in answer to review.
+- **What ran live:** `run-s3b11.sh` (sha256 `f3436b2a…`), from 16:30Z, authorized alone. The evidence is in
+  `C:/Users/steph/.codex/tmp/g6-p5/s3-b12/live/`: `s3b11.log` (`b3349f1f…`), `advance-RecordReviewVerdict.json`
+  (`59dd137a…`), `advance-AcceptTask.json` (`f540c374…`, byte-equal to the retry), `task-closure.json`
+  (`a48f6b70…`), and the authorization note.
+- **The result.** The live ledger went from 75 to 82 events:
+  - three grant activations;
+  - `ReviewStarted` and `ReviewVerdictRecorded`, by the Task reviewer;
+  - `ReviewSatisfied` and `TaskAccepted`, by the owner.
+- **Verified.**
+  - Each effect ran by the expected actor under its own grant, and `close_task` completed.
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 82 events:
+    - the verdict is `approve`, carrying the draft field for field;
+    - the satisfaction carries the owner's evidence;
+    - the Task is `accepted`, the Task review `satisfied` and the Attempt `completed`;
+    - the acceptance selects the two candidates and records all five criteria, the accepted known limit.
+  - The checkout is clean at M2.
+- **Next:** batch 12, `register_project_use_decision`, in Stephen's words, under its own authorization.
+
+**Finding: the project-use review's governing evidence has no public writer (2026-10-20).** This is a gap of the
+census B-3 kind, found while preparing batch 12.
+- **What admission requires.** `accept_project_use_decision` is two effects, `RecordScientificReview` by the
+  project-use reviewer and then `SetArtefactUseAuthority` by the owner. `SetArtefactUseAuthority` admission
+  (`command/service.py:4733-4792`) requires the review's single `evidence_refs` entry to resolve to a governing
+  scientific-review record in `objects/assurance_record`. The record (`ars://evidence/governing-scientific-review`
+  1.0.0) is checked in full. It must carry:
+  - `schema_id` `ars://evidence/governing-scientific-review` and `schema_version` `1.0.0`;
+  - the ledger's `project_id`;
+  - the review (`review_id`), which must equal the recorded review's;
+  - the decision's content hash (`subject_sha256`);
+  - the reviewer (`reviewer_actor_id`), which must equal the reviewing actor;
+  - `eligible: true`, `related: false` and `status: active`;
+  - an `independence_grade` at or above the rule's minimum.
+
+  Its canonical sha256 must also equal its resolution (`service.py:4762-4786`). This list is complete; it was
+  completed on 2026-10-21 in answer to review.
+- **The review is refused first.** The route runs the same rule before recording the review (`spec.py:288-302`),
+  so the first effect is refused.
+- **No public path writes the record.**
+  - `GoverningScientificReviewStore.publish` (`artefacts/runtime.py:61`) is called only by tests.
+  - `ars assurance-record write` covers twelve other record classes, not this one.
+  - The 2026-10-07 census covered Task seeding through evidence registration, not project-use acceptance.
+- **The review's substance is off the ledger too.** The record has no notes field, and admission requires exactly
+  one `evidence_refs` entry, so the project-use review's findings cannot be cited on the ledger.
+
+**Option A for batch 13 (Stephen, 2026-10-21).** Stephen chose option A from `s3-b13/project-use-decision-sheet.md`
+(`a5b1885a…`).
+- **What A does:** the owner places the one governing record with the internal
+  `GoverningScientificReviewStore.publish`, from a hash-pinned script, after the project-use reviewer's session.
+  Admission still checks the record's schema, subject hash, reviewer and grade.
+- **Why not the others:**
+  - **B,** a certified public writer like PR-G, would need a new code identity and a re-pin mid-run. It is
+    better as a follow-up.
+  - **C,** stopping at registration, would leave criterion 5 and the D6 project-use result unmet.
+- **The known limit:**
+  - the live procedure depends on an internal API at this one seam;
+  - `eligible`, `related` and the grade are owner assertions about the reviewer.
+- **Probed on scratch** (`s3-b14/probe_option_a.py`, which refuses any `TDL-ARS-*` root).
+  - **Positive, grade I1:** with the two grants, the placed record and both effects, scratch went from 84 to 88.
+    The route's `result` reads `accepted`, with its disposition wording.
+  - **Negative control, grade I0:** after a reset, the reviewer's advance was refused before recording
+    (`governing_scientific_review_invalid`) and appended nothing. So admission checks the placed record, and I1
+    meets the minimum.
+  - **Afterwards:** scratch was reset to 84 inside its original root. The live store was untouched: 82 events and
+    30 assurance records.
+
+**Step 3 batch 12, live: the project-use decision is registered (Stephen, 2026-10-21).** Runbook §4 item 7,
+closure part 3.
+- **Stephen's words,** accepted as drafted in the sheet:
+  - **The disposition:** `retain_experimental_benchmark`, the only one permitted for a PARK.
+  - **The rationale:** the PARK outcome and why.
+  - **Seven limitations:** review scope, D1 and D2 static, no survey data, approve-only and inputs-only reviews,
+    one model family, the lapsed lease, and the acceptance asserting criterion 5.
+  - **Two next gates:** revisit only on R1 to R6; and SPEC-02 only after a later passing outcome, an owner
+    decision and a separate approval.
+  - **The D6 subset qualification and a `no_spike_reason`.**
+  - **The word rule:** the prose avoids the route-reserved *promot*, *replicat* and *adopt*. `prepare.py` checks
+    this, and validates the intent against `ars://portfolio/spec-project-use-intent`.
+- **The rehearsal first.** `batch12.py` (`224ca671…`) ran on the scratch store from 82 to 84 events, and the
+  route's `result` read `pending`, with `RecordScientificReview` next.
+- **What ran live:** `run-s3b12.sh` (sha256 `0e5b3cb7…`), from 00:15Z, authorized alone. It ran
+  `register-intent.json` (`05b222c5…`).
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b13/live/`: `s3b12.log` (`876523d5…`),
+    `advance-register.json` (`bd37daf4…`, byte-equal to the retry), `decision.json` (`7e664eb4…`), the JSON and
+    Markdown results, and the authorization note.
+- **The result.** The live ledger went from 82 to 84 events: the grant activation `agr_01a15bc7-…`, and
+  `ArtefactRegistered` of the ProjectUseDecision `art_fbd584af-f080-7cde-b090-59ddb1b7a442` by the owner, with
+  content `4ed88262…`.
+- **Verified.**
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 84 events:
+    - the stored document hashes to the manifest's content and is schema-valid;
+    - its `intent` equals the accepted intent as parsed JSON (corrected 2026-10-21 from "byte for byte"; the same
+      overstatement as final review m-1);
+    - it cites the accepted Task, its two selected artefacts as evidence, the owner's PARK, no Spike, and the
+      parked Candidate;
+    - no review is recorded yet.
+  - The route's result reads `pending`.
+  - The checkout is clean at M2.
+- **Next:** the project-use reviewer `act_01a14020-0465-…` works in a separate, fresh-context session. Then batch
+  13 runs under option A: the owner places the governing record, then the reviewer's `RecordScientificReview` and
+  the owner's `SetArtefactUseAuthority`. It needs its own authorization.
+
+**Step 3 batch 13, live: the project-use review approves, and the project-use result is accepted (Stephen,
+2026-10-21).** Runbook §4 item 7, closure part 4, under option A. Closure is complete.
+- **The project-use review session.**
+  - **Who:** the project-use reviewer `act_01a14020-0465-…`, in a separate, fresh-context session
+    (`local_86af1798-…`, Claude Opus 5.5).
+  - **What it worked from:** `s3-b15/project-use-reviewer-session-brief.md` and seven inputs, assembled read-only
+    from the live store with every hash checked against the ledger:
+    - the stored decision `4ed88262…`;
+    - the ledger's 84 events;
+    - the Task;
+    - the return and the scorecard;
+    - the A0 D6 text, verbatim from main.
+
+    The manifest is `0961aaed…`, and the context is `ctx_01a15cf9-…`.
+  - **What it touched:** it registered nothing, read no other session, and did not touch the governing-record
+    draft. Afterwards the inputs were byte-identical.
+- **The verdict: approve.**
+  - The subject is exact, and every reference matches the ledger.
+  - The owner's words are true to the evidence, with no claim beyond it.
+  - The reviewer is not the owner, did not register the decision, and held no earlier role.
+  - The attestation (`6c13d795…`) passes `check_attestation.py`. It binds the review ID, the subject and the
+    notes (`a25025a7…`).
+  - **Eight minor findings, none material.** Off the ledger by construction; the Computational-Log keeps them:
+    - F1: "seven triggers" counts six triggers plus the rule;
+    - F2: "topology passed" is a gate value only;
+    - F3: the threshold of 4 is confirmed from the return, not the rubric;
+    - F4: this review also ran on Claude Opus 5.5, so the one-model-family limit extends to it;
+    - F5: the Task review's inputs-only claim is not checkable from these inputs;
+    - F6: D2 also rests on reading the public Ripser repository;
+    - F7: two unresolved items (dtype and tolerances; the unversioned diffusion figures) are named by no revisit
+      trigger;
+    - F8: D6 cost-ceiling compliance is not stated.
+- **The rehearsal first.** `batch13.py` ran on the scratch store from 84 to 88 events.
+  - **One stop, in my own check.** I expected the use authority's `evidence_refs` to be just the review and record
+    IDs. Admission appends its governing-review census: the record's canonical sha256, the review-set digest, the
+    store identity and the ledger position.
+  - **The fix:** the check now requires the two IDs first and the census's record hash. `batch13.py` is now
+    `d09838b9…`.
+  - **Rehearsed again:** scratch was reset to 84, and the final runner ran end to end.
+  - **The inputs** came from `prepare.py`: the reviewer's agent grant for `RecordScientificReview` in a new ARS actor session (the runner
+    submitted the review evidence the attestation binds; runbook §1),
+    the owner's grant for `SetArtefactUseAuthority`, and the review intent `b42c22d5…` with evidence
+    `{review_id, evidence_refs: [the record ID]}`.
+- **What ran live:** `run-s3b13.sh` (sha256 `fb5421a9…`), from 06:08Z, authorized alone. It pinned the
+  attestation, the notes and the reviewed draft `0f596221…`, and refused if the record already existed.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b16/live/`: `s3b13.log` (`a82d5ae9…`),
+    `advance-use.json` (`ca86cba7…`, byte-equal to the retry), the JSON and Markdown results (`1f4db7c6…`,
+    `9ceafa14…`), `governing-record-placed.json` (`0f596221…`), and the authorization note.
+- **The result.**
+  - **Before the effects:** the runner checked the attestation, activated the two grants, and placed the
+    governing record `arec_01a15cf9-57b3-73fe-809e-392bb169ad59` through the internal
+    `GoverningScientificReviewStore.publish`. This is the option A seam: an object, not an event.
+  - **The effects:** the live ledger went from 84 to 88 events. `ScientificReviewRecorded` by the project-use
+    reviewer, then `ArtefactUseAuthoritySet` (`accepted_for_scope`) by the owner, both on `art_fbd584af-…`.
+- **Verified.**
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 88 events:
+    - the review `rev_01a15cf9-57b3-79c0-a463-bb12c57ef5e5` (event 87) is `approved`, by the reviewer, on the
+      registered subject, citing the review ID and the record (ID added 2026-10-21, final review m-5);
+    - the placed record is the reviewed draft byte for byte, and resolves to canonical sha256 `0f596221…`;
+    - the use authority cites the review, the record, the census's matching record hash and this store's
+      identity.
+  - The route's result reads **accepted**. Its Markdown renders the disposition, the subset qualification and the
+    route's own subset sentence, the rationale, all seven limitations, both next gates and the evidence chain.
+  - The checkout is clean at M2.
+- **Next:** step 4, the result render from a fresh process, with the Task-isolation and PARK-wording checks
+  (runbook §5). It needs its own authorization.
+
+**Step 4, live and read-only: the result renders, isolated, with the PARK wording (Stephen, 2026-10-21).** Runbook
+§4 item 8 and §5 step 4.
+- **The rehearsal first.** `step4.py` (`2353f324…`) passed all ten checks on the scratch store at 88 events, and
+  its fingerprints before and after were equal.
+- **What ran live:** `run-s4.sh` (sha256 `e84fef7f…`), from 06:18Z, authorized alone. It rendered
+  `ars discovery spec result --task-id tsk_01a14850-… --format json` and `--format markdown`, each in a new
+  process, plus a result for a freshly minted, unregistered Task ID.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b17/live/`: `s4.log` (`81b0b2e5…`),
+    `result.json` (`1f4db7c6…`), `result.md` (`9ceafa14…`), `other-task-result.json` (`40f16e77…`),
+    `step4-checks.json` (`1ce375c0…`), and the authorization note.
+- **Task isolation (delta review m-1, held by this step):**
+  - the store holds exactly one Task, `tsk_01a14850-…`, and one Attempt;
+  - the SOURCE registration's `production` names that Task, Attempt and dispatch;
+  - the Task's `portfolio_refs` name exactly the one Candidate `obj_a9ba6213-…`;
+  - the result is `accepted`, and its decision cites that Task, Candidate and artefact `art_fbd584af-…`;
+  - the other Task ID's result reads `pending`, with no decision and a different artefact identity.
+- **The PARK wording:**
+  - the decision is the owner's PARK, with no Spike and the disposition `retain_experimental_benchmark`;
+  - the disposition and subset statements are the route's own text;
+  - the Markdown reads accepted and carries both statements;
+  - none of *promot*, *replicat* or *adopt* appears in it.
+- **Nothing was written.** The ledger stayed at 88, the object-file fingerprint was unchanged (`784c9f5d…`), and
+  the checkout is clean at M2.
+- **Reproducible:** both renders are byte-identical to the ones batch 13 made in earlier processes.
+- **Next:** step 5, `ars store backup` and `ars store verify-restore`, under its own authorization.
+
+**Step 5, live: the governed backup and an evidence-only restore verification (Stephen, 2026-10-21).** Runbook §5
+step 5, same-disk recovery only. This is the initial-root store's first backup and verify-restore (delta review
+i-4).
+- **What the commands need, beyond the runbook line.**
+  - **A grant:** an owner grant for `CreateBackup` and `VerifyRestore` on the `project_store` subject.
+  - **A backup request:** 22 exact fields, with at least one external artefact. Each artefact has a canonical
+    `art_` ID, an absolute path, a sha256 and availability evidence.
+  - **Two schema-valid evidence-store registry files** (`ars://evals/evidence-store-registry`), loaded by the
+    real loader:
+    - the backup registry names the source, the destination, and the hidden stage sibling;
+    - the restore registry carries the hash the backup recorded.
+  - **An endpoint-ownership file** in the restore copy.
+  - **A `VerifyRestore` command whose payload carries the restore preflight's results.** No public command
+    derives that payload, so the runner builds it from the internal, read-only
+    `verify_restore_before_writer_lease`, as the WP6.4 test does. `ars store verify-restore` then re-runs the
+    full preflight itself before admitting. A **known limit**, read-only, beside option A's seam.
+- **The external artefacts** (Stephen accepted the pinned set). Six evidence files outside the store, pinned in
+  `s3-b18/external-artefacts.json` (`b5e76d50…`):
+  - the outcome review notes and the Task review notes, both cited on the ledger by sha256;
+  - the project-use review notes and attestation, the option A basis;
+  - the operator's notes and handback.
+- **The rehearsal first.** `step5.py` ran on the scratch store from 88 to 91 events, through the genuine
+  `backup` and `verify-restore`.
+  - **Two stops, in my own comparison code.** A tuple was passed to canonical JSON. The artefact manifest names
+    its digest `artefact_hash`. Both were fixed.
+  - **Rehearsed again:** after a reset, the final runner (`1d6f5fd1…`) ran end to end and passed all seven
+    comparisons.
+- **What ran live:** `run-s5.sh` (sha256 `d4764fa3…`), from 06:45Z, authorized alone. It refused if either run
+  directory existed.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b18/live/`: `s5.log` (`60a79570…`),
+    `backup.json` (`8d8474e5…`), `verify-restore-command.json` (`debfb7bb…`), `verify-restore.json` (`81e8d03d…`),
+    `preflight.json` (`7e26490e…`, `verified`, no failed predicates), `step5-comparisons.json` (`e583e7f2…`), the
+    two registry files, and the authorization note.
+- **The result.** The live ledger went from 88 to 91 events, all by the owner:
+  - the grant activation `agr_01a15d2c-dcc8-…`;
+  - `BackupCreated`, receipt `bkr_01a15d2c-dcde-7d16-9aab-fdc21ddf9301`;
+  - `RestoreVerified`, recovery evidence `rcv_01a15d2c-dcde-…`, verification only with no cutover.
+- **Where the copies are:**
+  - the backup is in `C:/Users/steph/TDL-ARS-WP64-Backups/g6-p5-spec01-2026-10-21`, with receipt
+    `bkr_01a15d2c-…`. Its `receipt_hash` is `aca75bb6…`, and the receipt file `manifests/backup-receipt.json` has
+    sha256 `6532d983…` (clarified 2026-10-21, final review m-7);
+  - the same-disk restore copy is in `C:/Users/steph/TDL-ARS-WP64-Restore-Verification/g6-p5-spec01-2026-10-21`;
+  - each is 33 MB. The backup snapshot's tail is position 89.
+- **The comparisons, all pass:**
+  - **identity:** the restore copy's manifests equal the source's, file for file;
+  - **ledger:** its 89 events equal the source's first 89, event for event;
+  - **artefacts:** its manifest lists exactly the six pinned files by ID and sha256, and each stored file equals
+    its source;
+  - **bytes:** all 164 object files are byte-identical, all 78 event files are byte prefixes of the source's, and
+    the backup and the restore copy are byte-identical apart from the endpoint-ownership file.
+- **Verified from a fresh, read-only process.**
+  - The ledger is at 91 and replays.
+  - `RestoreVerified` cites the receipt, this store's identity and the recovery evidence.
+  - The restore copy's ledger replays on its own, equal to the source prefix.
+  - The checkout is clean at M2.
+- **Next:** step 6 (P5-4):
+  - the independent final evidence review;
+  - Stephen's recorded closure;
+  - the docs-only final PR, merged and not pulled into the checkout;
+  - the replay from the frozen checkout at M2.
+
+**Step 6: the independent final evidence review, PASS WITH FINDINGS (Stephen, 2026-10-21).** Runbook §5 step 6,
+P5-4, first part.
+- **The review session.** A separate, fresh-context session (`local_cff829c8-…`, Claude Opus 5.5), dispatched by
+  Stephen. It holds no role in the run, and it reviewed the evidence and record, not the code.
+  - **The brief:** `s3-b19/final-reviewer-session-brief.md` (`c1c1a228…`).
+  - **The package,** assembled read-only (manifest `25575a21…`):
+    - the record at #381's head `21bf67e0`;
+    - the live ledger at 91;
+    - an index of the 104,531 files under the evidence root, with sha256;
+    - the A0 plan;
+    - step 4's result and checks;
+    - step 5's comparisons.
+  - **The report:** `s3-b19/review-output/final-review-report.md` (`aa3d657e…`), with the handback (`f235df49…`).
+- **The verdict: PASS WITH FINDINGS.** All eight checks hold:
+  - every one of the 91 events falls in exactly one authorized step, with its pinned script, authorization note
+    and log, and 615 step files were re-hashed against the index;
+  - the recorded counts, actors, grants and IDs match the ledger;
+  - the separation holds, on the ledger;
+  - the stated outcomes are the ledger's;
+  - the disclosed limits are complete;
+  - the bounds held: no SPEC-02, no provider or credential trace, nothing written to `TDL-ARS-WP64-Control`, and
+    the checkout clean at M2 throughout;
+  - there is no claim beyond the evidence;
+  - the rehearsal stops are honestly recorded.
+- **Findings, and where each was corrected (Stephen: m-2 and m-3 are material record corrections).**
+  - **m-1:** the return was equal as parsed JSON to the draft, not byte-equal. Corrected in runbook §3 batch 6. The
+    same overstatement in this log's batch 12 ("byte for byte" for the decision's intent) was found while applying
+    m-1 and corrected too.
+  - **m-2 (material):** non-owner actors acted through ARS actor sessions submitted by the batch runners. Only the
+    producer and the three reviewers had separate agent sessions. Corrected in runbook §1 ("How each actor
+    acted"), and at the five "own/new session" phrasings in batches 5, 6, 7, 11 and 13.
+  - **m-3 (material):** no bar-review session ran; the bar review was the route's fixed OR-106 literals. Added to
+    batch 2.
+  - **m-4:** batch 11's findings were a selection; F3, F4, F6 and F7 were added.
+  - **m-5:** batch 13 now names the review `rev_01a15cf9-…`.
+  - **m-6:** "Live steps A1 to A4" now says A4 was a push and a PR, with no script.
+  - **m-7:** step 5 now distinguishes the receipt ID, its `receipt_hash` `aca75bb6…`, and the receipt file's
+    sha256 `6532d983…`.
+  - **m-8:** runbook §3 batch 9 now says six triggers and the rule.
+- **Notes, recorded here.**
+  - **i-1:** A5 (L5) has no authorization note in `l5/`. Its authorization is recorded only in this log.
+  - **i-2:** each batch's authorization note sits in the batch folder (for example `s3-b3/AUTHORIZATION.txt`), not
+    in `live/` as the batch blocks say. The folders are offset from the batch numbers: batch 6's evidence is in
+    `s3-b7/`, batch 11's in `s3-b12/`, and batch 13's in `s3-b16/`. Each block names its exact path.
+- **Where the run's evidence lives, and how to check it** (added 2026-10-21 in answer to review). Every
+  `C:/Users/steph/.codex/tmp/g6-p5/…` path in Phase 5's blocks is in the run's evidence root.
+  - **Where it is:** on Stephen's owner machine, outside the repository by design. It holds the live logs,
+    pinned scripts, authorization notes and review packages, and none of it is committed.
+  - **How to check it:** its complete sha256 index, 104,531 files as of position 91, is
+    `s3-b19/inputs/evidence-index.json` (`66d45785…`), part of the final review's package (manifest `25575a21…`).
+    Any hash a block cites can be checked against it.
+  - **What is backed up:** the live store and six external evidence files are in step 5's governed backup.
+  - **Access:** the owner's local filesystem. Nothing is published elsewhere.
+- **The reviewer's limits.**
+  - It read only the inputs and the evidence root.
+  - Scratch rehearsals outside the evidence root (all but batch 3's) cannot exclude an unrecorded rehearsal stop.
+  - Session compliance (time ceilings, stop rules, the D6 cost ceiling) rests on the sessions' own statements.
+  - It too ran on Claude Opus 5.5.
+- **A boundary observation, from my check after the session.**
+  - The session's deliberate writes were only its two files.
+  - Ten git-internal `loose-*.pack` files appeared during it, inside the `.git` folders of two throwaway pytest
+    clones under `a4/b/`. This is consistent with git's automatic loose-object maintenance after a git read.
+  - No indexed file is missing or changed. The live store stayed at 91, and both checkouts are clean.
+- **Next:**
+  - Stephen's recorded closure, in his words (a draft is in `s3-b19/closure-draft.md`);
+  - the docs-only final PR, merged on GitHub and not pulled into the checkout;
+  - the frozen-checkout replay, `run-s6-replay.sh <final PR number>`, under its own authorization.
+
+**06s Gate 6 Phase 5 is closed (Stephen, 2026-10-21).**
+
+**The run.** The bounded live run of the SPEC-01 route on the fresh store `TDL-ARS-G6-Control` ran from genesis
+to an accepted project-use result, at 91 events. Each live step was:
+- prepared as an exact, hash-pinned script;
+- authorized by me alone;
+- rehearsed first on a scratch store;
+- verified from durable state;
+- recorded here.
+
+**How the actors acted.**
+- **Who submitted:** the non-owner actors' effects were submitted by the batch runners, each from that actor's own
+  operator config and ARS actor session.
+- **Who judged:** separate fresh-context sessions did the judgement work, and each draft was submitted unchanged
+  and checked by hash:
+  - the operator's return;
+  - the outcome review;
+  - the Task review;
+  - the project-use review.
+- **The bar review:** it was the route's fixed OR-106 literals. No bar-review session ran.
+
+**The outcome.** A PARK of the Damrich–Berens–Kobak spectral-distance Candidate, mechanical under SPEC-01's bar
+(2 + 1 < 4, with four further gates failing). It was independently reviewed and decided by me, with six revisit
+triggers and the rule. It is retained as an experimental benchmark candidate only, with no scientific claim, on the
+D6 subset: SPEC-02 ran nothing.
+
+**Assurance.**
+- **Independent reviews** of the outcome, the Task and the project-use decision all approved.
+- **The independent final evidence review** found PASS WITH FINDINGS. Its findings m-1 to m-8 are corrected in the
+  record, with m-2 and m-3 treated as material.
+- **Recovery:** a governed same-disk backup and an evidence-only restore verification passed their identity,
+  ledger, artefact and byte comparisons.
+- **The replay:** this record is the docs-only final PR. After it merges, the frozen checkout at M2 replays the run
+  (P5-4). That replay is recorded in the Computational-Log, and in the next record update.
+
+**Known limits carried.**
+- The 1 h bounded lease (option A): it lapsed and was not released.
+- Two internal-API seams:
+  - the governing scientific-review record placed through the internal store (option A, batch 13);
+  - the verify-restore payload built from the internal, read-only restore preflight (step 5).
+- Task acceptance asserting all five criteria, though criterion 5 could only follow it.
+- Approve-only reviews, whose findings live off the ledger.
+- The bar review as fixed literals.
+- One model family across every session, including the reviewers.
+
+**Follow-ups:**
+- public writers for the governing scientific-review record and the verify-restore payload;
+- the project-use review's F7 items (dtype and tolerance binding; the unversioned diffusion figures) at any SPEC-01
+  revisit;
+- KAN-103 closes on this record.
 
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
