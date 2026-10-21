@@ -136,11 +136,16 @@ All `ars` commands run from the durable checkout as
   - the Task review `rev_01a158ed-…` is requested and assigned to the Task reviewer.
 - **Step 3 batch 11 is done (2026-10-20).** This is closure part 2: the independent Task review approved, the
   owner satisfied it, and the SPEC-01 Task is accepted, selecting the two artefacts. `close_task` is complete.
+- **Step 3 batch 12 is done (2026-10-21).** This is closure part 3: the owner registered the ProjectUseDecision
+  `art_fbd584af-…` with the accepted words, and the result is pending.
+  - **Batch 13 runs under option A.** The project-use review's governing scientific-review record has no public
+    writer, so the owner places it through the internal store (a known limit, probed on scratch).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
-  "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live" and
-  "Step 3 batch 11, live".
+  "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
+  "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
+  "Option A for batch 13" and "Step 3 batch 12, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
@@ -241,3 +246,9 @@ under it.
   PR-G).
 - **Inherited limits:** the OR-006 context fields, the fixed OR-106 review context, and the approving-only
   outcome review (P-058).
+- **Project-use acceptance has no public writer for its governing evidence** (found 2026-10-20). Admission
+  requires a governing scientific-review record that only the internal `GoverningScientificReviewStore.publish`
+  writes.
+  - **This run:** option A, where the owner places it from a hash-pinned script.
+  - **Follow-up:** a certified public writer, as PR-G was for B-3.
+  - **Off the ledger:** the record cannot carry the review's findings.

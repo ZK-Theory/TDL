@@ -3249,6 +3249,84 @@ item 7, closure part 1.
   - The checkout is clean at M2.
 - **Next:** batch 12, `register_project_use_decision`, in Stephen's words, under its own authorization.
 
+**Finding: the project-use review's governing evidence has no public writer (2026-10-20).** This is a gap of the
+census B-3 kind, found while preparing batch 12.
+- **What admission requires.** `accept_project_use_decision` is two effects, `RecordScientificReview` by the
+  project-use reviewer and then `SetArtefactUseAuthority` by the owner. `SetArtefactUseAuthority` admission
+  (`command/service.py:4733-4792`) requires the review's single `evidence_refs` entry to resolve to a governing
+  scientific-review record in `objects/assurance_record`. The record (`ars://evidence/governing-scientific-review`
+  1.0.0) must name:
+  - the review;
+  - the decision's content hash;
+  - the reviewer;
+  - `eligible: true`, `related: false` and `status: active`;
+  - a sufficient grade.
+- **The review is refused first.** The route runs the same rule before recording the review (`spec.py:288-302`),
+  so the first effect is refused.
+- **No public path writes the record.**
+  - `GoverningScientificReviewStore.publish` (`artefacts/runtime.py:61`) is called only by tests.
+  - `ars assurance-record write` covers twelve other record classes, not this one.
+  - The 2026-10-07 census covered Task seeding through evidence registration, not project-use acceptance.
+- **The review's substance is off the ledger too.** The record has no notes field, and admission requires exactly
+  one `evidence_refs` entry, so the project-use review's findings cannot be cited on the ledger.
+
+**Option A for batch 13 (Stephen, 2026-10-21).** Stephen chose option A from `s3-b13/project-use-decision-sheet.md`
+(`a5b1885a…`).
+- **What A does:** the owner places the one governing record with the internal
+  `GoverningScientificReviewStore.publish`, from a hash-pinned script, after the project-use reviewer's session.
+  Admission still checks the record's schema, subject hash, reviewer and grade.
+- **Why not the others:**
+  - **B,** a certified public writer like PR-G, would need a new code identity and a re-pin mid-run. It is
+    better as a follow-up.
+  - **C,** stopping at registration, would leave criterion 5 and the D6 project-use result unmet.
+- **The known limit:**
+  - the live procedure depends on an internal API at this one seam;
+  - `eligible`, `related` and the grade are owner assertions about the reviewer.
+- **Probed on scratch** (`s3-b14/probe_option_a.py`, which refuses any `TDL-ARS-*` root).
+  - **Positive, grade I1:** with the two grants, the placed record and both effects, scratch went from 84 to 88.
+    The route's `result` reads `accepted`, with its disposition wording.
+  - **Negative control, grade I0:** after a reset, the reviewer's advance was refused before recording
+    (`governing_scientific_review_invalid`) and appended nothing. So admission checks the placed record, and I1
+    meets the minimum.
+  - **Afterwards:** scratch was reset to 84 inside its original root. The live store was untouched: 82 events and
+    30 assurance records.
+
+**Step 3 batch 12, live: the project-use decision is registered (Stephen, 2026-10-21).** Runbook §4 item 7,
+closure part 3.
+- **Stephen's words,** accepted as drafted in the sheet:
+  - **The disposition:** `retain_experimental_benchmark`, the only one permitted for a PARK.
+  - **The rationale:** the PARK outcome and why.
+  - **Seven limitations:** review scope, D1 and D2 static, no survey data, approve-only and inputs-only reviews,
+    one model family, the lapsed lease, and the acceptance asserting criterion 5.
+  - **Two next gates:** revisit only on R1 to R6; and SPEC-02 only after a later passing outcome, an owner
+    decision and a separate approval.
+  - **The D6 subset qualification and a `no_spike_reason`.**
+  - **The word rule:** the prose avoids the route-reserved *promot*, *replicat* and *adopt*. `prepare.py` checks
+    this, and validates the intent against `ars://portfolio/spec-project-use-intent`.
+- **The rehearsal first.** `batch12.py` (`224ca671…`) ran on the scratch store from 82 to 84 events, and the
+  route's `result` read `pending`, with `RecordScientificReview` next.
+- **What ran live:** `run-s3b12.sh` (sha256 `0e5b3cb7…`), from 00:15Z, authorized alone. It ran
+  `register-intent.json` (`05b222c5…`).
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b13/live/`: `s3b12.log` (`876523d5…`),
+    `advance-register.json` (`bd37daf4…`, byte-equal to the retry), `decision.json` (`7e664eb4…`), the JSON and
+    Markdown results, and the authorization note.
+- **The result.** The live ledger went from 82 to 84 events: the grant activation `agr_01a15bc7-…`, and
+  `ArtefactRegistered` of the ProjectUseDecision `art_fbd584af-f080-7cde-b090-59ddb1b7a442` by the owner, with
+  content `4ed88262…`.
+- **Verified.**
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 84 events:
+    - the stored document hashes to the manifest's content and is schema-valid;
+    - it carries the accepted intent byte for byte;
+    - it cites the accepted Task, its two selected artefacts as evidence, the owner's PARK, no Spike, and the
+      parked Candidate;
+    - no review is recorded yet.
+  - The route's result reads `pending`.
+  - The checkout is clean at M2.
+- **Next:** the project-use reviewer `act_01a14020-0465-…` works in a separate, fresh-context session. Then batch
+  13 runs under option A: the owner places the governing record, then the reviewer's `RecordScientificReview` and
+  the owner's `SetArtefactUseAuthority`. It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
