@@ -325,7 +325,7 @@ def test_quota_on_this_head_outranks_a_stale_plus_one(snapshot: dict[str, Any], 
     """An earlier head's +1 must not hide that this head hit the usage limit: the remedy differs."""
     _react(_without_codex_review(snapshot), at="2026-08-23T07:10:00Z")
     _comment(snapshot, at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
-    with pytest.raises(ValueError, match=r"usage limit.*waiver"):
+    with pytest.raises(ValueError, match=r"usage limit.*review_producers"):
         _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
@@ -352,7 +352,7 @@ def test_a_comment_window_that_reaches_back_past_this_heads_arrival_is_complete(
 def test_a_usage_limit_on_this_head_is_named_with_its_remedy(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """Quota is not 'still reviewing': the head will never be reviewed automatically."""
     _comment(_without_codex_review(snapshot), at="2026-08-23T07:31:00Z", body=QUOTA_BODY)
-    with pytest.raises(ValueError, match=r"usage limit.*@codex review.*waiver"):
+    with pytest.raises(ValueError, match=r"usage limit.*@codex review.*review_producers"):
         _thread_finality(snapshot, WITH_A_PRODUCER)
 
 
