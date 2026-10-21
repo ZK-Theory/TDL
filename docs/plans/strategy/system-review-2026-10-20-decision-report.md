@@ -3,11 +3,12 @@
 **Review date:** 2026-10-20. The scheduled `weekly-system-review` task ran on time (Tuesday, 07:43Z), so last week's
 missed run did not recur.
 
-**Canonical source:** `C:\Users\steph\.claude\skill-observations\log.md`. After this review it holds 242 entries, 7 of
-them OPEN (OPEN, ESCALATED or PARTIALLY, per the lint).
+**Canonical source:** `C:\Users\steph\.claude\skill-observations\log.md`. After this review it holds 243 entries, 8 of
+them OPEN (OPEN, ESCALATED or PARTIALLY, per the lint). One of the 8 was added on 2026-10-21, from Codex's review of
+this PR (Group B).
 
 **Scope:** every OPEN observation in the shared log, across the five trees named by the 2026-09-25 and 2026-10-02 owner
-decisions: TDL, MathUni, the Counting Lives vault, codex_workflow and zktheoryweb. The other trees were read only. All 7
+decisions: TDL, MathUni, the Counting Lives vault, codex_workflow and zktheoryweb. The other trees were read only. All 8
 OPEN entries belong to TDL, so there is no scope finding. zktheoryweb's one entry closed this review (its PR merged).
 MathUni and Counting Lives have no entries, and neither has an observation file newer than the last review.
 codex_workflow's entry is DEFERRED.
@@ -24,6 +25,7 @@ controls.
     closures".
   - **Added dated Progress notes** to five entries.
   - **Logged four observations.** Three are OPEN. The fourth, a SKILL item, was applied and closed in the same edit.
+  - **Logged a fifth on 2026-10-21** (OPEN), after Codex reviewed this PR: the Codex integration is still active.
 - **Skill (applied):** the global `research-observer` skill (step 1 of the System Review), three edits. See "Skills
   pass".
 - **Not changed:** anything on the GATE, INVARIANT or PROCESS lanes. No repo file changed except this packet, and
@@ -74,14 +76,14 @@ mechanism with its negative control.
 | Group | OPEN | Recommended resolution | Decision |
 |---|---:|---|---|
 | A. Making the research_system lane required | 3 | Add one `suite-verdict` job, then require that one check | `[ ]` approve 1–3 · `[ ]` 1 only · `[ ]` defer |
-| B. Merge-admission guidance after #376 | 2 | Decline the waiver; correct `git.instructions.md:51` to match CONVENTIONS | `[ ]` option 1 · `[ ]` option 2 · `[ ]` guidance only |
+| B. Merge-admission guidance after #376 | 3 | Decline the waiver; correct `git.instructions.md:51`; record whether the Codex integration stays | `[ ]` option 1 · `[ ]` option 2 · `[ ]` guidance only; and Codex: `[ ]` keep · `[ ]` uninstall |
 | C. Amended-decision entry: close on your known-limit decision | 1 | Close it | `[ ]` close · `[ ]` defer code control to Gate 7 · `[ ]` keep open |
 | D. Close-conditions lint across trees | 1 | Repo-qualified PR references in the lint | `[ ]` approve · `[ ]` defer |
 | This review's two closures | — | Keep them closed | `[ ]` keep · `[ ]` reopen (name which) |
 | The `research-observer` skill edit | — | Keep it | `[ ]` keep · `[ ]` revert |
 | Simplification (no OPEN entries) | — | S1–S4 below | `[ ]` approve S1–S4 · `[ ]` approve some (name which) · `[ ]` defer |
 
-Total: 3 + 2 + 1 + 1 = **7**.
+Total: 3 + 3 + 1 + 1 = **8**.
 
 ---
 
@@ -107,13 +109,23 @@ docs only, shows exactly that: `suite skipping`.
   never report.
 - Requiring `suite` would never be satisfied by a PR that selects tests.
 - A failed `select` also skips `suite`. Read naively, that looks the same as "nothing selected".
+- **The lane never runs on the merge queue** (found by Codex's review of this packet). Ruleset 20822054 has a
+  `merge_queue` rule, and every currently required workflow triggers on `merge_group` (`ci.yml:12`, and
+  `merge-admission.yml:43`). `research-system-suite.yml` triggers only on `schedule`, `workflow_dispatch` and
+  `pull_request`. So a required `suite-verdict` would never report on the queue's synthetic commit, and every queued PR
+  would stall. Its `select` step also passes `origin/$BASE_REF` (`github.base_ref`), which is empty on a
+  `merge_group` event.
 
 **Proposed action.**
-1. In its own PR (git.instructions: workflow edits go in their own PR), add a `suite-verdict` job with
-   `needs: [ci-tools, select, suite]` and `if: always()`. It passes only if `ci-tools` and `select` succeeded, and
-   `suite` either succeeded or was skipped because the selection count was 0.
-2. After `suite-verdict` has run green on one PR and one scheduled night, add `suite-verdict` to ruleset 20822054 as a
-   required check. This is your edit: agent sessions never write rulesets (`admin-bypass-guard.sh`).
+1. In its own PR (git.instructions: workflow edits go in their own PR):
+   - add `merge_group: types: [checks_requested]` to the triggers;
+   - on `merge_group`, select against `github.event.merge_group.base_sha` (as `merge-admission.yml:93` does), not
+     `origin/$BASE_REF`;
+   - add a `suite-verdict` job with `needs: [ci-tools, select, suite]` and `if: always()`. It passes only if
+     `ci-tools` and `select` succeeded, and `suite` either succeeded or was skipped because the selection count was 0.
+2. After `suite-verdict` has run green on one PR, one merge-queue entry and one scheduled night, add `suite-verdict` to
+   ruleset 20822054 as a required check. This is your edit: agent sessions never write rulesets
+   (`admin-bypass-guard.sh`).
 3. Close the three entries, naming the ruleset change.
 
 **Controls.**
@@ -121,6 +133,9 @@ docs only, shows exactly that: `suite skipping`.
 - (1) One failing shard gives failure.
 - (1) A `ci-tools` failure gives failure.
 - (1) A `select` failure gives failure, not "nothing selected".
+- (1) A `merge_group` run reports `suite-verdict` on the queue's head SHA, with its selection computed from
+  `merge_group.base_sha`. A policy test in `tests/tools/test_ci_platform_policy.py` fails if the workflow loses the
+  `merge_group` trigger.
 - (2) The ruleset readback lists `suite-verdict`.
 
 **Cost to weigh.** Once the lane is required, every PR that touches research_system code waits for its affected shards.
@@ -134,7 +149,7 @@ scope you accept.
 
 ---
 
-## B — Merge-admission guidance after #376 (2)
+## B — Merge-admission guidance after #376 (3)
 
 **Defect.**
 - `2026-10-17-merge-admission-waiver-has-no-mechanism`. This is unchanged. The thread-finality check reads no waiver
@@ -144,10 +159,19 @@ scope you accept.
   `.claude/instructions/git.instructions.md:51`, which still says "Merge admission needs Codex to reach a terminal
   state on the exact head". That line tells agents to comment `@codex review` and to record an owner waiver.
   `.claude/CLAUDE.md` points sessions to that file for git workflow.
+- `2026-10-21-codex-connector-still-reviews-after-removal` (new, added after this packet was opened). #376 records that
+  Codex is "no longer used", but the `chatgpt-codex-connector` integration is still installed and still reviews PRs
+  when they open. On 2026-10-20 it reviewed #381 (two inline comments) and this PR, #382, with one P1 finding. That
+  finding was valid, and Group A now carries it. Its unresolved thread made `merge-admission` fail on this PR
+  ("BLOCKED: 1 unresolved non-outdated review thread(s) … from chatgpt-codex-connector"). That is correct under
+  CONVENTIONS, because thread finality blocks on every author. The record and the integration's live state disagree,
+  though. You decide whether the connector stays. If it stays, CONVENTIONS should say "not a required producer; still
+  installed, and its threads block like any other". If it goes, uninstall it.
 
-**Why the two go together.** With no producer configured, the only refusal left is thread finality: an unresolved,
+**Why these go together.** With no producer configured, the only refusal left is thread finality: an unresolved,
 non-outdated review thread. Resolving the thread clears it, even when the reply declines the finding. The quota case
-that prompted the waiver can no longer occur. The usage-limit message at `tools/check_merge_admission.py:292`, which
+that prompted the waiver can no longer block admission, because no producer is required, even though Codex still
+reviews. The usage-limit message at `tools/check_merge_admission.py:292`, which
 also offers a waiver, is dormant while `review_producers` is `[]`.
 
 **Options.**
@@ -170,11 +194,16 @@ also offers a waiver, is dormant while `review_producers` is `[]`.
 
 `check_merge_admission.py` and `merge-admission.yml` are code-owned gate files, so either option is your review.
 
-**Recommended decision:** option 1. It closes both entries, and it removes a remedy the gate no longer needs rather than
-building one.
+**The Codex integration.** This is a separate choice. If you keep it, reword the CONVENTIONS line and line 51 to
+"Codex is not a required producer; it is still installed, and its threads block like any other". If you uninstall it,
+the current CONVENTIONS line stands. Its 2026-10-20 finding was a real defect, which argues for keeping it.
+
+**Recommended decision:** option 1, which closes the waiver and guidance entries. Keep the integration and record it
+that way, which closes the third. Option 1 removes a remedy the gate no longer needs rather than building one.
 
 **Decision:** `[ ]` option 1: decline the waiver, correct the guidance · `[ ]` option 2: build the waiver, then correct
-the guidance · `[ ]` correct the guidance only, defer the waiver
+the guidance · `[ ]` correct the guidance only, defer the waiver. **Codex:** `[ ]` keep, and record it as still
+installed · `[ ]` uninstall
 
 ---
 
@@ -249,7 +278,9 @@ review's remit.
   - `01M044JXYSPP0VXH15TEZVCNA3` (codex_workflow closure);
   - `2026-09-25-codex-live-hooks-are-stale-sibling-copies`.
 
-  You stopped using Codex (2026-10-06 Group F, and #376 on 2026-10-17). Also archive the legacy
+  You stopped using Codex sessions (2026-10-06 Group F), and #376 removed it as a producer on 2026-10-17. Those four
+  entries concern the Codex app, plugins, hooks and workflow, not the GitHub review integration, which is still active
+  (Group B). If you keep that integration, S2 still holds for these four. Also archive the legacy
   `~/.Codex/skill-observations` store, whose `last-review-date.txt` still reads 2026-08-06. The other 21 full-text
   DEFERRED entries are unchanged: 19 are held by the Gate 6 D5 process and 2 by Gate 7+ intake.
 - **S3.** "Sweep worktrees" (your trigger, per CLAUDE.md). Twelve linked worktrees are on branches whose PRs have
@@ -273,10 +304,10 @@ edits, and the table is checked with `tools/observation_log_lint.py <log> --pack
 | Group | Count | IDs |
 |---|---:|---|
 | A | 3 | 2026-10-02-full-suite-red-on-main-unseen · 2026-10-03-shared-seam-change-merged-without-its-dependents · 2026-10-20-suite-lane-has-no-stable-required-check-name |
-| B | 2 | 2026-10-17-merge-admission-waiver-has-no-mechanism · 2026-10-20-git-guidance-still-requires-codex-after-producer-removal |
+| B | 3 | 2026-10-17-merge-admission-waiver-has-no-mechanism · 2026-10-20-git-guidance-still-requires-codex-after-producer-removal · 2026-10-21-codex-connector-still-reviews-after-removal |
 | C | 1 | 2026-10-15-amended-decision-property-left-unmechanized |
 | D | 1 | 2026-10-20-close-conditions-lint-blind-to-cross-repo-prs |
-| **Total** | **7** | |
+| **Total** | **8** | |
 
 ---
 
@@ -286,6 +317,7 @@ edits, and the table is checked with `tools/observation_log_lint.py <log> --pack
 |---|---|---|
 | Before this review's edits | `observation_log_lint.py --reachability . --close-conditions .` at `f6a8ae85` (= `origin/main`) | `238 observation(s): 6 OPEN`. Reachability: 9 hashes, 0 stranded, 1 not a TDL commit (zktheoryweb). One close condition met (#379). Exit 1 |
 | After the edits | same | `242 observation(s): 7 OPEN`. Reachability: 13 hashes, 0 stranded. Close conditions: 0 met, 4 name no PR. Exit 0 |
+| 2026-10-21, after appending the Codex-integration entry | same | `243 observation(s): 8 OPEN`. Reachability: 14 hashes, 0 stranded. Close conditions: 0 met. Exit 0 |
 | After the edits, `--packet` on this file | `observation_log_lint.py <log> --packet <this file>` | see the PR's test plan |
 
 The edit was made by a script that refused to write unless five checks held:
@@ -371,6 +403,13 @@ Both test files ran locally in this review: **48 passed**. No destructive probe 
 | `git.instructions.md` still requires Codex after #376 | this review, by hand | `2026-10-20-git-guidance-still-requires-codex-after-producer-removal` (B) |
 | An entry was recorded as waiting on a session for five days after you had decided it | this review, by hand | `2026-10-20-progress-notes-restated-a-decided-item-as-pending` (ACTIONED) |
 | The ruleset edit the lane's close condition names has no check it could require (not yet harmful) | this review, by reading the workflow and #378's checks | `2026-10-20-suite-lane-has-no-stable-required-check-name` (A) |
+
+Two more came after the PR opened (2026-10-21):
+
+| What went wrong | Caught by | Observation |
+|---|---|---|
+| This packet's Group A plan left out the `merge_group` trigger | Codex's review of #382 | folded into Group A (no new entry) |
+| The Codex integration is still active although the record calls it retired | thread finality, on #382 | `2026-10-21-codex-connector-still-reviews-after-removal` (B) |
 
 None is a numerical or statistical failure, so none is an invariant-battery item.
 
