@@ -147,6 +147,33 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 ## Working Notes
 
+- **2026-10-21: worktree sweep (User trigger, after 06s Phase 5 closed and P-061 merged).**
+  - **The rule.** It is the same as the 2026-10-16 sweep. Each removal was a plain `git worktree remove` (no
+    `--force`), and branches were kept.
+    - **A worktree with a PR** qualified when the PR was merged with CodeRabbit concluded (status SUCCESS on the PR
+      head), the tree was clean, and its HEAD equalled or was an ancestor of `refs/pull/N/head`.
+    - **A detached run worktree** qualified when its HEAD was on `origin/main` and the tree was clean.
+    - **Also checked:** no running session or process used the tree, and no scheduled task named it. No ignored
+      file beyond tooling (`.venv`, caches, `.repowise` session files) was present.
+  - **Swept (10):**
+    - three system-review scratch worktrees: `wt-l` (#371), `wt-p` (#374), `wt-s` (#373);
+    - `.apm/worktrees/close-conditions-cross-repo` (#383), `merge-admission-guidance` (#384),
+      `spec01-continuation-scope` (#387), `suite-verdict` (#385), `system-review-2026-10-20` (#382);
+    - `TDL-g6-pr-f` (#386);
+    - detached: `TDL-g6-p5`, at M2 `4d867d85` on main. The L5 packet it was held for on 2026-10-16 has run, and
+      Phase 5 is closed.
+  - **Held:**
+    - `.apm/worktrees/06s-acceptance` (`repo/06q-section4-retirement`): no PR, five commits on no remote ref, and
+      dirty;
+    - `.apm/worktrees/ci-lint-lane` (#277) and `rm-revision` (#193): merged, but dirty. The dirt is tooling only:
+      the per-worktree Repowise section of `.claude/CLAUDE.md`, `.repowise-workspace.yaml`, and in `rm-revision` a
+      re-locked `uv.lock`;
+    - the system-review session's scratch `diag/s014-runner-paths`: no PR, a throwaway diagnostic commit;
+    - every `.claude/worktrees/*`: app-managed session worktrees, left to the app's own cleanup. All their PRs are
+      merged, two are dirty with the same tooling-only dirt, and `gate7-prep-docs-5202cf` belongs to a running
+      session.
+  - **Not a worktree:** `C:/Users/steph/TDL-ARS-G6-Checkout` is a separate clone, and it was untouched.
+
 - **2026-10-16: worktree sweep (User trigger, during 06s Phase 5).**
   - **The rule.** Each removal was a plain `git worktree remove` (no `--force`), so only clean worktrees could go.
     Branches were kept, so no commit was lost.
