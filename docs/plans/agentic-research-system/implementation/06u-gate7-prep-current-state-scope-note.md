@@ -1,8 +1,10 @@
 # 06u — Gate 7 prep: current-state scope note
 
 **Date:** 2026-10-21
-**Status:** proposal for Stephen. It records verified state and asks for decisions. It authorizes no drafting of
-W9 or the Gate 7 definition, no dispatch, no compute, no store write and no Jira write.
+**Status:** scope accepted by Stephen in chat on 2026-10-21: "I accept the 06u scope and your recommendations on
+D-1 to D-5 and D-11 (Jira plan). Start G7-A." See §12. The note authorizes G7-A drafting and the §10 Jira changes.
+It authorizes no dispatch, no compute and no store write. D-1's and D-4's old→new wording becomes a register
+entry only through G7-C's accepted revision.
 **Capability status (06s §8):** INTEGRATED. Gate 6 is closed against the accepted 06s contract and its recorded
 evidence (P-058, "06s Gate 6 Phase 5 is closed"; #381 `df5ba1ec`; the frozen-checkout replay, #386 `bb9d91d4`).
 Gate 7 is not open.
@@ -230,7 +232,7 @@ the record, not to run SCALE-01.
 | Adversarial mathematical review A1–A4, B1–B7, C1–C3 | Open; A1 is an owner fork | `docs/plans/strategy/P01-Adversarial-Mathematical-Review-2026-07-18.md`; #132 | No rung-4/5 rejection claim advances before A1 is decided and the calibration runs (log 2026-07-18) |
 | A-001, A-002, full Stage-2 disposition | Open | 03 register; W0 addendum 2026-06-29; 06l Step 3 | Binds affected transitions only |
 | T1.20 parental NS-SEC audit | **Closed 2026-07-11** | log 2026-07-11; tracker row T1.20 | None. Carried as a closed record. |
-| Result-bearing #105 merged without CodeRabbit review | Content on main (`w2_gap_closure_table1_h1_2026-07-16.json`) | tracker 2026-07-17 note | G7-A delta review records the gate gap |
+| Result-bearing #105 merged without CodeRabbit review | Remediated: #111 reverted it, and #117 (`e8890fb7`) re-landed the content with a CodeRabbit review (found in G7-A, 2026-10-21) | tracker 2026-07-17 note; W0 post-terminal addendum §6 | None; recorded as history |
 
 ### 6.2 ARS-native continuation (not legacy; P-061 calls it "Gate 7+ intake")
 
@@ -396,3 +398,19 @@ Compute items (T1.41, Markov-2) and the SPEC-01 continuation sit outside 06l's s
 | D-12 | P-060 | Stephen's call when to dispatch; not Gate 7 work |
 
 Until Stephen decides D-1 to D-5 and D-11, the track drafts nothing further.
+
+## 12. Owner decision (2026-10-21)
+
+Stephen, in chat: "I accept the 06u scope and your recommendations on D-1 to D-5 and D-11 (Jira plan). Start
+G7-A."
+
+| ID | Accepted as |
+|---|---|
+| D-1 | The opening bar becomes 06s §4 closure evidence (P-058, #381, #386). W6 `pilot_promotion` evidence becomes a per-item dispatch condition. The §5.2 wording is carried into G7-C and recorded as one new register entry on G7-C's acceptance. |
+| D-2 | SCALE-01 is dropped as a Gate 7 condition. The package stays historical evidence. |
+| D-3 | The SPEC-01 continuation sits in Gate 7's intake manifest by pointer, as a separate ARS-native section with its own dispatch bar. |
+| D-4 | G7-A authors the W0 post-terminal addendum now. 06l Step 2 is amended (through G7-C) to "accepted before any Step 3 or later action". |
+| D-5 | W9's file is `design/09-migration-compatibility-and-pilot.md`. |
+| D-11 | The §10 Jira changes are approved. The conditional new issues are not created without a further word. |
+
+Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
