@@ -3393,6 +3393,32 @@ closure part 3.
 - **Next:** step 4, the result render from a fresh process, with the Task-isolation and PARK-wording checks
   (runbook §5). It needs its own authorization.
 
+**Step 4, live and read-only: the result renders, isolated, with the PARK wording (Stephen, 2026-10-21).** Runbook
+§4 item 8 and §5 step 4.
+- **The rehearsal first.** `step4.py` (`2353f324…`) passed all ten checks on the scratch store at 88 events, and
+  its fingerprints before and after were equal.
+- **What ran live:** `run-s4.sh` (sha256 `e84fef7f…`), from 06:18Z, authorized alone. It rendered
+  `ars discovery spec result --task-id tsk_01a14850-… --format json` and `--format markdown`, each in a new
+  process, plus a result for a freshly minted, unregistered Task ID.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b17/live/`: `s4.log` (`81b0b2e5…`),
+    `result.json` (`1f4db7c6…`), `result.md` (`9ceafa14…`), `other-task-result.json` (`40f16e77…`),
+    `step4-checks.json` (`1ce375c0…`), and the authorization note.
+- **Task isolation (delta review m-1, held by this step):**
+  - the store holds exactly one Task, `tsk_01a14850-…`, and one Attempt;
+  - the SOURCE registration's `production` names that Task, Attempt and dispatch;
+  - the Task's `portfolio_refs` name exactly the one Candidate `obj_a9ba6213-…`;
+  - the result is `accepted`, and its decision cites that Task, Candidate and artefact `art_fbd584af-…`;
+  - the other Task ID's result reads `pending`, with no decision and a different artefact identity.
+- **The PARK wording:**
+  - the decision is the owner's PARK, with no Spike and the disposition `retain_experimental_benchmark`;
+  - the disposition and subset statements are the route's own text;
+  - the Markdown reads accepted and carries both statements;
+  - none of *promot*, *replicat* or *adopt* appears in it.
+- **Nothing was written.** The ledger stayed at 88, the object-file fingerprint was unchanged (`784c9f5d…`), and
+  the checkout is clean at M2.
+- **Reproducible:** both renders are byte-identical to the ones batch 13 made in earlier processes.
+- **Next:** step 5, `ars store backup` and `ars store verify-restore`, under its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

@@ -146,12 +146,15 @@ All `ars` commands run from the durable checkout as
   - the project-use result is **accepted**.
 
   §4 item 7 is complete, at 88 live events.
+- **Step 4 is done (2026-10-21).** The result renders `accepted` as JSON and Markdown from fresh processes, byte for
+  byte as before. All ten Task-isolation and PARK-wording checks pass, and nothing was written (§4 item 8, §5
+  step 4).
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
   "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
   "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
-  "Option A for batch 13", "Step 3 batch 12, live" and "Step 3 batch 13, live".
+  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live" and "Step 4, live and read-only".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
