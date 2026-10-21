@@ -3713,6 +3713,141 @@ invariant and its negative control are the slice's binding.<br>
 prerequisite. Changes no contract, manifest, test or runtime behaviour now. No Jira issue yet; the
 delivered 06i capability is KAN-96 (Done, under KAN-65).
 
+### P-061 - SPEC-01 after the PARK: continue at a later gate, with the retry terms fixed now
+
+**Date:** 2026-10-21<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-21). OD-5 to OD-8 are the proposals PD-1 to PD-4 that he
+confirmed on 2026-10-17. This entry records scope only. It builds, authorizes and runs nothing, and writes
+nothing to any store.<br>
+**Context:** P-058 closed 06s Gate 6 Phase 5 with the owner's PARK of the SPEC-01 Candidate
+`obj_a9ba6213-1073-7b78-ab6f-552cfdf9c2b7` (Decision `dec_1c6c1254-da10-716b-8def-c72f4232bddf`, "Step 3
+batch 9"). The PARK carries six revisit triggers and the revisit rule, seven strings in all:
+- **R1:** D1 is resolved by an owner decision on which noise model SPEC-02 reproduces: the bit-faithful code
+  fixture, or the paper's independent noise as a declared variant.
+- **R2:** D2 is resolved by binding the authoritative Ripser engine commit, with its build flags and a written
+  diagram-equivalence check.
+- **R3:** a no-GPU kNN backend is chosen, with an exact tie rule and its equivalence to the keops path specified
+  as a SPEC-02 preflight.
+- **R4:** an owner-accepted survey estimand and representation freeze, including a verified BHPS/USoc
+  crosswalk for the feature block and the frozen representation's ambient dimension. If that dimension is low
+  enough that Euclidean PH is not expected to fail, the Candidate is recorded as redundant instead.
+- **R5:** one owner-accepted, non-redundant primary claim.
+- **R6:** an explicit connected-components check is recorded as a SPEC-02 amendment, so that disconnected
+  graphs are blocked rather than silently repaired.
+- **The rule:** revisit SPEC-01 only when R1 to R6 all hold. R1 to R3 alone would make only a synthetic
+  reproduction runnable, which is not a contribution.
+
+The operator's owner decision sheet (`owner-decision-sheet.md`, sha256 `624200af…`, 2026-10-17) set out a retry
+route and the decisions OD-1 to OD-8. The issued route package `SPEC-GATE6-RUN-V1` (`fad7c5a9…`) lists
+OR-008 to OR-011 (cancellation, revisit and retry) under `intentional_exclusions`: outside the one-time route,
+with an honest terminal-for-now branch for a partial. Phase 5 ends at `decide_spec_01`, closure and the result
+(runbook §4; P-056, P-058). 06q describes `request_spec_01_revisit`, `authorize_spec_01_retry` (RETRY),
+`request_spec_01_retry` and a new Assay as the general route. It is not this run's authority.<br>
+**Decision:**
+1. **Continue: yes, at a later gate.** Not a Gate 6 extension. Phase 5, D6 and the P-058 closure stay closed as
+   recorded. The continuation is Gate 7+ intake work. How that gate carries the parked Candidate and the
+   Decision `dec_1c6c1254-…` into its own route is for its intake to specify. No revisit, retry or SPEC-02
+   action is taken in the Gate 6 store.
+2. **The route requirement.** The later gate needs a new route-package version that admits OR-009, OR-010 and
+   OR-011, with its own authority review and the same closed-input discipline. The retry Assay needs its own
+   Task and Attempt, with a running return window, because the SPEC-01 Task is closed and its Attempt ended.
+   This is a requirement on that gate. Nothing is built or authorized here.
+3. **OD-1 to OD-8 are accepted now,** each with its wording and effect from the decision sheet §2. They bind the
+   later gate's retry. A change to any of them needs a superseding decision.
+   - **OD-1, sequencing.** The retry route, with the PARK return left unchanged (`operator-return-draft.json`,
+     sha256 `568447c7…`). *Effect:* fixes enter through the retry Assay, not by editing the return. *Why:* the
+     frozen return stays the evidence of what the reviewer and the owner judged.
+   - **OD-2 (D1), fixture.** A bit-faithful code fixture: `get_toy_data` at `145efcde` is used verbatim,
+     including the shared re-seeded basis/noise stream and the `linspace` endpoint. *Effect:* the coupling is
+     declared as a deviation from the paper's stated noise model. SPEC-02 asserts the generator's identity and
+     does not "fix" it. The claim boundary must say the fixture reproduces the published figures' generator,
+     not the paper's prose noise model. *Why:* it reproduces the generator behind the published figures, and the
+     deviation from the prose is declared instead of silently corrected.
+   - **OD-3 (D2), PH engine.** Ripser `representative-cycles` head `4d61b79efe086c5feef14ff059c8f4744bbd1519`,
+     target `ripser-representatives`, Z/2. *Effect:* the paper's "140670f" is recorded as an erroneous pin, a
+     master-line commit that cannot produce the parsed representative output. *Why:* only this head produces
+     the output the route parses.
+   - **OD-4, claim.** The primary claim is robustness only (the operator's proposal, sheet §4). *Effect:*
+     novelty is expected to stay about 1 in the retry. *Why:* the claim is methodological, not a labour-market
+     finding, so it needs no substantive survey result to stand.
+   - **OD-5 (PD-1, R3), kNN backend.** Exact brute-force float64 on CPU, ties broken by lower index, self
+     removed by index (amendment §A4). *Effect:* the owner-decision limb of R3 is on record. Correctness is
+     shown by the blocking A4 preflight inside the SPEC-02 attempt. *Why:* it needs no GPU, and the tie rule
+     makes equivalence checkable.
+   - **OD-6 (PD-2), toolchain.** LLVM clang++ 21.1.0, `-std=c++11 -O3 -ffast-math -DNDEBUG`. *Effect:* binds
+     the A3 build. *Why:* that is clang's spelling of `-Ofast`, written out because clang deprecates the alias.
+     MSVC 2022 is installed and was not chosen.
+   - **OD-7 (PD-3), Python.** CPython 3.10.4 with numpy 1.23.5 and scipy 1.10.0, in a dedicated venv prepared
+     before the run. Block if any version is unavailable. *Effect:* binds the A6 environment. *Why:* it matches
+     the source's numerics. None is installed now, so the venv is a prerequisite of the retry.
+   - **OD-8 (PD-4), vendoring.** The source functions are vendored verbatim, by blob and line range, with only
+     edits E1 to E3. *Effect:* binds A1. *Why:* `utils/dist_utils.py` imports `umap`, `openTSNE` and
+     `vis_utils` at module top, so it cannot be imported on the envelope. The only substantive change is the
+     kNN call inside `get_sknn`.
+4. **`correct_spec_01_source` is not needed.** D1 and D2 correct the *binding* (which generator, which engine).
+   They do not touch the registered source identity `145efcde673f1a1897eff250b77221d26c34c479`.
+5. **SPEC-02 v1.2.0: adopt, plus R6.** SPEC-02 v1.2.0 (draft `spec-02-amendment-draft-v1.2.0.md`, sha256
+   `de29763b…`) becomes the governed successor to v1.1.0, subject to three things: its own review, a contract
+   version, and an update to the route package's source binding. It is amended to add R6's explicit
+   connected-components check. This entry records the decision only. The amendment work is a follow-up, and
+   the draft, which sits outside the repository, is not part of this PR.
+6. **R4, the crosswalk step: required, with the later gate.** A separate documentation-only task
+   (`/bhps-wave-crosswalk`, no microdata) verifies the coding of the 9-state activity and income block across
+   BHPS and USoc. It is authorized only when the later gate opens. It is not authorized now.
+7. **R5, the redundancy test: the rule now, the value later.**
+   - **The rule:** a numeric threshold on the frozen 20-dimensional representation's PCA spectrum (the share of
+     variance beyond the leading components) must be pre-registered in the vault before any survey PH is
+     computed.
+   - **Below the threshold:** the claim is recorded as redundant and the Candidate is KILLed for redundancy.
+   - **Above it:** the robustness comparison proceeds.
+   - **The value** is set in that later pre-registration, not here, and never on outcomes chosen post hoc.
+   - **Scope:** this is the objective form of R4's redundancy clause and of R5's "non-redundant". The 20
+     dimensions are the operator's proposed default (`trajectory_tda/embedding/ngram_embed.py`: 9 states,
+     unigrams plus bigrams, 90 raw dimensions, `StandardScaler`, PCA to 20, `random_state = 42`). Owner
+     acceptance of that freeze is still R4's open item, and the rule applies to the representation as it is
+     frozen.
+
+**Standing after this entry.** None of R1 to R6 is declared met.
+- **R1 to R3:** their owner-decision limbs are now on record (OD-2, OD-3 with OD-6 and OD-7, OD-5). The written
+  checks they name (the fixture identity check, the diagram-equivalence check and the kNN preflight, sheet
+  amendment §A2 to §A4) live in SPEC-02 v1.2.0, which is not yet adopted.
+- **R4:** open. It needs the crosswalk and owner acceptance of the estimand and freeze.
+- **R5:** partly open. The claim is accepted (OD-4) and the redundancy rule is locked. The threshold value is
+  open.
+- **R6:** open. It needs the amendment in point 5.
+- **The revisit rule** is not met.
+
+**Expected arithmetic.** This is the producer's projection, not a score commitment. With a robustness-only
+claim, novelty is expected to stay about 1. A retry PROMOTEs only if data feasibility reaches 3 and every gate
+passes. Data feasibility at 3 needs survey access verified in-session, the feature block crosswalk-verified,
+and the environment bound. Otherwise the retry PARKs again. The retry operator scores on the evidence it
+holds.<br>
+**Carried into the later gate's intake (cited, not decided here):**
+- **Retry identity model.** P-058 4b-1 (2026-09-17) decided one Task and one running Attempt across a retry
+  lineage, and rejected a new Attempt per Assay. Phase 5 ended that Attempt and closed the Task. Point 2's
+  own Task and Attempt differ from that rule, and the route-package review is where the difference is settled.
+- **Revisit on a scored-Assay PARK.** P-058 4b-1 reproduced on scratch that a scored-Assay PARK cannot be
+  revisited by OR-009, and that the revisit predicate is read from one route-issued SOURCE observation whose
+  facts contain every requirement verbatim, with `observe_source` recording a single fact. The seven strings
+  above are not a single fact.
+- **The project-use review's F7 items** (P-058 closure): dtype and tolerance binding, and the unversioned
+  diffusion figures, named by no revisit trigger. They are due at any SPEC-01 revisit. OD-5 fixes float64 for
+  the kNN only, so this entry does not treat F7 as resolved. The other P-058 follow-ups are not restated.<br>
+**Binding:** None mechanized now, because this entry records scope and requirements for a gate that is not
+open. The enforcement artifacts are the follow-ups named below, each with its own review: the SPEC-02 v1.2.0
+contract version and binding test, the route-package version's authority review, and the vault pre-registration
+of the R5 threshold before any survey PH is computed.<br>
+**Boundary:** Docs only; no store writes. This does not amend P-056, P-058 or the Phase 5 closure, reopens no
+Gate 6 action, and registers nothing in the Gate 6 store's ledger. OD-1 to OD-8 are recorded here as owner
+decisions and are not events in that ledger. The later gate's intake decides how they are bound into its route.
+No survey data is touched. No Jira issue yet.<br>
+**Follow-ups (none authorized by this entry):**
+- Gate 7+ intake: the new route-package version, its authority review, and the retry Task and Attempt (point 2).
+- SPEC-02 v1.2.0: review, contract version, R6 amendment, and the route package's source-binding update
+  (point 5).
+- The R4 crosswalk task, when the later gate opens (point 6).
+- The R5 threshold pre-registration, before any survey PH (point 7).
+
 ## Decision protocol
 
 Each future decision entry must record:
