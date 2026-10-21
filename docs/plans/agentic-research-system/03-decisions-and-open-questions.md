@@ -3628,6 +3628,35 @@ D6 subset: SPEC-02 ran nothing.
   revisit;
 - KAN-103 closes on this record.
 
+**Step 6, live and read-only: the frozen checkout at M2 replays the run after the final PR (Stephen, 2026-10-21).**
+P5-4, the last part of step 6. Recorded after #381, as the closure said it would be.
+- **What ran:** `run-s6-replay.sh 381` (sha256 `92b21433…`), from 17:46Z, authorized alone. It ran
+  `step6_replay.py` (`38b9c8e2…`), rehearsed on the scratch store first.
+- **Its preconditions, all met:**
+  - #381, the docs-only final PR, is merged as `df5ba1ec`, and GitHub main is `df5ba1ec`, read from the primary
+    repository and never from the checkout;
+  - the durable checkout is clean on `main` at M2 `4d867d85…`, with one worktree and nothing pulled;
+  - the live store is at 91 events.
+- **What it did:** each in a new process, from the frozen checkout:
+  - `ars replay verify --operator-config …` passed the Gate 6 binding admission, which accepts only the bound SHA,
+    and replayed the ledger;
+  - `ars discovery spec status`;
+  - `ars discovery spec result --task-id tsk_01a14850-… --format json` and `--format markdown`.
+- **The checks, eight, all pass:**
+  - the replay ran through the ledger's tail, at position 91 with hash `601dd4e5…`;
+  - its authority state names the owner and the store's 36 grants;
+  - `spec status` reads every SPEC-01 action through closure as completed;
+  - the result reads `accepted`, byte-identical to step 4's JSON (`1f4db7c6…`) and Markdown (`9ceafa14…`);
+  - nothing was written: the ledger stayed at 91 and the object fingerprint was unchanged (`1744f888…`).
+- **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b19/live-replay/`: `s6-replay.log` (`51ce56fb…`),
+  `replay-verify.json` (`08ab7c0c…`), `spec-status.json` (`dcf682f5…`), `step6-replay-checks.json`
+  (`35fa3c5d…`), the two renders, and the authorization note `s3-b19/AUTHORIZATION-replay.txt`.
+- **The rehearsal's one correction.** My first check expected the replay's streams to cover every ledger stream.
+  `replay verify` is the control-plane replay, so its coverage is shown by its reported tail position and hash,
+  not by Discovery streams. The check was corrected before the live script was pinned.
+- **With this, step 6 is complete, and Phase 5's live work is finished.** The durable checkout stays frozen at M2,
+  and the store at 91 events.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>
