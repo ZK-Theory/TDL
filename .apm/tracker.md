@@ -162,12 +162,14 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
     - `TDL-g6-pr-f` (#386);
     - detached: `TDL-g6-p5`, at M2 `4d867d85` on main. The L5 packet it was held for on 2026-10-16 has run, and
       Phase 5 is closed.
+  - **Force-removed on the User's instruction (2):** `.apm/worktrees/ci-lint-lane` (#277) and `rm-revision` (#193).
+    Both PRs were merged with CodeRabbit concluded and each HEAD was within its PR's final head, but both trees were
+    dirty, so they needed `--force`. The discarded dirt was tooling only: the per-worktree Repowise section of
+    `.claude/CLAUDE.md`, `.repowise-workspace.yaml`, and in `rm-revision` a re-locked `uv.lock`. Both branches are
+    kept.
   - **Held:**
     - `.apm/worktrees/06s-acceptance` (`repo/06q-section4-retirement`): no PR, five commits on no remote ref, and
       dirty;
-    - `.apm/worktrees/ci-lint-lane` (#277) and `rm-revision` (#193): merged, but dirty. The dirt is tooling only:
-      the per-worktree Repowise section of `.claude/CLAUDE.md`, `.repowise-workspace.yaml`, and in `rm-revision` a
-      re-locked `uv.lock`;
     - the system-review session's scratch `diag/s014-runner-paths`: no PR, a throwaway diagnostic commit;
     - every `.claude/worktrees/*`: app-managed session worktrees, left to the app's own cleanup. All their PRs are
       merged, two are dirty with the same tooling-only dirt, and `gate7-prep-docs-5202cf` belongs to a running
