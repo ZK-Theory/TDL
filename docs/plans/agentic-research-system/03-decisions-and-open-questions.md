@@ -2535,9 +2535,12 @@ was executed, and no store, checkout or grant exists yet.
   L5's selection and review must cover `100730e0..M2`.
 - **Next:** A1, the durable checkout (runbook §3 L1). It needs Stephen's own authorization.
 
-**Live steps A1 to A4, and the L5 scope (Stephen, 2026-10-15/16).** Each step was prepared as one exact script,
-authorized by Stephen on its own, run alone, and verified from durable state before the next. The scripts, logs and
-authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
+**Live steps A1 to A4, and the L5 scope (Stephen, 2026-10-15/16).** Each step was authorized by Stephen on its
+own, run alone, and verified from durable state before the next.
+- **A1 to A3** were each one exact script. Their scripts, logs and authorization notes are in
+  `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a3/`.
+- **A4** was the push of `a40b3f01` and the opening of PR #365, under its own authorization. `a4/` holds that note
+  and the pre-push procedure-test log. This sentence was corrected on 2026-10-21 (final review m-6).
 - **A1, the durable checkout (L1).**
   - **What ran:** `run-a1.sh` (sha256 `69ace3fc…`), at 23:53Z on 2026-10-15. It cloned
     `C:/Users/steph/TDL-ARS-G6-Checkout` from GitHub, set `main` to M1 `100730e0` and ran `uv sync --locked`.
@@ -2757,6 +2760,10 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   | 8 | `ResolveDecision` | the owner |
 
   - **Each step:** receipt `accepted`, and the last effect is by the expected actor under its grant.
+  - **No bar-review session ran** (added 2026-10-21, final review m-3, a material record correction).
+    `RecordW11AuthorityReview` recorded the route's fixed OR-106 review context under the bar reviewer's identity,
+    which is the inherited known limit. The bar's substance rests on #352's review and the delta assurance. All
+    eight effects were submitted by batch 2's runner, from each actor's operator config (runbook §1).
 - **The result.** `bootstrap_assay_authority` is `completed`, with 8 effects by 7 distinct actors under 8
   distinct grants. The ledger went from 6 to 22 events. An exact retry of step 8 returned the same receipt and
   appended nothing. A fresh-shell status agrees, and the checkout is clean at M2.
@@ -2898,7 +2905,7 @@ authorization notes are in `C:/Users/steph/.codex/tmp/g6-p5/a1/` to `a4/`.
   `C:/Users/steph/.codex/tmp/g6-p5/s3-b5/live/`: `s3b5.log` (`dee1f7a8…`), `advance-request.json` (`a6576864…`),
   `advance-prepare.json` (`17661854…`), `brief.json` (`45f0d20a…`), the retries and the authorization note.
 - **The result.** The live ledger went from 45 to 51 events.
-  - **`request_spec_01` (OR-003, `RequestAssay`):** by the steward `act_01a14020-0459-…`, in its own session, under
+  - **`request_spec_01` (OR-003, `RequestAssay`):** by the steward `act_01a14020-0459-…`, in its own ARS actor session (submitted by the batch runner; runbook §1), under
     `agr_01a148ba-8cf5-…`, scoped to the Candidate `obj_a9ba6213-…`. It appended 3 events. The route refuses the
     producer or the owner as requester.
   - **`prepare_spec_01` (`RegisterArtefact`):** by the owner under `agr_01a148ba-8cf8-…`, issuing the operator brief
@@ -2942,7 +2949,8 @@ Runbook §4 item 6, the return.
 - **The result.** The live ledger went from 51 to 56 events.
   - **`RegisterArtefact`:** by the owner under `agr_01a157ce-589d-…`, scoped to the return artefact. It registered
     the return `art_fc1c4531-4398-761c-8787-e2355e7c1ebd`, and the action stood `prepared`.
-  - **`RecordAssayScore` (OR-004):** by the producer, in a new session, under `agr_01a157ce-589f-…`, scoped to the
+  - **`RecordAssayScore` (OR-004):** by the producer, in a new ARS actor session (submitted by the batch runner with
+    the producer session's draft unchanged; runbook §1), under `agr_01a157ce-589f-…`, scoped to the
     Candidate. It re-supplied the same return bytes and appended `AssayScored` and `CandidateAssayLinked`.
 - **Verified.**
   - Both effects ran by the expected actor under the expected grant, and the action completed.
@@ -2990,7 +2998,7 @@ outcome review's first effect.
     binding and each operator config read-only against the live binding.
 - **The result.** The live ledger went from 56 to 59 events: the grant activation `agr_01a1581f-0e6c-…`,
   `ReviewRequested` on `rev_0e21fa01-150d-77e2-a07f-237b8789f726`, and `AssayOutcomeReviewRequested` on the Assay,
-  both by the steward in a new session.
+  both by the steward, in a new ARS actor session (submitted by the batch runner; runbook §1).
 - **Verified.**
   - The effect ran by the steward under the expected grant. The action stands `prepared`, next
     `ReviewDiscoveryOutcome`.
@@ -3216,16 +3224,23 @@ item 7, closure part 1.
   - Criteria 4 and 5 were judged procedural, as accepted.
   - The draft (`b525891d…`) passes `check_task_verdict.py`. Its trace ref is `review-notes.md` (`3bf9efe3…`),
     since the route's verdict carries no findings field.
-- **Findings, in the notes.**
+- **Findings, in the notes** (F1 to F7 and L1 to L7; selected here. Completed 2026-10-21, final review m-4.)
   - **F1:** the unreleased lease departs from the resource request's stated release obligation (accepted).
   - **F2:** the session-time limits are not evidenced on the ledger.
+  - **F3:** the brief package `art_13fdb997-…` is a third registered artefact under the Attempt, read as in scope.
+  - **F4:** "Promotion" in the Candidate events is route vocabulary for PARK.
   - **F5:** the return is bound to the outcome review as required evidence.
+  - **F6:** the outcome review's findings remain open at the scientific level; D1 and D2 were re-derived by no
+    reviewer.
+  - **F7:** the return document's `producer_actor_id` is the registering owner, and the scorecard's is the
+    producer.
   - **L5:** the review request's `subject_hashes` value `9da8e928…` did not reproduce from the inputs. I
     reproduced it read-only: it is the sha256 of the replayed Task stream state before the request.
 - **The rehearsal first.** `batch11.py` (`7fa2dc53…`) ran effects 4 to 7 on the scratch store from 75 to 82
   events, and a rerun appended nothing.
   - **The inputs** came from `prepare.py`:
-    - the Task reviewer's agent grant for `StartReview` and `RecordReviewVerdict`, in a new session;
+    - the Task reviewer's agent grant for `StartReview` and `RecordReviewVerdict`, in a new ARS actor session (the
+      runner submitted the review session's draft unchanged; runbook §1);
     - the owner's separate grants for `SatisfyReview` and `AcceptTask`;
     - the verdict intent `c6bc410a…`, which is the close_task intent plus the draft unchanged;
     - the owner's satisfaction evidence `ecc31d3c…`: an approval-policy ref, the review notes' hash, and the gate
@@ -3317,7 +3332,8 @@ closure part 3.
   - The exact retry returned the same receipt and appended nothing.
   - A fresh, read-only process replayed the ledger at 84 events:
     - the stored document hashes to the manifest's content and is schema-valid;
-    - it carries the accepted intent byte for byte;
+    - its `intent` equals the accepted intent as parsed JSON (corrected 2026-10-21 from "byte for byte"; the same
+      overstatement as final review m-1);
     - it cites the accepted Task, its two selected artefacts as evidence, the owner's PARK, no Spike, and the
       parked Candidate;
     - no review is recorded yet.
@@ -3366,7 +3382,8 @@ closure part 3.
   - **The fix:** the check now requires the two IDs first and the census's record hash. `batch13.py` is now
     `d09838b9…`.
   - **Rehearsed again:** scratch was reset to 84, and the final runner ran end to end.
-  - **The inputs** came from `prepare.py`: the reviewer's agent grant for `RecordScientificReview` in a new session,
+  - **The inputs** came from `prepare.py`: the reviewer's agent grant for `RecordScientificReview` in a new ARS actor session (the runner
+    submitted the review evidence the attestation binds; runbook §1),
     the owner's grant for `SetArtefactUseAuthority`, and the review intent `b42c22d5…` with evidence
     `{review_id, evidence_refs: [the record ID]}`.
 - **What ran live:** `run-s3b13.sh` (sha256 `fb5421a9…`), from 06:08Z, authorized alone. It pinned the
@@ -3383,7 +3400,8 @@ closure part 3.
 - **Verified.**
   - The exact retry returned the same receipt and appended nothing.
   - A fresh, read-only process replayed the ledger at 88 events:
-    - the review is `approved`, by the reviewer, on the registered subject, citing the review ID and the record;
+    - the review `rev_01a15cf9-57b3-79c0-a463-bb12c57ef5e5` (event 87) is `approved`, by the reviewer, on the
+      registered subject, citing the review ID and the record (ID added 2026-10-21, final review m-5);
     - the placed record is the reviewed draft byte for byte, and resolves to canonical sha256 `0f596221…`;
     - the use authority cites the review, the record, the census's matching record hash and this store's
       identity.
@@ -3457,7 +3475,9 @@ i-4).
   - `BackupCreated`, receipt `bkr_01a15d2c-dcde-7d16-9aab-fdc21ddf9301`;
   - `RestoreVerified`, recovery evidence `rcv_01a15d2c-dcde-…`, verification only with no cutover.
 - **Where the copies are:**
-  - the backup is in `C:/Users/steph/TDL-ARS-WP64-Backups/g6-p5-spec01-2026-10-21`, with receipt `6532d983…`;
+  - the backup is in `C:/Users/steph/TDL-ARS-WP64-Backups/g6-p5-spec01-2026-10-21`, with receipt
+    `bkr_01a15d2c-…`. Its `receipt_hash` is `aca75bb6…`, and the receipt file `manifests/backup-receipt.json` has
+    sha256 `6532d983…` (clarified 2026-10-21, final review m-7);
   - the same-disk restore copy is in `C:/Users/steph/TDL-ARS-WP64-Restore-Verification/g6-p5-spec01-2026-10-21`;
   - each is 33 MB. The backup snapshot's tail is position 89.
 - **The comparisons, all pass:**
@@ -3477,6 +3497,65 @@ i-4).
   - Stephen's recorded closure;
   - the docs-only final PR, merged and not pulled into the checkout;
   - the replay from the frozen checkout at M2.
+
+**Step 6: the independent final evidence review, PASS WITH FINDINGS (Stephen, 2026-10-21).** Runbook §5 step 6,
+P5-4, first part.
+- **The review session.** A separate, fresh-context session (`local_cff829c8-…`, Claude Opus 5.5), dispatched by
+  Stephen. It holds no role in the run, and it reviewed the evidence and record, not the code.
+  - **The brief:** `s3-b19/final-reviewer-session-brief.md` (`c1c1a228…`).
+  - **The package,** assembled read-only (manifest `25575a21…`):
+    - the record at #381's head `21bf67e0`;
+    - the live ledger at 91;
+    - an index of the 104,531 files under the evidence root, with sha256;
+    - the A0 plan;
+    - step 4's result and checks;
+    - step 5's comparisons.
+  - **The report:** `s3-b19/review-output/final-review-report.md` (`aa3d657e…`), with the handback (`f235df49…`).
+- **The verdict: PASS WITH FINDINGS.** All eight checks hold:
+  - every one of the 91 events falls in exactly one authorized step, with its pinned script, authorization note
+    and log, and 615 step files were re-hashed against the index;
+  - the recorded counts, actors, grants and IDs match the ledger;
+  - the separation holds, on the ledger;
+  - the stated outcomes are the ledger's;
+  - the disclosed limits are complete;
+  - the bounds held: no SPEC-02, no provider or credential trace, nothing written to `TDL-ARS-WP64-Control`, and
+    the checkout clean at M2 throughout;
+  - there is no claim beyond the evidence;
+  - the rehearsal stops are honestly recorded.
+- **Findings, and where each was corrected (Stephen: m-2 and m-3 are material record corrections).**
+  - **m-1:** the return was equal as parsed JSON to the draft, not byte-equal. Corrected in runbook §3 batch 6. The
+    same overstatement in this log's batch 12 ("byte for byte" for the decision's intent) was found while applying
+    m-1 and corrected too.
+  - **m-2 (material):** non-owner actors acted through ARS actor sessions submitted by the batch runners. Only the
+    producer and the three reviewers had separate agent sessions. Corrected in runbook §1 ("How each actor
+    acted"), and at the five "own/new session" phrasings in batches 5, 6, 7, 11 and 13.
+  - **m-3 (material):** no bar-review session ran; the bar review was the route's fixed OR-106 literals. Added to
+    batch 2.
+  - **m-4:** batch 11's findings were a selection; F3, F4, F6 and F7 were added.
+  - **m-5:** batch 13 now names the review `rev_01a15cf9-…`.
+  - **m-6:** "Live steps A1 to A4" now says A4 was a push and a PR, with no script.
+  - **m-7:** step 5 now distinguishes the receipt ID, its `receipt_hash` `aca75bb6…`, and the receipt file's
+    sha256 `6532d983…`.
+  - **m-8:** runbook §3 batch 9 now says six triggers and the rule.
+- **Notes, recorded here.**
+  - **i-1:** A5 (L5) has no authorization note in `l5/`. Its authorization is recorded only in this log.
+  - **i-2:** each batch's authorization note sits in the batch folder (for example `s3-b3/AUTHORIZATION.txt`), not
+    in `live/` as the batch blocks say. The folders are offset from the batch numbers: batch 6's evidence is in
+    `s3-b7/`, batch 11's in `s3-b12/`, and batch 13's in `s3-b16/`. Each block names its exact path.
+- **The reviewer's limits.**
+  - It read only the inputs and the evidence root.
+  - Scratch rehearsals outside the evidence root (all but batch 3's) cannot exclude an unrecorded rehearsal stop.
+  - Session compliance (time ceilings, stop rules, the D6 cost ceiling) rests on the sessions' own statements.
+  - It too ran on Claude Opus 5.5.
+- **A boundary observation, from my check after the session.**
+  - The session's deliberate writes were only its two files.
+  - Ten git-internal `loose-*.pack` files appeared during it, inside the `.git` folders of two throwaway pytest
+    clones under `a4/b/`. This is consistent with git's automatic loose-object maintenance after a git read.
+  - No indexed file is missing or changed. The live store stayed at 91, and both checkouts are clean.
+- **Next:**
+  - Stephen's recorded closure, in his words (a draft is in `s3-b19/closure-draft.md`);
+  - the docs-only final PR, merged on GitHub and not pulled into the checkout;
+  - the frozen-checkout replay, `run-s6-replay.sh <final PR number>`, under its own authorization.
 
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 

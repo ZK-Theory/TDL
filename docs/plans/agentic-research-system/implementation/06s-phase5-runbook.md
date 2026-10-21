@@ -50,8 +50,18 @@ a live operation by itself (06s Phase 5).
 
 Every effect needs an actor with an activated grant, and the route refuses the role collapses P-058
 recorded. The identities below are the fewest the route admits. The author is fixed by the committed SPEC-01 bar (#352);
-the others were allocated at A0 (2026-10-15; `ars` accepts any `act_` UUIDv7). Each non-owner actor is an owner-operated
-agent session, and its actor ID is recorded in that session's operator config (P-042).
+the others were allocated at A0 (2026-10-15; `ars` accepts any `act_` UUIDv7).
+
+**How each actor acted** (corrected 2026-10-21, final review m-2, a material record correction; P-042). The
+earlier sentence here said "Each non-owner actor is an owner-operated agent session". That was not what happened.
+- **Who submitted:** each non-owner actor's effects were submitted by the batch's hash-pinned runner, from that
+  actor's own operator config and ARS actor session, under Stephen's per-batch authorization.
+- **Who judged:** separate, fresh-context agent sessions did the judgement work. The producer drafted the return,
+  and the outcome, Task and project-use reviewers drafted their verdicts. Each draft was submitted unchanged and
+  checked by hash.
+- **Who had no separate session:** the bar author, the two observers, the bar review requester, the bar reviewer,
+  the bar proposer, the steward and the decision proposer. Their effects are mechanical.
+- **The bar review:** it was the route's fixed OR-106 review context. No bar-review session ran (m-3).
 
 | Role | Actor | Commands | Must differ from |
 |---|---|---|---|
@@ -120,8 +130,9 @@ All `ars` commands run from the durable checkout as
   `3eea9174…`) and the Candidate (§4 item 5).
 - **Step 3 batch 5 is done (2026-10-17).** The steward requested the Assay, and the owner issued the brief
   `art_13fdb997-…` (§4 item 6, first two steps).
-- **Step 3 batch 6 is done (2026-10-20).** The owner registered the operator return `art_fc1c4531-…`, byte-equal
-  to the producer's draft `568447c7…`. The producer re-supplied it at `RecordAssayScore`, and the Assay is scored
+- **Step 3 batch 6 is done (2026-10-20).** The owner registered the operator return `art_fc1c4531-…`, equal as
+  parsed JSON to the producer's draft `568447c7…` (the stored document re-serializes it, so the draft's own bytes
+  are not stored; final review m-1). The producer re-supplied it at `RecordAssayScore`, and the Assay is scored
   PARK (§4 item 6, the return).
 - **Step 3 batch 7 is done (2026-10-20).** The steward requested the outcome review `rev_0e21fa01-…`. It is
   pending on the registered scorecard, with a deadline of 2026-11-19 (§4 item 6, the review's first effect). The
@@ -129,7 +140,8 @@ All `ars` commands run from the durable checkout as
 - **Step 3 batch 8 is done (2026-10-20).** The outcome reviewer recorded the independent approving verdict. The
   review is satisfied and the Assay is reviewed, with PARK (§4 item 6, `review_spec_01_complete` complete).
 - **Step 3 batch 9 is done (2026-10-20).** `decide_spec_01`: the proposer recommended PARK, and the owner resolved
-  Decision `dec_1c6c1254-…` PARK with seven revisit triggers. The Candidate is parked (§4 item 6 complete).
+  Decision `dec_1c6c1254-…` PARK with six revisit triggers, R1 to R6, and the revisit rule (seven strings; final
+  review m-8). The Candidate is parked (§4 item 6 complete).
 - **Step 3 batch 10 is done (2026-10-20).** This is closure part 1 (§4 item 7), under the accepted closure plan:
   - the Attempt is completed, naming the SOURCE observation and the operator return (option A);
   - the Task is submitted;
@@ -153,13 +165,18 @@ All `ars` commands run from the durable checkout as
   evidence-only `RestoreVerified` was recorded on a same-disk restore copy in `TDL-ARS-WP64-Restore-Verification`.
   The identity, ledger, artefact and byte comparisons pass, at 91 live events.
   - **Known limit:** the `VerifyRestore` payload comes from the internal, read-only restore preflight.
+- **Step 6, the final evidence review, is done (2026-10-21).**
+  - **The verdict:** PASS WITH FINDINGS. All 91 events map to authorized steps, and the separation, outcomes and
+    bounds hold.
+  - **The record corrections** (m-1 to m-8, with m-2 and m-3 material) are applied, including this runbook's §1.
+  - **Remaining:** Stephen's closure, the docs-only final PR, and the frozen-checkout replay.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
   "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
   "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
-  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live", "Step 4, live and read-only" and
-  "Step 5, live".
+  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live", "Step 4, live and read-only",
+  "Step 5, live" and "Step 6: the independent final evidence review".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
