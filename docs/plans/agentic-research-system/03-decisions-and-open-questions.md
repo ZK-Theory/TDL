@@ -3419,6 +3419,65 @@ closure part 3.
 - **Reproducible:** both renders are byte-identical to the ones batch 13 made in earlier processes.
 - **Next:** step 5, `ars store backup` and `ars store verify-restore`, under its own authorization.
 
+**Step 5, live: the governed backup and an evidence-only restore verification (Stephen, 2026-10-21).** Runbook §5
+step 5, same-disk recovery only. This is the initial-root store's first backup and verify-restore (delta review
+i-4).
+- **What the commands need, beyond the runbook line.**
+  - **A grant:** an owner grant for `CreateBackup` and `VerifyRestore` on the `project_store` subject.
+  - **A backup request:** 22 exact fields, with at least one external artefact. Each artefact has a canonical
+    `art_` ID, an absolute path, a sha256 and availability evidence.
+  - **Two schema-valid evidence-store registry files** (`ars://evals/evidence-store-registry`), loaded by the
+    real loader:
+    - the backup registry names the source, the destination, and the hidden stage sibling;
+    - the restore registry carries the hash the backup recorded.
+  - **An endpoint-ownership file** in the restore copy.
+  - **A `VerifyRestore` command whose payload carries the restore preflight's results.** No public command
+    derives that payload, so the runner builds it from the internal, read-only
+    `verify_restore_before_writer_lease`, as the WP6.4 test does. `ars store verify-restore` then re-runs the
+    full preflight itself before admitting. A **known limit**, read-only, beside option A's seam.
+- **The external artefacts** (Stephen accepted the pinned set). Six evidence files outside the store, pinned in
+  `s3-b18/external-artefacts.json` (`b5e76d50…`):
+  - the outcome review notes and the Task review notes, both cited on the ledger by sha256;
+  - the project-use review notes and attestation, the option A basis;
+  - the operator's notes and handback.
+- **The rehearsal first.** `step5.py` ran on the scratch store from 88 to 91 events, through the genuine
+  `backup` and `verify-restore`.
+  - **Two stops, in my own comparison code.** A tuple was passed to canonical JSON. The artefact manifest names
+    its digest `artefact_hash`. Both were fixed.
+  - **Rehearsed again:** after a reset, the final runner (`1d6f5fd1…`) ran end to end and passed all seven
+    comparisons.
+- **What ran live:** `run-s5.sh` (sha256 `d4764fa3…`), from 06:45Z, authorized alone. It refused if either run
+  directory existed.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b18/live/`: `s5.log` (`60a79570…`),
+    `backup.json` (`8d8474e5…`), `verify-restore-command.json` (`debfb7bb…`), `verify-restore.json` (`81e8d03d…`),
+    `preflight.json` (`7e26490e…`, `verified`, no failed predicates), `step5-comparisons.json` (`e583e7f2…`), the
+    two registry files, and the authorization note.
+- **The result.** The live ledger went from 88 to 91 events, all by the owner:
+  - the grant activation `agr_01a15d2c-dcc8-…`;
+  - `BackupCreated`, receipt `bkr_01a15d2c-dcde-7d16-9aab-fdc21ddf9301`;
+  - `RestoreVerified`, recovery evidence `rcv_01a15d2c-dcde-…`, verification only with no cutover.
+- **Where the copies are:**
+  - the backup is in `C:/Users/steph/TDL-ARS-WP64-Backups/g6-p5-spec01-2026-10-21`, with receipt `6532d983…`;
+  - the same-disk restore copy is in `C:/Users/steph/TDL-ARS-WP64-Restore-Verification/g6-p5-spec01-2026-10-21`;
+  - each is 33 MB. The backup snapshot's tail is position 89.
+- **The comparisons, all pass:**
+  - **identity:** the restore copy's manifests equal the source's, file for file;
+  - **ledger:** its 89 events equal the source's first 89, event for event;
+  - **artefacts:** its manifest lists exactly the six pinned files by ID and sha256, and each stored file equals
+    its source;
+  - **bytes:** all 164 object files are byte-identical, all 78 event files are byte prefixes of the source's, and
+    the backup and the restore copy are byte-identical apart from the endpoint-ownership file.
+- **Verified from a fresh, read-only process.**
+  - The ledger is at 91 and replays.
+  - `RestoreVerified` cites the receipt, this store's identity and the recovery evidence.
+  - The restore copy's ledger replays on its own, equal to the source prefix.
+  - The checkout is clean at M2.
+- **Next:** step 6 (P5-4):
+  - the independent final evidence review;
+  - Stephen's recorded closure;
+  - the docs-only final PR, merged and not pulled into the checkout;
+  - the replay from the frozen checkout at M2.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

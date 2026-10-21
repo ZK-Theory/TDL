@@ -149,12 +149,17 @@ All `ars` commands run from the durable checkout as
 - **Step 4 is done (2026-10-21).** The result renders `accepted` as JSON and Markdown from fresh processes, byte for
   byte as before. All ten Task-isolation and PARK-wording checks pass, and nothing was written (§4 item 8, §5
   step 4).
+- **Step 5 is done (2026-10-21).** The governed backup `bkr_01a15d2c-…` is in `TDL-ARS-WP64-Backups`, and an
+  evidence-only `RestoreVerified` was recorded on a same-disk restore copy in `TDL-ARS-WP64-Restore-Verification`.
+  The identity, ledger, artefact and byte comparisons pass, at 91 live events.
+  - **Known limit:** the `VerifyRestore` payload comes from the internal, read-only restore preflight.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
   "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
   "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
-  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live" and "Step 4, live and read-only".
+  "Option A for batch 13", "Step 3 batch 12, live", "Step 3 batch 13, live", "Step 4, live and read-only" and
+  "Step 5, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
@@ -261,3 +266,8 @@ under it.
   - **This run:** option A, where the owner places it from a hash-pinned script.
   - **Follow-up:** a certified public writer, as PR-G was for B-3.
   - **Off the ledger:** the record cannot carry the review's findings.
+- **Verify-restore's command payload has no public deriver** (found 2026-10-21). `ars store verify-restore` takes a
+  `VerifyRestore` command whose payload must carry the restore preflight's results.
+  - **This run:** step 5 built it from the internal, read-only `verify_restore_before_writer_lease`, as the WP6.4
+    test does. The CLI re-runs the full preflight before admitting.
+  - **Follow-up:** a public command that derives the payload.
