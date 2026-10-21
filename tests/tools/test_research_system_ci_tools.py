@@ -450,3 +450,41 @@ def test_a_green_night_closes_the_open_issue_and_otherwise_does_nothing(workflow
     assert calls == ["issue close 41 --comment Green again at abc123: https://example.invalid/run/1"]
     (tmp_path / "none").mkdir()
     assert _verdict(workflow, tmp_path / "none", "success", "") == []
+
+
+# --- the required verdict (obs 2026-10-20-suite-lane-has-no-stable-required-check-name) ---------------------
+
+
+def test_the_lane_runs_on_the_merge_queue_and_selects_from_its_base(workflow: dict) -> None:
+    """Codex on #382: a required check absent from merge_group runs stalls every queued PR."""
+    assert "merge_group" in workflow["on"]
+    script = _script(workflow["jobs"]["select"])
+    assert '"$EVENT" = "merge_group"' in script and '--base "$MERGE_BASE_SHA"' in script
+    env = next(s for s in workflow["jobs"]["select"]["steps"] if s.get("id") == "select")["env"]
+    assert env["MERGE_BASE_SHA"] == "${{ github.event.merge_group.base_sha }}"
+
+
+def test_the_verdict_needs_every_lane_job_and_always_runs(workflow: dict) -> None:
+    verdict = workflow["jobs"]["suite-verdict"]
+    assert verdict["needs"] == ["ci-tools", "select", "suite"]
+    assert verdict["if"] == "always()"
+
+
+@pytest.mark.parametrize(
+    ("ci_tools", "select", "suite", "count", "passes"),
+    [
+        ("success", "success", "success", "12", True),
+        ("success", "success", "skipped", "0", True),  # nothing selected
+        ("success", "success", "failure", "12", False),  # one failing shard
+        ("failure", "success", "success", "12", False),  # the lane's own controls failed
+        ("success", "failure", "skipped", "", False),  # a failed select is not "nothing selected"
+        ("success", "success", "skipped", "12", False),  # skipped with files selected
+        ("success", "success", "cancelled", "12", False),
+    ],
+)
+def test_the_verdict_step_judges_each_outcome(
+    workflow: dict, tmp_path: Path, ci_tools: str, select: str, suite: str, count: str, passes: bool
+) -> None:
+    env = {"CI_TOOLS": ci_tools, "SELECT": select, "SUITE": suite, "COUNT": count}
+    result = run_step(workflow, "suite-verdict", "Judge the lane", tmp_path, env=env)
+    assert (result.returncode == 0) is passes, result.stdout + result.stderr
