@@ -3327,6 +3327,72 @@ closure part 3.
   13 runs under option A: the owner places the governing record, then the reviewer's `RecordScientificReview` and
   the owner's `SetArtefactUseAuthority`. It needs its own authorization.
 
+**Step 3 batch 13, live: the project-use review approves, and the project-use result is accepted (Stephen,
+2026-10-21).** Runbook §4 item 7, closure part 4, under option A. Closure is complete.
+- **The project-use review session.**
+  - **Who:** the project-use reviewer `act_01a14020-0465-…`, in a separate, fresh-context session
+    (`local_86af1798-…`, Claude Opus 5.5).
+  - **What it worked from:** `s3-b15/project-use-reviewer-session-brief.md` and seven inputs, assembled read-only
+    from the live store with every hash checked against the ledger:
+    - the stored decision `4ed88262…`;
+    - the ledger's 84 events;
+    - the Task;
+    - the return and the scorecard;
+    - the A0 D6 text, verbatim from main.
+
+    The manifest is `0961aaed…`, and the context is `ctx_01a15cf9-…`.
+  - **What it touched:** it registered nothing, read no other session, and did not touch the governing-record
+    draft. Afterwards the inputs were byte-identical.
+- **The verdict: approve.**
+  - The subject is exact, and every reference matches the ledger.
+  - The owner's words are true to the evidence, with no claim beyond it.
+  - The reviewer is not the owner, did not register the decision, and held no earlier role.
+  - The attestation (`6c13d795…`) passes `check_attestation.py`. It binds the review ID, the subject and the
+    notes (`a25025a7…`).
+  - **Eight minor findings, none material.** Off the ledger by construction; the Computational-Log keeps them:
+    - F1: "seven triggers" counts six triggers plus the rule;
+    - F2: "topology passed" is a gate value only;
+    - F3: the threshold of 4 is confirmed from the return, not the rubric;
+    - F4: this review also ran on Claude Opus 5.5, so the one-model-family limit extends to it;
+    - F5: the Task review's inputs-only claim is not checkable from these inputs;
+    - F6: D2 also rests on reading the public Ripser repository;
+    - F7: two unresolved items (dtype and tolerances; the unversioned diffusion figures) are named by no revisit
+      trigger;
+    - F8: D6 cost-ceiling compliance is not stated.
+- **The rehearsal first.** `batch13.py` ran on the scratch store from 84 to 88 events.
+  - **One stop, in my own check.** I expected the use authority's `evidence_refs` to be just the review and record
+    IDs. Admission appends its governing-review census: the record's canonical sha256, the review-set digest, the
+    store identity and the ledger position.
+  - **The fix:** the check now requires the two IDs first and the census's record hash. `batch13.py` is now
+    `d09838b9…`.
+  - **Rehearsed again:** scratch was reset to 84, and the final runner ran end to end.
+  - **The inputs** came from `prepare.py`: the reviewer's agent grant for `RecordScientificReview` in a new session,
+    the owner's grant for `SetArtefactUseAuthority`, and the review intent `b42c22d5…` with evidence
+    `{review_id, evidence_refs: [the record ID]}`.
+- **What ran live:** `run-s3b13.sh` (sha256 `fb5421a9…`), from 06:08Z, authorized alone. It pinned the
+  attestation, the notes and the reviewed draft `0f596221…`, and refused if the record already existed.
+  - **The evidence** is in `C:/Users/steph/.codex/tmp/g6-p5/s3-b16/live/`: `s3b13.log` (`a82d5ae9…`),
+    `advance-use.json` (`ca86cba7…`, byte-equal to the retry), the JSON and Markdown results (`1f4db7c6…`,
+    `9ceafa14…`), `governing-record-placed.json` (`0f596221…`), and the authorization note.
+- **The result.**
+  - **Before the effects:** the runner checked the attestation, activated the two grants, and placed the
+    governing record `arec_01a15cf9-57b3-73fe-809e-392bb169ad59` through the internal
+    `GoverningScientificReviewStore.publish`. This is the option A seam: an object, not an event.
+  - **The effects:** the live ledger went from 84 to 88 events. `ScientificReviewRecorded` by the project-use
+    reviewer, then `ArtefactUseAuthoritySet` (`accepted_for_scope`) by the owner, both on `art_fbd584af-…`.
+- **Verified.**
+  - The exact retry returned the same receipt and appended nothing.
+  - A fresh, read-only process replayed the ledger at 88 events:
+    - the review is `approved`, by the reviewer, on the registered subject, citing the review ID and the record;
+    - the placed record is the reviewed draft byte for byte, and resolves to canonical sha256 `0f596221…`;
+    - the use authority cites the review, the record, the census's matching record hash and this store's
+      identity.
+  - The route's result reads **accepted**. Its Markdown renders the disposition, the subset qualification and the
+    route's own subset sentence, the rationale, all seven limitations, both next gates and the evidence chain.
+  - The checkout is clean at M2.
+- **Next:** step 4, the result render from a fresh process, with the Task-isolation and PARK-wording checks
+  (runbook §5). It needs its own authorization.
+
 ### P-059 - Protected-surface pin refresh after the 2026-10-02 suite triage
 
 **Date:** 2026-10-03<br>

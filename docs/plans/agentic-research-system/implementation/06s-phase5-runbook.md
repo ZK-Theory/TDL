@@ -140,12 +140,18 @@ All `ars` commands run from the durable checkout as
   `art_fbd584af-…` with the accepted words, and the result is pending.
   - **Batch 13 runs under option A.** The project-use review's governing scientific-review record has no public
     writer, so the owner places it through the internal store (a known limit, probed on scratch).
+- **Step 3 batch 13 is done (2026-10-21).** This is closure part 4, under option A:
+  - the independent project-use review approved;
+  - the owner placed the reviewed governing record and set use authority;
+  - the project-use result is **accepted**.
+
+  §4 item 7 is complete, at 88 live events.
 - **The record:** P-058, "Live steps A1 to A4", "L5 review: PASS, and M2", "L5 delta assurance on M2", "A6 (L6)",
   "A7 (L7)", "Step 3 batch 1", "Step 3 batch 2", "Step 3 batch 3: decisions…", "Step 3 batch 3, live",
   "Step 3 batch 4, live", "Step 3 batch 5, live", "Step 3 batch 6, live", "Step 3 batch 7, live",
   "Step 3 batch 8, live", "Step 3 batch 9, live", "Closure plan", "Step 3 batch 10, live",
   "Step 3 batch 11, live", "Finding: the project-use review's governing evidence has no public writer",
-  "Option A for batch 13" and "Step 3 batch 12, live".
+  "Option A for batch 13", "Step 3 batch 12, live" and "Step 3 batch 13, live".
 
 | Step | Authorize | Exact action | Verify |
 |---|---|---|---|
