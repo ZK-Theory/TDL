@@ -444,4 +444,6 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
   2026-10-22 (G7-A). §8.2 row 3's "current Manager's A-001 confirmation" is now Stephen's signature after the
   independent check (W0-D1; P-062 C2, C4 and C6). The Gate 7 intake set is fixed in 04-plan §4 as units; §6 gives
   their pointers.
-- **Next:** the narrow re-review of G7-C revision 2, then Stephen's exact-revision acceptance.
+- **G7-C revision 2 re-reviewed** (`9b89a2e6`): PASS WITH FINDINGS (0, 0, 6, 6). **Revision 3** folds in r-1 to r-6
+  (reconciliation §4).
+- **Next:** the reviewer's confirmation of revision 3, then Stephen's exact-revision acceptance.

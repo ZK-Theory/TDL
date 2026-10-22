@@ -53,3 +53,20 @@ All paths are under `docs/plans/agentic-research-system/`.
 - **Retirement gate.** `uv run python tools/check_retired_imperatives.py` is clean.
 - **Later work, not done here.** Widening the retirement gate's scope to 03, 04-plan and the roadmap (i-3), and making
   the old-text check a shared, committed tool. Both remain proposals, outside this documentation track.
+
+## 4. Revision 3: the re-review's findings
+
+The re-review of revision 2 (`reviews/g7c-gate7-definition-re-review-2d567a38-2026-10-22.md`, `9b89a2e6`) found PASS WITH
+FINDINGS: 0 Blocking, 0 Major, 6 Minor, 6 Info. It closed every revision 1 finding. Revision 3 folds in all six
+Minors.
+
+| Finding | Change in revision 3 |
+|---|---|
+| **r-1** the intake set double-counts two objects | The count stays at 38 units. The section adds that two groups of units name one object and take one consistent disposition: hole H4 with the park-set prose-directions bullet; the park-set #106 dedup prose with Stage 2 rows T2.17a and T2.24. Grouping, rather than merging, avoids asserting an identity beyond what the re-review established |
+| **r-2** compute could override W9 §4.5's adoption rule | Appended to the parked-compute row and to G7C-D3: "unless it uses such a row as an input: a legacy input it uses needs its closed-reference acceptance and adoption first (W9 §4.5)" |
+| **r-3** opening-bar condition 4 omits a 06l Step 1 stop | Added: "and no claim that a plan or Jira status is runtime evidence" |
+| **r-4** the "Documents accepted" row ignores condition 4 | It now reads: "the 06l Step 1 check (condition 4) and Stephen's opening decision are required" |
+| **r-5** the W0-currency rule is worded two ways | The section now uses B1 and B2's wording: "before any 06l Step 3 or later action (B1, B2)" |
+| **r-6** the governing-documents row says revision 1 | It now reads "Under review; the current revision is in P-062's status line", so it does not need editing at each revision |
+| **i-1** my check report | Corrected here. Revision 2's report said each quote has count 1. That holds for my script's quote boundaries; A3's longer quotes are each unique. The re-review split A3 into its shorter phrase, which occurs three times, the third in §6, which B5 covers. Presence, the property that matters, holds either way |
+| **i-2 to i-6** | Noted. No P-062 table row changed in revision 3, so the pointer-note ID lists (i-3) stand |

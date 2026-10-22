@@ -93,7 +93,7 @@ The first post-APM paper may become the pilot only when its initial workflow is 
 
 ### Gate 7 — Legacy research integration
 
-**Status (2026-10-22):** not open. G7-C, revision 2, `review_pending`. This section authorizes no opening, dispatch,
+**Status (2026-10-22):** not open. G7-C, revision 3, `review_pending`. This section authorizes no opening, dispatch,
 implementation, import, transition or store write. Its old→new amendments to other texts are in register entry P-062.
 
 **Objective.** Bring legacy research under ARS without writing a legacy file or upgrading a legacy record by its
@@ -108,7 +108,7 @@ them, stay `legacy_owned` and unregistered until their own intake (W9-D13).
 | G7-A: `transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md`, revision 3, blob `1ebcf96f` | Accepted 2026-10-22; W0 series `post_terminal_recorded`, not `sealed` |
 | G7-B: W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a` | Accepted conditionally 2026-10-22; complete when P-062 is accepted |
 | G7-B Discovery inventory: `transition/discovery-backlog-observation-2026-10-22.md`, revision 2, blob `026a9d10` | Accepted 2026-10-22, for backlog bytes `96b5775c…` |
-| G7-C: this section and P-062 | Revision 1, under review |
+| G7-C: this section and P-062 | Under review; the current revision is in P-062's status line |
 
 **Opening bar.** Gate 7 opens only when all four hold:
 
@@ -117,7 +117,8 @@ them, stay `legacy_owned` and unregistered until their own intake (W9-D13).
    PR #381 (`df5ba1ec`) and the post-merge frozen-checkout replay (#386, `bb9d91d4`);
 3. Stephen records a separate opening decision that names the bounded intake it authorizes;
 4. 06l Step 1, as P-062 amends it (A3, A4), holds: a distinct exact-subject check that the evidence on file is P-058's
-   accepted closure evidence, and no unresolved KAN-22 to KAN-26 contradiction or provider or credential path.
+   accepted closure evidence; no unresolved KAN-22 to KAN-26 contradiction; no provider or credential path; and no
+   claim that a plan or Jira status is runtime evidence.
 
 SCALE-01 is not a condition (06u D-2). The W0 post-terminal addendum is not an opening condition; it is already
 accepted, and 06l Step 3 and later steps require it. Opening by itself imports, transitions, dispatches and implements
@@ -142,7 +143,7 @@ below add to it and never relax it. Each also adds to the 06l step's own inputs,
 - **R3 items.** P-029's two-family rule applies at dispatch over P-005's full R3 set, with eligibility checked before
   dispatch (W9-D3, W9 §11.2). Without it the item records `r3_family_coverage_insufficient` and does not dispatch.
 - **W0 currency.** The latest accepted W0 addendum must post-date every G7-A §17 trigger that has fired. It is required
-  before the next 06l step that relies on W0 state. For T1.41 or the Markov-2 recompute, Stephen accepts the addendum
+  before any 06l Step 3 or later action (B1, B2). For T1.41 or the Markov-2 recompute, Stephen accepts the addendum
   recording the dispatch before dispatch (W9 §10 item 5).
 
 **Work and order after opening.**
@@ -151,7 +152,7 @@ below add to it and never relax it. Each also adds to the 06l step's own inputs,
 |---|---|---|
 | W9 machinery | The W9 implementation plan: schemas, catalogue, bootstrap contract, genesis, detectors and commands, with W9 re-check Info I-c | A separately reviewed plan that Stephen approves, then implementation. The store is the one W9-D10 names, never the Gate 6 store, after W11's genesis in a new store, with P-059 re-acceptance. No W9 observation, import or transition precedes it |
 | Legacy integration | 06l Steps 3 to 7 | The integration pilot comes first: a closed-reference batch under W9 §14.2, with thresholds pre-registered under W9 §14.3. Wider adoption needs Stephen's separate authorization after the pilot (W9-D12a). Papers come last, as whole roots (W9 §12.1) |
-| Parked compute | T1.41 and the Markov-2 α=1 exact-W₂ recompute | New successor Tasks under W9 §10. Their preconditions are W9 §4.5's successor-compute row; outputs go only under the registered successor root `results/ars/` (W9 §10 item 4, W9-D14). Their legacy rows are proposed as members of the integration-pilot batch, within W9 §14.2's rubric and bound. Compute waits neither for those rows' acceptance nor for the pilot's threshold evaluation (G7C-D3); a missed threshold does not stop dispatched compute, and a wrong row is superseded under W9 §13.2. Markov-2 also needs Stephen's decision on review finding A1 (06u D-7) and a new pre-registration carrying the change A1 requires |
+| Parked compute | T1.41 and the Markov-2 α=1 exact-W₂ recompute | New successor Tasks under W9 §10. Their preconditions are W9 §4.5's successor-compute row; outputs go only under the registered successor root `results/ars/` (W9 §10 item 4, W9-D14). Their legacy rows are proposed as members of the integration-pilot batch, within W9 §14.2's rubric and bound. Compute waits neither for those rows' acceptance nor for the pilot's threshold evaluation (G7C-D3), unless the compute uses such a row as an input: a legacy input it uses needs its closed-reference acceptance and adoption first (W9 §4.5). A missed threshold does not stop dispatched compute, and a wrong row is superseded under W9 §13.2. Markov-2 also needs Stephen's decision on review finding A1 (06u D-7) and a new pre-registration carrying the change A1 requires |
 | SPEC-01 continuation | ARS-native, not legacy (06u D-3; P-061) | Needs Gate 7 open, then its own bar: a new route-package version with its own authority review, SPEC-02 v1.2.0 with R6, the R4 crosswalk task and the R5 threshold pre-registration (P-061 points 2 and 5 to 7) |
 | Manuscript prose | H4, H8, the park-set prose directions and any rewrite | Waits for Gate 9's manuscript-review capability (W9-D7, P-047) |
 
@@ -173,6 +174,8 @@ a unit needs Stephen's recorded decision.
 | The SPEC-01 continuation (06u §6.2, P-061), ARS-native | 1 |
 | The P-058 follow-ups (06u §6.3): the scientific-review record writer and the verify-restore payload deriver | 2 |
 
+Two groups of units name one object and take one consistent disposition: hole H4 with the park-set bullet for the
+§6.2/§4.3/§S6 prose directions; and the park-set bullet for the #106 dedup prose with Stage 2 rows T2.17a and T2.24.
 T1.20 (closed 2026-07-11) and #105 (remediated by #117) are closed records, not units. The enforcement inputs (06u §6.5)
 bind every deliverable and are not units. P-060 (06u §6.4) is standalone, not Gate 7. The four strategy documents bind
 as follows (KAN-17):
@@ -213,7 +216,7 @@ parked compute and SPEC-01 tracks each get one extra line naming their own state
 | Position | Required leading status |
 |---|---|
 | Documents not all accepted | Gate 7 status: NOT OPEN — G7-A accepted; W9 accepted conditionally; G7-C not accepted. |
-| Documents accepted | Gate 7 status: OWNER-BLOCKED — the documents are accepted and the Gate 6 closure evidence is on file; Stephen's opening decision is required. |
+| Documents accepted | Gate 7 status: OWNER-BLOCKED — the documents are accepted and the Gate 6 closure evidence is on file; the 06l Step 1 check (condition 4) and Stephen's opening decision are required. |
 | Open; W9 machinery not accepted | Gate 7 status: OPEN, INCOMPLETE — no W9 implementation is accepted, so no observation, import or transition can run. |
 | Open; machinery accepted; integration pilot not passed | Gate 7 status: OPEN, INCOMPLETE — the integration pilot is pending, running or failed against its pre-registered thresholds. |
 | Open; pilot passed; units remain | Gate 7 status: OPEN, INCOMPLETE — wider adoption, batch transitions or paper roots are pending; name them. |
