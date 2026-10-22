@@ -414,3 +414,14 @@ G7-A."
 | D-11 | The §10 Jira changes are approved. The conditional new issues are not created without a further word. |
 
 Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
+
+## 13. Progress
+
+- **G7-A accepted (Stephen, 2026-10-22).** Revision 3 of
+  `transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md`, commit `a4e5310c`, blob `1ebcf96f`, after a
+  delta review, a re-review and a PASS re-check. Owner decisions W0-D1 to W0-D4 accepted. Record:
+  `reviews/g7a-w0-post-terminal-addendum-owner-acceptance-2026-10-22.md`.
+- **Corrections to this note from G7-A:** §6.1's #105 row was remediated by #117 (corrected in place on 2026-10-21).
+  §3 row 13's T1.20 closure stands, but the 2026-07-11 decision's Tier 1 values were stale (G7-A H10). §3 row 7's
+  A-001 is now an enumerated twelve-item list (G7-A §10).
+- **Next:** G7-B, `design/09-migration-compatibility-and-pilot.md`.
