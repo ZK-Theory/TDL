@@ -424,4 +424,11 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
 - **Corrections to this note from G7-A:** §6.1's #105 row was remediated by #117 (corrected in place on 2026-10-21).
   §3 row 13's T1.20 closure stands, but the 2026-07-11 decision's Tier 1 values were stale (G7-A H10). §3 row 7's
   A-001 is now an enumerated twelve-item list (G7-A §10).
-- **Next:** G7-B, `design/09-migration-compatibility-and-pilot.md`.
+- **G7-B accepted conditionally (Stephen, 2026-10-22).** W9 draft 0.5, commit `481dcca7`, blob `ea3a8e4a`, after
+  five review rounds (REWORK REQUIRED ×3, PASS WITH FINDINGS, PASS). W9-D1 to W9-D14 accepted as recommended. Record:
+  `reviews/g7b-w9-owner-acceptance-2026-10-22.md`. Conditions: (1) the W9 evidence addendum (§9 of
+  `01-current-system-evidence.md`, added with the record); (2) a non-author Discovery backlog observation; (3) G7-C's
+  register entry.
+- **Correction to this note from G7-B:** §3 row 22 and D-10 treated W11 as unaccepted. W11 r0.5 was accepted on
+  2026-08-01 (KAN-19); the record was stranded on `cee20209` and is being landed on main (`d2e09eea`).
+- **Next:** the D8c Discovery observation, then G7-C.
