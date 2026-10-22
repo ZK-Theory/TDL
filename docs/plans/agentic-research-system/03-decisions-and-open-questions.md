@@ -4071,6 +4071,50 @@ A-001; A-002; the W0 manifest §14; roadmap §§2 and 4; handoff 07; W9 (accepta
 **Migration consequence:** None by itself. From acceptance, an ownership action follows 06l as amended here, after
 Stephen's separate Gate 7 opening decision.
 
+### P-063 - Gate 7 opening: the bounded intake is the W9 implementation plan
+
+**Date:** 2026-10-22<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-22). This is his separate Gate 7 opening decision (04-plan §4,
+Gate 7, opening-bar condition 3; 06l Step 1).<br>
+**Authority:** Stephen, in chat, 2026-10-22: "We can open Gate 7 using W9". Asked which bounded intake the opening
+authorizes, he chose the scope "W9 machinery plan": "Authorize authoring, independent review and your acceptance of the
+W9 implementation plan: schemas, catalogue, bootstrap contract, genesis, detectors and commands. It also covers the
+W9-D10 store choice. No observation, import, transition, compute or store write until that plan is accepted and you
+authorize its implementation."<br>
+**Context:** The opening bar's other three conditions hold.
+- **Condition 1:** G7-A, W9 and G7-C were accepted at exact revisions and merged in PR #389 (`50371fac`).
+- **Condition 2:** the Gate 6 closure evidence is on file: P-058, #381 `df5ba1ec` and #386 `bb9d91d4`.
+- **Condition 4:** the distinct 06l Step 1 check found that condition 4 holds, with 0 Blocking and 0 Major
+  findings (`reviews/g7-opening-step1-check-2026-10-22.md`, merged in PR #390 `4760d4e0`).<br>
+**Decision:**
+1. **Gate 7 is open** as of 2026-10-22.
+2. **The bounded intake it authorizes** is the authoring, independent adversarial review and Stephen's exact-revision
+   acceptance of **the W9 implementation plan**. That plan covers:
+   - the W9 schemas, catalogue, bootstrap contract, genesis, detectors and commands (W9 §§4.4, 5, 8, 9, 13 and 17);
+   - the re-check's Info I-c, a mechanical citation extractor or a second derivation for W9-T17;
+   - a proposal for the store W9-D10 requires, for Stephen's decision.
+3. **Not authorized by this opening:**
+   - implementation of that plan;
+   - any W9 observation, import, adoption, transition, cutover or retirement;
+   - successor compute (T1.41, the Markov-2 recompute) and its pre-registrations;
+   - the SPEC-01 continuation;
+   - any write to an ARS store, including the Gate 6 store, which W9-D10 excludes in any case;
+   - any write to a legacy file.
+   
+   Each needs a later, separate owner decision, under W9 §4.5 and the Gate 7 per-item conditions.
+4. **W0 currency.** Opening fires none of G7-A §17's triggers, so no further W0 addendum is due now.
+
+**Capability status:** "Gate 7 status: OPEN, INCOMPLETE — no W9 implementation is accepted, so no observation, import
+or transition can run." Next action: the W9 implementation plan.<br>
+**Status line:** the commit recording this entry also updates the Gate 7 status line in 04-plan to record the opening.
+That is a status-only change to the accepted G7-C text, and nothing else in the accepted files changes.<br>
+**Binding:** None mechanized. The decision bounds owner and agent conduct; the W9 acceptance tests (W9 §17) become the
+enforcement artifacts once the plan is implemented.<br>
+**Boundary:** Docs only. Nothing is dispatched, implemented, imported or transitioned, and no store is written.<br>
+**Affected specifications:** 04-plan §4 Gate 7 (status line); W9 (its implementation plan is now commissioned);
+06l Step 1 (proof recorded).<br>
+**Migration consequence:** None. Every legacy item stays `legacy_owned`.
+
 ## Decision protocol
 
 Each future decision entry must record:
