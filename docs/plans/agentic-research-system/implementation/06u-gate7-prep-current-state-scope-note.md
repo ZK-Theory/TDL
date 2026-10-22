@@ -431,4 +431,9 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
   register entry.
 - **Correction to this note from G7-B:** §3 row 22 and D-10 treated W11 as unaccepted. W11 r0.5 was accepted on
   2026-08-01 (KAN-19); the record was stranded on `cee20209` and is being landed on main (`d2e09eea`).
-- **Next:** the D8c Discovery observation, then G7-C.
+- **Discovery inventory accepted (Stephen, 2026-10-22).** The non-author backlog observation, revision 2
+  (`cd9f3600`, blob `026a9d10`), for backlog bytes `96b5775c…`: 9 items; B1/B2 structural; WT-2 and WT-3 as
+  sub-items of rows 4 and 3, revived only as new successor Candidates. Record:
+  `reviews/d8c-discovery-inventory-owner-acceptance-2026-10-22.md`. W0-D4's condition is met; W9 conditions 1 and 2
+  are met.
+- **Next:** G7-C (the Gate 7 definition in 04-plan §4 and the register entry), which is W9's last condition.

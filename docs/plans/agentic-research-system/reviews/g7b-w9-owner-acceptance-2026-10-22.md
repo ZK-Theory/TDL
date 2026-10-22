@@ -80,6 +80,12 @@ W9-D1 to W9-D14, accepted as recommended in §16.1 of the accepted bytes:
 When all three hold, a short completion note is added to this file's directory (or this record is superseded by a
 completion record) and the acceptance becomes `accepted`.
 
+**Progress (2026-10-22):**
+- Condition 1 met: §9 of `01-current-system-evidence.md`, committed in `f8f4a1d0`.
+- Condition 2 met: Stephen accepted the Discovery inventory (observation revision 2, `cd9f3600`, blob `026a9d10`,
+  backlog bytes `96b5775c…`). Record: `reviews/d8c-discovery-inventory-owner-acceptance-2026-10-22.md`.
+- Condition 3 open: G7-C's register entry.
+
 ## Carried, not decided here
 
 - The W9 implementation plan: the schemas, catalogue, bootstrap contract, genesis, detectors and commands, with the
