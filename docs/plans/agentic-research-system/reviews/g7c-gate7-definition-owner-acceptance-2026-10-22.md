@@ -99,6 +99,18 @@ has been made. When it is available, the changes are:
 - leave KAN-22 and KAN-60 open, with a status comment;
 - read every change back.
 
+**Completed (2026-10-22, status-only note; 06l Step 1 check finding S1-1).** After PR #389 merged and the Atlassian
+connector was reauthorized, the author session made the G7C-D4 changes at about 20:06–20:07Z:
+
+- KAN-13, KAN-14, KAN-16, KAN-17, KAN-23, KAN-25 and KAN-26 were moved to Done (resolution Done). Each has a comment
+  citing this record and PR #389 (`50371fac`): comments 11972 to 11978.
+- KAN-22 and KAN-60 were left open with status comments 11979 and 11980.
+- KAN-15, KAN-20 and KAN-24 were already Done.
+
+The author read every issue's status back afterwards. The 06l Step 1 check
+(`reviews/g7-opening-step1-check-2026-10-22.md` §3.3) also read all seven closures and both comments back,
+independently. The heading above records the state when this record was written.
+
 ## Integration
 
 The accepted bytes reach main only through a PR that Stephen opens and merges after CodeRabbit review. The branch also
