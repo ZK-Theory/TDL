@@ -24,6 +24,10 @@ note: >
 > integrated on `main`; SCALE-01 is not a Gate 6 closure prerequisite. This
 > document governs only the separate WP6.7/Gate 7 sequencing boundary.
 
+**Gate 7 amendment (2026-10-22):** register entry P-062 (G7-C) gives replacement wording for §2.2 items 1, 2 and 5,
+the §3 opening-bar row, Steps 1 to 7 and §6 (its texts A1 to A5, B1 to B5, C4 to C6, E8 to E11 and G6). The replacement is
+operative only once Stephen has accepted P-062; read its status line. Until then the text below stands.
+
 ## 1. Decision boundary
 
 WP6.7 is a gated sequencing lane, not a migration ticket. It defines the

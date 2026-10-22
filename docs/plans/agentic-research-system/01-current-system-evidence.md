@@ -367,3 +367,57 @@ Permitted use is limited to specification requirements and future synthetic fixt
 design. Tests must not depend on these mutable files. No process may use this addendum's
 hashes as a dossier expected oracle, final cutover inventory, migration Decision,
 ownership mapping, accepted result, eligibility input or paper-claim authority.
+
+## 9. W9 dated evidence addendum (2026-10-22)
+
+**Scope:** the evidence the W9 specification (`design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob
+`ea3a8e4a`) relies on, recorded so design README entry criterion 2 is literal for W9 (W9-D8a, accepted by Stephen
+2026-10-22).
+**Authority:** dated read-only observations. Not import, adoption, transition, cutover, registration, result,
+eligibility, Decision or claim authority.
+
+### 9.1 Repository evidence at origin/main `3fa437a1`
+
+| Evidence | Path | Git blob (bytes) | Use in W9 |
+|---|---|---|---|
+| APM tracker (frozen legacy coordination) | `.apm/tracker.md` | `c2716092000f` (248,492) | Stage 1 and Stage 2 rows; §5.5 selectors; §13.3 deprecation path |
+| Tracked `.apm/` set | `git ls-tree -r --name-only origin/main .apm` | 34 files | §13.3 file-level inventory |
+| Supersession manifest (integration) | `results/trajectory_tda_integration/stage1/SUPERSEDED.md` | `ee7557ad15b0` (11,194) | §6.2 families; §6.3 the lines 69–71 conflict |
+| Supersession pointer (BHPS) | `results/trajectory_tda_bhps/stage1/SUPERSEDED.md` | `84636f58ae1c` (1,012) | Unchanged since `a67ca4c7` |
+| WT-6 solver audit | `results/trajectory_tda_integration/stage1/w2_fallback_audit_2026-07-14.json` | `03fd467a1ffc` (44,909) | Field-family classes; the 2026-05-29 greedy boundary |
+| T1.38 Phase 1 result | `results/trajectory_tda_integration/stage1/w2_gap_closure_phase1_2026-07-16.json` | `4c99480ed682` (4,057) | The Markov-2 summary's UNVERIFIABLE class |
+| Tier 1 regression, canonical | `results/panel_methodology/regression/tier1_clustered_firth_2026-05-16.json` | `5625caf573a3` (11,360) | H10 resolution (§6.4) |
+| Tier 1 regression, do-not-cite | `results/panel_methodology/regression/tier1_clustered_firth_2026-05-13.json` | `1b91d6dc52df` (12,156) | H10 resolution |
+| P01-A §4.5 draft (read once, read-only, under Stephen's authorization) | `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md` | `1268dfa70066` (10,465) | H10: the draft carries the canonical values |
+| Claim-trace audit | `docs/plans/strategy/P01-Claim-Trace-Audit-2026-07-17.md` | `97a1ec8c7099` (45,485) | Per-file draft verdicts; holes |
+| Adversarial mathematical review | `docs/plans/strategy/P01-Adversarial-Mathematical-Review-2026-07-18.md` | `5db887c782dc` (24,153) | A1–A4 qualifiers |
+| Failure inventory | `docs/plans/strategy/APM-Failure-Inventory-to-ARS-Invariants-2026-07-17.md` | `1e71864ed6fc` (34,785) | Failure classes |
+| W11 specification (accepted r0.5) | `docs/plans/agentic-research-system/design/11-portfolio-and-discovery-lifecycle.md` | `f90729d0c42a` (185,214) | The pattern W9 copies; schemas W9 cannot reuse |
+| Accepted W11 envelope identity | `research_system/discovery/accepted_w11.py` | `8f7124e0c28d` (2,329) | KAN-84 catalogue acceptance and genesis |
+| `CONVENTIONS.md`, current | `CONVENTIONS.md` | `baceabd64f09` (50,184) | §7.3 shared-writer exception |
+| `CONVENTIONS.md` at the freeze merge | `CONVENTIONS.md` at `4b143c92` | `4620c71607ca` | §7.3 legacy baseline |
+
+Branch-only evidence (on `claude/gate7-prep-docs-5202cf`, not yet on main): the accepted G7-A addendum
+(`transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md`, blob `1ebcf96f`) and its acceptance record.
+The W11 limb-1 acceptance record is on unmerged commit `cee20209`, and a branch landing it is `d2e09eea`
+(`docs/w11-limb1-acceptance-record`).
+
+### 9.2 External evidence (2026-10-22)
+
+| Evidence | Observation | Use in W9 |
+|---|---|---|
+| GitHub ruleset 20822054 on `ZK-Theory/TDL` (`gh api repos/stephendor/TDL/rulesets/20822054`) | Name "P-049 Gate 6 main merge admission"; `enforcement: active`; target `refs/heads/main`; rules `pull_request`, `required_status_checks`, `merge_queue`, `non_fast_forward`; bypass `RepositoryRole` 5 in `pull_request` mode; `required_approving_review_count: 0`; `require_code_owner_review: true`; created 2026-08-13 | §4.4 detectors; W9-D5 |
+| Jira KAN-19, comment 10358 (read by the G7-B reviewer) | Stephen's 2026-08-01 acceptance of W11 for D-G6-4 limb 1, binding blob `f90729d0` | §2.1 W11 row |
+
+### 9.3 Not yet observed
+
+The vault Discovery backlog (`00-Meta/Discovery/_backlog.md`) is **not** observed in this addendum. Its dated,
+non-author observation is W9-D8c, a separate condition of W9's acceptance. The 2026-07-18 hash in §8.1 is not a
+current observation.
+
+### 9.4 Provenance and permitted use
+
+Every repository identity above was read with `git rev-parse` and `git cat-file -s` against origin/main `3fa437a1`
+on 2026-10-22 by the W9 author session, and the G7-B reviewer independently checked the subset W9 cites in its five
+review rounds. These identities support the W9 specification only. No process may use them as an import, adoption,
+registration or transition subject: those need the handle-bound observations W9 itself defines.

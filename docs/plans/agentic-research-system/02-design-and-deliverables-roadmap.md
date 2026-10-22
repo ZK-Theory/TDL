@@ -43,6 +43,9 @@ T1.28 closeout is now isolated from successor delivery. It gates legacy migratio
 
 **Review gate:** Current Manager and Stephen agree that the manifest does not silently upgrade, discard, or reinterpret evidence.
 
+**Gate 7 amendment (2026-10-22):** register entry P-062 (G7-C) gives replacement wording for this review gate (its
+text G5). The replacement is operative only once Stephen has accepted P-062; read its status line.
+
 ### W1 — System architecture specification
 
 **Purpose:** Lock component boundaries and ownership.
@@ -243,6 +246,10 @@ W1 Architecture + W2 lifecycle
 W0 may remain open while the successor path advances; it cannot supply live pilot state. W4 and W5 may overlap only after W3 freezes their shared context and independence interface. W6 begins with the existing catalogue, while its minimum executable gate and the critical W7/W8 interfaces must be frozen before foundation implementation planning.
 
 ## 4. Pilot selection rubric
+
+**Gate 7 amendment (2026-10-22):** register entry P-062 (G7-C) gives replacement wording for the first bullet of each
+list below (its texts E7 and G4). The replacement is operative only once Stephen has accepted P-062; read its status
+line.
 
 The first pilot should:
 
