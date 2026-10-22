@@ -106,7 +106,7 @@ them, stay `legacy_owned` and unregistered until their own intake (W9-D13).
 | Document | State |
 |---|---|
 | G7-A: `transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md`, revision 3, blob `1ebcf96f` | Accepted 2026-10-22; W0 series `post_terminal_recorded`, not `sealed` |
-| G7-B: W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a` | Accepted conditionally 2026-10-22; complete when P-062 is accepted |
+| G7-B: W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a` | Accepted 2026-10-22; its conditions were completed by P-062's acceptance (`reviews/g7b-w9-owner-acceptance-2026-10-22.md`; completion record `reviews/g7c-gate7-definition-owner-acceptance-2026-10-22.md`) |
 | G7-B Discovery inventory: `transition/discovery-backlog-observation-2026-10-22.md`, revision 2, blob `026a9d10` | Accepted 2026-10-22, for backlog bytes `96b5775c…` |
 | G7-C: this section and P-062 | Accepted 2026-10-22, revision 3; see P-062's status line |
 
@@ -215,7 +215,7 @@ parked compute and SPEC-01 tracks each get one extra line naming their own state
 
 | Position | Required leading status |
 |---|---|
-| Documents not all accepted | Gate 7 status: NOT OPEN — G7-A accepted; W9 accepted conditionally; G7-C not accepted. |
+| Documents not all accepted | Gate 7 status: NOT OPEN — one or more of G7-A, W9 and G7-C is not accepted; name which. |
 | Documents accepted | Gate 7 status: OWNER-BLOCKED — the documents are accepted and the Gate 6 closure evidence is on file; the 06l Step 1 check (condition 4) and Stephen's opening decision are required. |
 | Open; W9 machinery not accepted | Gate 7 status: OPEN, INCOMPLETE — no W9 implementation is accepted, so no observation, import or transition can run. |
 | Open; machinery accepted; integration pilot not passed | Gate 7 status: OPEN, INCOMPLETE — the integration pilot is pending, running or failed against its pre-registered thresholds. |

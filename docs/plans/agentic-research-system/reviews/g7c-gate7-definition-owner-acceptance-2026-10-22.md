@@ -35,6 +35,20 @@ nothing else in the accepted files:
 `git diff 2b257da0 <that commit> -- 03-decisions-and-open-questions.md 04-parallel-specification-and-foundation-pilot-plan.md`
 shows only those lines. Any other difference from the blobs above is outside this acceptance.
 
+**Second status-only change (2026-10-22, PR #389 CodeRabbit thread).** CodeRabbit found that two 04-plan lines
+still described W9 as conditionally accepted. Stephen authorized: "mark W9's governing row accepted and make the
+first capability row generic in 04-plan, recorded as a status-only change in the G7-C acceptance record. Leave W9
+unchanged." The later commit that adds this paragraph changes exactly those two lines in 04-plan and no other line in
+the accepted files:
+
+- **The W9 row of the governing-documents table** now reads "Accepted 2026-10-22; its conditions were completed by
+  P-062's acceptance", with pointers to the W9 acceptance record and to this record as its completion record.
+- **The "Documents not all accepted" capability row** now reads "one or more of G7-A, W9 and G7-C is not accepted;
+  name which", in place of text fixed to the state before acceptance.
+
+W9 (blob `ea3a8e4a`) is unchanged. Its header status, its §2.4 and its §18 checklist are the reviewed snapshot's state.
+The W9 acceptance record carries its effective status, `accepted`.
+
 ## Review evidence
 
 | Round | Subject | Verdict | Record |
