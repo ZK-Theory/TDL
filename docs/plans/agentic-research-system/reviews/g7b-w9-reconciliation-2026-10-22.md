@@ -3,7 +3,7 @@ document: G7-B reconciliation of the independent review of W9 draft 0.1
 date: 2026-10-22
 review: reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md (committed b7fd4415)
 review_subject: design/09-migration-compatibility-and-pilot.md draft 0.1 at 97f71c19
-reconciled_subject: the same file, draft 0.2 (34ac441e) and draft 0.3 (§6; the commit that adds §6)
+reconciled_subject: the same file, drafts 0.2 (34ac441e), 0.3 (e5432e44; §6) and 0.4 (§7; the commit that adds §7)
 author: the Gate 7 prep session (the W9 author; not the reviewer)
 status: author reconciliation; not acceptance
 ---
@@ -108,7 +108,33 @@ N-6 and the minors." No finding is rejected.
 
 The narrow re-check the reviewer scoped: N-1 to N-6 as fixed above, and every changed passage.
 
-## 7. Author's limits
+## 7. Draft 0.4: the re-check of draft 0.3
+
+Re-check: `reviews/g7b-w9-draft-0-3-re-check-e5432e44-2026-10-22.md` (committed unchanged `b51d3728`), REWORK
+REQUIRED (narrow): 0 Blocking, 2 Major, 10 Minor, 4 Info. Stephen directed draft 0.4 on 2026-10-22: "apply the
+reviewer's corrections for R-1, R-2 and r-1 to r-10". Each correction is applied as the reviewer proposed. Ruleset
+facts were re-read with `gh api repos/stephendor/TDL/rulesets/20822054` (bypass `RepositoryRole` 5, `pull_request`
+mode; `required_approving_review_count: 0`; `require_code_owner_review: true`; source `ZK-Theory/TDL`).
+
+| Finding | Disposition | Where in 0.4 |
+|---|---|---|
+| **R-1** paper-root hash cycle | **Fixed.** `legacy-paper-root` carries no transition ref and no citation status; the link is projected from `legacy-ownership-transitioned`; a new `legacy-paper-citation-status` relation points at the root; a recovery root binds its predecessor and Stephen's recovery Decision | §5.2; §12.1; §13.1; W9-D6; W9-T21 |
+| **R-2** date-only legacy rule; `CONVENTIONS.md` growth | **Fixed.** Legacy decided by object, then date (P00/ARS entries and "ARS Foundation Governance" locks are successor); classified list accepted by Stephen; the log uses a Git-anchored export; `CONVENTIONS.md` uses the `4b143c92` blob at bullet/paragraph granularity with an insertion-only rule and the footer excluded; negative controls for both | §5.5; §7.3; §4.4; W9-D9; W9-T19 |
+| r-1 dossier row range | Fixed: OR-110 to OR-115 | §8.2 |
+| r-2 cited-family set | Fixed: derived by an independent reviewer from the drafts and the audit's artifact map, hashed and filed before transition; T17's negative control is a citation missing from that set | §12.1; W9-T17 |
+| r-3 light-inventory edge cases | Fixed: duplicate anchors are blocker rows; a file-level `.apm/` inventory (34 tracked files, stage logs, bus) | §5.5; §13.3; W9-T22 |
+| r-4 adoption of restricted inputs | Fixed: whole-file subject; class from the producing task or the W0 signatory; re-hash at use | §9 item 1 |
+| r-5 detector anchors | Fixed: missing, renamed, duplicated or unparseable anchors flagged; pre-export edits recorded as a known limit | §4.4; §7.3 items 5–6 |
+| r-6 ruleset details | Fixed: bypass list stated; a configuration read, not a watched failure; rule-suite reads for bypass use; partial server-side review enforcement stated; canonical name `ZK-Theory/TDL` | §4.4; W9-D5 |
+| r-7 manual operation without a store | Fixed: attributed Git commits on a named branch, imported as events when a store is available | §13.1 |
+| r-8 eligibility evidence | Fixed: (b) evidenced by the accepted W4 role profile's declared capability, recorded as a limit under P-042; checked before dispatch by the reviewer or Stephen, never the second-family session itself | §11.2 |
+| r-9 P-034 new text | Fixed: "binds legacy deprecation claims only through A-001 (G7-A §10)" carried | §16.2 |
+| r-10 directory registration | Fixed: a manuscript root is the one allowed directory registration and authorizes no unlisted nested file | §3.1 |
+| I-a to I-d | Noted | — |
+
+The reviewer said it expects a PASS on a one-item re-check if R-1 and R-2 are fixed as proposed.
+
+## 8. Author's limits
 
 - The schema family is specified at field level, not as JSON Schema; its exact shapes are the implementation plan's.
 - §12.3's assignments are the author's proposal; Stephen fixes them per batch.
