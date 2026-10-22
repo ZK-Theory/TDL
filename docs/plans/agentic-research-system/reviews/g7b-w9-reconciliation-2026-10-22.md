@@ -3,7 +3,7 @@ document: G7-B reconciliation of the independent review of W9 draft 0.1
 date: 2026-10-22
 review: reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md (committed b7fd4415)
 review_subject: design/09-migration-compatibility-and-pilot.md draft 0.1 at 97f71c19
-reconciled_subject: the same file, drafts 0.2 (34ac441e), 0.3 (e5432e44; §6) and 0.4 (§7; the commit that adds §7)
+reconciled_subject: the same file, drafts 0.2 (34ac441e), 0.3 (e5432e44; §6), 0.4 (250408c6; §7) and 0.5 (§8; the commit that adds §8)
 author: the Gate 7 prep session (the W9 author; not the reviewer)
 status: author reconciliation; not acceptance
 ---
@@ -134,7 +134,20 @@ mode; `required_approving_review_count: 0`; `require_code_owner_review: true`; s
 
 The reviewer said it expects a PASS on a one-item re-check if R-1 and R-2 are fixed as proposed.
 
-## 8. Author's limits
+## 8. Draft 0.5: the PASS WITH FINDINGS re-check of draft 0.4
+
+Re-check: `reviews/g7b-w9-draft-0-4-re-check-250408c6-2026-10-22.md` (committed unchanged `db294c9e`), PASS WITH
+FINDINGS: 0 Blocking, 0 Major, 2 Minor, 4 Info. Stephen directed draft 0.5 on 2026-10-22: "Fold s-1 and s-2 into W9
+draft 0.5, get the reviewer's one-line confirmation".
+
+| Finding | Disposition | Where in 0.5 |
+|---|---|---|
+| s-1 recovery-root order | Fixed: the recovery Decision comes first and names only the predecessor root and the recovery intent; the recovery root follows and names the Decision; W9-T21 covers the cycle | §5.2; §13.1; W9-T21 |
+| s-2 manual-mode attribution | Fixed: commits signed with a key Stephen registered for the named writer, or a recorded pusher identity; the import verifies and rejects unattributable commits | §13.1; W9-T23 |
+| I-a, I-b, I-d | Noted | — |
+| I-c (T17's second clause) | Carried to the implementation plan's test design, as the reviewer proposed | — |
+
+## 9. Author's limits
 
 - The schema family is specified at field level, not as JSON Schema; its exact shapes are the implementation plan's.
 - §12.3's assignments are the author's proposal; Stephen fixes them per batch.

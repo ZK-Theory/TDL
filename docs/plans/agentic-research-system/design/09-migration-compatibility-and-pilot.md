@@ -1,10 +1,10 @@
 # W9 — Migration, Compatibility, and Pilot Specification
 
 **Date:** 2026-10-22<br>
-**Status:** `review_pending`; draft 0.4, reconciling the re-check of draft 0.3
-(`reviews/g7b-w9-draft-0-3-re-check-e5432e44-2026-10-22.md`, REWORK REQUIRED (narrow)), after the reviews of drafts
-0.1 and 0.2. Dispositions: `reviews/g7b-w9-reconciliation-2026-10-22.md`.<br>
-**Specification version:** 0.4<br>
+**Status:** `review_pending`; draft 0.5, folding in the two minors of the PASS WITH FINDINGS re-check of draft 0.4
+(`reviews/g7b-w9-draft-0-4-re-check-250408c6-2026-10-22.md`), after the reviews of drafts 0.1 to 0.3. Dispositions:
+`reviews/g7b-w9-reconciliation-2026-10-22.md`.<br>
+**Specification version:** 0.5<br>
 **Design authority:** accepted W1, W2, W3, W4, W5, W6, W7, W8 and W11 (revision 0.5, blob `f90729d0`, D-G6-4 limb 1,
 2026-08-01); P-004, P-005, P-021, P-026, P-028, P-029, P-031, P-032, P-034, P-042, P-047, P-050, P-058, P-061; the
 accepted 06u scope (D-1 to D-5); the accepted G7-A W0 post-terminal addendum (revision 3, blob `1ebcf96f`) and W0-D1
@@ -246,7 +246,7 @@ All records are strict, closed, immutable W2 objects.
 | `legacy-closed-reference-acceptance` | Light path: accepts a batch of observations as `closed_reference` | observation refs; independent review ref; Stephen's batch Decision |
 | `legacy-adoption-decision` | §9 | observation and family refs; intended successor use; W5 admissibility consequence; qualifiers that must be discharged; Stephen's Decision |
 | `legacy-discharge-relation` | A successor result discharges a legacy open item (an A-001 item or a hole) | successor result ref; legacy item ref; reviewer ref; Stephen's Decision under W0-D1 |
-| `legacy-paper-root` | The successor-owned target of a paper root's transition | paper key (P01-A, P01-B); manuscript root path; qualifier set; owner; for a recovery root only, the predecessor root by lineage and Stephen's recovery Decision (§13.1). **No transition ref and no citation status**: the link to the transition is projected from `legacy-ownership-transitioned`, which names the root, never the reverse. It is a W9 record, not a W11 portfolio object, and carries no programme, hypothesis, method, dataset or claim refs |
+| `legacy-paper-root` | The successor-owned target of a paper root's transition | paper key (P01-A, P01-B); manuscript root path; qualifier set; owner; for a recovery root only, the predecessor root by lineage and Stephen's recovery Decision, which names only the predecessor root and the recovery intent, never the recovery root (§13.1). **No transition ref and no citation status**: the link to the transition is projected from `legacy-ownership-transitioned`, which names the root, never the reverse. It is a W9 record, not a W11 portfolio object, and carries no programme, hypothesis, method, dataset or claim refs |
 | `legacy-paper-citation-status` | The adopted or unadopted status of each result family a root's drafts cite (§12.1) | root ref; the frozen cited-family set's hash; per family: adopted (adoption ref) or unadopted. It points at the root, so the root is never revised; a later status supersedes an earlier one |
 | `legacy-source-inventory`, `legacy-transition-mapping`, `legacy-ownership-transitioned` | Full path for `successor_owned` (§8.2) | As W11 §7.5–7.6, with W9 identities; the mapping target is a `legacy-paper-root` record |
 | `legacy-record-supersession` | Corrects an erroneous accepted observation or mapping | superseded record; replacing record; reason; reviewer; Stephen's Decision. The old record and its events stay; current use re-points (§13.2) |
@@ -612,12 +612,17 @@ never by the item's producer. An exclusion (F-024, S-016's H row) is an owner-ac
 - **After commit, closed-reference item:** the accepted record is superseded by `legacy-record-supersession`
   (§13.2); the old record and its events stay.
 - **After commit, paper root:** recovery creates a **new `legacy-paper-root` successor record** that cites the
-  transitioned one by lineage. The recovery root binds the predecessor root and Stephen's recovery Decision, not a
-  transition event. Or Stephen declares a **manual-operation mode** (04-plan §7: "return the greenfield paper to
+  transitioned one by lineage. The order is fixed, following W11's content-before-acceptance pattern: Stephen's
+  recovery Decision comes first and names only the predecessor root and the recovery intent; the recovery root is
+  created after it and names that Decision and the predecessor. Neither names a transition event, and the Decision
+  never names the recovery root. Or Stephen declares a **manual-operation mode** (04-plan §7: "return the greenfield paper to
   manual operation"). In manual-operation mode the root stays `successor_owned` and ARS events stay canonical (W2
   §22.3): one named human writer edits the files, and each edit enters as an attributed ARS event that registers the
   new file bytes under that human actor. If the control store itself is what failed, or 04-plan §7's "retire the
-  prototype" applies, the human writer's edits are attributed Git commits on a named branch, and they are imported
+  prototype" applies, the human writer's edits are Git commits on a named branch. A Git author line is
+  self-declared and the ruleset protects only `main`, so each commit must be signed with a key Stephen has
+  registered for that named writer, or pushed under a GitHub actor identity recorded at the time. The later import
+  verifies the signature or pusher identity, and rejects any commit it cannot attribute, before importing the edits
   as events once a store is available again. There is no unattributed write and no second mode. Authority never
   returns to `legacy_owned` or to APM.
 - **In every case** no accepted research artefact, result or decision changes.
@@ -803,7 +808,8 @@ The per-item transition of a Discovery item still uses W11's accepted machinery 
 | W9-T18 | Closure is a bijection | Close `.apm/tracker.md` with one row missing from the accepted observations, or with a blocker row; closure blocked |
 | W9-T19 | Legacy entries and locks match their baselines | Edit a byte of a legacy log entry, rename a legacy heading, or modify a legacy `CONVENTIONS.md` bullet; each flagged. Insert a successor bullet into a legacy section; not flagged |
 | W9-T20 | The Gate 6 store is never a W9 target | Point the W9 genesis at `TDL-ARS-G6-Control`; refused |
-| W9-T21 | The paper-root records are acyclic | A `legacy-paper-root` that names its transition event, or a cycle among root, mapping and transition; rejected |
+| W9-T21 | The paper-root records are acyclic | A `legacy-paper-root` that names its transition event, a recovery Decision that names its recovery root, or any cycle among root, mapping, transition and recovery Decision; rejected |
+| W9-T23 | Manual-mode edits are attributable | Import a manual-mode commit with an unsigned or unregistered signature and no recorded pusher identity; rejected |
 | W9-T22 | Duplicate anchors block | A tracker with two rows for one task ID; that region is a blocker row, and closure is blocked |
 
 ## 18. Independent review and exit gate
@@ -812,7 +818,8 @@ The per-item transition of a Discovery item still uses W11's accepted machinery 
 - [x] Author reconciliation of draft 0.1's findings (draft 0.2).
 - [x] Focused re-review of draft 0.2 (REWORK REQUIRED, narrow; `6ac30e2e`).
 - [x] Author reconciliation of the re-review (draft 0.3); narrow re-check REWORK REQUIRED, narrow (`b51d3728`).
-- [ ] Author reconciliation of the re-check (draft 0.4) and its re-check.
+- [x] Author reconciliation of the re-check (draft 0.4); re-check PASS WITH FINDINGS (`db294c9e`).
+- [ ] The two re-check minors folded in (draft 0.5) and the reviewer's confirmation.
 - [ ] Stephen's decisions W9-D1 to W9-D14.
 - [ ] The §15 Discovery observation, if W9-D8c is accepted.
 - [ ] The evidence-register addendum (W9-D8a).
