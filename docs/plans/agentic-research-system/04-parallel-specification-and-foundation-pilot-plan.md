@@ -93,7 +93,7 @@ The first post-APM paper may become the pilot only when its initial workflow is 
 
 ### Gate 7 — Legacy research integration
 
-**Status (2026-10-22):** not open. G7-C, revision 3, `review_pending`. This section authorizes no opening, dispatch,
+**Status (2026-10-22):** not open. G7-C revision 3 accepted by Stephen on 2026-10-22 (P-062). This section authorizes no opening, dispatch,
 implementation, import, transition or store write. Its old→new amendments to other texts are in register entry P-062.
 
 **Objective.** Bring legacy research under ARS without writing a legacy file or upgrading a legacy record by its
@@ -108,7 +108,7 @@ them, stay `legacy_owned` and unregistered until their own intake (W9-D13).
 | G7-A: `transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md`, revision 3, blob `1ebcf96f` | Accepted 2026-10-22; W0 series `post_terminal_recorded`, not `sealed` |
 | G7-B: W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a` | Accepted conditionally 2026-10-22; complete when P-062 is accepted |
 | G7-B Discovery inventory: `transition/discovery-backlog-observation-2026-10-22.md`, revision 2, blob `026a9d10` | Accepted 2026-10-22, for backlog bytes `96b5775c…` |
-| G7-C: this section and P-062 | Under review; the current revision is in P-062's status line |
+| G7-C: this section and P-062 | Accepted 2026-10-22, revision 3; see P-062's status line |
 
 **Opening bar.** Gate 7 opens only when all four hold:
 

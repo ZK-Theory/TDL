@@ -84,7 +84,10 @@ completion record) and the acceptance becomes `accepted`.
 - Condition 1 met: §9 of `01-current-system-evidence.md`, committed in `f8f4a1d0`.
 - Condition 2 met: Stephen accepted the Discovery inventory (observation revision 2, `cd9f3600`, blob `026a9d10`,
   backlog bytes `96b5775c…`). Record: `reviews/d8c-discovery-inventory-owner-acceptance-2026-10-22.md`.
-- Condition 3 open: G7-C's register entry.
+- Condition 3 met: Stephen accepted G7-C revision 3 (`2b257da0`) and P-062, which carries W9 §16.2's texts as E1 to
+  E12 and the G7-A amendments. Record: `reviews/g7c-gate7-definition-owner-acceptance-2026-10-22.md`.
+- **Completion (2026-10-22): all three conditions hold. W9 draft 0.5 (blob `ea3a8e4a`) is `accepted`.** The G7-C
+  acceptance record is the completion record.
 
 ## Carried, not decided here
 

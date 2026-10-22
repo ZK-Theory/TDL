@@ -3888,11 +3888,11 @@ No survey data is touched. No Jira issue yet.<br>
 ### P-062 - Gate 7 definition and the legacy-boundary amendments (G7-C)
 
 **Date:** 2026-10-22<br>
-**Status:** Proposed. G7-C, revision 3. The revision 1 review (`e8bcf243`) found REWORK REQUIRED, narrow. The revision 2
-re-review (`9b89a2e6`) found PASS WITH FINDINGS, and revision 3 folds in its r-1 to r-6
-(`reviews/g7c-gate7-definition-reconciliation-2026-10-22.md` §4). Pending the reviewer's confirmation. It becomes operative only when Stephen accepts the
-exact revision. Until then every old text below stands. Acceptance opens nothing: Gate 7 opens only by Stephen's
-separate decision.<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-22), at G7-C revision 3 (`2b257da0`), with G7C-D1 to G7C-D4 as
+recommended. Record: `reviews/g7c-gate7-definition-owner-acceptance-2026-10-22.md`. Review trail: `e8bcf243` (REWORK
+REQUIRED, narrow), `9b89a2e6` (PASS WITH FINDINGS), `377918c1` (PASS). From acceptance the new texts below are
+operative, and the old texts stay in place as written. This acceptance completes W9's acceptance. It opens nothing:
+Gate 7 opens only by Stephen's separate decision.<br>
 **Context:** Gate 6 closed on 2026-10-21 (P-058). Stephen triggered the 06s §7 documentation track the same day and
 accepted the 06u scope note (D-1 to D-5, D-11). G7-A, the W0 post-terminal addendum, was accepted on 2026-10-22.
 G7-B, W9, was accepted conditionally on 2026-10-22. Its first two conditions are met: the evidence addendum is §9 of

@@ -446,4 +446,9 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
   their pointers.
 - **G7-C revision 2 re-reviewed** (`9b89a2e6`): PASS WITH FINDINGS (0, 0, 6, 6). **Revision 3** folds in r-1 to r-6
   (reconciliation §4).
-- **Next:** the reviewer's confirmation of revision 3, then Stephen's exact-revision acceptance.
+- **G7-C accepted (Stephen, 2026-10-22).** Revision 3 at `2b257da0`, after the reviewer's PASS confirmation
+  (`377918c1`), with G7C-D1 to G7C-D4 as recommended. P-062 is accepted, which completes W9's acceptance. Record:
+  `reviews/g7c-gate7-definition-owner-acceptance-2026-10-22.md`.
+- **The documentation track (G7-A to G7-C) is complete.** Gate 7 is not open. The next step is 06l Step 1: the 06l
+  Step 1 check (opening-bar condition 4) and Stephen's separate opening decision. G7C-D4's Jira changes are pending
+  until the Atlassian connector is authorized.
