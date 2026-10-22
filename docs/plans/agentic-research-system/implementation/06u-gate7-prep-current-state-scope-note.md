@@ -436,4 +436,7 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
   sub-items of rows 4 and 3, revived only as new successor Candidates. Record:
   `reviews/d8c-discovery-inventory-owner-acceptance-2026-10-22.md`. W0-D4's condition is met; W9 conditions 1 and 2
   are met.
-- **Next:** G7-C (the Gate 7 definition in 04-plan §4 and the register entry), which is W9's last condition.
+- **G7-C drafted (2026-10-22), revision 1:** the Gate 7 section in 04-plan §4 and register entry P-062 (proposed),
+  with pointer notes in the amended sources. P-062's acceptance is W9's last condition.
+- **Next:** the independent adversarial review of G7-C revision 1 by a distinct session, then reconciliation and
+  Stephen's exact-revision acceptance.

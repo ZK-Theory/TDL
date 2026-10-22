@@ -244,6 +244,9 @@ W0 may remain open while the successor path advances; it cannot supply live pilo
 
 ## 4. Pilot selection rubric
 
+**Gate 7 amendment (2026-10-22):** register entry P-062 (G7-C) gives replacement wording for the first bullet below
+(its text E7). The replacement is operative only once Stephen has accepted P-062; read its status line.
+
 The first pilot should:
 
 - be the first paper initiated after the two current APM-managed papers, not an active or historical migrated task;

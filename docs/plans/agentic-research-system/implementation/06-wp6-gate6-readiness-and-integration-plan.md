@@ -184,6 +184,10 @@ disposition and W0 addendum, per-item ownership transitions for active Discovery
 items, and the retirement checklist for APM orchestration surfaces. Nothing in WP6.7
 dispatches while T1.28 or either current paper remains active; P-026's boundary holds.
 
+**Gate 7 amendment (2026-10-22):** register entry P-062 (G7-C) replaces the hold sentence above and the WP6.7 line
+of the §4 DAG with positive preconditions (its texts D1 and D2). The replacement is operative only once Stephen has
+accepted P-062; read its status line.
+
 ## 4. Dependency DAG and dispatch sequencing
 
 ```text
