@@ -3888,7 +3888,8 @@ No survey data is touched. No Jira issue yet.<br>
 ### P-062 - Gate 7 definition and the legacy-boundary amendments (G7-C)
 
 **Date:** 2026-10-22<br>
-**Status:** Proposed. G7-C, revision 1, under independent review. It becomes operative only when Stephen accepts the
+**Status:** Proposed. G7-C, revision 2, after the revision 1 review (`e8bcf243`, REWORK REQUIRED, narrow) and its
+reconciliation (`reviews/g7c-gate7-definition-reconciliation-2026-10-22.md`); under narrow re-review. It becomes operative only when Stephen accepts the
 exact revision. Until then every old text below stands. Acceptance opens nothing: Gate 7 opens only by Stephen's
 separate decision.<br>
 **Context:** Gate 6 closed on 2026-10-21 (P-058). Stephen triggered the 06s §7 documentation track the same day and
@@ -3899,14 +3900,17 @@ Handoff 07 §1 and 06s §7 call for the Gate 7 definition in 04-plan §4, with e
 wording proposed for Stephen's acceptance, never edited in place.<br>
 **Decision:**
 1. **Gate 7 is defined** in 04-plan §4 ("Gate 7 — Legacy research integration"), with its objective, governing
-   documents, opening bar, per-item conditions, tracks, intake manifest by pointer, stop rule, exit and capability
-   reporting.
+   documents, opening bar, per-item conditions, tracks, fixed intake set, stop rule, exit and capability reporting.
+   W9 §4.5's matrix stays the operative precondition list for each class of action; Gate 7's conditions add to it and
+   never relax it. Where 04-plan §7 and W9 §13.4 differ, §13.4 governs a Gate 7 item.
 2. **Opening bar (06u D-1, D-2).** The bar becomes Gate 6 closure evidence under the accepted 06s §4 contract,
    together with the accepted G7-A, W9 and G7-C and Stephen's separate opening decision. "Pilot-promotion evidence"
    stops being an opening condition. SCALE-01 is not a condition. Texts A1 to A7.
-3. **Per-item `pilot_promotion` condition (06u D-1).** The protection moves to the items that advance evidence or
-   claims. Text A8. W9 §12.3, accepted after 06u, derives the fixture set from the owning catalogue, so A8 points to
-   W9 §12.3 instead of 06u §5.2's parenthetical list.
+3. **Per-item `pilot_promotion` condition (06u D-1).** The protection moves from opening to the items. Text A8. W9
+   §12.3, accepted after 06u under its "(06u D-1)" heading, derives the set from the owning catalogue and assigns it
+   by item kind, including observations, imports and reviews. A8 therefore points to W9 §12.3 instead of 06u §5.2's
+   parenthetical list, applies to every item W9 §12.3 covers, and keeps D-1's "with its fixture IDs named". All seven
+   fixtures in 06u's list are in W9's set.
 4. **W0 placement (06u D-4) and the Discovery condition (W0-D4).** The W0 post-terminal addendum was authored before
    opening and is required before any 06l Step 3 or later action. No Discovery item takes a Step 3 or later action
    until G7-B's Discovery inventory is accepted. Texts B1 to B5.
@@ -3916,6 +3920,8 @@ wording proposed for Stephen's acceptance, never edited in place.<br>
 6. **WP6.7 (KAN-16, KAN-23).** The activity-based hold becomes positive preconditions. Texts D1 and D2.
 7. **W9 §16.2's twelve amendments** are adopted as written in W9 draft 0.5 (blob `ea3a8e4a`). Texts E1 to E12.
 8. **Stale projections** (list F) are superseded as current state. None is edited.
+9. **Further amendments found in review** (G1 to G6): 04-plan §§5 and 7, the roadmap's §2 W0 review gate and §4
+   avoid-list, and 06l Step 5's output, which still stated the old boundary and which W9 §16.2 did not reach.
 
 **Old→new texts.** The old text is quoted from the live file at `3fa437a1`, with line breaks collapsed to spaces.
 Nothing is edited in place. Each new text is the operative reading from acceptance.
@@ -3931,17 +3937,17 @@ Nothing is edited in place. Each new text is the operative reading from acceptan
 | A5 | 06l Step 4, inputs | "the separate Gate-7 opening decision and its pilot-promotion evidence" | "the separate Gate-7 opening decision and the Gate 6 closure evidence it cites" |
 | A6 | Handoff 07 §1 item 2 | "Sequenced strictly after Gate 6 pilot promotion evidence exists, so the machinery that receives the papers has been proven on the non-critical SCALE-01 workload first (preserving the intent of P-031)." | "Sequenced strictly after Gate 6 closure under 06s §4 (P-058), whose fresh bounded run proved the receiving route on a non-critical workload: SPEC-01, which ended in an accepted `retain_experimental_benchmark` result with no scientific claim. This preserves P-031's intent. SCALE-01 is not a condition." |
 | A7 | Handoff 07 §5 item 3 | "Nothing dispatches from the accepted documents until Gate 6's pilot-promotion milestone is recorded and Stephen separately authorizes Gate 7 opening." | "Nothing dispatches from the accepted documents until Stephen separately authorizes Gate 7 opening. Gate 6 closure evidence (P-058, #381, #386) is on file." |
-| A8 | New, 04-plan §4 Gate 7 | — | "An item that would accept research evidence, change a result's citability or advance a claim dispatches only after the W6 `gate_stage: pilot_promotion` evidence that applies to it is produced or explicitly waived by Stephen. W9 §12.3 assigns the fixtures by item kind. The item's independent reviewer proposes the set and Stephen fixes it in the batch decision." |
+| A8 | New, 04-plan §4 Gate 7 | — | "Each item dispatches or is accepted only after the W6 `gate_stage: pilot_promotion` evidence for its W9 §12.3 set is produced, or explicitly waived by Stephen, with its fixture IDs named. W9 §12.3 assigns the set by item kind, including every result-family observation, every import and every review. The item's independent reviewer proposes the set and Stephen fixes it in the batch decision." |
 
 *B. W0 placement and the Discovery condition*
 
 | ID | Source | Old | New |
 |---|---|---|---|
-| B1 | 06l §2.2 item 1 | "a dated post-terminal W0 currency addendum and bounded independent delta review, which is Gate 7's first intake deliverable rather than a prerequisite to authoring, reviewing, accepting, or opening Gate 7" | "the dated post-terminal W0 addendum and bounded independent delta review, authored under 06s §7 and accepted on 2026-10-22 (G7-A). It is required before any Step 3 or later action, and not for authoring, reviewing, accepting or opening Gate 7" |
-| B2 | 06l §3, row "Gate-7 opening/dispatch bar", rule | "W0 is the first intake deliverable after opening, not an opening prerequisite" | "the W0 post-terminal addendum (G7-A) is required before any Step 3 or later action, not for opening" |
+| B1 | 06l §2.2 item 1 | "a dated post-terminal W0 currency addendum and bounded independent delta review, which is Gate 7's first intake deliverable rather than a prerequisite to authoring, reviewing, accepting, or opening Gate 7" | "the dated post-terminal W0 addendum and bounded independent delta review, authored under 06s §7 and accepted on 2026-10-22 (G7-A). It, and any later W0 addendum that a fired G7-A §17 trigger requires, is required before any Step 3 or later action, and not for authoring, reviewing, accepting or opening Gate 7" |
+| B2 | 06l §3, row "Gate-7 opening/dispatch bar", rule | "W0 is the first intake deliverable after opening, not an opening prerequisite" | "the W0 post-terminal addendum (G7-A), with any later W0 addendum a fired G7-A §17 trigger requires, is required before any Step 3 or later action, not for opening" |
 | B3 | 06l Step 2, inputs | "the current paper and Discovery boundary" | "the current paper boundary. The Discovery boundary is inventoried by G7-B, not by the W0 addendum (W0-D4)" |
-| B4 | 06l Step 2, proof | "This is Gate 7's first intake deliverable and a closeout record, not a migration event or an opening prerequisite." | "It is a closeout record, not a migration event or an opening prerequisite, and it is accepted before any Step 3 or later action. No Discovery item takes a Step 3 or later action until G7-B's Discovery inventory is accepted, and an inventory covers only the backlog bytes it observed (W0-D4)." |
-| B5 | 06l §6, first paragraph | "The only bounded next transition is **Step 0 W9/Gate-7 document authoring and independent review under the owner-approved authoring brief**." … "that decision remains blocked on exact Gate-6 pilot-promotion evidence and Stephen's separate recorded approval. The W0 addendum and bounded delta review are the first Gate-7 intake deliverable after opening, not an authoring or opening prerequisite." | "Step 0 completes when G7-C is accepted. The only bounded next transition is then Step 1, Stephen's separate Gate-7 opening decision, which needs the accepted G7-A, W9 and G7-C and the Gate 6 closure evidence (P-058, #381, #386). The W0 post-terminal addendum is accepted (G7-A) and is required before any Step 3 or later action." |
+| B4 | 06l Step 2, proof | "This is Gate 7's first intake deliverable and a closeout record, not a migration event or an opening prerequisite." | "It is a closeout record, not a migration event or an opening prerequisite, and it is accepted before any Step 3 or later action; the latest accepted W0 addendum must post-date every G7-A §17 trigger that has fired. No Discovery item takes a Step 3 or later action until G7-B's Discovery inventory is accepted (W0-D4). Under the inventory's acceptance record (`reviews/d8c-discovery-inventory-owner-acceptance-2026-10-22.md`), it covers only the backlog bytes it observed, and a transition still needs a fresh handle-bound observation at transition time." |
+| B5 | 06l §6, the whole first paragraph (the new text replaces all of it, including the unquoted sentences between the two quoted segments) | "The only bounded next transition is **Step 0 W9/Gate-7 document authoring and independent review under the owner-approved authoring brief**." … "that decision remains blocked on exact Gate-6 pilot-promotion evidence and Stephen's separate recorded approval. The W0 addendum and bounded delta review are the first Gate-7 intake deliverable after opening, not an authoring or opening prerequisite." | "Step 0 completes when G7-C is accepted. The only bounded next transition is then Step 1, Stephen's separate Gate-7 opening decision, which needs the accepted G7-A, W9 and G7-C and the Gate 6 closure evidence (P-058, #381, #386). The W0 post-terminal addendum is accepted (G7-A) and is required before any Step 3 or later action." |
 
 *C. Signatory, A-001 and Stage 2*
 
@@ -3958,7 +3964,7 @@ Nothing is edited in place. Each new text is the operative reading from acceptan
 
 | ID | Source | Old | New |
 |---|---|---|---|
-| D1 | 06-wp6 plan, WP6.7 | "Nothing in WP6.7 dispatches while T1.28 or either current paper remains active; P-026's boundary holds." | "Document authoring and read-only preparation may proceed. No WP6.7 action dispatches before Gate 7 opens (04-plan §4), and each action then needs its own 06l step's inputs, review and owner decision. No legacy file is written. P-026's boundary, as amended by P-062, holds: the two papers stay `legacy_owned` until their W9 transition." |
+| D1 | 06-wp6 plan, WP6.7 | "Nothing in WP6.7 dispatches while T1.28 or either current paper remains active; P-026's boundary holds." | "Document authoring and the preparation W9 §4.5 allows (read-only observation only by a non-author session with Stephen's authorization) may proceed. No WP6.7 action dispatches before Gate 7 opens (04-plan §4), and each action then needs its own 06l step's inputs, review and owner decision. No legacy file is written. P-026's boundary, as amended by P-062, holds: the two papers stay `legacy_owned` until their W9 transition." |
 | D2 | 06-wp6 plan §4 DAG | "WP6.7 legacy consolidation (gated on W9 + T1.28 closeout; sequencing doc only)" | "WP6.7 legacy consolidation (gated on the accepted W9/Gate-7 documents and Stephen's Gate 7 opening decision; T1.28 closeout recorded by G7-A)" |
 
 *E. W9 §16.2, adopted as written*
@@ -3978,6 +3984,9 @@ Nothing is edited in place. Each new text is the operative reading from acceptan
 | E11 | 06l Step 7 | "Retirement is reversible only by restoring the recorded prior surface" | "A retired surface is restored only as a read-only projection; authority does not return" |
 | E12 | KAN-13 "additive 06i" | — | Resolves to 06l; 06i contains no Gate 7 text |
 
+E1 to E12 are W9 §16.2's rows, unchanged. Each replaces only its quoted clause. For example, after E8, 06l Step 5's
+"and preserves all evidence; it never rewrites an accepted result or decision" still follows.
+
 *F. Stale projections, superseded as current state and not edited*
 
 - Every row of G7-A §15's stale-projection table (fifteen rows), with the current state it gives.
@@ -3995,17 +4004,42 @@ Nothing is edited in place. Each new text is the operative reading from acceptan
 - **06s §7** heading "documentation only, deferred": the track was triggered on 2026-10-21.
 - **KAN-16, KAN-23 and KAN-25** name a new `06i-wp6-7-real-gate-sequencing-addendum.md` as their deliverable. It is
   not created. Their acceptance criteria are met by this entry and the 04-plan Gate 7 section (E12).
-- **04-plan** header, §3 lanes and §8: the 2026-06-30 snapshot, flagged by the 04-plan currency note.
-- **06u §5.2's** fixture parenthetical: replaced by the pointer to W9 §12.3 (A8).
+- **04-plan** header, §3 lanes, §8 and §4's Gates 1 to 6: the 2026-06-30 and 2026-07-01 text, flagged by the 04-plan
+  currency note.
+- **Handoff 07 §2 item 2** ("**Gate 7's first deliverable is that dated W0 addendum + bounded delta review** — it is
+  intake work for the gate, not a blocker on it") and its §3 first row ("first deliverable; trigger fired
+  2026-07-09"). Current state: the addendum was authored before opening, accepted on 2026-10-22, and is required before
+  any 06l Step 3 or later action (B1, B2, B4).
+- **Roadmap W1 status** ("legacy migration remains blocked by final post-T1.28 reconciliation"): a 2026-06-30 status.
+  G7-A records T1.28's terminal state; legacy items enter ARS only by W9 transition after Gate 7 opens.
+- **Roadmap §3 DAG** ("first post-APM paper pilot" then "W9/W10 wider migration/template work"): the system pilot was
+  Gate 6's SPEC-01 run (E5, E7), and W9's integration pilot precedes wider adoption (W9 §14.2, W9-D12a).
+- **"Fourteen" unlogged Stage 2 tasks** in P-012's migration consequence ("unless the fourteen unlogged tasks are
+  reconciled or removed by a versioned scope amendment") and in the W0 manifest's open-decision row ("Decide whether
+  the fourteen unlogged Plan tasks remain required or formally supersede them"). Current count: fifteen rows (G7-A §9),
+  decided at 06l Step 3 (W0-D2).
+- **06u §6.1 row 1** (W0 addendum "Outstanding") and **06u §8.2 row 3** ("The current Manager's A-001 confirmation"):
+  corrected in 06u §13.
+
+*G. Further amendments found in review*
+
+| ID | Source | Old | New |
+|---|---|---|---|
+| G1 | 04-plan §7, stop bullet | "a second canonical writer or shared legacy path is required;" | "a second canonical writer or shared legacy path is required, except W9 §7.3's shared-writer exception (W9-D9);" |
+| G2 | 04-plan §7, stop bullet | "the prototype would need current-paper data/state migration;" | "the prototype would need current-paper data/state migration outside W9's per-item transition;" |
+| G3 | 04-plan §5, exclusion | "migration or normalization of either current paper;" | "migration or normalization of either current paper outside W9's per-item transition;" |
+| G4 | Roadmap §4, first "Avoid as the first pilot" bullet | "T1.28 or any task from either current APM-managed paper;" | "T1.28, or any legacy item outside W9 §14.2's closed-reference rubric;" |
+| G5 | Roadmap §2 W0, review gate | "Current Manager and Stephen agree that the manifest does not silently upgrade, discard, or reinterpret evidence." | "Stephen agrees, after the independent check W0-D1 names, that the manifest does not silently upgrade, discard, or reinterpret evidence." |
+| G6 | 06l Step 5, output | "decision, and rollback handle." | "decision, and its named post-commit supersession or recovery route (W9 §13.1)." |
 
 **Owner decisions asked with this entry:**
 
 | ID | Decision | Recommendation |
 |---|---|---|
-| G7C-D1 | Make this entry the one operative amendment record, adding only pointer notes to the sources (06l, the 06-wp6 WP6.7 section, the roadmap §4, and the 03 entries P-026, P-034, A-001 and A-002). Handoffs 07 and 08 and the W0 manifest are frozen records and get no note | **Accept.** One record avoids a second copy that could drift, and the notes stop a reader of a source missing the change |
-| G7C-D2 | The Gate 7 exit (04-plan §4): every intake item disposed, and each P01 root transitioned or kept `legacy_owned` with a recorded reason. Retiring an APM surface may happen inside Gate 7 but is not an exit condition | **Accept.** Prose waits for Gate 9 (W9-D7), and retirement depends on cutovers that can outlast the research items |
-| G7C-D3 | Parked compute may run beside the integration pilot once its own preconditions hold (its legacy rows accepted `closed_reference`, `results/ars/` registered, its pre-registration, the W0 addendum and family coverage). It does not wait for the pilot to pass | **Accept.** The pilot measures import machinery, not compute; A3's calibration gates every rung-4/5 claim and should not wait on unrelated batches |
-| G7C-D4 | Jira: KAN-14, KAN-16, KAN-17, KAN-23 and KAN-25 close on G7-C's acceptance; KAN-13 and KAN-26 close when this entry is accepted, which completes W9's acceptance; KAN-22 and KAN-60 stay open until Gate 7 opens | **Accept**, with each change read back |
+| G7C-D1 | Make this entry the one operative amendment record, adding only pointer notes to the sources (06l, the 06-wp6 WP6.7 section, the roadmap §§2 and 4, the 04-plan currency note, and the 03 entries P-026, P-034, A-001 and A-002). Handoffs 07 and 08 and the W0 manifest are frozen records and get no note. Instead, the record of Stephen's W0-D1 signing cites C1 as the operative wording of the §14 checklist. If Stephen declines this decision or P-062, the next revision removes the pointer notes | **Accept.** One record avoids a second copy that could drift, the notes stop a reader of a source missing the change, and the signing record carries C1 to the checklist actually signed |
+| G7C-D2 | The Gate 7 exit (04-plan §4): every intake unit disposed, and each P01 root transitioned or kept `legacy_owned` with a recorded reason. Retiring an APM surface may happen inside Gate 7 but is not an exit condition. After closure, a remaining Step 6 cutover or Step 7 retirement proceeds under 06l as amended and W9 §4.5, each by Stephen's separate decision, without reopening Gate 7 | **Accept.** Prose waits for Gate 9 (W9-D7), and retirement depends on cutovers that can outlast the research items |
+| G7C-D3 | Parked compute follows W9 §4.5's successor-compute row. Its legacy rows are proposed as members of the integration-pilot batch, inside W9 §14.2's rubric and bound. Compute waits neither for those rows' acceptance nor for the pilot's threshold evaluation. A missed threshold does not stop dispatched compute, whose outputs are successor-owned under `results/ars/`; a wrong row is superseded under W9 §13.2 | **Accept.** The pilot measures import machinery, not compute. A3's calibration gates every rung-4/5 claim and should not wait on unrelated batches. This follows W9 §4.5, which calls successor compute "likely the first Gate 7 action" and adds no closed-reference precondition |
+| G7C-D4 | Jira: KAN-14, KAN-16, KAN-17, KAN-23 and KAN-25 close on G7-C's acceptance; KAN-13 and KAN-26 close when this entry is accepted, which completes W9's acceptance; KAN-22 and KAN-60 stay open, and their closure is not decided here | **Accept**, with each change read back |
 
 **Standing at drafting (2026-10-22).** W0-D4's condition is met for backlog bytes `96b5775c…`. G7-A is accepted. W9's
 conditions 1 and 2 are met, and this entry is its condition 3. The W0 series is `post_terminal_recorded`, not
@@ -4031,8 +4065,8 @@ against the live files at drafting, and the independent review re-checks them. T
 the enforcement artifacts for the integration rules once W9 is implemented.<br>
 **Boundary:** Docs only. No store write, no Jira change before acceptance, no opening, no dispatch, no compute, no
 transition. No legacy file and no frozen record is edited. Every old text stays in place as written.<br>
-**Affected specifications:** 04-plan §§2, 4, 5 and 6; 06l §§2.2, 3, 5 and 6; 06-wp6 WP6.7 and §4; P-026; P-034;
-A-001; A-002; the W0 manifest §14; roadmap §4; handoff 07; W9 (acceptance completes).<br>
+**Affected specifications:** 04-plan §§2, 4, 5, 6 and 7; 06l §§2.2, 3, 5 and 6; 06-wp6 WP6.7 and §4; P-026; P-034;
+A-001; A-002; the W0 manifest §14; roadmap §§2 and 4; handoff 07; W9 (acceptance completes).<br>
 **Migration consequence:** None by itself. From acceptance, an ownership action follows 06l as amended here, after
 Stephen's separate Gate 7 opening decision.
 

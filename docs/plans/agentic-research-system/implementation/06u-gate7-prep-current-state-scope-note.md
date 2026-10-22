@@ -438,5 +438,10 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
   are met.
 - **G7-C drafted (2026-10-22), revision 1:** the Gate 7 section in 04-plan §4 and register entry P-062 (proposed),
   with pointer notes in the amended sources. P-062's acceptance is W9's last condition.
-- **Next:** the independent adversarial review of G7-C revision 1 by a distinct session, then reconciliation and
-  Stephen's exact-revision acceptance.
+- **G7-C revision 1 reviewed** (`e8bcf243`): REWORK REQUIRED, narrow (0 Blocking, 4 Major, 11 Minor, 7 Info).
+  **Revision 2** reconciles it (`reviews/g7c-gate7-definition-reconciliation-2026-10-22.md`).
+- **Corrections to this note from G7-C:** §6.1 row 1's W0 addendum is no longer "Outstanding": it was accepted on
+  2026-10-22 (G7-A). §8.2 row 3's "current Manager's A-001 confirmation" is now Stephen's signature after the
+  independent check (W0-D1; P-062 C2, C4 and C6). The Gate 7 intake set is fixed in 04-plan §4 as units; §6 gives
+  their pointers.
+- **Next:** the narrow re-review of G7-C revision 2, then Stephen's exact-revision acceptance.
