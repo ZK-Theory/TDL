@@ -3,7 +3,7 @@ document: G7-A reconciliation of the independent delta review
 date: 2026-10-22
 review: reviews/g7a-w0-post-terminal-addendum-delta-review-77388ec9-2026-10-22.md (committed 73d73357)
 review_subject: transition/W0-legacy-closeout-post-terminal-addendum-2026-10-21.md at 77388ec9 (revision 1)
-reconciled_subject: the same file, revision 2 (the commit that adds this record)
+reconciled_subject: the same file, revision 2 (8988f463) and revision 3 (§5; the commit that adds §5)
 author: the Gate 7 prep session (the addendum's author; not the reviewer)
 status: author reconciliation; not acceptance
 ---
@@ -74,3 +74,25 @@ wording.
 - The author re-derived classes from the supersession and audit records. It did not re-match artefact values.
 - The task-to-draft-file mapping in §9 is by section title.
 - Same model family as the reviewer (a P-058 known limit).
+
+## 5. Revision 3: the focused re-review of revision 2
+
+Re-review: `reviews/g7a-w0-post-terminal-addendum-re-review-8988f463-2026-10-22.md` (committed unchanged as
+`c7ef464b`), REWORK REQUIRED (narrow), 0 Blocking, 2 Major, 3 Minor, 4 Info. Stephen directed revision 3 on
+2026-10-22 and authorized a read-only `git show` read of the P01-A §4.5 draft for R2. No finding is rejected.
+
+| Finding | Disposition | Where in revision 3 | Note |
+|---|---|---|---|
+| **R1** A-001 list incomplete | **Fixed** | §10 items 9–12 | A4 (pinned-α_max triage), H9 (re-derive or drop), T1.8's W₂ α-stability (exact α-sweep or drop) and B1–B7 as one item scoped by the signatory. Class C is stated as prose-lane work. H10 is not a list item because it resolved as a record error. |
+| **R2** §4.5 NS-SEC conflict | **Fixed and resolved** | §6.1 T1.10–T1.20 row, §7 (H10), §9 T2.1–T2.6 row, §15 | The author read `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md` at origin/main with `git show`. Its table carries the canonical values: Tier 1 OR 1.0455 (p 0.8106) and 1.2161 (p 0.3073), Tier 2 1.0487/1.2324, headline 1.0954/1.1126. The canonical `tier1_clustered_firth_2026-05-16.json` gives 1.0455 (p_firth 0.81056) and 1.2161 (0.30726); the 05-13 file gives 0.8351 (0.0008) and 0.8949 (0.0466), all verified by JSON extraction. **The draft is right; the 2026-07-11 T1.20 `[DECISION]` quotes the stale 05-13 Tier 1 values.** Its exposure conclusion stands for the 05-16 file. The note's overstatement about the Tier 2 05-14 file is corrected. H10 is recorded as resolved, and a dated Computational-Log correction entry is written instead of editing the decision. |
+| N1 #215 writer | **Fixed** | §11 | `5df0c001` is a direct push with no PR (one parent `a426b731`; GitHub associates no PR; verified). #215 merged as `a426b731` and touched no legacy path (verified with `git diff --name-only b21640de a426b731`). |
+| N2 contracts surface | **Fixed** | §11 "Contracts" | #168 (`f523b1e5`, `b18a5222`) and #169 (`f5c449ad`, `73d58759`), attributed by the GitHub API; `811d5a2b` (no PR) and its #219 restoration (input-provenance diff empty since `4b143c92`, verified); #334. |
+| N3 A32 | **Fixed** | §4 | BHPS 8/11 under the dual-metric reading. |
+| I1 T1.3 Outcome A on H₀ | **Adopted** | §6.1 T1.3 row | Verified: `significant_regimes` equal the H₀-rejecting regimes, and every H₁ rejection coincides with an H₀ rejection. |
+| I2 truncate arm evidence | **Adopted** | §6.1 T1.2g/T1.7 row | Verified in WT-6's `era_boundary` (6.6314 vs exact 6.6695 vs greedy 203.22). |
+| I3 mislabelled source | **Adopted** | §9 | The A1 conditioning item moved under its own heading; the audit's MISDESCRIBED rows for that file kept. |
+| I4 #219 | **Adopted** | §11 | `3bfb279c` cited with #219 (merge `b132406e`). |
+| Reviewer opinion on W0-D4 | **Adopted into the proposal** | §16 W0-D4 | The condition that no Discovery item takes a 06l Step 3 or later action until G7-B's Discovery inventory is accepted. |
+
+The narrow re-check the re-review scoped: §6.1's T1.20 row (and the T1.3 and T1.2g/T1.7 rows touched by I1 and I2),
+§7, §9's §4.5 qualifier, §10 and §11. §4's A32 line and §16's W0-D4 condition are also new.

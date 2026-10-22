@@ -1,7 +1,7 @@
 ---
 document: W0 legacy closeout post-terminal addendum
 date: 2026-10-21
-revision: 2 (2026-10-22), reconciling the independent delta review at 73d73357
+revision: 3 (2026-10-22), reconciling the re-review at c7ef464b (revision 2 reconciled the delta review at 73d73357)
 baseline_manifest: W0-legacy-closeout-transition-manifest-2026-06-28.md
 prior_addendum: W0-legacy-closeout-transition-addendum-2026-06-29.md
 observation_commit: 3fa437a1
@@ -27,6 +27,12 @@ open Gate 7 or authorize any dispatch.
 6 Major, 12 Minor, 5 Info). The finding-by-finding disposition is
 `reviews/g7a-w0-post-terminal-addendum-reconciliation-2026-10-22.md`. Revision 1 is commit `77388ec9`.
 
+**Revision 3** reconciles the focused re-review of revision 2
+(`reviews/g7a-w0-post-terminal-addendum-re-review-8988f463-2026-10-22.md`, verdict REWORK REQUIRED (narrow), 0
+Blocking, 2 Major, 3 Minor, 4 Info). Its dispositions are §5 of the same reconciliation record. Revision 2 is commit
+`8988f463`. Stephen authorized a read-only read of the P01-A §4.5 draft (`git show`, no edits) for finding R2; that is
+the only draft read in this addendum.
+
 ## 2. Observation identity
 
 | Item | Value |
@@ -34,7 +40,7 @@ open Gate 7 or authorize any dispatch.
 | Observation commit | origin/main `3fa437a1` (#387), committed 2026-10-21T22:42:45+01:00; still origin/main on 2026-10-22 |
 | Prior observation | `33ab053e` (2026-06-29), the 2026-06-29 addendum's review commit, an ancestor of `3fa437a1` |
 | Method | read-only: `git` ancestry, blob, diff and log queries against origin/main; `gh pr view`; `.apm/tracker.md` (its working copy equals `origin/main:.apm/tracker.md`); `.apm/memory/stage-01/` and `stage-02/` task-log headers; `results/trajectory_tda_integration/stage1/SUPERSEDED.md` and `w2_fallback_audit_2026-07-14.json`; the claim-trace audit and the adversarial mathematical review; the vault Computational-Log; `CONVENTIONS.md` |
-| Not read | `papers/P01-A-JRSSA/` and `papers/P01-B-JRSSB/` draft files (out of this track's bounds; their state is taken from the claim-trace audit); `.apm/plan.md` (the twenty-two-task count is the manifest's); any ARS store |
+| Not read | `papers/P01-A-JRSSA/` and `papers/P01-B-JRSSB/` draft files (out of this track's bounds; their state is taken from the claim-trace audit), except `papers/P01-A-JRSSA/drafts/sections/results-escape-regression-foo.md` at origin/main, read with `git show` under Stephen's 2026-10-22 authorization for finding R2 (§6.1); `.apm/plan.md` (the twenty-two-task count is the manifest's); any ARS store |
 | Author | the Gate 7 prep session (06u). The author does not establish its own delta verdict (§14). |
 
 ## 3. The W0 series as one state sequence (KAN-20)
@@ -83,6 +89,8 @@ T1.28 is `authoritative` and terminal, subject to the cross-cutting soundness ca
 - **Headline (tracker row and the 2026-07-09 `[RESULT]`):** USoc 12/12 subgroups reject H₀; BHPS 9/11. The two
   non-rejecting BHPS strata (`nssec/Professional-Managerial`, `cohort/1980s`) are the pre-registered underpowered
   smallest cells. The §6.1 contingency was checked and locked by the Manager the same day.
+- **Counting note (audit A32):** BHPS 9/11 counts the W₂-only 1940s cohort (W₂ p_adj 0.016; landscape p 0.148, not
+  rejected). Under the dual-metric reading P01-B Table 3 uses, it is 8/11.
 - **Caveat (A2, §7):** every T1.28 p-value uses the implemented mean-versus-pairs construction, which the 2026-07-18
   adversarial review says is not the documented test and whose calibration is unestablished. The rejection counts
   stand as recorded results. Their inferential reading waits on the A2 registry decision and the T1.41 calibration.
@@ -117,16 +125,16 @@ with those records. It does not mean every artefact value was re-matched.
 |---|---|---|---|
 | T1.1 | `authoritative` | `authoritative` (unchanged) | No supersession record names it |
 | T1.2 parent, T1.2a–f | `superseded` | `superseded` (unchanged) | `SUPERSEDED.md` "Canonical citable files" |
-| T1.2g, T1.7 | `authoritative` | `authoritative`, qualified | Outcome A stands on the exact-era 2026-05-30 arms (`SUPERSEDED.md`, 2026-07-14). The dedup comparison's H₁ W₂ cell and decision counts move to `dedup_amendment_comparison_corrected_2026-07-14.json`. The dedup amendment may not be justified by the H₁ W₂ flip, which was greedy→exact (audit A21, A26). WT-6's cell-level H₁ verdict for the 05-30 arms is `UNRESOLVED`; the era-boundary finding in the same file places them on the exact side. |
+| T1.2g, T1.7 | `authoritative` | `authoritative`, qualified | Outcome A stands on the exact-era 2026-05-30 arms (`SUPERSEDED.md`, 2026-07-14). The dedup comparison's H₁ W₂ cell and decision counts move to `dedup_amendment_comparison_corrected_2026-07-14.json`. The dedup amendment may not be justified by the H₁ W₂ flip, which was greedy→exact (audit A21, A26). WT-6's cell-level H₁ verdict for the 05-30 arms is `UNRESOLVED`. For the truncate arm, WT-6's era-boundary natural experiment verifies more: its committed H₁ mean (6.6314) matches an exact 12-pair subsample (6.6695), not the greedy one (203.22). The first13 arm rests on the day-level boundary only. |
 | T1.2h | `stale_projection` | unchanged | |
-| T1.3 | `authoritative` | **H₀ W₂ and landscape L² `authoritative`; H₁ W₂ `unverified`** | Its canonical source is `stratified_markov/stratified_markov1_W2_L5000_frozen_2026-05-29.json` (`SUPERSEDED.md`; audit §3.1). WT-6 classifies the 2026-05-13 battery and the 2026-05-02 stratified file, but not this one. It is dated 2026-05-29, the day WT-6 proved `bhps_length_matched_truncate_frozen_2026-05-29.json` was computed with the greedy solver. Its H₁ W₂ solver identity is therefore not established. Whether Outcome A holds on its H₀ and landscape cells alone is not established here. |
+| T1.3 | `authoritative` | **H₀ W₂ and landscape L² `authoritative`; H₁ W₂ `unverified`** | Its canonical source is `stratified_markov/stratified_markov1_W2_L5000_frozen_2026-05-29.json` (`SUPERSEDED.md`; audit §3.1). WT-6 classifies the 2026-05-13 battery and the 2026-05-02 stratified file, but not this one. It is dated 2026-05-29, the day WT-6 proved `bhps_length_matched_truncate_frozen_2026-05-29.json` was computed with the greedy solver. Its H₁ W₂ solver identity is therefore not established; its H₁ cells' t-ratios near 1 and large H₁ means point towards greedy without proving it. **Outcome A holds on its H₀ W₂ cells alone:** the file's `per_dataset.*.significant_regimes` equal its H₀-rejecting regimes (USoc R0, R2–R6, 6/7, fraction 0.857; BHPS R0, R2, R4, R5, 4/8, fraction 0.5), and every H₁-rejecting regime also rejects at H₀. The A1–A4 caveats apply. (The tracker's "USoc 5/7, BHPS 8/8" describes the superseded 2026-05-13 battery.) |
 | T1.4 | `authoritative` | unchanged | Audit §3.2 lists `intrinsic_dim_2026-05-24.json` |
 | T1.5 family | `authoritative` | unchanged | Audit §3.2 lists the `h2_check/` set |
 | T1.6 | `authoritative` | unchanged, with the #79 follow-up (§6.2) | |
 | T1.8 | `authoritative` | **α=1 landscape L² cells `authoritative`; the W₂ α-stability conclusion `unverified`** | The tracker row bases T1.8 on `markov2_alpha_sweep_summary_2026-06-16.json`, which T1.38 Phase 1 classified UNVERIFIABLE (`w2_gap_closure_phase1_2026-07-16.json`, `phase1.markov2_alpha_sweep`). The α=1 landscape cells are citable (H6, `1af52f6d`). Review finding A1 adds a generator confound to every Markov-2 result (§7). |
 | T1.9 | `superseded` | unchanged | |
 | T1.9b | `authoritative` | unchanged, qualified | Audit §3.2 lists the spanning inference set. Hole H7: the companion `spanning_AUC_W2_2026-06-09.json` matched W₂ has no explicit solver gate (H₀, so immune in principle). |
-| T1.10–T1.20 | `authoritative` | unchanged, with a note | T1.20's 2026-07-11 closure traced the §4.5 NS-SEC numbers to `tier1_clustered_firth_2026-05-13.json` and `tier2_glmm_firth_2026-05-14.json`. Audit §3.2 names `tier1_clustered_firth_2026-05-16.json` as canonical and the 05-13/05-14 files as not to cite. The closure's argument (no consumer imports `covariate_extractor.py`) does not depend on which Tier 1 file is canonical, but the trace was not repeated against the 05-16 file. Not re-checked here. |
+| T1.10–T1.20 | `authoritative` | unchanged; one record error found (H10, resolved) | **The T1.20 closure's conclusion stands; its quoted Tier 1 values are stale.** The 2026-07-11 `[DECISION]` traced the §4.5 NS-SEC numbers to `tier1_clustered_firth_2026-05-13.json`, `tier2_glmm_firth_2026-05-14.json` and `tier2_svyglm_headline_2026-06-03.json`, quoting Tier 1 OR 0.8351 (p 0.0008) and 0.8949 (p 0.0466). Audit §3.2 names `tier1_clustered_firth_2026-05-16.json` as canonical and the Tier 1 05-13/05-14 files as not to cite; the Tier 2 05-14 file is canonical (audit A41). The 0.8351/0.8949 values exist only in the 05-13 file. The canonical 05-16 file gives OR 1.0455 (p_firth 0.81056) and 1.2161 (p_firth 0.30726). **The §4.5 draft at origin/main carries the canonical values** (Tier 1 1.0455, p 0.8106; 1.2161, p 0.3073; Tier 2 1.0487/1.2324; headline 1.0954/1.1126), read with `git show` on 2026-10-22. So the draft is right, and the decision's Tier 1 quotation is the stale record. The exposure conclusion holds for the canonical file too: the 05-16 file sources `nssec_proxy` from `pasoc90_cc` falling back to `masoc90_cc` (`xwavedat`), not from `covariate_extractor.py`. See §7 (H10) and §15. |
 | T1.21 | `authoritative_supersession` | unchanged | |
 | T1.22 | `deferred` | unchanged | |
 | T1.23 / T1.23d | `authoritative` | unchanged | Audit §3.2 (`ari_om_gmm_normalised_2026-06-24.json`). The S2 Lean spike (2026-07-21) partly mechanizes the bound; informational. Hole H9 concerns a different ARI (H₀-tree-cut vs GMM). |
@@ -194,6 +202,7 @@ the results may be read.
 | H7 ungated presumed-immune W₂ files | Open | Includes the Markov-2 summary (§8) and the spanning matched W₂ file (§6.1, T1.9b) |
 | H8 P01-A p-value formula prose (A11/A17) | Open | ARS prose lane |
 | H9 ARI 0.00004 anchor | Open | Re-derive or drop |
+| H10 (added here) §4.5 NS-SEC values: the T1.20 `[DECISION]` vs audit §3.2 | **Resolved 2026-10-22: record error, no draft defect** | Raised by re-review R2. The §4.5 draft carries the canonical 05-16 values; the 2026-07-11 `[DECISION]` quotes the do-not-cite 05-13 Tier 1 values. Corrected by a dated Computational-Log correction entry (2026-10-22), not by editing the decision. A successor must not import Tier 1 values from that decision. |
 
 ## 8. Supersession boundary delta
 
@@ -239,7 +248,7 @@ produced; the task-to-file mapping is by section title and was not checked again
 
 | Task | Tracker state | W0 class | Qualifier |
 |---|---|---|---|
-| T2.1–T2.6 | Done | `merged_draft` | Subject to the audit's per-file verdicts (below) |
+| T2.1–T2.6 | Done | `merged_draft` | Subject to the audit's per-file verdicts (below). For §4.5 (T2.4), the NS-SEC values were checked against the canonical files on 2026-10-22 and match (H10, §7). |
 | T2.17, T2.18 | Done | `merged_draft` | Subject to the audit's per-file verdicts |
 | T2.7 | Done, merged #81 (`36885054`, 2026-07-12), User-approved per section | `merged_draft` | Task log `status: Partial`; the tracker's Done postdates it. Audit §6.1: tables VERIFIED*, one rejection-counting inconsistency with P01-B (A32). |
 | T2.8 | Done, merged #81 | `merged_draft`, on **HOLD** | Task log `status: Partial`. §6.2 is on HOLD (2026-07-16 User ruling, carried by the freeze). Audit: A24 falsified core, A21 struck, A19 misdescribed. |
@@ -263,8 +272,11 @@ the governing record for draft content; not re-verified here):
 - `supplement-S6-length-matched-dedup.md`: A26 misdescribed (major), the retired flip mechanism.
 - `methods-w2-formal-definition.md` and `supplement-S0-null-specification.md`: A11/A17, a wrong p-value
   denominator against a contract-locked object (hole H8).
-- `methods-3-2-ladder-markov.md` (P01-B): the declared conditioning contradicts the code (review A1).
+- `methods-3-2-ladder-markov.md` (P01-B): two MISDESCRIBED rows in the audit.
 - Register: every P01-A file except §S8 carries report-style scaffolding (WRONG-REGISTER rows).
+
+**From the adversarial mathematical review, not the audit:** `methods-3-2-ladder-markov.md` (P01-B §3.2) declares
+observed-start conditioning that the generator does not implement (review A1, §7).
 
 **Consequence for A-002.** Merged draft material keeps its draft authority **subject to the 2026-07-17 claim-trace
 audit verdicts and the §6.2 HOLD**. The Plan's Stage 2 scope is undecided. Fifteen rows need a disposition: the
@@ -285,12 +297,20 @@ four Stage 1 tasks followed it. Proposed wording for the W0-D1 signatory:
 > 5. hole H3, the non-overlap L=1882 arm and 20 subsamples (re-run, or drop the claims);
 > 6. hole H7, the ungated presumed-immune W₂ files;
 > 7. the H₁ W₂ solver identity of the T1.3 source (§6.1);
-> 8. the T1.40 log/tracker disagreement (§6.2).
+> 8. the T1.40 log/tracker disagreement (§6.2);
+> 9. the review's A4 finding: a pinned-α_max sensitivity triage on one headline cell, before deciding whether the
+>    witness-complex grid needs it;
+> 10. hole H9: re-derive the ARI 0.00004 anchor with its referent recorded, or drop it;
+> 11. T1.8's W₂ α-stability conclusion across α ∈ {0, 0.5, 1, 5}: an exact α-sweep, or drop the claim. Item 2 covers
+>     α=1 only, and a gate cannot settle item 6 for the summary because it has no cache;
+> 12. the review's class B findings B1 to B7, as one scoped item: the signatory decides which, if any, are Stage 1
+>     requirements and records the rest as referee-anticipation work for the ARS prose lane.
 >
 > No Stage 1 computational or assurance requirement exists other than those listed above."
 
 The signatory confirms that list as complete, after the independent check that W0-D1 names. The author has
-re-derived every manifest §5.2 row (§6.1) but has not re-matched every artefact value.
+re-derived every manifest §5.2 row (§6.1) but has not re-matched every artefact value. Hole H10 (§7) is resolved as
+a record error and is not a requirement; the class C findings are interpretive and belong to the prose lane.
 
 **A-002.** As restated in §9.
 
@@ -311,15 +331,29 @@ The freeze PR #126 merged at 2026-07-18T12:19Z (`4b143c92`). After it, on the su
 - **Result roots:**
   - `1af52f6d` (2026-07-18T19:05, after the freeze merge, #129): the H6 cell JSONs and the `SUPERSEDED.md` H6 entry.
     It was an explicit User ruling.
-  - #215 (`5df0c001`, 2026-08-05, an ARS WP6.4 PR) rewrote seven legacy result files, including
-    `bhps_nonoverlap_reanalysis_2026-06-09.json`, both `01_trajectories.json`, `05_analysis.json` and the three
-    2026-07-14 corrected files. `git diff -w --ignore-cr-at-eol` shows no change: the rewrite was line endings only.
-    `3bfb279c` (2026-08-08, "restore accepted WP6.4 provenance boundary") restored them. At `3fa437a1` each of the
-    seven files has the blob it had at `33ab053e` or at its first commit. The net effect is nil.
+  - `5df0c001` (2026-08-05) rewrote seven legacy result files, including `bhps_nonoverlap_reanalysis_2026-06-09.json`,
+    both `01_trajectories.json`, `05_analysis.json` and the three 2026-07-14 corrected files. It is a **direct push to
+    main with no PR**: it has one parent (`a426b731`) and reuses #215's merge message, and GitHub associates it with
+    no pull request. #215 itself merged as `a426b731` and touched no legacy path. `git diff -w --ignore-cr-at-eol`
+    shows no change: the rewrite was line endings only. `3bfb279c` (2026-08-08, "restore accepted WP6.4 provenance
+    boundary", in #219, merged as `b132406e`) restored them. At `3fa437a1` each of the seven files has the blob it had
+    at `33ab053e` or at its first commit. The net effect is nil.
+- **Contracts** (manifest §8.1 names `contracts/**/*.yaml` plus binding tests as legacy research authority):
+  - #168 (`f523b1e5`, `b18a5222`; merged 2026-07-26) and #169 (`f5c449ad`, `73d58759`; merged 2026-07-26), the
+    WP6.3 work, activated `topology-invariants/null-operation-changes-ph-input.yaml` and
+    `stochastic-tests/markov-order-provenance.yaml` (both `pending: true` → active), added
+    `stochastic-tests/markov-order-provenance-json-validation.yaml`, and edited
+    `stochastic-tests/monte-carlo-permutation-p-value.yaml` and `manifests/research-assurance.yaml`. These change the
+    enforcement state of contracts the legacy results are read under. No result changed.
+  - `811d5a2b` (2026-08-07), a **direct push with no PR**, rewrote three legacy input-provenance manifests:
+    `t128-inputs.yaml`, `t138-w2-gap-closure-inputs.yaml` and `b9-om-gmm-inputs.yaml`. `3bfb279c` (#219) restored
+    them: `git diff 4b143c92 origin/main -- contracts/manifests/input-provenance/` is empty. Net nil.
+  - #334 (`eba3fe69`, 2026-10-06) added `process-invariants/retired-plan-imperatives-quoted.yaml`, an ARS planning
+    contract.
 
-None of these is a migration, and none moved authority. Together they show that repo-wide tooling and ARS-lane
-changes can reach `legacy_owned` paths. G7-B's path/writer registry should say whether such writes need a carve-out,
-an owner note, or a guard.
+None of these is a migration, and none moved authority. Together they show that repo-wide tooling, ARS-lane changes
+and **direct pushes with no PR** (`5df0c001`, `811d5a2b`) can reach `legacy_owned` paths. G7-B's path/writer registry
+should say whether such writes need a carve-out, an owner note, or a guard.
 
 ## 12. No-migration set: current
 
@@ -366,7 +400,11 @@ Step 2, for Stephen's acceptance.
 **Verdicts:**
 - **Revision 1** (`77388ec9`): REWORK REQUIRED, 0 Blocking, 6 Major, 12 Minor, 5 Info
   (`reviews/g7a-w0-post-terminal-addendum-delta-review-77388ec9-2026-10-22.md`, committed `73d73357`).
-- **Revision 2** (this file): pending a focused independent re-review of the reconciled findings.
+- **Revision 2** (`8988f463`): REWORK REQUIRED (narrow), 0 Blocking, 2 Major, 3 Minor, 4 Info; M1, M2, M4, M5, M6
+  and all revision 1 minors closed (`reviews/g7a-w0-post-terminal-addendum-re-review-8988f463-2026-10-22.md`,
+  committed `c7ef464b`).
+- **Revision 3** (this file): pending the narrow re-check the re-review's §7 scopes (§6.1's T1.20 row, §7, §9's §4.5
+  qualifier, §10 and §11).
 
 ## 15. Planning clashes (handoff 14) and stale wording
 
@@ -397,6 +435,7 @@ carries them):
 | 03 A-001 status line | "T1.28 is now active" | T1.28 terminal (§4) |
 | 03 A-002 | "fourteen" Stage 2 tasks | Fifteen rows need a disposition (§9) |
 | Claim-trace audit §3.3 H6 | "Not locatable on `main`" | Resolved by #129 (§7) |
+| Computational-Log 2026-07-11 T1.20 `[DECISION]` | §4.5 Tier 1 NS-SEC OR 0.8351/0.8949 (p 0.0008/0.0466) | Values of the do-not-cite 05-13 file; the canonical 05-16 values, which §4.5 carries, are 1.0455/1.2161 (p 0.81/0.31). Corrected by a dated correction entry, not edited (H10, §7). |
 | CONVENTIONS freeze lock | "compute lane stays open" | No further APM compute Tasks (§9) |
 | Handoff 07 §3 T1.20 row | "never closed" | Closed 2026-07-11 (§4) |
 
@@ -407,14 +446,14 @@ carries them):
 | W0-D1 | **Who signs all eight manifest §14 items, including the restated A-001**, given that no APM Manager is active under the freeze. The resulting change to A-001's confirmation condition and to 06l Step 3 is recorded through G7-C's register entry. | **Stephen signs**, after an independent check that covers §6.1 (every re-derived row), §7 and §10's list, not only §6 against the tracker. A fresh "Manager" instance would be a nominal authority. |
 | W0-D2 | When the Stage 2 scope (the fifteen rows in §9) is decided | **At 06l Step 3, not now.** Nothing in the documentation track or Gate 7 opening needs it. It binds the first ownership transition that touches a paper. |
 | W0-D3 | Accept §3's state sequences as the series' and this addendum's current states | **Accept**, on the independent verdict |
-| W0-D4 | Accept the Discovery-boundary exclusion (§14) as a deviation from 06l Step 2, with the Discovery inventory assigned to G7-B against W11 | **Accept.** The Discovery boundary's transition relation is W11's, which is still `review_pending`. Inventorying it here would duplicate G7-B and anticipate W11. |
+| W0-D4 | Accept the Discovery-boundary exclusion (§14) as a deviation from 06l Step 2, with the Discovery inventory assigned to G7-B against W11, **on condition that the 06l Step 2 amendment G7-C carries states that no Discovery item may take a Step 3 or later action until G7-B's Discovery inventory is accepted** (re-review §6) | **Accept, with the condition.** The Discovery boundary's transition relation is W11's, which is still `review_pending`. Inventorying it here would duplicate G7-B and anticipate W11. The condition keeps Discovery items from reaching Step 3 with no W0-level closeout record. |
 
 ## 17. Next currency trigger
 
 A further dated addendum is required when any of these occurs after `3fa437a1`:
 
 - T1.41 or the Markov-2 recompute is dispatched, under any authority;
-- a decision is recorded on review findings A1 or A2, or on hole H3;
+- a decision is recorded on review findings A1, A2 or A4, on the B1–B7 scope (§10 item 12), or on holes H3 or H9;
 - a Stage 2 scope decision (W0-D2) is recorded;
 - any `papers/P01-*` path, `.apm/` tracked file, `SUPERSEDED.md` or legacy result file changes on main (the writes
   already recorded in §11 do not re-trigger);
