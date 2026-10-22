@@ -449,6 +449,9 @@ Not decided, and carried as the note recommends: D-6 to D-10 and D-12.
 - **G7-C accepted (Stephen, 2026-10-22).** Revision 3 at `2b257da0`, after the reviewer's PASS confirmation
   (`377918c1`), with G7C-D1 to G7C-D4 as recommended. P-062 is accepted, which completes W9's acceptance. Record:
   `reviews/g7c-gate7-definition-owner-acceptance-2026-10-22.md`.
-- **The documentation track (G7-A to G7-C) is complete.** Gate 7 is not open. The next step is 06l Step 1: the 06l
-  Step 1 check (opening-bar condition 4) and Stephen's separate opening decision. G7C-D4's Jira changes are pending
-  until the Atlassian connector is authorized.
+- **The documentation track (G7-A to G7-C) is complete.** It merged in PR #389 (`50371fac`). The G7C-D4 Jira changes
+  were made and read back on 2026-10-22.
+- **The 06l Step 1 check** found condition 4 holds (`reviews/g7-opening-step1-check-2026-10-22.md`, PR #390
+  `4760d4e0`).
+- **Gate 7 opened (Stephen, 2026-10-22; P-063).** The bounded intake is the W9 implementation plan only. Status: OPEN,
+  INCOMPLETE. This note's scope is complete. Later Gate 7 work is governed by 04-plan §4 Gate 7, P-062 and P-063.

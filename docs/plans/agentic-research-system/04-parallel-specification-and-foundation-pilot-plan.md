@@ -93,7 +93,8 @@ The first post-APM paper may become the pilot only when its initial workflow is 
 
 ### Gate 7 — Legacy research integration
 
-**Status (2026-10-22):** not open. G7-C revision 3 accepted by Stephen on 2026-10-22 (P-062). This section authorizes no opening, dispatch,
+**Status (2026-10-22):** OPEN since 2026-10-22 (P-063). The bounded intake is the W9 implementation plan only. G7-C
+revision 3 was accepted by Stephen on 2026-10-22 (P-062). This section authorizes no opening, dispatch,
 implementation, import, transition or store write. Its old→new amendments to other texts are in register entry P-062.
 
 **Objective.** Bring legacy research under ARS without writing a legacy file or upgrading a legacy record by its
