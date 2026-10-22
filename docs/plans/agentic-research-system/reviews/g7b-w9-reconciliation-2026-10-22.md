@@ -3,7 +3,7 @@ document: G7-B reconciliation of the independent review of W9 draft 0.1
 date: 2026-10-22
 review: reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md (committed b7fd4415)
 review_subject: design/09-migration-compatibility-and-pilot.md draft 0.1 at 97f71c19
-reconciled_subject: the same file, draft 0.2 (the commit that adds this record)
+reconciled_subject: the same file, draft 0.2 (34ac441e) and draft 0.3 (§6; the commit that adds §6)
 author: the Gate 7 prep session (the W9 author; not the reviewer)
 status: author reconciliation; not acceptance
 ---
@@ -76,7 +76,39 @@ surfaces and the successor results root). Route (ii) itself is decided (Stephen,
 4. M-9 to M-11: that the rubric, metrics and fixture set are closed and measurable.
 5. Any new claim or identity in draft 0.2.
 
-## 5. Author's limits
+## 6. Draft 0.3: the re-review of draft 0.2
+
+Re-review: `reviews/g7b-w9-draft-0-2-re-review-34ac441e-2026-10-22.md` (committed unchanged `6ac30e2e`), REWORK
+REQUIRED (narrow): 0 Blocking, 6 Major, 11 Minor, 4 Info. Stephen directed draft 0.3 on 2026-10-22: "For N-1, make
+the full-path target a W9-owned legacy-paper-root record that a later W11 dossier admission references. Fix N-2 to
+N-6 and the minors." No finding is rejected.
+
+| Finding | Disposition | Where in 0.3 |
+|---|---|---|
+| **N-1** paper target has no producer | **Fixed by Stephen's choice.** New `legacy-paper-root` W9 record as the full-path target; a W11 `paper` object is a separate later W11 OR-028 dossier admission whose prerequisites (OR-109 to OR-115; programme and other referenced objects) are W11's, not W9's | §1 item 4; §2.1; §4.5; §5.2; §8.2; §8.4; W9-D6 |
+| **N-2** genesis store unnamed | **Fixed.** Store named by the implementation plan and decided by Stephen; the Gate 6 store is never appended to; a separately accepted W9 bootstrap contract; a scoped owner grant; W11 genesis first in a new store (one-time-per-store reading to be confirmed against `accepted_w11.py`); P-059 protected-identity re-acceptance | §5.3; W9-D10; W9-T20 |
+| **N-3** no row selectors; no closure check | **Fixed.** `legacy-light-inventory` record; §5.5 selectors (task-ID-anchored tracker rows, date-anchored Working Notes, task-log frontmatter, heading-anchored sections); `.apm/` closure as a bijection with no blocker row | §5.2; §5.5; §8.1; §8.4; §13.3; W9-T18 |
+| **N-4** paper transition bypasses adoption | **Fixed.** Every cited family adopted or marked unadopted on the `legacy-paper-root`; W5 blocks claims on unadopted families | §1 item 1; §4.5; §12.1; W9-T17 |
+| **N-5** frozen copy of restricted files | **Fixed.** New `restricted_untracked_file` identity kind (hash, size, path; no frozen copy in the store); regeneration preferred; W9-T11 covers the observation path | §5.4; §10 item 3; W9-T11 |
+| **N-6** legacy set and baseline undefined | **Fixed.** Legacy set by heading date (on or before 2026-07-18) plus a named, accepted list of later APM-lane entries; a Git-anchored baseline export by a non-author; transitions read only the export (the reviewer's preferred default); detectors compare the live file to the baseline | §7.3; §4.4; §8.3; W9-D9; W9-T19 |
+| n-1 | Fixed: OR-031 to OR-033 and OR-122 to OR-139 | §2.1 W9-A1 |
+| n-2 | Fixed: ruleset 20822054 cited, dated after both pushes; its bypass list recorded | §4.4; W9-D5 |
+| n-3 | Fixed: the reviewer derives the affected set from binding tests | §4.3 |
+| n-4 | Fixed: root kind `repository_root`/`vault_root`; `successor_results_root` and `legacy_read_only_projection` roles; "§7.4" corrected to §13.3 item 2 | §5.2; §8.4 |
+| n-5 | Fixed: T1.41 has no legacy pre-registration; the new one is a typed ARS record with the vault entry as its log; the W0 addendum is accepted before dispatch | §10 items 2, 5 |
+| n-6 | Fixed: manual-operation mode keeps the root `successor_owned`, with attributed events for every manual edit | §13.1 |
+| n-7 | Fixed: S-016's change needs a dated W6 addendum; second-family eligibility defined (distinct family, W4 role-profile capability, independence grade), checked by the reviewer | §11.2; §12.3; W9-D12b |
+| n-8 | Fixed: the threshold hash is anchored in a Git commit or an ARS event | §14.3; W9-T16 |
+| n-9 | Fixed: 04-plan §6 quoted and amended in two rows; roadmap §4 separate; P-034 consequential row; 06l Step 5 proof ("tested rollback handle") row | §16.2 |
+| n-10 | Fixed: a successor compute dispatch row in the matrix | §4.5 |
+| n-11 | Fixed: the post-merge detector flags any change under `results/` outside `results/ars/` without a §4.2 record | §4.4; W9-D13; W9-D14 |
+| I-a, I-b, I-c | Noted | — |
+| I-d | Adopted: §7.3 cites 06l §4 only | §7.3 |
+| Reviewer note on W9-D12a | Adopted: the integration pilot measures import machinery, not research-workflow context | §14.2 |
+
+The narrow re-check the reviewer scoped: N-1 to N-6 as fixed above, and every changed passage.
+
+## 7. Author's limits
 
 - The schema family is specified at field level, not as JSON Schema; its exact shapes are the implementation plan's.
 - §12.3's assignments are the author's proposal; Stephen fixes them per batch.

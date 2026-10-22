@@ -1,14 +1,15 @@
 # W9 — Migration, Compatibility, and Pilot Specification
 
 **Date:** 2026-10-22<br>
-**Status:** `review_pending`; draft 0.2, reconciling the independent review of draft 0.1
-(`reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md`, REWORK REQUIRED). Dispositions:
+**Status:** `review_pending`; draft 0.3, reconciling the re-review of draft 0.2
+(`reviews/g7b-w9-draft-0-2-re-review-34ac441e-2026-10-22.md`, REWORK REQUIRED (narrow)), after the review of draft
+0.1 (`reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md`). Dispositions:
 `reviews/g7b-w9-reconciliation-2026-10-22.md`.<br>
-**Specification version:** 0.2<br>
+**Specification version:** 0.3<br>
 **Design authority:** accepted W1, W2, W3, W4, W5, W6, W7, W8 and W11 (revision 0.5, blob `f90729d0`, D-G6-4 limb 1,
 2026-08-01); P-004, P-005, P-021, P-026, P-028, P-029, P-031, P-032, P-034, P-042, P-047, P-050, P-058, P-061; the
 accepted 06u scope (D-1 to D-5); the accepted G7-A W0 post-terminal addendum (revision 3, blob `1ebcf96f`) and W0-D1
-to W0-D4; Stephen's choice of schema route (ii), 2026-10-22 (§2.1)<br>
+to W0-D4; Stephen's choice of schema route (ii) and of the W9-owned paper-root target, 2026-10-22 (§2.1)<br>
 **Implementation authority:** None. This document creates no schema file, catalogue, command, projection, import,
 transition, cutover, revocation, retirement, dispatch, compute or store state.<br>
 **Review owner:** an independent adversarial reviewer in a distinct session; acceptance by Stephen of an exact
@@ -25,7 +26,8 @@ The binding draft choices are:
 
 1. **Import is observation. Adoption is a separate, Stephen-only decision.** Legacy import produces
    content-addressed, read-only observations. Nothing legacy reaches successor use until an `AdoptLegacyAuthority`
-   decision (§9) binds it under P-005. "Citation by reference" is not a use.
+   decision (§9) binds it under P-005. "Citation by reference" is not a use, and neither is a paper root's
+   transition: the result families a transitioned paper's drafts cite must be adopted or marked unadopted (§12.1).
 2. **Three ownership modes, one writer, with two declared exceptions.** Every legacy item is exactly one of
    `legacy_owned`, `successor_owned` or `closed_reference` (P-004). A registered legacy file has one writer set. The
    Computational-Log and `CONVENTIONS.md` are the two files that cannot meet that rule today; they are handled by a
@@ -35,7 +37,8 @@ The binding draft choices are:
    reopens W11, whose accepted catalogue was genesis-imported into the Gate 6 store.
 4. **Two observation paths.** Items that only ever become `closed_reference` use a light path: a handle-bound
    observation, an independent review, and Stephen's batch decision (§8.1). Items that become `successor_owned` (the
-   paper roots) use the full transition chain (§8.2).
+   paper roots) use the full transition chain (§8.2), whose target is a W9-owned `legacy-paper-root` record. A later
+   W11 dossier admission may reference that record; W9 never writes a W11 portfolio object.
 5. **Field-family authority survives import.** Families are addressed by JSON-pointer sets from an independently
    authored membership table, not by byte ranges (§6.2).
 6. **Classes come from signed records.** An observation may carry a W0 class only after Stephen has signed the
@@ -72,12 +75,13 @@ over anything, revoke a writer, retire a surface, dispatch work, or edit `papers
 | D-G5-1(a) | Still restricts M/H model-graded acceptance. |
 | W11 r0.5 | **Accepted** (D-G6-4 limb 1, Stephen, 2026-08-01; Jira KAN-19 comment 10358; blob `f90729d0`). Its strict catalogue was accepted (KAN-84; `research_system/discovery/accepted_w11.py`, catalogue blob `8d588185` at `09be63a9`) and genesis-imported into `TDL-ARS-G6-Control` (P-058, Step 3 batch 1). The durable acceptance record sits on unmerged commit `cee20209`; a separate task is landing it on main. |
 | Route (ii) | **Stephen, 2026-10-22:** "Route (ii): a W9-owned closed schema family reusing W11's observation-inventory-mapping-transition pattern, with a lighter closed_reference observation path." |
+| Paper-root target | **Stephen, 2026-10-22:** "For N-1, make the full-path target a W9-owned legacy-paper-root record that a later W11 dossier admission references." |
 
 Bounded assumptions:
 
-- **W9-A1 — no runtime.** No handler implements W11's legacy rows OR-122 to OR-139 on `3fa437a1`. Their W11 schemas
-  are materialized and accepted, but W9 does not use them (§5). Every W9 operation therefore waits on an
-  implementation plan for the W9 family, outside this document.
+- **W9-A1 — no runtime.** No handler implements W11's legacy commands OR-031 to OR-033 or their authority rows
+  OR-122 to OR-139 on `3fa437a1`. Their W11 schemas are materialized and accepted, but W9 does not use them (§5).
+  Every W9 operation therefore waits on an implementation plan for the W9 family, outside this document.
 - **W9-A2 — W7.** W7 (provider adapters and parity) is consumed only through P-042: operator-mediated sessions, no
   ARS provider invocation, no parity evidence required for Gate 7 dispatch (W9-D2).
 
@@ -180,21 +184,22 @@ intake.
 ### 4.3 Shared enforcement surfaces
 
 A contract that both a legacy result and an ARS pack bind is registered with role `shared_enforcement_surface`. Its
-writer set is ARS reviewed PRs **plus** the §4.2(b) owner note naming the legacy results the change affects. Each
-change re-triggers observation of those results' enforcement state. W9-D14 asks Stephen to accept this split, or to
+writer set is ARS reviewed PRs **plus** a §4.2(b) owner note. The set of legacy results a change affects is derived
+by the independent reviewer from the contract's binding tests, never named by the writer. Each change re-triggers
+observation of those results' enforcement state. W9-D14 asks Stephen to accept this split, or to
 make every such contract ARS-owned with legacy results observed against a frozen copy.
 
 ### 4.4 Detection (W9-D5)
 
 | Detector | Sees | Negative control (must fire) |
 |---|---|---|
-| Server-side branch protection on `main`: no direct pushes | Pushes | A direct push attempt is refused (owner-run check, not a destructive probe) |
-| Post-merge first-parent detector over `origin/main` | Any commit touching a registered legacy file without a §4.2 record | Replays of `5df0c001` and `811d5a2b` against the registry are flagged |
-| Vault append-only detector for the Computational-Log | An edit to any legacy entry's bytes (§7.3) | A fixture edit inside a legacy entry is flagged |
+| Server-side protection on `main`: the existing GitHub ruleset "P-049 Gate 6 main merge admission" (ID 20822054, `enforcement: active`, rules `pull_request`, `required_status_checks`, `merge_queue`, `non_fast_forward`), created 2026-08-13 — after both direct pushes | Pushes outside a PR | The ruleset's bypass list is read and recorded; any bypass actor is named in the registry and its use is itself flagged by the post-merge detector |
+| Post-merge first-parent detector over `origin/main` | (1) Any commit touching a registered legacy file without a §4.2 record; (2) any change under `results/` outside the registered successor root `results/ars/` without a §4.2 record, so unregistered legacy families (W9-D13) are still guarded | Replays of `5df0c001` and `811d5a2b` are flagged; a fixture change to an unregistered file under `results/` is flagged |
+| Vault detector for the Computational-Log, and a repository check for `CONVENTIONS.md` | Any difference between a live legacy entry or lock and its baseline export (§7.3) | A fixture edit inside a legacy entry is flagged against the baseline |
 
-A client-side pre-commit hook is defence in depth only; it cannot see a push of a commit made elsewhere. None of
-these is built here; each is a requirement on the implementation plan, with its negative control watched to fail
-before the first registration.
+A client-side pre-commit hook is defence in depth only; it cannot see a push of a commit made elsewhere. The
+ruleset exists; the two detectors are requirements on the implementation plan. Each negative control is watched to
+fail before the first registration.
 
 ### 4.5 Preparation, transition, cutover and retirement matrix
 
@@ -203,7 +208,8 @@ before the first registration.
 | Preparation: documents, read-only observation by a non-author session with Stephen's authorization, inventory design, membership tables, templates | Yes | — |
 | Closed-reference observation and batch acceptance (§8.1) | No | Gate 7 opened (D-1 bar); G7-A, G7-B, G7-C accepted; the W9 catalogue accepted and imported (W9-D10); the §4.4 detectors live; Stephen's W0-D1 signature on all eight §14 items |
 | Adoption (§9) | No | The item's closed-reference acceptance; Stephen's `AdoptLegacyAuthority` decision |
-| Successor transition of a paper root (§8.2) | No | All of the above; the integration-pilot batch passed (§14.3); W0-D2 Stage 2 scope for its rows; the A-001 items feeding its claims resolved or scoped out; its `pilot_promotion` evidence (§12.3); W9-D7 manuscript route; Stephen's batch approval (D-G6-4 limb 2) |
+| Successor compute dispatch (§10; likely the first Gate 7 action, T1.41) | No | Gate 7 opened; the new pre-registration resolved by Stephen; §11.2 family coverage proven before compute; F-016, F-029 and F-030 evidence (§12.3); the W8 grant; adoption of any legacy input it uses (prefer regeneration); the dated W0 addendum for the dispatch accepted (G7-A §17) |
+| Successor transition of a paper root (§8.2) | No | All of the above; the integration-pilot batch passed (§14.3); W0-D2 Stage 2 scope for its rows; the A-001 items feeding its claims resolved or scoped out; every cited result family adopted or marked unadopted (§12.1); its `pilot_promotion` evidence (§12.3); W9-D7 manuscript route; Stephen's batch approval (D-G6-4 limb 2). The target is a W9 `legacy-paper-root` record; a W11 `paper` object, if wanted, needs a separate W11 dossier admission (§8.2) |
 | Whole-path cutover | No | Every item on the path transitioned; writer revocation; final observation; closure; Stephen's cutover Decision |
 | Retirement | No | Durable cutover; no live authority reference; Stephen's retirement decision |
 | Discovery items at 06l Step 3 or later | No | W0-D4's condition (§15) |
@@ -233,21 +239,62 @@ All records are strict, closed, immutable W2 objects.
 
 | Record | Purpose | Key fields |
 |---|---|---|
-| `legacy-repository-path-registration` | Registers one exact legacy file | repository root ID; normalized path; resolved physical identity; source identity kind (`git_tracked` or `untracked_file` or `vault_file`); role (`legacy_research_result`, `legacy_supersession_manifest`, `legacy_pre_registration`, `legacy_contract`, `shared_enforcement_surface`, `legacy_coordination`, `legacy_task_log`, `legacy_bus_file`, `legacy_manuscript_root`, `legacy_decision_log_entry`, `conventions_lock`); ownership mode; writer classes (§4.2); prohibited consumers |
+| `legacy-path-registration` | Registers one exact legacy file | root kind and ID (`repository_root` or `vault_root`); normalized path; resolved physical identity; source identity kind (§5.4); role (`legacy_research_result`, `legacy_supersession_manifest`, `legacy_pre_registration`, `legacy_contract`, `shared_enforcement_surface`, `legacy_coordination`, `legacy_task_log`, `legacy_bus_file`, `legacy_manuscript_root`, `legacy_decision_log_entry`, `conventions_lock`, `successor_results_root`, `legacy_read_only_projection`); ownership mode; writer classes (§4.2); prohibited consumers |
 | `legacy-field-family-membership` | For one file schema, assigns every JSON pointer to exactly one named family, or to `unassigned`, which blocks import | file schema ID; family names; pointer → family map; author identity (independent of the importer); review ref |
-| `legacy-observation` | One handle-bound observation of one registered file | registration ref; source identity (Git commit and blob, or handle-bound SHA-256 plus a dated frozen copy for untracked and vault files, with "no Git identity" as a recorded non-inference); importer identity and version; per-family W0 class with the **signed** W0 revision and signature record; typed qualifiers (§6.4); conflicts; non-inferences |
+| `legacy-light-inventory` | For a registered Markdown or coordination file that will be closed or cut over, the complete list of its items | registration ref; source identity; selector kind (§5.5); one row per item with its selector and raw-row hash; blocker rows for every unparseable region, never omissions; an independent reproduction ref |
+| `legacy-observation` | One handle-bound observation of one registered file, or of one item in it by a §5.5 selector | registration ref; selector (whole file, JSON-pointer family set, or §5.5 item selector) and the light-inventory row it binds, where one exists; source identity (§5.4); importer identity and version; per-family W0 class with the **signed** W0 revision and signature record; typed qualifiers (§6.4); conflicts; non-inferences |
 | `legacy-closed-reference-acceptance` | Light path: accepts a batch of observations as `closed_reference` | observation refs; independent review ref; Stephen's batch Decision |
 | `legacy-adoption-decision` | §9 | observation and family refs; intended successor use; W5 admissibility consequence; qualifiers that must be discharged; Stephen's Decision |
 | `legacy-discharge-relation` | A successor result discharges a legacy open item (an A-001 item or a hole) | successor result ref; legacy item ref; reviewer ref; Stephen's Decision under W0-D1 |
-| `legacy-source-inventory`, `legacy-transition-mapping`, `legacy-ownership-transitioned` | Full path for `successor_owned` (§8.2) | As W11 §7.5–7.6, with W9 identities and a W11 `paper` object as the mapping target |
+| `legacy-paper-root` | The successor-owned target of a paper root's transition | paper key (P01-A, P01-B); manuscript root path; the transition event ref; adopted and unadopted citation lists (§12.1); qualifier set; owner. It is a W9 record, not a W11 portfolio object, and carries no programme, hypothesis, method, dataset or claim refs |
+| `legacy-source-inventory`, `legacy-transition-mapping`, `legacy-ownership-transitioned` | Full path for `successor_owned` (§8.2) | As W11 §7.5–7.6, with W9 identities; the mapping target is a `legacy-paper-root` record |
 | `legacy-record-supersession` | Corrects an erroneous accepted observation or mapping | superseded record; replacing record; reason; reviewer; Stephen's Decision. The old record and its events stay; current use re-points (§13.2) |
 
 ### 5.3 The catalogue
 
 The family is a separate W9 catalogue with its own exact Git/blob/SHA-256 identities, independently reviewed and
-accepted by Stephen, then imported into the store by its own one-time W9 genesis transaction. W11's genesis is not
-reused or repeated. W9-D10 asks Stephen to accept this route; the catalogue and its genesis row are written by the
+accepted by Stephen. It enters a store as W11 §1 item 7 requires for W11's own catalogue:
+
+1. **The store.** The implementation plan names the target store, and Stephen decides it. **The Gate 6 store
+   `TDL-ARS-G6-Control` is not appended to**: it stays frozen at 91 events as Gate 6 evidence (P-058, step 6).
+2. **A bootstrap contract.** A separately accepted, minimal W9 bootstrap contract imports the accepted W9 envelope
+   through one independently verified genesis transaction. The W9 runtime cannot produce or accept its own
+   prerequisite.
+3. **A scoped grant.** The genesis runs under an owner grant scoped to the W9 catalogue stream, as Gate 6's W11
+   genesis did (P-058, Step 3 batch 1).
+4. **W11 in a new store.** A new store also needs the accepted W11 catalogue's own genesis before any W11-referencing
+   record exists. W9 reads W11's genesis as one-time per store; the implementation plan confirms that reading with
+   the W11 genesis code (`research_system/discovery/accepted_w11.py`) before relying on it.
+5. **Protected identities.** New W2 commands for the W9 family change the 06h append-path census and the protected
+   tree identities that P-059 re-accepted at exact bytes. The implementation plan carries that re-acceptance as an
+   owner decision.
+
+W9-D10 asks Stephen to accept this route. The catalogue, bootstrap contract and genesis row are written by the
 implementation plan, not here.
+
+### 5.4 Source identity kinds
+
+| Kind | Identity | Frozen copy |
+|---|---|---|
+| `git_tracked` | Git commit and blob, plus SHA-256 of the bytes read | Not needed; Git holds the bytes |
+| `untracked_file` | Handle-bound SHA-256, size and path; "no Git identity" recorded as a non-inference | A dated frozen copy in the ARS evidence store, for files that are not restricted |
+| `restricted_untracked_file` | Handle-bound SHA-256, size and path only; "no Git identity" and "no frozen copy" recorded as non-inferences | **None in the ARS store.** Restricted or UKDA-derived bytes (null caches, embeddings, `*.csv`, `*.pkl`) stay under `PROJ_ROOT`, gitignored. Any frozen copy is kept there, outside the store, and referenced by hash. |
+| `vault_file` | Handle-bound SHA-256, size and vault path | A dated frozen copy in the ARS evidence store |
+
+Regeneration from committed scripts (§10) is preferred to observing and adopting a restricted file.
+
+### 5.5 Item selectors
+
+| File | Selector |
+|---|---|
+| JSON result | A JSON-pointer family set from the accepted `legacy-field-family-membership` (§6.2) |
+| `.apm/tracker.md` task table | A task-ID-anchored row: the exact bytes of the table row whose first cell is the task ID, and its hash |
+| `.apm/tracker.md` Working Notes | A date-heading-anchored entry: the bytes from the entry's bullet or heading to the next, and its hash |
+| `.apm/memory/stage-NN/*.log.md` | The frontmatter block (between the opening and closing `---`), and its hash |
+| Computational-Log, `CONVENTIONS.md` | A heading-anchored entry, from the frozen baseline export (§7.3) |
+| Any other Markdown file to be closed or cut over | A heading-anchored section, with a light inventory |
+
+Any region of a file a light inventory covers that no selector addresses becomes a blocker row.
 
 ## 6. Status mapping
 
@@ -328,17 +375,24 @@ carries source position, projector version, content hash and rebuild identity, a
 ### 7.3 The shared-writer exception (W9-D9)
 
 The vault Computational-Log and `CONVENTIONS.md` have legacy and successor writers by design. W9 proposes a bounded
-exception to 06l §4 and W11 §7.1 for these two files only:
+exception to 06l §4's single-writer rule for these two files only. (W11 §7.1 governs only W11's Discovery vault
+paths, which W9 does not use, so no W11 exception is sought.)
 
-1. **Selector:** a legacy entry is addressed by a heading-anchored entry hash (the exact bytes from its heading to
-   its separator). The containing file's hash is recorded but is not required to stay stable, because new entries
-   are prepended.
-2. **Rule:** successor sessions only prepend new entries or add new locks. No byte inside a legacy entry or lock
-   changes. Corrections are new dated entries linked by `corrected_by`.
-3. **Window:** the entry hash, not the file, must be stable through an observation window.
-4. **Detection:** the vault append-only detector (§4.4).
-5. **Alternative:** legacy entries transition only from a frozen, dated export of the file, never from the live
-   file.
+1. **The legacy set.** A Computational-Log entry is **legacy** if its heading date is on or before 2026-07-18 (the
+   day the freeze `[DECISION]` and #126, `4b143c92`, landed), or if the baseline observer names it as a later entry
+   about a `legacy_owned` object written under the APM lane and Stephen accepts that list. Every other entry is a
+   **successor** entry, including successor corrections of legacy entries (for example the 2026-10-22 T1.20
+   correction). A `CONVENTIONS.md` lock is legacy if it was committed before #126's merge, by the same rule.
+2. **The baseline.** At registration, a non-author observer takes a dated **baseline export**: every legacy entry
+   and lock as exact bytes, each with its heading-anchored hash, plus the export's own hash. Its hash is anchored in
+   a Git commit (the export lives in the repository under the W9 evidence area) before Stephen accepts it.
+3. **Transitions read the export (the default).** Legacy entries and locks are observed and accepted only from the
+   frozen baseline export, never from the live file. There is no live-file window to hold.
+4. **The live rule.** Successor sessions only add new entries or locks. No byte of a live legacy entry or lock may
+   differ from the baseline. Corrections are new dated successor entries linked by `corrected_by`, which later
+   entries may themselves correct.
+5. **Detection.** The vault detector compares every live legacy entry with the baseline export; the repository
+   check does the same for `CONVENTIONS.md` (§4.4).
 
 `CONVENTIONS.md` is repository-canonical and reached from the vault by a symlink. It is registered at its repository
 path only; the vault alias is a prohibited read path for observations.
@@ -353,20 +407,31 @@ For an item that only ever becomes `closed_reference`:
 2. An independent reviewer checks the observation, its families and qualifiers against the signed W0 record.
 3. Stephen accepts a batch by `legacy-closed-reference-acceptance`.
 
-There is no inventory or mapping DAG on this path, and no successor object is created. A closed-reference item is
-not usable by a successor until adopted (§9).
+There is no mapping DAG on this path, and no successor object is created. A closed-reference item is not usable by
+a successor until adopted (§9). For a file that will be closed or cut over as a whole (for example
+`.apm/tracker.md`), a `legacy-light-inventory` lists every item first, and the file's closure is a bijection between
+that inventory's rows and accepted observations (§13.3).
 
 ### 8.2 Full path: successor owned
 
 For a paper root becoming `successor_owned`, W9 uses W11's DAG pattern with W9 identities: observation → accepted
-source inventory of the root → accepted mapping to a W11 `paper` object → `legacy-ownership-transitioned`. Allowed
-transitions: `legacy_owned → successor_owned`, `legacy_owned → closed_reference`,
+source inventory of the root → accepted mapping to a W9 `legacy-paper-root` record → `legacy-ownership-transitioned`.
+Allowed transitions: `legacy_owned → successor_owned`, `legacy_owned → closed_reference`,
 `successor_owned → closed_reference`.
+
+**A W11 `paper` object is a separate, later step.** If Stephen wants the paper in the W11 portfolio, W11 OR-028
+`AdmitResearchDossier` creates it, referencing the `legacy-paper-root` record. Its prerequisites are W11's, not
+W9's: an accepted `DossierExpectedSetContent` authority chain (OR-109 to OR-115, W11 §5.1) and the programme,
+hypothesis, method, dataset, claim, scope-definition and manuscript-root objects that `paper.schema.json` requires.
+Dossier admission has never run live (P-058 removed it from Gate 6's route). W9 does not depend on it, and W9 never
+writes a W11 portfolio object.
 
 ### 8.3 Windows
 
-From observation to acceptance (light path) or transition (full path), the registered file's blob or, under §7.3,
-its entry hash must not change. A change aborts with no event and re-triggers observation (§4.2 item 3).
+From observation to acceptance (light path) or transition (full path), the registered file's blob, or the selected
+item's hash, must not change. A change aborts with no event and re-triggers observation (§4.2 item 3). Legacy
+Computational-Log entries and `CONVENTIONS.md` locks are observed from the frozen baseline export (§7.3), so they
+have no live-file window.
 
 ### 8.4 Item granularity and targets
 
@@ -375,10 +440,10 @@ its entry hash must not change. A change aborts with no event and re-triggers ob
 | Result file | Light | `closed_reference`; no successor object |
 | Pre-registration, contract, supersession entry | Light | `closed_reference` |
 | Legacy decision entry | Light, under §7.3 | `closed_reference` |
-| Tracker row, task log | Light | `closed_reference` |
-| Bus file | Not imported (§7.4 of the deprecation path, §13.3) | — |
+| Tracker row, Working Note, task log | Light, by a §5.5 selector, under the file's light inventory | `closed_reference` |
+| Bus file | Not imported (§13.3 item 2) | — |
 | Parked computation's tracker row | Light | `closed_reference`; the work re-enters as a new successor Task (§10) |
-| Paper root | Full | `successor_owned` W11 `paper` object |
+| Paper root | Full | `successor_owned` W9 `legacy-paper-root` record |
 | `papers/shared/` | Light, after both paper roots transition | `closed_reference` |
 
 ### 8.5 Preconditions per item
@@ -420,19 +485,21 @@ Stephen resolves under W0-D1.
 T1.41 and the Markov-2 α=1 recompute run, if authorized, as **new successor-owned ARS Tasks**:
 
 1. **Legacy rows** move to `closed_reference` by the light path. No legacy Task is reopened.
-2. **Pre-registration:** each Task files a **new** pre-registration in the vault, before dispatch. It cites the
-   legacy pre-registration (the 2026-07-17 Markov-2 entry, or the 2026-07-16 double-null `[DECISION]` for T1.41) by
-   identity and carries any change as its own content. For the Markov-2 recompute that includes the review finding
-   A1 amendment; for T1.41, a design that answers A3 and may answer A1 and A2. Stephen resolves it (P-005). The
-   legacy record is not edited.
+2. **Pre-registration:** each Task files a **new** pre-registration before dispatch. It is a typed ARS record (P-032
+   makes pre-registration locks canonical ARS records); its vault Computational-Log entry is the log of it, not the
+   authority. Stephen resolves it (P-005). The legacy record is not edited.
+   - **Markov-2 recompute:** it cites the 2026-07-17 legacy pre-registration by identity and carries, as its own
+     content, the change review finding A1 requires.
+   - **T1.41:** there is no legacy pre-registration (handoff 07 §3: "pre-reg to be filed at dispatch"). The new
+     pre-registration cites the 2026-07-16 double-null `[DECISION]` as its design decision, and its design answers A3
+     and may answer A1 and A2.
 3. **Inputs:** regenerated inside the successor Task from committed scripts at a pinned commit (for T1.41,
-   `scratch/w2_fallback_audit/w2_gap_closure_table1_h1.py`, 06u §6.1), or referenced by content hash only. Restricted
-   or UKDA-derived bytes (null caches, embeddings, `*.csv`, `*.pkl`) never enter the ARS artefact store; they stay
-   under `PROJ_ROOT`, gitignored, and are referenced by hash and path. Legacy embeddings that a successor Task uses
-   are adopted first (§9).
-4. **Outputs:** under `results/ars/` only (§3.1).
-5. **Precondition:** the G7-A §17 trigger fires on dispatch, so a dated W0 addendum is due; the dispatch record
-   cites it.
+   `scratch/w2_fallback_audit/w2_gap_closure_table1_h1.py`, 06u §6.1). This is the preferred route. Where a legacy
+   input is used instead, it is a `restricted_untracked_file` observation (§5.4): hash, size and path only, no frozen
+   copy in the ARS store, and adopted first (§9). Restricted or UKDA-derived bytes never enter the ARS store.
+4. **Outputs:** under the registered successor root `results/ars/` only (§3.1).
+5. **W0 currency:** dispatch fires G7-A §17's trigger. A dated W0 addendum recording the pending dispatch is
+   accepted by Stephen **before** dispatch, and the dispatch record cites it.
 6. **Dispatch model:** §11.
 
 **Alternative rejected:** transitioning each paper first and running the compute in its successor scope. That
@@ -452,8 +519,12 @@ for operator-mediated sessions.
 
 - **If it survives (recommended):** it applies **at dispatch** to every item in P-005's R3 set (pre-registration
   changes, R3 dispatch, decision reversal, claim promotion, adoption), with verifier-route availability proven
-  before any compute: the operator names the second-family session (for example Codex) in the dispatch record.
-  Without it, the item records `r3_family_coverage_insufficient` and does not dispatch.
+  before any compute. Without it, the item records `r3_family_coverage_insufficient` and does not dispatch.
+- **Eligibility under P-042.** The operator chooses the session (P-042), but a named session is an eligible
+  verifier route only when the dispatch record shows: (a) its model family differs from the producer's; (b) the
+  role profile it runs under meets the W4 capability required for the item's lane; and (c) its context is
+  independent of the producer's at the item's required independence grade (P-022, P-029). The record is checked by
+  the item's reviewer, not by the operator alone.
 - **If it does not:** each item records one-family review as an accepted known limit in its own decision, never as
   a precedent. Gate 6's one-family reviews were a P-058 known limit, not a precedent.
 
@@ -464,6 +535,8 @@ for operator-mediated sessions.
 A paper root transitions only after the integration-pilot batch has passed (§14.3), and only when:
 
 - every A-001 item feeding one of its claims is discharged (§9) or scoped out by Stephen;
+- **every result family its drafts cite is either adopted for "evidence for the manuscript claims of paper X" (§9)
+  or marked unadopted on the `legacy-paper-root` record**; W5 blocks any claim that rests on an unadopted family;
 - W0-D2's Stage 2 decision covers its rows;
 - the audit verdicts and the §6.2 HOLD are carried as qualifiers;
 - for any rung-4/5 claim it keeps, the A1 fork is decided and the calibration has run.
@@ -496,7 +569,7 @@ The set is derived from the owning catalogue, not chosen per item. Source: the 0
 | S-007 stale review hash | Every review |
 | S-014 backup, restore, machine move | Materialized in the `foundation_release` tranche (05b); re-run after each W9 batch |
 | S-015 supersession cycle | Every `legacy-record-supersession` |
-| S-016 R3 provider outage | **Re-specified under P-042** (W9-D12b): an operator-mediated second-family session is unavailable → `r3_family_coverage_insufficient`; its `unable_to_grade` H row stays |
+| S-016 R3 provider outage | **Re-specified under P-042**: an operator-mediated second-family session is unavailable → `r3_family_coverage_insufficient`; its `unable_to_grade` H row stays. Because S-016 is in the W6 catalogue accepted under P-027, the change needs a dated W6 addendum (as 06a and 06b were), not only W9-D12b |
 
 Per-item applicability is proposed by the item's independent reviewer and fixed by Stephen in the batch decision,
 never by the item's producer. An exclusion (F-024, S-016's H row) is an owner-accepted record.
@@ -508,10 +581,12 @@ never by the item's producer. An exclusion (F-024, S-016's H row) is an owner-ac
 - **Before commit:** any stop leaves the item `legacy_owned`; no event; no change to the legacy file.
 - **After commit, closed-reference item:** the accepted record is superseded by `legacy-record-supersession`
   (§13.2); the old record and its events stay.
-- **After commit, paper root:** recovery creates a **new successor paper object** that cites the transitioned paper
-  by lineage and resumes under successor authority, or Stephen declares a **manual-operation mode** naming one human
-  writer for the successor paper root (04-plan §7: "return the greenfield paper to manual operation"). Authority
-  never returns to `legacy_owned` or to APM.
+- **After commit, paper root:** recovery creates a **new `legacy-paper-root` successor record** that cites the
+  transitioned one by lineage and resumes under successor authority, or Stephen declares a **manual-operation mode**
+  (04-plan §7: "return the greenfield paper to manual operation"). In manual-operation mode the root stays
+  `successor_owned` and ARS events stay canonical (W2 §22.3): one named human writer edits the files, and each
+  edit enters as an attributed ARS event that registers the new file bytes under that human actor. There is no
+  unattributed write and no second mode. Authority never returns to `legacy_owned` or to APM.
 - **In every case** no accepted research artefact, result or decision changes.
 - **06l's "tested rollback handle"** becomes, for each item: the pre-commit abort path and, after commit, the
   named supersession or recovery route, each exercised once on a scratch store before the item's batch.
@@ -529,10 +604,14 @@ old record are suspended (§9 item 5). Supersession cycles are rejected (S-015).
 2. **Bus:** `.apm/bus/` files are gitignored, single-slot and overwrite-prone (W0 §8.2). They are **not imported**.
    One dated, handle-bound inventory of the directory (names, sizes, SHA-256) is taken as a closure record, so their
    absence from import is a recorded decision, not silence.
-3. **Tracker and logs:** each tracker row and task log is observed and accepted `closed_reference` by the light path.
+3. **Tracker and logs:** a `legacy-light-inventory` is taken for `.apm/tracker.md` (every task row and Working Note,
+   with blocker rows) and for the task-log set; each item is then observed by its §5.5 selector and accepted
+   `closed_reference` by the light path.
 4. **Writer revocation for `.apm/`:** sessions stop writing Working Notes to `.apm/tracker.md` (the #368 case);
    Stephen records the revocation; the §4.4 detector watches the path.
-5. **Final observation and closure** of the whole `.apm/` set.
+5. **Final observation and closure** of the whole `.apm/` set: a final light inventory, re-observed after
+   revocation, must be in bijection with the accepted observations, with no blocker row left. A missing or extra
+   item blocks closure.
 6. **Projection replacement:** the §7.2 legacy projection, if accepted.
 7. **Retirement record** under 06l Step 7, by Stephen.
 
@@ -579,6 +658,10 @@ The first W9 batch is the integration pilot. Following the roadmap §4 rubric, i
 - has only successor-side, supersedable effects;
 - avoids a large historical import, unresolved data access and any paper-claim reversal.
 
+The integration pilot measures the import machinery (recall of governing records, operator burden, defects). It
+does not measure research-workflow context, so 04-plan §6's research criteria stay unmeasured until successor compute
+(§10) runs; the Phase F decision should say so.
+
 Papers come last, after this batch passes. Master plan Phase F says wider adoption needs Stephen's explicit
 authorization and that "no conclusion about migrating the two APM papers follows automatically". W9-D12 asks
 Stephen for that authorization as a separate decision before any paper-root transition, and proposes old→new text
@@ -595,8 +678,9 @@ for roadmap §4 and 04-plan §6 through G7-C (§16.2).
 | Defects | — | Review findings per item by severity |
 | Recovery | — | Replay and restore after the batch (S-014) |
 
-**Thresholds** are filed by Stephen as a hashed, dated pre-registration in the vault before the batch's first
-acceptance. A missed threshold stops further batches. It cannot reverse committed records; those are superseded only
+**Thresholds** are filed by Stephen as a hashed, dated pre-registration before the batch's first acceptance. The
+vault has no history and file times are mutable, so the hash is anchored in a Git commit or an ARS event that
+precedes the first acceptance; that anchor, not the vault date, is what W9-T16 checks. A missed threshold stops further batches. It cannot reverse committed records; those are superseded only
 through §13.2 if wrong.
 
 ## 15. Discovery boundary (W0-D4)
@@ -626,19 +710,19 @@ The per-item transition of a Discovery item still uses W11's accepted machinery 
 | W9-D2 | First release (§11.1) | Operator-mediated under P-042; no provider reactivation |
 | W9-D3 | Family coverage (§11.2) | The rule survives; at dispatch; over P-005's full R3 set |
 | W9-D4 | Rollback and recovery (§13.1) | As §13.1, including the paper recovery route; G7-C amends 06l Steps 5–7 |
-| W9-D5 | Detectors (§4.4) | Branch protection, a post-merge detector and a vault detector, each watched to fail before the first registration |
-| W9-D6 | Paper granularity (§12.1) | Whole root, last |
+| W9-D5 | Detectors (§4.4) | Keep the existing ruleset 20822054 and record its bypass list; add the post-merge detector with the `results/` prefix rule, and the baseline-backed vault and `CONVENTIONS.md` checks; each watched to fail before the first registration |
+| W9-D6 | Paper granularity (§12.1) | Whole root, last, as a W9 `legacy-paper-root` record (decided, N-1), with every cited family adopted or marked unadopted |
 | W9-D7 | Manuscript review (§12.2) | Wait for Gate 9 for prose |
 | W9-D8a | Evidence register | A dated W9 addendum to `01-current-system-evidence.md` before acceptance |
 | W9-D8b | Projection namespace (§7.2) | `.research-system/projections/legacy/`, registered under the W9 family |
 | W9-D8c | Discovery observation (§15) | Yes: a non-author, read-only, dated observation before W9's acceptance |
-| W9-D9 | Shared-writer exception (§7.3) | Accept, with the heading-anchored selector and the vault detector |
-| W9-D10 | W9 catalogue and its own one-time genesis (§5.3) | Accept |
+| W9-D9 | Shared-writer exception (§7.3) | Accept, with the dated legacy-set rule, a Git-anchored baseline export, transitions only from the export, and the detectors |
+| W9-D10 | W9 catalogue and its genesis (§5.3) | Accept: a store named by the implementation plan and decided by Stephen, never the Gate 6 store; a separately accepted W9 bootstrap contract; a scoped owner grant; W11 genesis first in a new store; P-059 protected-identity re-acceptance for the new commands |
 | W9-D11 | Adoption semantics (§9) | Accept `AdoptLegacyAuthority` as Stephen-only, use-scoped and revalidating |
 | W9-D12a | Integration-pilot rubric and Phase F wider-adoption authorization (§14.2) | Accept the rubric; authorize wider adoption separately, after the pilot |
-| W9-D12b | S-016 under P-042 and F-024's exclusion (§12.3) | Accept both |
-| W9-D13 | P04 and other legacy result families (§3.2) | `legacy_owned`, unregistered until their own intake |
-| W9-D14 | Shared enforcement surfaces and the successor results root (§3.1, §4.3) | Accept the `shared_enforcement_surface` split; `results/ars/` |
+| W9-D12b | S-016 under P-042 and F-024's exclusion (§12.3) | Accept both; S-016's change lands as a dated W6 addendum; F-024's exclusion is for P01 only and is reassessed at P04's intake |
+| W9-D13 | P04 and other legacy result families (§3.2) | `legacy_owned`, unregistered until their own intake, guarded meanwhile by the `results/` prefix rule (§4.4) |
+| W9-D14 | Shared enforcement surfaces and the successor results root (§3.1, §4.3) | Accept the `shared_enforcement_surface` split, with the reviewer deriving affected results; register `results/ars/` as the `successor_results_root` so the detector exempts exactly that prefix |
 
 ### 16.2 Amendments carried to G7-C (old→new texts)
 
@@ -647,8 +731,12 @@ The per-item transition of a Discovery item still uses W11's accepted machinery 
 | P-026 legacy boundary | "the foundation cannot write, migrate, normalize, or promote their tasks, evidence, decisions, or claims" | "…except through W9's attributed observation, adoption and per-item transition, each resolved by Stephen; nothing is written to legacy files" |
 | 04-plan §2 | "never migrated into the prototype and are never used as live pilot inputs" | "enter ARS only by W9 observation, adoption and per-item transition; legacy files are never written" |
 | 04-plan §5 exclusion | "imports that promote legacy evidence into successor authority" | "imports that promote legacy evidence without a W9 adoption decision" |
-| 04-plan §6, roadmap §4 | The first pilot is "the first paper initiated after the two current APM-managed papers" | "The system pilot was Gate 6's SPEC-01 run; the Gate 7 integration pilot follows W9 §14.2's rubric; wider adoption needs Stephen's separate authorization" |
+| P-034 boundary (consequential) | "The P-026 legacy boundary is unchanged: T1.28 and the two current APM-managed papers remain `legacy_owned`; T1.28 terminal review still gates legacy deprecation claims." | "The P-026 legacy boundary, as amended through G7-C, holds: the two papers remain `legacy_owned` until their W9 transition; T1.28's terminal review is recorded (G7-A, accepted 2026-10-22)" |
+| 04-plan §6 (pilot initialization) | "The pilot paper is initialized under ARS from inception." | "The system pilot (Gate 6's SPEC-01 run) was initialized under ARS from inception; legacy papers enter only by W9 transition" |
+| 04-plan §6 (pilot scope) | "Initial pilot work should use bounded R0/R1 tasks and one representative R2 workflow before any paper-critical computation." | Unchanged for new ARS work; for legacy integration, "the Gate 7 integration pilot follows W9 §14.2's rubric before any paper-critical computation" |
+| Roadmap §4 | "be the first paper initiated after the two current APM-managed papers, not an active or historical migrated task;" | "the system pilot was Gate 6's SPEC-01 run; the Gate 7 integration pilot follows W9 §14.2; wider adoption needs Stephen's separate authorization" |
 | 06l Step 5 | "Rollback returns the item to its prior authority" | "Before commit, a stop leaves the item `legacy_owned`; after commit, recovery is successor-side (W9 §13.1)" |
+| 06l Step 5 proof | "and a tested rollback handle for that item" | "and, for that item, the pre-commit abort path and its named post-commit supersession or recovery route, each exercised once on a scratch store (W9 §13.1)" |
 | 06l Step 6 | "Roll back to the previous writer only through the recorded recovery procedure" | "Recovery is successor-side; legacy writers are never re-enabled (W9 §13.1, W11 §7.6.2)" |
 | 06l Step 7 | "Retirement is reversible only by restoring the recorded prior surface" | "A retired surface is restored only as a read-only projection; authority does not return" |
 | KAN-13 "additive 06i" | — | Resolves to 06l; 06i contains no Gate 7 text |
@@ -662,23 +750,28 @@ The per-item transition of a Discovery item still uses W11's accepted machinery 
 | W9-T3 | Every key is in exactly one family | A file with an unassigned key; import blocks |
 | W9-T4 | Precedence resolves lines 69–71 | Import them alone; the summary's W₂ family is `unverified`, not "IMMUNE" |
 | W9-T5 | No return to `legacy_owned` | Submit `successor_owned → legacy_owned`; rejected |
-| W9-T6 | A change in a window aborts | Change the blob (or a legacy entry hash) after observation; no event |
+| W9-T6 | A change in a window aborts | Change the blob, or the selected item's hash, after observation; no event |
 | W9-T7 | Detectors fire | Replay `5df0c001` and `811d5a2b`; edit a legacy log entry; each flagged |
 | W9-T8 | No successor use without adoption | Reference an unadopted closed-reference family in a successor Task; rejected |
 | W9-T9 | Adoption revalidates | Re-observe an adopted source with a new blob; the adoption suspends |
 | W9-T10 | Parked compute writes nothing legacy | A successor Task writing a legacy path or legacy pre-registration; rejected |
-| W9-T11 | Restricted bytes stay out of the store | Register a `*.pkl` or null cache as an ARS artefact; rejected |
+| W9-T11 | Restricted bytes stay out of the store, on every path | Register a `*.pkl` or null cache as an ARS artefact, or observe one with a frozen copy in the store; both rejected |
 | W9-T12 | Family coverage at dispatch | Dispatch an R3 item with no second-family session named; blocked before compute |
 | W9-T13 | Corrections bind generally | Import any decision entry with a `corrected_by` relation; values come from the canonical source |
 | W9-T14 | Supersession is acyclic and keeps history | Supersede a record twice in a cycle; rejected; old events intact |
 | W9-T15 | Paper recovery changes no accepted artefact | Recover a transitioned paper; every legacy blob unchanged |
-| W9-T16 | Thresholds precede the batch | A threshold record dated after the batch's first acceptance; the batch is invalid |
+| W9-T16 | Thresholds precede the batch | A threshold whose anchoring commit or event follows the batch's first acceptance; the batch is invalid |
+| W9-T17 | A paper transition cannot bypass adoption | Transition a root whose drafts cite an unadopted family not marked unadopted; rejected. Marked unadopted, its claims are blocked in W5 |
+| W9-T18 | Closure is a bijection | Close `.apm/tracker.md` with one row missing from the accepted observations, or with a blocker row; closure blocked |
+| W9-T19 | Legacy log entries match the baseline | Edit a byte of a legacy entry in the live log; the detector flags it against the baseline export |
+| W9-T20 | The Gate 6 store is never a W9 target | Point the W9 genesis at `TDL-ARS-G6-Control`; refused |
 
 ## 18. Independent review and exit gate
 
 - [x] Independent adversarial review of draft 0.1 (REWORK REQUIRED; `b7fd4415`).
-- [ ] Author reconciliation of every finding (draft 0.2; the reconciliation record).
-- [ ] Focused independent re-review of draft 0.2.
+- [x] Author reconciliation of draft 0.1's findings (draft 0.2).
+- [x] Focused re-review of draft 0.2 (REWORK REQUIRED, narrow; `6ac30e2e`).
+- [ ] Author reconciliation of the re-review (draft 0.3) and a narrow re-check.
 - [ ] Stephen's decisions W9-D1 to W9-D14.
 - [ ] The §15 Discovery observation, if W9-D8c is accepted.
 - [ ] The evidence-register addendum (W9-D8a).
