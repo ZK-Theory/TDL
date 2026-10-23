@@ -4115,6 +4115,94 @@ enforcement artifacts once the plan is implemented.<br>
 06l Step 1 (proof recorded).<br>
 **Migration consequence:** None. Every legacy item stays `legacy_owned`.
 
+### P-064 - W9 implementation plan (06v) accepted; D-1 to D-9; implementation not yet authorized
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23).<br>
+**Authority:** Stephen, in chat, 2026-10-23: "I accept the W9 implementation plan 06v revision 4 at 7b19e40b (blob
+531348e0) and D-1 to D-9 as recommended. Record it as a register entry. This does not yet authorize
+implementation."<br>
+**Subject:** `implementation/06v-w9-implementation-plan.md`, revision 4, commit `7b19e40b` on
+`claude/w9-implementation-plan`, blob `531348e0d6e8ec36958ad077c3529546ebf274fd`. This is the plan P-063 commissioned
+as Gate 7's bounded intake.<br>
+**Review evidence:**
+- Review of revision 1 (`2a3940e2`): REWORK REQUIRED, 0 Blocking, 8 Major, 13 Minor, 6 Info
+  (`reviews/06v-w9-plan-review-2a3940e2-2026-10-23.md`, `b3fe778c`).
+- Re-review of revision 2 (`db92045f`): REWORK REQUIRED (narrow), 0 Blocking, 2 Major, 5 Minor, 4 Info
+  (`reviews/06v-w9-plan-re-review-db92045f-2026-10-23.md`, `d7f149ff`).
+- Confirmation of revision 3 (`943c446e`): PASS WITH FINDINGS, 0 Blocking, 0 Major, 1 Minor, 3 Info
+  (`reviews/06v-w9-plan-confirmation-943c446e-2026-10-23.md`, `d781b111`). The Minor and Info I-a were folded into
+  revision 4, with the reviewer's leave.
+- Reconciliation: `reviews/06v-w9-plan-reconciliation-2026-10-23.md` §§1–6.
+- One reviewer session ran all three rounds. It was distinct from the author but on the same model family (P-058
+  known limit).<br>
+
+**Decision:** The plan is accepted at revision 4, with D-1 to D-9 as recommended there (06v §6):
+
+1. **D-1, the store.** The W9 catalogue's store is a new control store, `C:/Users/steph/TDL-ARS-G7-Control`.
+   - It is created by runbook L1 to L7 with Gate 7 names, and reuses project ID
+     `prj_01978abc-1000-7000-8000-000000001000`.
+   - The Gate 6 store's identity is frozen from M2 `4d867d85` (06v §2.6). After the foundation re-pin, the Gate 6
+     store is readable only from the M2 checkout.
+   - Each binding advance, and each runbook step L1 to L7 (with its authorization A1 to A7), needs Stephen's own
+     authorization.
+2. **D-2, the command path.** W9 uses the Discovery-style command path in `research_system/legacy/`, with the
+   shared-replay predicate and writer lock. Successor-side guards are built in the generic command service (06v §2.7).
+3. **D-3, W9-T17's citation check.** A deterministic extractor over every file type in the paper root, run on
+   observed bytes and projected to families, plus the reviewer's independent derivation. Any difference between them
+   blocks.
+4. **D-4, P-059 re-acceptance.** It happens at every package PR that adds a command or changes a protected identity.
+   - Stephen re-accepts at exact bytes, as they stand in the merge-queue entry: the census rows and digest, the 06h
+     manifest, the append-site classification, any tree ID, and the T2 expectations and seal.
+   - Command-adding packages merge one at a time.
+   - Each re-acceptance gets a register entry.
+5. **D-5, the vault detector.** It runs before each batch and weekly. Each run files an output hash, and a missed run
+   blocks the next batch.
+6. **D-6, PR granularity.** One PR per package. WP9.3 and WP9.7 may split if their reviews ask.
+7. **D-7, the Computational-Log baseline.** It is taken as soon as Stephen authorizes it, with the segmentation
+   contract accepted together with it (L-0b).
+8. **D-8, the CI token limit.** This applies only if U-3 shows the CI token cannot read rule-suites. Bypass use
+   between batches is then a known limit, seen at the next pre-batch read.
+9. **D-9, restricted artefacts.** In the Gate 7 store, the RegisterArtefact guard refuses the restricted-suffix list
+   (`*.csv`, `*.pkl`) for every producer, and refuses an unresolvable `root_id`. The list and its exemptions live in one
+   committed file, and an exemption is a reviewed PR that Stephen accepts.
+
+**Not authorized:**
+- implementation of any work package;
+- any live operation L-0 to L-5;
+- store creation, genesis, grants, observation, adoption, transition or compute;
+- any Jira implementation issue.
+
+Implementation needs Stephen's separate decision. Each live operation needs its own decision on top of that.<br>
+**Open interfaces:** U-2 to U-9 (06v §2.8) stay open. Each blocks dispatch of its own work package until it is
+resolved in that package's PR.<br>
+**Status lines:** the commit recording this entry also updates 06v's status row and its §9 acceptance checkbox to
+record the acceptance. These are status-only changes; no other line of the accepted plan changes.<br>
+**Post-acceptance correction (2026-10-23, PR #392 CodeRabbit review).** Stephen authorized three corrections and
+re-accepted the corrected bytes: "fix the three findings in 06v (U-9 in the protected-tree caveat; U-7 and §8 naming
+four sites including the replay_legacy call) and P-064 (runbook steps L1 to L7, each with its authorization A1 to
+A7), recorded in P-064 as a post-acceptance correction with the exact lines; I re-accept the corrected bytes". The
+correction commit changes exactly these lines and nothing else:
+- **06v §2.7, the protected-tree caveat.** "If any of U-2, U-5 or U-6 requires" becomes "If any of U-2, U-5, U-6 or
+  U-9 requires". §5 already listed U-9.
+- **06v §2.8, the U-7 row.** "confined to three sites" becomes "confined to four sites". A fourth site is added: "(4)
+  a lazy `replay_legacy` call at the generic replay boundary, next to the `replay_discovery` call
+  (`projection/replay.py:1369-1381`)". "those three sites" becomes "those four sites". WP9.2 already required that
+  call.
+- **06v WP9.2.** "These three sites are in scope" becomes "These four sites are in scope".
+- **06v §8.** "U-7's three sites" becomes "U-7's four sites".
+- **P-064, decision 1.** "each runbook step A1 to A7" becomes "each runbook step L1 to L7 (with its authorization A1 to
+  A7)".
+
+The accepted subject is now 06v at the correction commit. Revision 4 (`7b19e40b`) plus these lines is the whole
+change. Nothing else in the plan's substance or in D-1 to D-9 changes.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE. No W9 implementation is accepted, so no observation, import or
+transition can run.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** 06v (accepted); W9 (its implementation plan accepted); 04-plan §4 Gate 7 (the next
+track is implementation, on Stephen's decision).<br>
+**Migration consequence:** None. Every legacy item stays `legacy_owned`.
+
 ## Decision protocol
 
 Each future decision entry must record:
