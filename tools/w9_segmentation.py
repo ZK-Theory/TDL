@@ -158,6 +158,8 @@ def _rows_to_json(lines: list[Line], rows: list[Row]) -> list[dict[str, Any]]:
                 "start_line": row.first + 1,
                 "line_count": max(row.last - row.first + 1, 0),
                 "raw_row_sha256": hashlib.sha256(span).hexdigest(),
+                # Lets an inventory check its declared covered region against each anchor line's bytes (§3).
+                "anchor_line_sha256": hashlib.sha256(lines[row.first].raw).hexdigest() if span else None,
                 "blocker_reason": row.blocker_reason,
                 **row.extra,
             }
@@ -227,6 +229,22 @@ def segment_heading_sections(
     _mark_duplicates(rows)
     rows += _unaddressed(lines, covered, range(first, last + 1), declared | rules)
     return rows
+
+
+def suppressed_anchors(
+    lines: list[Line], level: int, region: tuple[int, int], structural: list[tuple[int, int]]
+) -> list[dict[str, Any]]:
+    """Level-`level` headings inside declared structural ranges: they open no item, and the inventory records them."""
+    declared = _expand(structural, len(lines))
+    return [
+        {
+            "line": i + 1,
+            "anchor_line_sha256": hashlib.sha256(lines[i].raw).hexdigest(),
+            "heading_text": _anchor_string(_heading_text(lines[i])),
+        }
+        for i in range(region[0] - 1, region[1])
+        if i in declared and _heading_level(lines[i]) == level
+    ]
 
 
 def segment_log_entries(lines: list[Line], region: tuple[int, int]) -> list[Row]:
@@ -451,10 +469,12 @@ def segment(
     """Segment `data` under one selector kind and return file facts plus rows."""
     lines = split_lines(data)
     whole = (1, len(lines))
+    suppressed: list[dict[str, Any]] = []
     if selector_kind == "heading_section":
         if level is None:
             raise SegmentationError("heading_section needs --level")
         rows = segment_heading_sections(lines, level, region or whole, structural or [])
+        suppressed = suppressed_anchors(lines, level, region or whole, structural or [])
     elif selector_kind == "computational_log_entry":
         rows = segment_log_entries(lines, region or whole)
     elif selector_kind == "tracker_task_row":
@@ -474,6 +494,7 @@ def segment(
         "file_bytes": len(data),
         "file_facts": file_facts(data, lines),
         "rows": _rows_to_json(lines, rows),
+        "suppressed_anchors": suppressed,
     }
 
 

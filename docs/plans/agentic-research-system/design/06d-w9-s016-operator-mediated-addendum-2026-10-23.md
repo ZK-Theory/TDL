@@ -1,8 +1,9 @@
 # W6 Addendum — S-017, R3 second-family session unavailable (operator-mediated; W9-D12b)
 
 **Date:** 2026-10-23<br>
-**Status:** Draft, revision 2, `review_pending`. It reconciles the review `reviews/wp9-0-review-a427084e-2026-10-23.md`
-(see `reviews/wp9-0-reconciliation-2026-10-23.md`). It needs re-review and Stephen's acceptance (P-065).<br>
+**Status:** Draft, revision 3, `review_pending`. It reconciles the review `reviews/wp9-0-review-a427084e-2026-10-23.md`
+and the re-review `reviews/wp9-0-re-review-185510bc-2026-10-23.md` (see `reviews/wp9-0-reconciliation-2026-10-23.md`).
+It needs the reviewer's confirmation and Stephen's acceptance (P-065).<br>
 **Applies to:** `06-evaluation-observability-and-audit.md` version 0.3 (accepted under P-030), and addenda `06a`
 and `06b`<br>
 **Design authority:**
@@ -56,7 +57,7 @@ The effective W6 catalogue would then contain F-001 to F-038 plus S-001 to S-017
 
 | ID | Priority / lanes; provenance | Pre-control setup and expected failure | Post-control outcome and trajectory oracle | Graders / dependency |
 |---|---|---|---|---|
-| S-017 R3 second-family session unavailable (operator-mediated) | P1; routing, authority, scientific review, operations; `specification` / `synthetic` | A Task in P-005's R3 set reaches dispatch. W9 §11.2 makes a named operator-mediated session an eligible verifier route only when the dispatch record shows: (a) its model family and version differ from the producer's, as the operator records them; (b) the W4 role profile it runs under declares the capability the item's lane requires; (c) its context is independent of the producer's at the item's required grade (P-022, P-029). The baseline path has no guard. It dispatches in each of these cases (§4): no second family is named; the named session fails (a), (b) or (c); the record is checked by an excluded actor; or the check is recorded after compute starts. In a separate case, the verifier is lost after dispatch, and the baseline substitutes another session at grading. | Dispatch records `r3_family_coverage_insufficient` **before any compute**, and the Task waits or blocks with that typed evidence. There is no same-family fallback, no lowered risk tier, no relabelled role, and no acceptance. The eligibility record is "checked before dispatch by someone other than both the producer and the second-family session itself: the item's independent reviewer, or Stephen" (W9 §11.2). This addendum adds one exclusion: the actor who requested or proposed the dispatch, including the migration analyst (W9 §8.6), never checks it. If the verifier is unavailable or ineligible at grading, the grade is blocking `unable_to_grade`, with no substitute session. A missing or ineligible second family is never a waived pass. | D,T,O,H; W4/W5/W8/W9 dependent |
+| S-017 R3 second-family session unavailable (operator-mediated) | P1; gate stage `pilot_promotion`; routing, authority, scientific review, operations; `specification` / `synthetic` | A Task in P-005's R3 set reaches dispatch. W9 §11.2 makes a named operator-mediated session an eligible verifier route only when the dispatch record shows: (a) its model family and version differ from the producer's, as the operator records them; (b) the W4 role profile it runs under declares the capability the item's lane requires; (c) its context is independent of the producer's at the item's required grade (P-022, P-029). The baseline path has no guard. It dispatches in each of these cases (§4): no second family is named; the named session fails (a), (b) or (c); the record is checked by an excluded actor; or the check is recorded after compute starts. In a separate case, the verifier is lost after dispatch, and the baseline substitutes another session at grading. | Dispatch records `r3_family_coverage_insufficient` **before any compute**, and the Task waits or blocks with that typed evidence. There is no same-family fallback, no lowered risk tier, no relabelled role, and no acceptance. The eligibility record is "checked before dispatch by someone other than both the producer and the second-family session itself: the item's independent reviewer, or Stephen" (W9 §11.2). This addendum adds one exclusion: the actor who requested or proposed the dispatch, including the migration analyst (W9 §8.6), never checks it. If the verifier is unavailable or ineligible at grading, the grade is blocking `unable_to_grade`, with no substitute session. A missing or ineligible second family is never a waived pass. | D,T,O,H; W4/W5/W8/W9 dependent |
 
 **Graders.**
 - **D:** the dispatch record, the eligibility record and the checker's identity hold the stated values and relations.
@@ -74,9 +75,13 @@ on the item (W9 §11.2).
 
 - S-017 is P1. It blocks a Gate 7 R3 item's dispatch where it applies (§4), and it blocks release of the WP9.7
   dispatch guard if it fails.
+- **Gate stage.** S-017's `gate_stage` is `pilot_promotion`, the stage of W9 §12.3's set, which lists S-016 for Gate 7
+  items.
 - **Change classes.** S-016 r1 belongs to W6's "provider adapter/hook/skill sync" and "resource/checkpoint operations"
-  rows. S-017 belongs to the "agent/model routing" row (dispatch and routing) and to the "event/task schema or reducer"
-  row. On acceptance, the W6 change-gate table reads those two rows as including S-017.
+  rows. On acceptance, S-017 is added to two rows of the W6 change-gate table:
+  - the "event/task schema or reducer" row;
+  - the "agent/model routing" row, **by name**. That row's own rule covers "all P0 fixtures relevant to permitted risk
+    tier", and S-017 is P1, so naming it is an explicit addition beyond the rule. It covers dispatch and routing.
 - A failed D, T or O grader, or the H grader, is non-compensable. Missing required independence returns blocking
   `unable_to_grade` (W6 §5.3).
 

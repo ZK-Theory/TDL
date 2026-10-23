@@ -45,6 +45,7 @@ def _check(result: dict[str, Any], data: bytes, expected: list[Expected]) -> Non
         assert row["raw_row_sha256"] == hashlib.sha256(span).hexdigest()
         assert row["byte_length"] == len(span)
         assert row["start_byte"] == sum(len(line) for line in lines[: first - 1])
+        assert row["anchor_line_sha256"] == hashlib.sha256(lines[first - 1]).hexdigest()
     assert [r["row_ordinal"] for r in rows] == list(range(1, len(rows) + 1))
     assert result["segmentation_contract"] == "w9-segmentation/1.0.0"
     assert result["file_sha256"] == hashlib.sha256(data).hexdigest()
@@ -131,11 +132,13 @@ def test_invalid_utf8_anchor_is_unparseable() -> None:
 
 def test_declared_structural_range_suppresses_anchors() -> None:
     data = b"## Lifecycle\n```\n## fake\n```\n---\n## item-a\nx\n"
-    _check(
-        seg.segment(data, "heading_section", level=2, region=(1, 7), structural=[(1, 5)]),
-        data,
-        [("item", 6, 7, "item-a", None)],
-    )
+    result = seg.segment(data, "heading_section", level=2, region=(1, 7), structural=[(1, 5)])
+    _check(result, data, [("item", 6, 7, "item-a", None)])
+    lines = _lines(data)
+    assert result["suppressed_anchors"] == [
+        {"line": 1, "anchor_line_sha256": hashlib.sha256(lines[0]).hexdigest(), "heading_text": "Lifecycle"},
+        {"line": 3, "anchor_line_sha256": hashlib.sha256(lines[2]).hexdigest(), "heading_text": "fake"},
+    ]
     _check(
         seg.segment(data, "heading_section", level=2, region=(1, 7)),
         data,
@@ -203,6 +206,19 @@ def test_log_entries_dates_nesting_and_blockers() -> None:
     )
 
 
+def test_log_entry_ended_by_same_level_non_date_heading() -> None:
+    data = b"### 2026-01-01 a\nx\n### Results\ny\n### 2026-01-02 b\nz\n"
+    _check(
+        seg.segment(data, "computational_log_entry"),
+        data,
+        [
+            ("item", 1, 2, "2026-01-01 a", None),
+            ("structural", 3, 4, None, None),
+            ("item", 5, 6, "2026-01-02 b", None),
+        ],
+    )
+
+
 def test_log_date_range_and_parenthetical_forms() -> None:
     data = b"### 2026-06-01/02 two days\na\n### 2026-06-05(later)\nb\n### 2026-06-07\nc\n"
     _check(
@@ -266,11 +282,12 @@ TRACKER = (
 )
 
 
-def test_tracker_stage_table_rows() -> None:
-    result = seg.segment(TRACKER, "tracker_task_row")
+@pytest.mark.parametrize("data", [TRACKER, TRACKER.replace(b"\n", b"\r\n")], ids=["lf", "crlf"])
+def test_tracker_stage_table_rows(data: bytes) -> None:
+    result = seg.segment(data, "tracker_task_row")
     _check(
         result,
-        TRACKER,
+        data,
         [
             ("item", 6, 6, "1.37", None),
             ("item", 7, 7, "1.2g", None),
@@ -290,11 +307,12 @@ def test_tracker_duplicate_task_row_blocks() -> None:
     )
 
 
-def test_working_notes_full_first_line_is_anchor() -> None:
-    result = seg.segment(TRACKER, "working_note_entry")
+@pytest.mark.parametrize("data", [TRACKER, TRACKER.replace(b"\n", b"\r\n")], ids=["lf", "crlf"])
+def test_working_notes_full_first_line_is_anchor(data: bytes) -> None:
+    result = seg.segment(data, "working_note_entry")
     _check(
         result,
-        TRACKER,
+        data,
         [
             ("item", 16, 17, "- **2026-10-21: a**", None),
             ("item", 19, 19, "- **2026-10-21: b**", None),
@@ -302,6 +320,12 @@ def test_working_notes_full_first_line_is_anchor() -> None:
         ],
     )
     assert [r["dated"] for r in result["rows"]] == [True, True, False]
+
+
+@pytest.mark.parametrize("selector", ["tracker_task_row", "working_note_entry"])
+def test_missing_section_is_refused(selector: str) -> None:
+    with pytest.raises(seg.SegmentationError):
+        seg.segment(b"# T\n## Other\n- x\n", selector)
 
 
 def test_working_notes_duplicate_and_unaddressed() -> None:
@@ -374,11 +398,12 @@ CONVENTIONS = (
 )
 
 
-def test_conventions_units() -> None:
-    result = seg.segment(CONVENTIONS, "conventions_unit")
+@pytest.mark.parametrize("data", [CONVENTIONS, CONVENTIONS.replace(b"\n", b"\r\n")], ids=["lf", "crlf"])
+def test_conventions_units(data: bytes) -> None:
+    result = seg.segment(data, "conventions_unit")
     _check(
         result,
-        CONVENTIONS,
+        data,
         [
             ("item", 6, 9, "Alpha", None),
             ("item", 10, 10, "Alpha", None),

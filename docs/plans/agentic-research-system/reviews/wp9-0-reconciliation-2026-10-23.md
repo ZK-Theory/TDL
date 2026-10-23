@@ -6,7 +6,8 @@
 Major, 10 Minor, 7 Info.<br>
 **Owner decisions:** P-066. Stephen chose the recommended option on M-1 (new ID S-017), M-12 (`accepted_w9.py` is
 outside P-065) and m-3 (a W9 §12.3 erratum).<br>
-**Status:** Revision 2 is ready for re-review by the review session. It is not accepted.
+**Status:** Revision 3 (§4) is ready for the review session's narrow confirmation. It is not accepted. Point §3.1 is
+settled by P-067.
 
 ## 1. Files in revision 2
 
@@ -72,7 +73,36 @@ Paths are under `docs/plans/agentic-research-system/` unless they start at the r
 
    The census was re-run after these fixes, and every figure is unchanged.
 
-## 4. Not done
+## 4. Revision 3, against the re-review of `185510bc`
+
+The re-review (`reviews/wp9-0-re-review-185510bc-2026-10-23.md`, commit `0c59ea84`) returned PASS WITH FINDINGS: one
+new Major (N-1, an owner decision), 9 Minor and 6 Info findings, and two vector gaps. Stephen ruled on N-1 (P-067).
+Revision 3 folds in the rest. The reviewer offered a narrow confirmation in place of a full round.
+
+| Finding | Disposition | Where |
+|---|---|---|
+| **N-1** reference tool under P-065 | Stephen's ruling (P-067): both files are within WP9.0, as a named extension of P-065's boundary. P-065 carries a pointer note | P-065, P-067; contract §7 |
+| **N-2** frontmatter opener | Contract amended to match the tool: line 1's match text, trimmed of trailing spaces and tabs, is `---`. The existing vector now agrees with the text | Contract §3 |
+| **N-3** "implements every rule" | Both parts addressed: (a) the tool now records suppressed anchors (line, anchor-line SHA-256, heading text) and reports each row's anchor-line SHA-256; (b) §3 and §7 state that checking a region declaration, and resolving "from the first anchor after", are the inventory's checks | Tool; contract §3, §7; vectors |
+| **N-4** offsets | §6.5: offsets reproduce the read only; the detector locates rows by identity | Contract §6.5 |
+| **N-5** the copy and the recheck | §6.2 retains the copy and commits its hash and size with the export. §6.3 says the recheck proves reproducibility, not the original read's identity | Contract §6.2, §6.3 |
+| **N-6** non-item rows | §6.4: the export carries every row in the legacy region. Structural and blocker rows are identified by anchor-line SHA-256; a shared hash blocks the export | Contract §6.4 |
+| **N-7** 06d gate stage; change class | `gate_stage: pilot_promotion`. S-017 is added to the "agent/model routing" row by name, as an explicit addition beyond its P0 rule | 06d §2, §3 |
+| **N-8** identity kinds | W9 §5.4's four kinds: `git_tracked`, `untracked_file`, `restricted_untracked_file`, `vault_file` | Template §4 |
+| **N-9** what the W9 record binds | Template §1: the record copies W9 §5.2's fields from the accepted bytes and adds `table_sha256` and `acceptance_decision_ref`. WP9.1 stage A's schema is aligned on its own branch | Template §1; WP9.1 |
+| **N-10** 06v still adds `accepted_w9.py` in WP9.1 | P-067 item 3: 06v's bytes stay unchanged. The WP9.1 stage note and every WP9.1 or WP9.2 dispatch brief cite P-066 item 2 | P-067; WP9.1 stage note |
+| Vector gaps (§4.2) | Added: a dated entry ended by a same-level non-date heading; CRLF input for `tracker_task_row`, `working_note_entry` and `conventions_unit`. Also added: missing-section refusal, the suppressed-anchor record, and the anchor-line hash on every row. 37 vectors pass | Vectors; contract §7 |
+| I-1 date token is syntactic | Stated | Contract §3 |
+| I-2 dated-flag grammar | Stated | Contract §3 |
+| I-3 missing section | Stated: segmentation is refused | Contract §3 |
+| I-4 empty-array pattern | Stated | Template §3 rule 2 |
+| I-5 `NaN` count | Re-worded as an upper bound | Template §3 rule 1 |
+| I-6 | Recorded | — |
+
+**Census.** Re-run with the revision-3 tool. No segmentation changed. The live log gives 256 entries and one
+structural block, with no blockers, matching the re-review's read (contract §8).
+
+## 5. Not done
 
 - No L-0b export, no observation, no store write and no legacy write. The vault, `.apm/` and the stage logs were read
   only.

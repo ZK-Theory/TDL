@@ -2,10 +2,11 @@
 
 **Contract ID:** `w9-segmentation/1.0.0`<br>
 **Date:** 2026-10-23<br>
-**Status:** Draft, revision 2, `review_pending`. It reconciles the review `reviews/wp9-0-review-a427084e-2026-10-23.md`
-(see `reviews/wp9-0-reconciliation-2026-10-23.md`). It needs re-review and Stephen's acceptance (P-065). Under D-7 it
-may be accepted together with the Computational-Log baseline export, ahead of the rest of WP9.0.<br>
-**Authority:** W9 §5.5 (item selectors) and §7.3 (baselines); 06v WP9.0 and re-review m-7; P-064 D-7; P-065<br>
+**Status:** Draft, revision 3, `review_pending`. It reconciles the review `reviews/wp9-0-review-a427084e-2026-10-23.md`
+and the re-review `reviews/wp9-0-re-review-185510bc-2026-10-23.md` (see `reviews/wp9-0-reconciliation-2026-10-23.md`).
+It needs the reviewer's confirmation and Stephen's acceptance (P-065). Under D-7 it may be accepted together with the
+Computational-Log baseline export, ahead of the rest of WP9.0.<br>
+**Authority:** W9 §5.5 (item selectors) and §7.3 (baselines); 06v WP9.0 and re-review m-7; P-064 D-7; P-065; P-067<br>
 **Reference implementation:** `tools/w9_segmentation.py`, with vectors in `tests/tools/test_w9_segmentation.py`
 (§7)<br>
 **Implementation authority:** None. This contract defines a rule. It observes, hashes or registers nothing.
@@ -66,7 +67,11 @@ a rule line**, before the item's end boundary. Lines after that, up to the bound
 
 A selector with a fixed region (below) needs no declaration. Within the region, an inventory may declare **classified
 structural ranges**. A heading inside a declared structural range is a **suppressed anchor**: it opens no item, and the
-inventory records it.
+inventory records it, by line, anchor-line SHA-256 and heading text.
+
+Checking a declaration is the inventory's job. The segmentation itself takes the region as a line range, and reports
+each row's anchor-line SHA-256 so that the declared hashes can be compared. An inventory using the "from the first
+anchor after" form resolves it to a line range before segmenting, and records both.
 
 **Anchor text.** Anchor text is the selector's anchor bytes decoded as UTF-8, **never repaired**. Double-encoded or
 mojibake text is kept exactly as its bytes decode. Bytes that are not valid UTF-8 make the row a blocker
@@ -77,8 +82,8 @@ mojibake text is kept exactly as its bytes decode. Bytes that are not valid UTF-
 | `heading_section` | Declared (above). The heading level k is declared by the inventory | A heading of level k, not suppressed | The next heading of level ≤ k that is not suppressed, or the region's end | The full heading text (§2.7) |
 | `computational_log_entry` | The whole page, unless declared | A heading of level 2 or 3 whose heading text starts with a **date token** (below) | The next heading whose level is ≤ the anchor's level, or the next date anchor, or the region's end. A deeper heading inside an entry belongs to the entry | The full heading text |
 | `tracker_task_row` | Fixed: from the line after `## Task Tracking` to the line before the next heading of level 1 or 2 | A table row (a line starting with `\|`) in a **stage table** whose first cell matches the **task grammar** (below) | The row itself (one line) | The first cell. The task ID is `T` plus the cell |
-| `working_note_entry` | Fixed: from the line after `## Working Notes` to the line before the next heading of level 1 or 2, or the end of the file | A **top-level bullet**: a line whose match text starts with `- ` at column 0 | The next top-level bullet, or the region's end | The full first line's text, with trailing spaces and tabs removed. An entry whose anchor text starts `- **` followed by a date is recorded as dated |
-| `log_frontmatter` | Fixed: the whole file | Line 1, when its match text is exactly `---` | The next line whose match text, trimmed of trailing spaces and tabs, is `---`. Both delimiters are included | The constant `frontmatter` |
+| `working_note_entry` | Fixed: from the line after `## Working Notes` to the line before the next heading of level 1 or 2, or the end of the file | A **top-level bullet**: a line whose match text starts with `- ` at column 0 | The next top-level bullet, or the region's end | The full first line's text, with trailing spaces and tabs removed. An entry whose anchor text matches `- \*\*~?[0-9]{4}-[0-9]{2}-[0-9]{2}` at its start is recorded as dated. The flag is recorded, never identity |
+| `log_frontmatter` | Fixed: the whole file | Line 1, when its match text, trimmed of trailing spaces and tabs, is exactly `---` | The next line whose match text, trimmed of trailing spaces and tabs, is `---`. Both delimiters are included | The constant `frontmatter` |
 | `conventions_unit` | Fixed: each `## ` section of `CONVENTIONS.md` read from **blob `4620c71607ca3a06c6df3b8e96a6bddffc783960`** (33,645 bytes; SHA-256 `d04fe97e4a318f4a3c3dae00650419c13d6e7077ac54acda0b738c1608698589`), which is the file at commit `4b143c92` | A **unit** (below) | As defined for each unit kind | The section's heading text, plus the unit's ordinal within the section (recorded, never identity), plus the unit hash |
 
 **Date token** (`computational_log_entry`). Matched at the start of the heading text:
@@ -87,7 +92,9 @@ mojibake text is kept exactly as its bytes decode. Bytes that are not valid UTF-
 
 It must be followed by the end of the text, a space, a tab or `(`. Month precision (`2026-03`), a day suffix
 (`2026-06-03b`), a `/DD` range and a leading `~` are all anchors. The separator after the date (` -- `, ` — `,
-mojibake or anything else) plays no part in anchoring.
+mojibake or anything else) plays no part in anchoring. The token is syntactic only: there is no calendar check, so
+`2026-13` anchors. Which entries are legacy is fixed by Stephen's accepted classification (W9 §7.3), never by
+comparing date strings.
 
 **Non-anchor headings** (`computational_log_entry`). A heading of level 1, 2 or 3 that is not a date anchor opens a
 block running to the next heading of level ≤ its level, or the next date anchor:
@@ -108,6 +115,10 @@ every block, its lines, and any other non-blank, non-rule lines, fall into an un
 - Tables that are not stage tables (for example "Open threads"), and every non-table line, are outside the selector:
   structural.
 
+**Missing sections.** If a file has no `## Task Tracking` (for `tracker_task_row`) or no `## Working Notes` (for
+`working_note_entry`), segmentation is **refused**: it produces no rows, and the inventory cannot be built until the
+selector or the file is corrected.
+
 **Units** (`conventions_unit`). Within a section, after its heading line, these lines are **structural** and belong to
 no unit:
 - blank lines;
@@ -127,7 +138,7 @@ The H1 and the preamble before the first `## ` are structural. The units are:
 
 1. **Identity.** An item's identity is its selector kind plus its anchor text, plus the unit hash where §3 says so.
    **Position is never identity.** Line numbers and byte offsets are recorded for reproduction only.
-2. **Byte offsets.** Each row records its start byte offset and byte length, relative to the bytes read (§6.3 for the
+2. **Byte offsets.** Each row records its start byte offset and byte length, relative to the bytes read (§6.5 for the
    export).
 3. **Duplicate anchors.** When two items of one selector kind in one region share an anchor text, or for
    `conventions_unit` share a section and unit hash, all of them are **blocker rows** (`duplicate_anchor`, W9 §5.5).
@@ -165,21 +176,38 @@ The H1 and the preamble before the first `## ` are structural. The units are:
    - the read times (§5.1);
    - the path form (§5.2);
    - its limits, as D8c §7 recorded them: a path-string read, not a W11 §7.3 handle-bound read.
-2. **Recheck.** WP9.3's reader later re-hashes the same bytes and must reproduce every entry. A mismatch voids the
-   export.
-3. **Offsets.** Every entry carries its live-page byte offset and length (§4.2), so the vault detector (W9 §7.3 item 5)
-   can locate each entry in the live page.
+2. **The copy is retained.** The copied bytes are kept, and their SHA-256 and size are committed with the export, so
+   the anchor for the export also anchors its source.
+3. **Recheck.** WP9.3's reader later re-segments the retained copy and must reproduce every row. A mismatch voids the
+   export. The recheck proves that the segmentation reproduces. It cannot turn the original path-string read into a
+   handle-bound one, so that limit stays recorded.
+4. **Every row in the legacy region.** The export carries every row the segmentation emits for the legacy region: items,
+   structural blocks and blockers, each with its hash and offsets. The vault detector compares all of them, so an edit
+   to bytes outside every entry (for example in the title block) is caught. A structural or blocker row has no anchor
+   text. It is identified by its anchor-line SHA-256, the hash of its first line's bytes. If two such rows in the legacy
+   region share that hash, the export is blocked until the inventory classifies them.
+5. **Offsets reproduce the read; identity locates entries.** Each row's byte offset and length are relative to the copy
+   (§4.2). They reproduce the export's own read only. New entries are added at the top of the page, so every legacy
+   offset moves on each addition. The vault detector (W9 §7.3 item 5) therefore locates each row in the live page by
+   its identity (§4.1), never by offset, and then compares hashes.
 
 ## 7. Reference implementation and vectors
 
-- **The implementation.** `tools/w9_segmentation.py` implements every rule above. It is not runtime code: it reads the
-  bytes it is given and returns rows in the shape of `legacy-light-inventory` rows. Where it and this contract
-  disagree, the contract governs.
+- **The implementation.** `tools/w9_segmentation.py` implements every segmentation rule above. It is within WP9.0 by
+  Stephen's ruling (P-067). It is not runtime code: it reads the bytes it is given and returns rows in the shape of
+  `legacy-light-inventory` rows, plus the suppressed anchors. Two checks are the inventory's, not the tool's (§3):
+  - comparing a declared region's anchor-line hashes, which the tool reports;
+  - resolving a "from the first anchor after" declaration to a line range.
+
+  Where the tool and this contract disagree, the contract governs.
 - **The vectors.** `tests/tools/test_w9_segmentation.py` holds synthetic vectors, never legacy bytes. Each vector
   states its expected spans by line range and recomputes the expected hash from those lines. Together they cover:
-  - LF, CRLF and mixed endings;
+  - LF, CRLF and mixed endings, with CRLF input for every selector;
   - a missing final terminator;
   - CRLF blank lines;
+  - a dated log entry ended by a non-date heading of the same level, whose block is structural;
+  - a frontmatter opener with trailing spaces;
+  - a missing `## Task Tracking` or `## Working Notes` section, which is refused;
   - a BOM before a heading and before frontmatter;
   - trailing blank lines and trailing rule lines;
   - a `#` line inside a fence;
@@ -194,7 +222,8 @@ The H1 and the preamble before the first `## ` are structural. The units are:
   - unterminated frontmatter, an empty file, and a file of only blank lines;
   - a duplicate anchor;
   - an unaddressed region;
-  - suppressed anchors in a declared structural range.
+  - suppressed anchors in a declared structural range, and their record;
+  - the anchor-line SHA-256 on each row.
 - **Independence.** An independent re-implementation, by a session distinct from this contract's author and from
   WP9.3's implementer, must reproduce every vector before any export or observation under this contract is accepted.
   The L-0b export (§6) is no exception.
@@ -215,5 +244,15 @@ The reference implementation, as committed with this revision, was run read-only
 | `CONVENTIONS.md` | Blob `4620c716…` (commit `4b143c92`) | 70 units in 10 sections, no duplicates; the `---` rules and the `*Last updated: 2026-07-16*` footer are structural |
 | `.apm/memory/stage-*/*.log.md` | 85 files: 67 LF; 8 mixed endings with BOM; 7 LF without a final terminator; 2 CRLF; 1 LF with BOM | `log_frontmatter`: 77 items. Eight blockers, all files with no frontmatter (they open with a `# Task Log` heading). All nine BOM-led files parse |
 | Discovery `_backlog.md` | 27,590 bytes, SHA-256 `96b5775c…` | `heading_section`, k = 2, region L23 to the end: the nine D8c items, with spans, byte lengths and SHA-256 identical to D8c §3 |
+
+**Revision 3 re-run.** The revision-3 tool was run over the same files on 2026-10-23, from 12:04:22.343244Z to
+12:04:23.015095Z. Revision 3 adds output fields only (the suppressed anchors and each row's anchor-line SHA-256). No
+segmentation changed:
+- every tracker, `CONVENTIONS.md`, stage-log and backlog figure above is unchanged;
+- the nine D8c rows are identical.
+
+The live Computational-Log had grown by one entry since the census, to 703,531 bytes, SHA-256
+`19ad5c4d797d02cfef8e384255bcb960e90830ea9a6a7c83cb3029ca7ab66bb6`. It gives 256 entries and the one structural block,
+now at L4476, with no blockers. The re-review read the same bytes and reported the same figures.
 
 The census is evidence for the grammar, not a baseline. The L-0b export is the baseline, taken under §6.

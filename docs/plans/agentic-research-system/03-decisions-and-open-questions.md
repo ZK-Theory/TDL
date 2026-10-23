@@ -4243,7 +4243,9 @@ Each needs a later decision.<br>
 **Affected specifications:** 06v (WP9.0, WP9.1 started); W6 (an addendum follows).<br>
 **Migration consequence:** None.<br>
 **Correction (P-066, 2026-10-23).** Decision item 2 ended "…at an exact identity, and only then is `accepted_w9.py`
-added." Stephen struck that clause (P-066 item 2), and the item now reads as above. Nothing else in P-065 changed.
+added." Stephen struck that clause (P-066 item 2), and the item now reads as above. Nothing else in P-065 changed.<br>
+**Boundary extension (P-067, 2026-10-23).** The Boundary line above is extended, by name, to two non-runtime files
+within WP9.0: `tools/w9_segmentation.py` and `tests/tools/test_w9_segmentation.py` (P-067).
 
 ### P-066 - WP9.0 review owner decisions: S-017, `accepted_w9.py` outside P-065, and a W9 §12.3 erratum
 
@@ -4278,6 +4280,30 @@ item 3).<br>
 **Boundary:** Docs only.<br>
 **Affected specifications:** W6 (06d reserves S-017); W9 §12.3 (erratum, bytes unchanged); 06v WP9.1 and WP9.2
 (`accepted_w9.py` moves to WP9.2); P-065 (item 2 corrected).<br>
+**Migration consequence:** None.
+
+### P-067 - WP9.0's boundary extends to the segmentation reference tool and its vectors
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), ruling on finding N-1 of the WP9.0 re-review
+(`reviews/wp9-0-re-review-185510bc-2026-10-23.md`, commit `0c59ea84`).<br>
+**Authority:** Stephen, in chat, 2026-10-23: "N-1: tools/w9_segmentation.py and tests/tools/test_w9_segmentation.py are
+within WP9.0, as the contract's reference vectors; record it as a named extension of P-065's boundary to those two
+non-runtime files."<br>
+**Decision:**
+1. `tools/w9_segmentation.py` and `tests/tools/test_w9_segmentation.py` are within WP9.0, as the segmentation
+   contract's reference implementation and vectors (contract §7).
+2. P-065's Boundary line ("Docs and data files only") is extended to those two files, by name. The extension covers
+   nothing else. They stay non-runtime: outside `research_system/`, opening no store and writing nothing.
+3. **Pointer for WP9.1 and WP9.2 (re-review N-10).** 06v WP9.1's gate, step 3, still says a follow-up commit adds
+   `research_system/legacy/accepted_w9.py`. Under P-066 item 2 that file belongs to WP9.2. 06v's accepted bytes are
+   not edited. Instead, the WP9.1 stage note and every WP9.1 or WP9.2 dispatch brief cite P-066 item 2.
+
+**Not decided here:** acceptance of the WP9.0 documents (P-065 item 3).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs, plus the two files named in item 1.<br>
+**Affected specifications:** P-065 (Boundary extended); the segmentation contract §7; 06v WP9.1 step 3 (read with
+P-066 item 2).<br>
 **Migration consequence:** None.
 
 ## Decision protocol

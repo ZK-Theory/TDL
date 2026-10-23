@@ -1,8 +1,9 @@
 # W9 field-family membership table: template and authoring guide
 
 **Date:** 2026-10-23<br>
-**Status:** Draft, revision 2, `review_pending` (WP9.0; P-065). It reconciles the review
-`reviews/wp9-0-review-a427084e-2026-10-23.md` (see `reviews/wp9-0-reconciliation-2026-10-23.md`).<br>
+**Status:** Draft, revision 3, `review_pending` (WP9.0; P-065). It reconciles the review
+`reviews/wp9-0-review-a427084e-2026-10-23.md` and the re-review `reviews/wp9-0-re-review-185510bc-2026-10-23.md` (see
+`reviews/wp9-0-reconciliation-2026-10-23.md`).<br>
 **Authority:** W9 §5.2 (`legacy-field-family-membership`), §6.2, §8.5 item 3 and §8.6; 06v WP9.0 and §7 L-4a<br>
 **Implementation authority:** None. This is a template. A real table is authored, reviewed and accepted per file under
 06v §7 L-4a, and only after the W9 machinery exists.
@@ -16,10 +17,13 @@ authoritative part (for example an H₀ family).
 
 **The table file and the W9 record.** The table is a file whose bytes are reviewed and accepted. It holds no review or
 acceptance identity of its own, because those are written after its bytes are fixed (§4). The W9
-`legacy-field-family-membership` record (W9 §5.2) is created later. It binds:
-- the table's SHA-256;
-- the review record that reviewed those bytes;
-- Stephen's acceptance of those bytes.
+`legacy-field-family-membership` record (W9 §5.2) is created later. It carries W9 §5.2's fields, copied from the
+accepted table bytes: the file schema ID, the family names, the pointer-to-family map and the author identity, plus
+the review ref. It adds two fields beyond W9 §5.2's list, which WP9.1's schema includes:
+- `table_sha256`, the SHA-256 of the accepted table bytes;
+- `acceptance_decision_ref`, Stephen's acceptance of those bytes.
+
+The record's `applies_to` has the same shape as the table's (§4).
 
 ## 2. Who writes it
 
@@ -41,13 +45,17 @@ additions, which are stricter than W9.
 
 1. **Parsing.** The table's author and the importer read the file as JSON under these rules:
    - a duplicate object key anywhere is a blocker;
-   - the bare tokens `NaN`, `Infinity` and `-Infinity` are accepted as number leaves (16 of 466 committed result JSONs
-     hold them), and the observation records that the file holds them;
+   - the bare tokens `NaN`, `Infinity` and `-Infinity` are accepted as number leaves, and the observation records that
+     the file holds them. At most 16 of 466 committed result JSONs hold them: that count came from a word match that
+     also counts `NaN` inside strings, so it is an upper bound;
    - any other departure from RFC 8259 is a blocker.
 2. **Exhaustive in both directions.** Every leaf **and** every container pointer present in the file is listed, the
    root pointer `""` included. The importer expands the table's patterns (rule 5) against the observed bytes, then:
    - every observed pointer that no expanded entry covers is `unassigned` and blocks import;
    - every table pointer that the observed bytes do not hold blocks too.
+
+   A `[*]` pattern over an array that is present but empty expands to nothing. That is not an absent table pointer,
+   provided the array's own pointer is present and listed. If the array itself is absent, the pattern blocks.
 3. **Exclusive.** After expansion, each pointer is in exactly one family.
 4. **Containers carry shape only.** A container pointer's membership covers only the container's own shape: an
    object's key set, or an array's length. It never covers its descendants' values. Importing a family imports the
@@ -79,7 +87,7 @@ table_id: <w9-membership/<file-schema-id>/v<n>>
 file_schema_id: <stable name for the JSON shape, e.g. usoc-headline-frozen-2026-05-28>
 applies_to:
   - path: <repository-relative path>
-    identity_kind: <tracked_file | untracked_file | restricted_untracked_file>   # W9 §5.4
+    identity_kind: <git_tracked | untracked_file | restricted_untracked_file | vault_file>   # W9 §5.4's kinds
     git_blob: <blob the author read; tracked files only, else null>
     sha256: <SHA-256 of the bytes the author read>
     size_bytes: <size of those bytes>
