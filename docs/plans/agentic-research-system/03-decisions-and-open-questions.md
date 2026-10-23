@@ -4203,6 +4203,192 @@ transition can run.<br>
 track is implementation, on Stephen's decision).<br>
 **Migration consequence:** None. Every legacy item stays `legacy_owned`.
 
+### P-065 - W9 implementation authorized for WP9.0 and WP9.1 only
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23). This is the separate implementation decision that P-064
+reserved.<br>
+**Authority:** Stephen, in chat, 2026-10-23: "Merged, let's proceed". Asked what that authorizes, he chose the scope
+"WP9.0 + WP9.1": "Authorize implementing the first two packages only. WP9.0: the S-016 W6 addendum, the
+membership-table template and the segmentation contract. WP9.1: the ars://legacy/ schemas, the W9 catalogue and the
+bootstrap contract; data only, no runtime, ending with your acceptance of the catalogue identity. Each package is one
+reviewed PR." PR #392 (06v, P-064) merged as `4999111c`.<br>
+**Decision:**
+1. **WP9.0** (06v §5) is authorized:
+   - the dated W6 addendum re-specifying S-016 under P-042;
+   - the membership-table template and authoring guide;
+   - the versioned segmentation contract.
+2. **WP9.1** (06v §5) is authorized:
+   - the `ars://legacy/` schemas;
+   - the W9 catalogue;
+   - the acceptance envelope;
+   - the bootstrap contract.
+
+   This is data only, with no runtime. It ends with Stephen's acceptance of the catalogue at an exact identity.
+   `accepted_w9.py` is not part of WP9.1; it is added with WP9.2, under its own later authorization (P-066).
+3. **Each package is one PR** on a `pipe/` branch. Each gets an independent adversarial review by a distinct session,
+   then CodeRabbit review, and Stephen merges. The S-016 addendum and the segmentation contract each also need
+   Stephen's own acceptance as documents.
+
+**Not authorized:**
+- WP9.2 to WP9.7;
+- any runtime code;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- store creation, genesis, grants, observation, adoption, transition and compute;
+- any write to a legacy file.
+
+Each needs a later decision.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs and data files only.<br>
+**Affected specifications:** 06v (WP9.0, WP9.1 started); W6 (an addendum follows).<br>
+**Migration consequence:** None.<br>
+**Correction (P-066, 2026-10-23).** Decision item 2 ended "…at an exact identity, and only then is `accepted_w9.py`
+added." Stephen struck that clause (P-066 item 2), and the item now reads as above. Nothing else in P-065 changed.<br>
+**Boundary extension (P-067, 2026-10-23).** The Boundary line above is extended, by name, to two non-runtime files
+within WP9.0: `tools/w9_segmentation.py` and `tests/tools/test_w9_segmentation.py` (P-067).
+
+### P-066 - WP9.0 review owner decisions: S-017, `accepted_w9.py` outside P-065, and a W9 §12.3 erratum
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), answering the three owner decisions raised by the WP9.0 review
+(`reviews/wp9-0-review-a427084e-2026-10-23.md`, M-1, M-12 and m-3).<br>
+**Authority:** Stephen, in chat, 2026-10-23, choosing each recommended option:
+- on the S-016 identity (M-1): "New ID S-017 (Recommended)". The option read: "Reserve S-017 for the operator-mediated
+  R3 second-family scenario, as 06a/06b added new IDs. S-016 r1 stays unchanged and executed. W9-D12b's wording
+  ("S-016's change lands as a dated W6 addendum") is read as satisfied by an addendum that adds S-017 and records S-016
+  r1 as unchanged."
+- on `accepted_w9.py` (M-12): "Not in P-065 (Recommended)". The option read: "Strike it from P-065. accepted_w9.py is
+  added with WP9.2 (the runtime package), under its own later authorization."
+- on W9 §12.3 (m-3): "Record an erratum (Recommended)". The option read: "Record a W9 erratum note in the register (no
+  edit to W9's accepted bytes): the H row is not excluded; the S-016 row governs."
+
+**Decision:**
+1. **S-017.** The operator-mediated R3 second-family scenario gets a new catalogue ID, S-017, reserved by the W6
+   addendum 06d (WP9.0). S-016 r1 (`.research-system/evals/fixtures/S-016/`, tree `af1c8691`) stays unchanged,
+   executed in the release tranche, with its pins. W9-D12b is satisfied by 06d as so written. For Gate 7 items, W9
+   §12.3's S-016 row is served by S-017.
+2. **`accepted_w9.py`.** It is outside P-065. It is added with WP9.2 under a later authorization. P-065 item 2 is
+   corrected (see the correction note there).
+3. **W9 §12.3 erratum.** The closing sentence of W9 §12.3 reads: "An exclusion (F-024, S-016's H row) is an
+   owner-accepted record." That sentence's "S-016's H row" is an erratum. The H row is not excluded; the S-016 row
+   ("its `unable_to_grade` H row stays") governs. For Gate 7 items that H row is S-017's H grader. W9's bytes are not
+   edited.
+
+**Not decided here:** the WP9.0 documents themselves, which still need re-review and Stephen's acceptance (P-065
+item 3).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** W6 (06d reserves S-017); W9 §12.3 (erratum, bytes unchanged); 06v WP9.1 and WP9.2
+(`accepted_w9.py` moves to WP9.2); P-065 (item 2 corrected).<br>
+**Migration consequence:** None.
+
+### P-067 - WP9.0's boundary extends to the segmentation reference tool and its vectors
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), ruling on finding N-1 of the WP9.0 re-review
+(`reviews/wp9-0-re-review-185510bc-2026-10-23.md`, commit `0c59ea84`).<br>
+**Authority:** Stephen, in chat, 2026-10-23: "N-1: tools/w9_segmentation.py and tests/tools/test_w9_segmentation.py are
+within WP9.0, as the contract's reference vectors; record it as a named extension of P-065's boundary to those two
+non-runtime files."<br>
+**Decision:**
+1. `tools/w9_segmentation.py` and `tests/tools/test_w9_segmentation.py` are within WP9.0, as the segmentation
+   contract's reference implementation and vectors (contract §7).
+2. P-065's Boundary line ("Docs and data files only") is extended to those two files, by name. The extension covers
+   nothing else. They stay non-runtime: outside `research_system/`, opening no store and writing nothing.
+3. **Pointer for WP9.1 and WP9.2 (re-review N-10).** 06v WP9.1's gate, step 3, still says a follow-up commit adds
+   `research_system/legacy/accepted_w9.py`. Under P-066 item 2 that file belongs to WP9.2. 06v's accepted bytes are
+   not edited. Instead, the WP9.1 stage note and every WP9.1 or WP9.2 dispatch brief cite P-066 item 2.
+
+**Not decided here:** acceptance of the WP9.0 documents (P-065 item 3).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs, plus the two files named in item 1.<br>
+**Affected specifications:** P-065 (Boundary extended); the segmentation contract §7; 06v WP9.1 step 3 (read with
+P-066 item 2).<br>
+**Migration consequence:** None.
+
+### P-068 - WP9.0 documents accepted: 06d (S-017) and the segmentation contract `w9-segmentation/1.0.0`
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), under P-065 item 3.<br>
+**Authority:** Stephen, in chat, 2026-10-23: "I accept 06d (blob 074dad57) and the segmentation contract
+w9-segmentation/1.0.0 (blob 8692c3c0) at cb76e392, WP9.0 revision 3, as confirmed in 16179c8b. Record it as a register
+entry."<br>
+**Evidence:**
+- the review, `reviews/wp9-0-review-a427084e-2026-10-23.md` (`079f0095`): REWORK REQUIRED;
+- the re-review, `reviews/wp9-0-re-review-185510bc-2026-10-23.md` (`0c59ea84`): PASS WITH FINDINGS;
+- the confirmation, `reviews/wp9-0-confirmation-cb76e392-2026-10-23.md` (`16179c8b`): CONFIRMED, with no Blocking,
+  Major or Minor residual;
+- the reconciliation, `reviews/wp9-0-reconciliation-2026-10-23.md`;
+- P-066 and P-067.
+
+**Decision:**
+1. **06d** is accepted at exact bytes: `design/06d-w9-s016-operator-mediated-addendum-2026-10-23.md`, blob
+   `074dad5751f48cd92cfe2052886c6dbdcfecc4f9` at `cb76e392`. Its outcome takes effect:
+   - S-017, "R3 second-family session unavailable (operator-mediated)", is reserved as P1, gate stage
+     `pilot_promotion`;
+   - S-016 r1 stays unchanged and executed;
+   - F-024 is excluded for P01 only.
+
+   The effective W6 catalogue is F-001 to F-038 plus S-001 to S-017. The design README lists 06d as
+   `accepted_reservation`. S-017's materialization is not authorized; its candidate home is WP9.7, fixed at that
+   package's dispatch.
+2. **The segmentation contract** `w9-segmentation/1.0.0` is accepted at exact bytes:
+   `transition/w9/w9-segmentation-contract-v1.md`, blob `8692c3c0c1d5cf6b629acbeb8b1c77ef0e5a86ec` at `cb76e392`.
+   Its reference implementation, `tools/w9_segmentation.py` (blob `192e8c2a`), and vectors,
+   `tests/tools/test_w9_segmentation.py` (blob `e2e2b295`), are the ones it names (P-067).
+3. **Status lines are not edited.** Both documents keep their "Draft, revision 3" status lines, so the accepted blobs
+   stay exact. This entry is the acceptance record.
+4. **Carried into the L-0b brief (confirmation note C-1).** The classified entry list that Stephen accepts for the
+   Computational-Log export (W9 §7.3 item 1) also classifies each structural or blocker row as in the legacy region or
+   not. That fixes the detector's comparison set by the accepted list, not by inference.
+
+**Not authorized here:**
+- the L-0b baseline export (D-7), which needs its own decision. Before it, or any observation under the contract, is
+  accepted, a session independent of the contract's author and of WP9.3's implementer must re-implement and reproduce
+  every vector (contract §7);
+- WP9.2 to WP9.7;
+- runtime code;
+- store and legacy writes.
+
+**Remaining for WP9.0:** the membership template (blob `e46b4bf4`) needs no separate acceptance (P-065 item 3). The
+package goes to CodeRabbit review as one PR, and Stephen merges.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** W6 (catalogue now S-001 to S-017); W9 §5.5 and §7.3 (the segmentation contract);
+06v WP9.0 (documents accepted); D-7 (its contract half is accepted, and the export is pending).<br>
+**Migration consequence:** None. Every legacy item stays `legacy_owned`.
+
+**Post-acceptance correction (2026-10-23, CodeRabbit on PR #393).** Stephen, in chat: "Yes: apply both fixes as
+proposed (06d T and H graders for case 6; segment docstring), recorded in P-068 as a post-acceptance correction with
+the exact old and new lines; I re-accept the corrected 06d and tool blobs."
+
+1. **06d §2, the T and H graders.** Case 6 (§5) is the verifier lost *after* dispatch. A compliant run dispatches and
+   then records blocking `unable_to_grade`. The accepted T and H text expected a refusal and no dispatch, so it would
+   have failed the compliant run.
+   - Old T: "the trajectory has the refusal before any compute event, and no dispatch, fallback, acceptance or
+     substitute-session event."
+   - New T: "for cases 1 to 5 (§5), the trajectory has the refusal before any compute event, and no dispatch,
+     fallback, acceptance or substitute-session event. For case 6, it has the dispatch, then a blocking
+     `unable_to_grade` grade, and no substitute-session, fallback or acceptance event."
+   - Old H: "a human confirms that no acceptance, risk-tier change, role relabel or substitute session followed the
+     refusal. The question to the human is: "Did anything after the refusal turn it into a pass?""
+   - New H: "a human confirms that no acceptance, risk-tier change, role relabel or substitute session followed the
+     refusal or the `unable_to_grade` grade. The question to the human is: "Did anything after the refusal or the
+     blocking grade turn it into a pass?""
+2. **`tools/w9_segmentation.py`, the `segment` docstring.** The one-line summary gains Google-style Args, Returns and
+   Raises sections (repository convention). Behaviour is unchanged: the 37 vectors pass. The census re-run at
+   2026-10-23T14:56:16.672421Z gave unchanged tracker, `CONVENTIONS.md`, stage-log and backlog figures. The live log,
+   now at 706,738 bytes, gave 258 entries, 1 structural block and no blockers.
+
+**Re-accepted blobs.**
+
+| File | Was | Now |
+|---|---|---|
+| 06d | `074dad5751f48cd92cfe2052886c6dbdcfecc4f9` | `2044b2e51d9e671a42dd53be39b2ea87f51e693b` |
+| `tools/w9_segmentation.py` | `192e8c2a` | `43e1454de09b61e274954c42b21d6ae533857a24` |
+
+The segmentation contract (`8692c3c0`) and the vectors (`e2e2b295`) are unchanged.
+
 ## Decision protocol
 
 Each future decision entry must record:
