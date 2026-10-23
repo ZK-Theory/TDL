@@ -1,8 +1,8 @@
 # WP9.1 stage B design note: the W9 command set and the catalogue row shape
 
 **Date:** 2026-10-24<br>
-**Status:** Draft, revision 1, for Stephen's scope decisions and then an independent review. Nothing in it is
-materialized.<br>
+**Status:** Draft, revision 1. Stephen has answered SB-Q1 to SB-Q6, choosing every recommendation (P-071). The note
+is ready for an independent review. Nothing in it is materialized.<br>
 **Package:** 06v WP9.1, stage B (P-069 item 1). Stage A is merged as `5d325c5b` (PR #394).<br>
 **Authority:** P-065 (WP9.1); 06v WP9.1 "Catalogue"; W9 §§5.2, 5.3, 8, 9, 12.1, 13 and 17<br>
 **Implementation authority:** None. This note proposes the rows that stage B's catalogue

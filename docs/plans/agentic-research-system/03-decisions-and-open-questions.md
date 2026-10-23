@@ -4471,6 +4471,40 @@ narrow confirmation."<br>
 (the rollback routes, O-17).<br>
 **Migration consequence:** None.
 
+### P-071 - WP9.1 stage B scope: the W9 command set and the catalogue row shape
+
+**Date:** 2026-10-24<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-24), answering the six scope questions SB-Q1 to SB-Q6 of
+`transition/w9/wp9-1-stage-b-design-note.md` (revision 1).<br>
+**Authority:** Stephen, in chat, 2026-10-24, choosing the recommended option each time:
+- SB-Q1, row shape: "W11 shape (Recommended)";
+- SB-Q2, light path: "In the acceptance (Recommended)";
+- SB-Q4, later gates: "Later revision (Recommended)";
+- SB-Q3, SB-Q5 and SB-Q6: "Accept all three (Recommended)".
+
+**Decision:**
+1. **Row shape (SB-Q1).** The W9 catalogue rows follow W11's 19-field shape, adapted as the note's §2 sets out. This
+   widens stage A's catalogue-content row schema before anything is pinned.
+2. **Light-path ownership (SB-Q2).** `AcceptClosedReferenceBatch` (LR-006) emits one `legacy_owned →
+   closed_reference` ownership event per item, in the same transaction as the acceptance.
+3. **Adoption suspension (SB-Q3).** It is an event emitted by the command that causes it (LR-005 re-observation,
+   LR-014 supersession). Re-resolution is a new `AdoptLegacyAuthority` (LR-007).
+4. **Later-gate actions (SB-Q4).** Writer revocation for `.apm/`, the bus non-import inventory, file-level closure,
+   cutover, retirement and manual-mode edit imports are not in catalogue v1. They come in a later reviewed catalogue
+   revision, with a new identity and a new acceptance.
+5. **Actor classes (SB-Q5).** A `membership_author` actor class and a `requester` field are added.
+6. **Rows with no W9 §17 test (SB-Q6).** A catalogue-level `W9-C…` test may satisfy a row's binding-test minimum.
+   LR-008 (discharge) is the case.
+
+The command set is the note's LR-001 to LR-014, subject to its independent review.
+
+**Not decided here:** acceptance of the catalogue (O-8), which ends stage B.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** 06v WP9.1 (the catalogue); stage A's catalogue-content schema (widened in stage B);
+WP9.2 (the commands it implements).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
