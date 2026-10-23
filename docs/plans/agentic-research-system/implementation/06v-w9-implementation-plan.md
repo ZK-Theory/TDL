@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Date | 2026-10-23 (revisions 2 and 3); revision 1 of 2026-10-22 |
-| Status | **Draft, revision 4, for Stephen's exact-revision acceptance (P-063).** Review rounds: revision 1 (`2a3940e2`), REWORK REQUIRED (`b3fe778c`); revision 2 (`db92045f`), REWORK REQUIRED narrow (`d7f149ff`); revision 3 (`943c446e`), **PASS WITH FINDINGS** (`d781b111`). That confirmation's one Minor (c-1) and Info I-a are folded into revision 4 with no further round, as the reviewer allowed. Reconciliation: `reviews/06v-w9-plan-reconciliation-2026-10-23.md` (§§5–6). |
+| Status | **Accepted by Stephen on 2026-10-23 at revision 4 (`7b19e40b`, blob `531348e0`), with D-1 to D-9 (P-064). Implementation is not authorized.** Review rounds: revision 1 (`2a3940e2`), REWORK REQUIRED (`b3fe778c`); revision 2 (`db92045f`), REWORK REQUIRED narrow (`d7f149ff`); revision 3 (`943c446e`), **PASS WITH FINDINGS** (`d781b111`). That confirmation's one Minor (c-1) and Info I-a are folded into revision 4 with no further round, as the reviewer allowed. Reconciliation: `reviews/06v-w9-plan-reconciliation-2026-10-23.md` (§§5–6). |
 | Authority to write | P-063 (Gate 7 opening): "authoring, independent adversarial review and Stephen's exact-revision acceptance of the W9 implementation plan", including a proposal for the W9-D10 store |
 | Implementation authority | **None.** P-063 does not authorize implementing this plan. Implementation starts only on Stephen's separate decision after the plan is accepted. Each live operation in §7 needs its own decision on top of that. |
 | Specification | W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a`, accepted 2026-10-22 (W9-D1 to W9-D14) |
@@ -626,8 +626,8 @@ Stop and return the package as Partial when any of these holds:
 - [x] Narrow re-review of revision 2: REWORK REQUIRED, narrow (`d7f149ff`).
 - [x] Author reconciliation (revision 3).
 - [x] Reviewer's confirmation of revision 3: PASS WITH FINDINGS (`d781b111`); c-1 and I-a folded into this revision 4.
-- [ ] Stephen's exact-revision acceptance of the plan and of D-1 to D-9, recorded as a register entry, as P-062 and
-  P-063 were.
+- [x] Stephen's exact-revision acceptance of the plan and of D-1 to D-9, recorded as register entry P-064
+  (2026-10-23).
 - [ ] Stephen's separate decision authorizing implementation, which this plan does not contain.
 
 **Known limit (P-058):** all reviews so far have run on one model family.
