@@ -4306,6 +4306,58 @@ non-runtime files."<br>
 P-066 item 2).<br>
 **Migration consequence:** None.
 
+### P-068 - WP9.0 documents accepted: 06d (S-017) and the segmentation contract `w9-segmentation/1.0.0`
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), under P-065 item 3.<br>
+**Authority:** Stephen, in chat, 2026-10-23: "I accept 06d (blob 074dad57) and the segmentation contract
+w9-segmentation/1.0.0 (blob 8692c3c0) at cb76e392, WP9.0 revision 3, as confirmed in 16179c8b. Record it as a register
+entry."<br>
+**Evidence:**
+- the review, `reviews/wp9-0-review-a427084e-2026-10-23.md` (`079f0095`): REWORK REQUIRED;
+- the re-review, `reviews/wp9-0-re-review-185510bc-2026-10-23.md` (`0c59ea84`): PASS WITH FINDINGS;
+- the confirmation, `reviews/wp9-0-confirmation-cb76e392-2026-10-23.md` (`16179c8b`): CONFIRMED, with no Blocking,
+  Major or Minor residual;
+- the reconciliation, `reviews/wp9-0-reconciliation-2026-10-23.md`;
+- P-066 and P-067.
+
+**Decision:**
+1. **06d** is accepted at exact bytes: `design/06d-w9-s016-operator-mediated-addendum-2026-10-23.md`, blob
+   `074dad5751f48cd92cfe2052886c6dbdcfecc4f9` at `cb76e392`. Its outcome takes effect:
+   - S-017, "R3 second-family session unavailable (operator-mediated)", is reserved as P1, gate stage
+     `pilot_promotion`;
+   - S-016 r1 stays unchanged and executed;
+   - F-024 is excluded for P01 only.
+
+   The effective W6 catalogue is F-001 to F-038 plus S-001 to S-017. The design README lists 06d as
+   `accepted_reservation`. S-017's materialization is not authorized; its candidate home is WP9.7, fixed at that
+   package's dispatch.
+2. **The segmentation contract** `w9-segmentation/1.0.0` is accepted at exact bytes:
+   `transition/w9/w9-segmentation-contract-v1.md`, blob `8692c3c0c1d5cf6b629acbeb8b1c77ef0e5a86ec` at `cb76e392`.
+   Its reference implementation, `tools/w9_segmentation.py` (blob `192e8c2a`), and vectors,
+   `tests/tools/test_w9_segmentation.py` (blob `e2e2b295`), are the ones it names (P-067).
+3. **Status lines are not edited.** Both documents keep their "Draft, revision 3" status lines, so the accepted blobs
+   stay exact. This entry is the acceptance record.
+4. **Carried into the L-0b brief (confirmation note C-1).** The classified entry list that Stephen accepts for the
+   Computational-Log export (W9 §7.3 item 1) also classifies each structural or blocker row as in the legacy region or
+   not. That fixes the detector's comparison set by the accepted list, not by inference.
+
+**Not authorized here:**
+- the L-0b baseline export (D-7), which needs its own decision. Before it, or any observation under the contract, is
+  accepted, a session independent of the contract's author and of WP9.3's implementer must re-implement and reproduce
+  every vector (contract §7);
+- WP9.2 to WP9.7;
+- runtime code;
+- store and legacy writes.
+
+**Remaining for WP9.0:** the membership template (blob `e46b4bf4`) needs no separate acceptance (P-065 item 3). The
+package goes to CodeRabbit review as one PR, and Stephen merges.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** W6 (catalogue now S-001 to S-017); W9 §5.5 and §7.3 (the segmentation contract);
+06v WP9.0 (documents accepted); D-7 (its contract half is accepted, and the export is pending).<br>
+**Migration consequence:** None. Every legacy item stays `legacy_owned`.
+
 ## Decision protocol
 
 Each future decision entry must record:
