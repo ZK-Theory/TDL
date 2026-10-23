@@ -102,6 +102,9 @@ TEXT: Schema = {"type": "string", "minLength": 1}
 FAMILY_NAME: Schema = {"type": "string", "pattern": "^[a-z0-9_]+$"}
 IDENTITY_KINDS = ["git_tracked", "untracked_file", "restricted_untracked_file", "vault_file"]
 UNRESTRICTED_PATH: Schema = {"allOf": [ref("relPath"), {"not": {"pattern": RESTRICTED_SUFFIX}}]}
+# A vault path never names CONVENTIONS.md: its vault alias is a prohibited read path for observations (W9 §7.3;
+# confirmation r-1).
+VAULT_PATH: Schema = {"allOf": [UNRESTRICTED_PATH, {"not": {"pattern": CONVENTIONS_NAME}}]}
 
 # W9 §5.4 source identity kinds. A restricted file has no frozen-copy field (W9-T11), and every other kind refuses a
 # restricted suffix, so a mislabelled restricted file cannot carry a frozen copy (P-069 item 3).
@@ -141,7 +144,7 @@ SOURCE_IDENTITY: Schema = {
             ["identity_kind", "vault_path", "sha256", "byte_length", "frozen_copy_ref"],
             {
                 "identity_kind": {"const": "vault_file"},
-                "vault_path": UNRESTRICTED_PATH,
+                "vault_path": VAULT_PATH,
                 "sha256": ref("sha256"),
                 "byte_length": {"type": "integer", "minimum": 0},
                 "frozen_copy_ref": ref("artefactRef"),
@@ -264,7 +267,7 @@ DEFS: Schema = {
                 ["locator_kind", "vault_path", "sha256", "byte_length", "heading_anchor"],
                 {
                     "locator_kind": {"const": "vault_file"},
-                    "vault_path": UNRESTRICTED_PATH,
+                    "vault_path": VAULT_PATH,
                     "sha256": ref("sha256"),
                     "byte_length": {"type": "integer", "minimum": 0},
                     "heading_anchor": {"type": ["string", "null"], "minLength": 1},

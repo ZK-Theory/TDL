@@ -350,11 +350,20 @@
             "vault_path": {
               "allOf": [
                 {
-                  "$ref": "#/$defs/relPath"
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/relPath"
+                    },
+                    {
+                      "not": {
+                        "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                      }
+                    }
+                  ]
                 },
                 {
                   "not": {
-                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                    "pattern": "(^|/)[Cc][Oo][Nn][Vv][Ee][Nn][Tt][Ii][Oo][Nn][Ss]\\.[Mm][Dd]$"
                   }
                 }
               ]
@@ -571,11 +580,20 @@
             "vault_path": {
               "allOf": [
                 {
-                  "$ref": "#/$defs/relPath"
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/relPath"
+                    },
+                    {
+                      "not": {
+                        "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                      }
+                    }
+                  ]
                 },
                 {
                   "not": {
-                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                    "pattern": "(^|/)[Cc][Oo][Nn][Vv][Ee][Nn][Tt][Ii][Oo][Nn][Ss]\\.[Mm][Dd]$"
                   }
                 }
               ]

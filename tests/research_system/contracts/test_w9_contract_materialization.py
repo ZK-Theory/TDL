@@ -644,6 +644,21 @@ def test_observation_names_unobserved_sources_for_conflicts_and_qualifiers() -> 
     assert _valid("legacy-observation", observation)
 
 
+def test_vault_alias_of_conventions_is_never_an_observation_source() -> None:
+    # Confirmation r-1 (W9 §7.3): the vault alias is a prohibited read path for observations, as a source identity
+    # (V1) and as a source locator (L1); the repository path stays the only one.
+    for name in ("CONVENTIONS.md", "conventions.md", "x/CONVENTIONS.md"):
+        alias = {"identity_kind": "vault_file", "vault_path": name, "sha256": _HASH, "byte_length": 1}
+        assert not _valid("legacy-observation", _observation({**alias, "frozen_copy_ref": _art()})), name
+        locator = {"locator_kind": "vault_file", "vault_path": name, "sha256": _HASH, "byte_length": 1}
+        observation = _observation(_tracked())
+        observation["qualifiers"] = [
+            {"qualifier_kind": "corrected_by", "source_ref": {**locator, "heading_anchor": None}, "text": "x"}
+        ]
+        assert not _valid("legacy-observation", observation), name
+    assert _valid("legacy-observation", _observation(_tracked("CONVENTIONS.md")))
+
+
 def test_observation_classes_require_a_signed_w0_record() -> None:
     observation = _observation(_tracked())
     assert _valid("legacy-observation", observation)

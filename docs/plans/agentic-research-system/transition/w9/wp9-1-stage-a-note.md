@@ -1,7 +1,8 @@
 # WP9.1 stage A: the inert `ars://legacy/` schema family
 
 **Date:** 2026-10-23<br>
-**Status:** Draft, revision 3, for the reviewer's narrow confirmation. It reconciles the review
+**Status:** Revision 3, confirmed (`reviews/wp9-1-stage-a-confirmation-df4ec74d-2026-10-23.md`), with its one Minor
+residual r-1 folded in at Stephen's request. It reconciles the review
 `reviews/wp9-1-stage-a-review-b089f1fa-2026-10-23.md` and the re-review
 `reviews/wp9-1-stage-a-re-review-c17c9e57-2026-10-23.md` (see `reviews/wp9-1-stage-a-reconciliation-2026-10-23.md`),
 with Stephen's decisions in P-069 and P-070.<br>
@@ -16,7 +17,7 @@ Stage A changes no runtime Python.
 | `.research-system/schemas/contracts/w9/*.schema.json` | 17 closed Draft 2020-12 schemas, each with `$id` `ars://legacy/<kind>`. **13 records** (W9 §5.2): path registration, field-family membership, light inventory, observation, closed-reference acceptance, adoption decision, discharge relation, paper root, paper citation status, source inventory, transition mapping, ownership transitioned, record supersession. **4 bootstrap schemas:** acceptance envelope, bootstrap contract, genesis input, catalogue content. |
 | `tools/w9_schema_gen.py` | The generator of the 17 schemas (P-069 item 4). `--check` compares without writing. A non-runtime tool. |
 | `.research-system/contracts/w9/w9-materialization-bootstrap-contract.yaml` | The bootstrap contract. It contains: W9 (blob `ea3a8e4a`) and 06v (blob `2b40fae4`), each pinned at its reviewed commit; the Gate 6 store identity, which is refused; the accepted W11 catalogue the W9 genesis requires (blob `8d588185`, 136,229 bytes); and the D-9 restricted suffixes. Runtime activation is `forbidden`; the catalogue and the acceptance instance are `forbidden_in_stage_a`. |
-| `tests/research_system/contracts/test_w9_contract_materialization.py` | 61 static controls (P-069 item 4). The test owns the expected family set, the reference-kind table and the record edge table (§2). |
+| `tests/research_system/contracts/test_w9_contract_materialization.py` | 62 static controls (P-069 item 4). The test owns the expected family set, the reference-kind table and the record edge table (§2). |
 
 **The test checks:**
 - the family is closed and self-identified;
@@ -94,6 +95,9 @@ post-merge checkout will report an integrity mismatch, and that is not corruptio
     - an 8.3 short-name form (`~` and a digit);
     - a backslash, `:`, or a leading `~` or `/`;
     - trailing whitespace.
+
+    A vault path never names `CONVENTIONS.md`, in a source identity or a source locator, so the vault alias is never
+    an observation source either (confirmation r-1).
 
     Win32 strips a trailing dot or space and resolves short names, so those forms would alias another path. A trailing
     `/` marks a directory root. The path grammar cannot close every alias. Full alias closure belongs to the
@@ -173,6 +177,8 @@ post-merge checkout will report an integrity mismatch, and that is not corruptio
   duplicates only);
 - a recovery root that names itself, or whose paper key differs from its predecessor's (W9-T21);
 - a supersession that names itself (W9-T14, WP9.6);
+- a legacy role registered under `.research-system/projections/legacy/`, and an inverted locator line span
+  (confirmation i-1, i-2);
 - a read that ends before it starts;
 - the W9 kind an `obj_` reference actually names, checked against the edge table (§2);
 - the kinds of the `anyRef` fields (§2).

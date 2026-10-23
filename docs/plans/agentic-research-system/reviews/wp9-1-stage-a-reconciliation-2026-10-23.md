@@ -105,7 +105,21 @@ Stephen asked for revision 3 and recorded the erratum reading for N-4 as P-070.
 - **Related suites:** the first review's command-9 set, plus the segmentation vectors: 555 passed and 1 skipped, in
   455.33 s.
 
-## 6. Not done
+## 6. Confirmation residual
+
+The confirmation (`reviews/wp9-1-stage-a-confirmation-df4ec74d-2026-10-23.md`, commit `9cfda2f8`) returned CONFIRMED,
+with one Minor residual and three Info notes. Stephen asked for r-1 to be folded in before the PR.
+
+| Finding | Disposition |
+|---|---|
+| **r-1** the vault alias of `CONVENTIONS.md` as an observation source | Fixed. A `VAULT_PATH` definition refuses a `CONVENTIONS.md` name in the `vault_file` branches of `sourceIdentity` and `sourceLocator`. V1 and L1 are negative controls in `test_vault_alias_of_conventions_is_never_an_observation_source` |
+| i-1, i-2 | Carried to WP9.3 (note §3) |
+| i-3 | Recorded; no change |
+
+**Verification.** 62 stage A tests pass. With the schema-registry tests and the segmentation vectors, the run gives 157
+passed and 1 skipped. The generator's `--check` passes.
+
+## 7. Not done
 
 - Stage B: the catalogue, the envelope instance and the verifier.
 - No push, no store, no legacy write.
