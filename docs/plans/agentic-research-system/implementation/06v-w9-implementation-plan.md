@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Date | 2026-10-23 (revisions 2 and 3); revision 1 of 2026-10-22 |
-| Status | **Draft, revision 3, `review_pending`.** Revision 1 (`2a3940e2`) was reviewed REWORK REQUIRED (`b3fe778c`). Revision 2 (`db92045f`) was re-reviewed REWORK REQUIRED (narrow): 0 Blocking, 2 Major, 5 Minor, 4 Info (`reviews/06v-w9-plan-re-review-db92045f-2026-10-23.md`, `d7f149ff`). The reconciliation of both is `reviews/06v-w9-plan-reconciliation-2026-10-23.md` (revision 3 is §5). Next: the reviewer's confirmation, then Stephen's exact-revision acceptance (P-063). |
+| Status | **Draft, revision 4, for Stephen's exact-revision acceptance (P-063).** Review rounds: revision 1 (`2a3940e2`), REWORK REQUIRED (`b3fe778c`); revision 2 (`db92045f`), REWORK REQUIRED narrow (`d7f149ff`); revision 3 (`943c446e`), **PASS WITH FINDINGS** (`d781b111`). That confirmation's one Minor (c-1) and Info I-a are folded into revision 4 with no further round, as the reviewer allowed. Reconciliation: `reviews/06v-w9-plan-reconciliation-2026-10-23.md` (§§5–6). |
 | Authority to write | P-063 (Gate 7 opening): "authoring, independent adversarial review and Stephen's exact-revision acceptance of the W9 implementation plan", including a proposal for the W9-D10 store |
 | Implementation authority | **None.** P-063 does not authorize implementing this plan. Implementation starts only on Stephen's separate decision after the plan is accepted. Each live operation in §7 needs its own decision on top of that. |
 | Specification | W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a`, accepted 2026-10-22 (W9-D1 to W9-D14) |
@@ -209,7 +209,7 @@ Every forward obligation in W9 and its acceptance trail has a disposition here.
 | O-29 | `legacy-paper-root` acyclic; citation status as a separate relation | W9 §5.2; W9-T17, W9-T21 | WP9.1, WP9.2, WP9.4 |
 | O-30 | W11 dossier admission referencing a `legacy-paper-root` | W9 §8.2 | **Out of scope:** a later W11 step |
 | O-31 | Paper-root transitions, wider adoption, prose | W9 §§12, 14.2; W9-D7, W9-D12a | **Out of scope** for this plan's code; later owner decisions under §7 |
-| O-32 | A change to a `shared_enforcement_surface` contract re-triggers observation of the affected results' enforcement state; the reviewer derives the affected set from binding tests | W9 §4.3; W9-D14 | WP9.5: the detector **fails** only on such a change without the W9 §4.3 owner note. For **every** such change, with or without the note, it appends an entry to a committed list in the W9 evidence area naming the contract and its old and new blobs. WP9.3: the acceptance preparer reads that list at the store binding's `git_head` and refuses acceptance of any observation of an affected result taken before the change, until the result is re-observed. The independent reviewer derives the affected results from the binding tests. Test: a fixture contract change, with and without a note. |
+| O-32 | A change to a `shared_enforcement_surface` contract re-triggers observation of the affected results' enforcement state; the reviewer derives the affected set from binding tests | W9 §4.3; W9-D14 | The PR that changes a shared surface **carries its own entry** in a committed change list in the W9 evidence area, naming the contract and its old and new blobs (a post-merge workflow cannot commit to `main` under ruleset 20822054). WP9.5: the detector **fails** when a merged shared-surface change has no entry, or has no W9 §4.3 owner note. WP9.3: the acceptance preparer reads the list at the store binding's `git_head` and refuses acceptance of any observation of an affected result taken before the change, until the result is re-observed. The independent reviewer derives the affected results from the binding tests. Test: fixture changes with and without an entry, and with and without a note. |
 | O-33 | Any blob change to a registered file blocks every open observation, adoption or transition that binds the old blob | W9 §4.2 item 3 | WP9.3 (observation and acceptance preparers re-hash at commit); WP9.4 (adoption suspends); test with W9-T6 and W9-T9 |
 | O-34 | Whole-file adoption of a binary or restricted input; the successor Task re-hashes it at use, and a mismatch suspends the adoption | W9 §9 item 1 | WP9.4 (adoption subject); WP9.7 (use-time re-hash in the successor Task path, at the seam U-9 settles) |
 | O-35 | In-store manual-operation mode: each human edit enters as an attributed ARS event registering the new bytes; a registry of the keys Stephen registers for named writers | W9 §13.1 | WP9.6 |
@@ -476,8 +476,9 @@ requires it.
   from a recorded baseline commit and flags:
   1. a commit touching a manifest-registered legacy file without a §4.2 record;
   2. any change under `results/` outside `results/ars/` without a §4.2 record;
-  3. a change to a `shared_enforcement_surface` contract **without** the W9 §4.3 owner note. Every such change, with
-     or without the note, is appended to the committed change list that WP9.3 reads (O-32).
+  3. a merged change to a `shared_enforcement_surface` contract that has **no entry** in the committed change list,
+     or **no** W9 §4.3 owner note. The PR making the change carries its own entry, because a post-merge workflow
+     cannot commit to `main` under ruleset 20822054. WP9.3 reads the list unchanged (O-32).
 
   The registration manifest is exported in the same batch, before that batch's first observation, so there is no
   window in which a newly registered file is invisible to rule 1 (re-review I-3).
@@ -566,7 +567,7 @@ This package edits the generic command service (§2.7). Its review may split it 
 | D-5 | **Vault-detector cadence** | Before every batch, plus a weekly local scheduled run. Each run files an output hash in the W9 evidence area, and a missed run blocks the next batch. CI cannot read the vault. |
 | D-6 | **Package granularity** | One PR per package. WP9.3 may split into reader and selectors, and WP9.7 along its §2.7 seams, if their reviews ask. |
 | D-7 | **Computational-Log baseline timing** (W9 §7.3 item 6) | Take the non-author baseline export as preparation under W9 §4.5 row 1, **as soon as Stephen authorizes it**, without waiting for any code package. The export is a reviewed byte copy with per-entry hashes, made under the segmentation contract. That contract is WP9.0's document, but it is **reviewed and accepted together with the export** and may go ahead of the rest of WP9.0. WP9.3's exporter later reproduces the same hashes as a check. The classified legacy-entry list follows, for Stephen's acceptance. This is §7 L-0b. |
-| D-9 | **RegisterArtefact guard reach** (re-review N-1) | Accept that, in the Gate 7 store, the guard's rule (d) refuses artefacts whose suffix is in a restricted-suffix list, **for every producer, not only W9 work**. The proposed list is `*.csv` and `*.pkl` (W9 §5.4); Stephen accepts the exact list. Rule (e) refuses an unresolvable `root_id`. ARS-native work in that store that needs a CSV artefact (for example an eval table) would then need an explicit, owner-recorded exemption naming the file. |
+| D-9 | **RegisterArtefact guard reach** (re-review N-1) | Accept that, in the Gate 7 store, the guard's rule (d) refuses artefacts whose suffix is in a restricted-suffix list, **for every producer, not only W9 work**. The proposed list is `*.csv` and `*.pkl` (W9 §5.4); Stephen accepts the exact list. Rule (e) refuses an unresolvable `root_id`. The suffix list and any exemptions live in one committed file in the W9 evidence area. The guard reads it at the store binding's `git_head`. ARS-native work in that store that needs a CSV artefact (for example an eval table) needs an exemption entry naming the exact file, added by a reviewed PR that Stephen accepts. No other exemption path exists. Rule (e) refuses no existing producer: every producer registers with `root_id: "control"` (confirmation `d781b111`). |
 | D-8 | **U-3 fallback**, decided only if U-3 shows the CI token cannot read rule-suites | Record as a known limit that bypass use between batches is seen only at the next pre-batch local read, under the owner's `gh`. The alternative is a token with ruleset read access. |
 
 **D-1 specifics.**
@@ -623,8 +624,8 @@ Stop and return the package as Partial when any of these holds:
 - [x] Independent adversarial review of revision 1: REWORK REQUIRED (`b3fe778c`).
 - [x] Author reconciliation (revision 2).
 - [x] Narrow re-review of revision 2: REWORK REQUIRED, narrow (`d7f149ff`).
-- [x] Author reconciliation (this revision 3).
-- [ ] Reviewer's confirmation of revision 3.
+- [x] Author reconciliation (revision 3).
+- [x] Reviewer's confirmation of revision 3: PASS WITH FINDINGS (`d781b111`); c-1 and I-a folded into this revision 4.
 - [ ] Stephen's exact-revision acceptance of the plan and of D-1 to D-9, recorded as a register entry, as P-062 and
   P-063 were.
 - [ ] Stephen's separate decision authorizing implementation, which this plan does not contain.

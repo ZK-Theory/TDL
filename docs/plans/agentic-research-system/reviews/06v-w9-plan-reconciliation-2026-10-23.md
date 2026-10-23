@@ -126,3 +126,17 @@ with 0 Blocking, 2 Major, 5 Minor and 4 Info. Every revision 1 finding is closed
 
 **Owner decisions after revision 3:** D-1 to D-9. D-9 is new: the reach of the RegisterArtefact guard over every
 producer in the Gate 7 store, and the exact restricted-suffix list.
+
+## 6. Revision 4: the confirmation's fold-ins
+
+The confirmation (`reviews/06v-w9-plan-confirmation-943c446e-2026-10-23.md`, `d781b111`) returned PASS WITH FINDINGS,
+with 0 Blocking, 0 Major, 1 Minor and 3 Info. It confirmed both of the author's verification changes. The reviewer
+allowed c-1 to be folded in without another round.
+
+| Finding | Change in revision 4 |
+|---|---|
+| c-1: the post-merge detector cannot commit to `main` | In O-32 and WP9.5 rule 3, the PR that changes a shared surface carries its own change-list entry. The detector fails when a merged change has no entry, or has no §4.3 owner note. WP9.3 reads the list unchanged. |
+| I-a: D-9's exemption had no input | The suffix list and its exemptions live in one committed file that the guard reads at the binding's `git_head`. An exemption is an entry naming the exact file, added by a reviewed PR that Stephen accepts. |
+| I-b, I-c | Noted. The P-058 known limit applies: one model family, and one reviewer across all three rounds. |
+
+Revision 4 changes no other text. Its subject for acceptance is the commit that adds this section.
