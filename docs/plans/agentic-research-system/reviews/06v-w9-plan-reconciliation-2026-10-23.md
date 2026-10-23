@@ -75,3 +75,54 @@ Each cited range says what the review says it does.
 ## 4. Not changed
 
 The review's direction stands, as does every unflagged part of revision 1. W9 itself is not touched.
+
+## 5. Revision 3: the re-review's findings
+
+The re-review (`reviews/06v-w9-plan-re-review-db92045f-2026-10-23.md`, `d7f149ff`) returned REWORK REQUIRED (narrow),
+with 0 Blocking, 2 Major, 5 Minor and 4 Info. Every revision 1 finding is closed in substance.
+
+**Verification before writing (as Stephen asked).** The author re-read each mechanism the re-review prescribes, at
+`e82f9630`:
+- `identity.py:333-362` (`build_store_origin_witness`, `persist_store_origin_witness`)
+- `identity.py:607-651` (`_validate_manifest_identity`, `load_store_manifest_unbound`)
+- `identity.py:818-829` (`initialize_control_store`'s 1.0.0 manifest)
+- `identity.py:857-875` (`load_store_manifest`)
+- `register_artefact.schema.json:113-122`
+- `use_resolver.py:308-318`
+- `spec_source.py:268-271,302-305`
+- `discovery/spec.py:343-352` (root tokens)
+- `artefacts/runtime.py:31-50` (the content reader)
+- `driver.py:379-408,665-670`
+- every `shared_event_partition` caller
+
+**What the verification changed.**
+- **N-2's prescription holds only in part.** `load_store_manifest_unbound` reads without the control-root path check,
+  as the re-review says. But its identity validation is version-dependent:
+  - for a **1.1.0** manifest it requires `store_identity` to equal a SHA-256 over `store_nonce`, `project_id` and
+    `bootstrap_manifest_sha256` (`:623-633`);
+  - only the **1.0.0** form accepts an arbitrary 64-hex identity.
+  
+  A W9-T20 fixture can therefore carry the frozen Gate 6 identity only in the 1.0.0 form. Revision 3 says so, and
+  explains it in §2.6.
+- **N-1's "resolve `root_id` to its registered physical root" has two consequences.**
+  - The only artefact content reader accepts `root_id == "control"` alone (`artefacts/runtime.py:38-50`), so how
+    successor results in the repository's `results/ars/` are registered and read is open. This is now **U-8**.
+  - Rule (e), refusing an unresolvable root, is needed for the guard not to be bypassable, so it goes to D-9 with
+    rule (d).
+- **n-1's consumer list.** `spec_assay.py:84` is the import; the consumer is `spec_assay.py:1133`. Revision 3 cites
+  `:1133`.
+
+| Finding | Change in revision 3 |
+|---|---|
+| **N-1** RegisterArtefact guard too broad and bypassable | WP9.7 and §2.7 now resolve `root_id` through the binding's root tokens and normalize the joined path, refusing `..`, absolute and alias forms. The rules are: (a) a registered legacy file; (b) the `repo` root under `results/` outside `results/ars/`; (c) a registered restricted identity or `PROJ_ROOT`'s restricted area; (d) a D-9 suffix on every root; (e) an unresolvable `root_id`. "Null caches" go through rule (c). Negative controls are added: a root inside `results/`, a `..` path, an alias form, an unresolvable root, and a non-`results/` path under a non-code root (must not fire). New **D-9** and **U-8**. |
+| **N-2** W9-T20 copy case refused before the W9 guard | WP9.2's guard reads with `load_store_manifest_unbound` first, refuses on the frozen identity, and only then binds. W9-T20's fixture writes a 1.0.0-form manifest and witness through `build_store_origin_witness` and `persist_store_origin_witness`. Its original-path and copy cases both assert the W9 reason code, and a different-identity case passes the guard. |
+| n-1 U-7 confinement | U-7 and WP9.2 now name three sites: the `projection/replay.py` predicate, a **new** `legacy` partition value in `shared_event_partition`, and one `continue` branch in `driver.py`. Reusing an existing value is forbidden. A consumer test covers `runtime.py:2214,2254`, `spec.py:284` and `spec_assay.py:1133`. The §8 stop rule is updated to match. |
+| n-2 D-4 workability | Command-adding packages merge one at a time. Re-acceptance is of the bytes in the merge-queue entry, and a rebase needs a re-look. The T2 validator expectations and their seal are added to the byte list. |
+| n-3 D-7 and L-0b timing | The segmentation contract is reviewed and accepted together with the export, ahead of the rest of WP9.0, so L-0b waits for no code package. WP9.3's exporter later reproduces the hashes. |
+| n-4 O-34 seam | New §2.7 row and **U-9** cover the use-time re-hash path for an adopted restricted input, which cannot travel as an artefact under rule (d) |
+| n-5 detector rule 3 | The detector fails only on a shared-surface change **without** the §4.3 note. Every change is appended to a committed change list, and WP9.3's acceptance preparer reads that list at the binding's `git_head`. |
+| I-1, I-2, I-4 | Noted |
+| I-3 manifest lag | Taken in: the registration manifest is exported in the same batch, before its first observation |
+
+**Owner decisions after revision 3:** D-1 to D-9. D-9 is new: the reach of the RegisterArtefact guard over every
+producer in the Gate 7 store, and the exact restricted-suffix list.

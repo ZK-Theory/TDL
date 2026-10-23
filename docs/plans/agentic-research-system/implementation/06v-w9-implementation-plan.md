@@ -2,8 +2,8 @@
 
 | Field | Value |
 |---|---|
-| Date | 2026-10-23 (revision 2); revision 1 of 2026-10-22 |
-| Status | **Draft, revision 2, `review_pending`.** Revision 1 (`2a3940e2`) was reviewed: REWORK REQUIRED, 0 Blocking, 8 Major, 13 Minor, 6 Info (`reviews/06v-w9-plan-review-2a3940e2-2026-10-23.md`, `b3fe778c`). This revision is reconciled in `reviews/06v-w9-plan-reconciliation-2026-10-23.md`. Next: a narrow re-review, then Stephen's exact-revision acceptance (P-063). |
+| Date | 2026-10-23 (revisions 2 and 3); revision 1 of 2026-10-22 |
+| Status | **Draft, revision 3, `review_pending`.** Revision 1 (`2a3940e2`) was reviewed REWORK REQUIRED (`b3fe778c`). Revision 2 (`db92045f`) was re-reviewed REWORK REQUIRED (narrow): 0 Blocking, 2 Major, 5 Minor, 4 Info (`reviews/06v-w9-plan-re-review-db92045f-2026-10-23.md`, `d7f149ff`). The reconciliation of both is `reviews/06v-w9-plan-reconciliation-2026-10-23.md` (revision 3 is §5). Next: the reviewer's confirmation, then Stephen's exact-revision acceptance (P-063). |
 | Authority to write | P-063 (Gate 7 opening): "authoring, independent adversarial review and Stephen's exact-revision acceptance of the W9 implementation plan", including a proposal for the W9-D10 store |
 | Implementation authority | **None.** P-063 does not authorize implementing this plan. Implementation starts only on Stephen's separate decision after the plan is accepted. Each live operation in §7 needs its own decision on top of that. |
 | Specification | W9, `design/09-migration-compatibility-and-pilot.md`, draft 0.5, blob `ea3a8e4a`, accepted 2026-10-22 (W9-D1 to W9-D14) |
@@ -120,13 +120,29 @@ D-1's foundation re-pin replaces the live foundation. After it merges, the CLI b
 the Gate 6 store is readable only from the M2 checkout. W9's refusal of the Gate 6 store (WP9.2) therefore keys on this
 frozen `store_identity`, not on the live foundation.
 
+**How the refusal reads the identity (verified).** `load_store_manifest` (`identity.py:857-875`) first calls
+`load_store_manifest_unbound`, then raises "store control-root binding mismatch" when the manifest's `control_root`
+differs from the resolved path (`:867-868`), and only then checks the witness and the restore binding (`:869-874`). A
+byte copy at a second path therefore fails there, before any W9 code runs. `load_store_manifest_unbound`
+(`identity.py:636-651`) reads and validates the manifest **without** that path check. Its docstring names the restore
+finalization path, so W9 adds a second, read-only caller. Validation (`_validate_manifest_identity`,
+`identity.py:607-634`) depends on the manifest version:
+- **Version 1.0.0** (`initialize_control_store`, `:818-829`): the identity is a random 64-hex token, checked only for
+  form.
+- **Version 1.1.0**: the identity must equal a SHA-256 over `store_nonce`, `project_id` and
+  `bootstrap_manifest_sha256` (`:623-633`).
+
+A test store can therefore carry an arbitrary frozen identity only in the 1.0.0 form.
+
 ### 2.7 Successor-side seams (the guards W9's tests need outside the legacy package)
 
 | Test | Owning module and line | Field read | Core schema change? |
 |---|---|---|---|
 | W9-T8: unadopted family used by a successor Task | CreateTask preparer, `research_system/command/service.py:6019` | `definition.source_import_refs` (`.research-system/schemas/core/commands/create_task.schema.json:264`) | **U-5**: whether those refs can carry a legacy-observation family reference without a schema change |
-| W9-T10: successor work writes a legacy path | RegisterArtefact preparer, `service.py:4382`. The Task definition has no output-path field. | `manifest.relative_path` (`.research-system/schemas/core/commands/register_artefact.schema.json:119`) | No. The path field exists. The guard refuses a `relative_path` that is a registered legacy file, or that falls under `results/` outside `results/ars/`. |
-| W9-T11: restricted bytes registered as an artefact | RegisterArtefact preparer, `service.py:4382` | `manifest.relative_path`; any `restricted_untracked_file` registration in the store's W9 projection | No |
+| W9-T10: successor work writes a legacy path | RegisterArtefact preparer, `service.py:4382-4410`. The Task definition has no output-path field. | The pair `manifest.root_id` and `manifest.relative_path` (`.research-system/schemas/core/commands/register_artefact.schema.json:113-122`). Producers use non-repository roots; for example SPEC-01 sources are `root_id: "control"` (`discovery/spec_source.py:270,304`). Root tokens in use are `control` and `repo` (`discovery/spec.py:349`). | No. The fields exist. The guard is WP9.7's resolved-path rule (a) to (e). |
+| W9-T11: restricted bytes registered as an artefact | RegisterArtefact preparer, `service.py:4382-4410` | The same pair, plus any `restricted_untracked_file` registration in the store's W9 projection | No |
+| O-34: use-time re-hash of an adopted whole-file input | **U-9.** The artefact use resolver already re-hashes at use (`artefacts/use_resolver.py:310-317`), but rule (d) keeps restricted files out of artefacts. So an adopted restricted input must reach the successor Task another way, likely `source_import_refs` resolved against the adoption record. | The adoption record's hash | U-9 |
+| Successor results under `results/ars/` | **U-8.** The only artefact content reader reads `root_id == "control"` only (`artefacts/runtime.py:31-50`). How a successor result in the repository's `results/ars/` is registered and read back is not settled. | `root_id` | U-8 |
 | W9-T12: family coverage at dispatch | ClaimDispatch preparer in `service.py` | The dispatch record | **U-2**: the exact preparer and whether the coverage record needs a new field |
 | W9-T16: thresholds precede the batch | W9 legacy runtime, closed-reference acceptance preparer (WP9.3) | The threshold anchor | No |
 | W9-T17, W5 clause: an unadopted family blocks its claims | W5 assurance engine under `research_system/assurance/` (likely `resolver.py`) | The citation-status relation | **U-6**: the exact hook and whether W5's claim inputs need a new field |
@@ -144,7 +160,9 @@ protected-tree change under D-4.
 | U-4 | The operator machine's path to the vault (junction behaviour) for the Computational-Log detector; CI cannot see the vault | WP9.5 | Recorded from a dry run on the operator machine |
 | U-5 | Whether `source_import_refs` can reference a legacy-observation family without a schema change | WP9.4 | Read the CreateTask preparer and schema; record the answer before writing code |
 | U-6 | The W5 hook for "an unadopted family blocks its claims" | WP9.4 | Read `research_system/assurance/`; record `path:line` before writing code |
-| U-7 | Whether the shared-replay edits (WP9.2) can be confined to a predicate that `projection/replay.py` and `shared_event_partition` consult before their defaults, leaving the 59/21/1 partition and every W11 pin unchanged | WP9.2 | Read and prototype on a scratch store. If the edit cannot be confined, stop and return Partial (§8). |
+| U-7 | Whether the shared-replay edits (WP9.2) can be confined to three sites: (1) a predicate that `projection/replay.py` (`:1319-1324`) consults before its default; (2) a predicate that `shared_event_partition` (`discovery/routes.py:301-319`) consults, returning a **new** `legacy` partition value, never an existing one; (3) **one** `continue` branch for `legacy` in `replay_discovery`'s per-partition dispatch (`discovery/replay/driver.py:379-408`; the fall-through raises "unsupported Discovery event" at `:667-669`). The 59/21/1 partition and every W11 pin stay unchanged. | WP9.2 | Read and prototype on a scratch store. If the edit cannot be confined to those three sites, stop and return Partial (§8). |
+| U-8 | How a successor result under the repository's `results/ars/` is registered and read back, given that the only content reader reads `root_id == "control"` (`artefacts/runtime.py:38-50`) | WP9.7 | Read the artefact registration and use paths; record the root and reader before writing the guard |
+| U-9 | Where a successor Task reads and re-hashes an adopted whole-file input (O-34), given rule (d) | WP9.4, WP9.7 | Read the CreateTask and dispatch paths with U-5; record `path:line` |
 
 ## 3. Obligation register
 
@@ -181,8 +199,8 @@ Every forward obligation in W9 and its acceptance trail has a disposition here.
 | O-19 | `.apm/bus/` closure inventory | W9 §13.3 item 2 | WP9.3 tool; §7 L-5 |
 | O-20 | Light inventories with blocker rows; duplicate anchors block | W9 §5.5; W9-T18, W9-T22 | WP9.3, under the versioned segmentation contract (m-7) |
 | O-21 | Shared-writer baselines: the classified legacy-entry list accepted by Stephen; the Git-anchored export | W9 §7.3 items 1, 2 and 6 | D-7 and §7 L-0b, as early as authorized; WP9.3 exporter |
-| O-22 | Restricted bytes never enter the store, on every path | W9 §5.4; W9-T11 | WP9.3 reader; WP9.7 RegisterArtefact guard (§2.7) |
-| O-23 | Successor compute writes nothing legacy | W9 §10; W9-T10 | WP9.7 RegisterArtefact guard (§2.7) |
+| O-22 | Restricted bytes never enter the store, on every path | W9 §5.4; W9-T11 | WP9.3 reader; WP9.7 RegisterArtefact guard rules (c) and (d) on the resolved path; the suffix list is D-9 |
+| O-23 | Successor compute writes nothing legacy | W9 §10; W9-T10 | WP9.7 RegisterArtefact guard rules (a) and (b) on the resolved path (§2.7; U-8) |
 | O-24 | Family coverage at dispatch for P-005's R3 set | W9 §11.2; W9-D3; W9-T12 | WP9.7, after U-2 |
 | O-25 | Integration-pilot thresholds, and the governing-record set, hashed and anchored before the batch's first acceptance | W9 §14.3; W9-T16 | WP9.3 acceptance preparer; m-9's anchor definition; §7 L-4 |
 | O-26 | Recall metric in the versioned W3 reference tokenizer | W9 §14.2–14.3; P-028 | WP9.7 |
@@ -191,9 +209,9 @@ Every forward obligation in W9 and its acceptance trail has a disposition here.
 | O-29 | `legacy-paper-root` acyclic; citation status as a separate relation | W9 §5.2; W9-T17, W9-T21 | WP9.1, WP9.2, WP9.4 |
 | O-30 | W11 dossier admission referencing a `legacy-paper-root` | W9 §8.2 | **Out of scope:** a later W11 step |
 | O-31 | Paper-root transitions, wider adoption, prose | W9 §§12, 14.2; W9-D7, W9-D12a | **Out of scope** for this plan's code; later owner decisions under §7 |
-| O-32 | A change to a `shared_enforcement_surface` contract re-triggers observation of the affected results' enforcement state; the reviewer derives the affected set from binding tests | W9 §4.3; W9-D14 | WP9.5: the detector flags such a change. WP9.3: re-observation is marked required. Test: a fixture contract change marks its bound results for re-observation. |
+| O-32 | A change to a `shared_enforcement_surface` contract re-triggers observation of the affected results' enforcement state; the reviewer derives the affected set from binding tests | W9 §4.3; W9-D14 | WP9.5: the detector **fails** only on such a change without the W9 §4.3 owner note. For **every** such change, with or without the note, it appends an entry to a committed list in the W9 evidence area naming the contract and its old and new blobs. WP9.3: the acceptance preparer reads that list at the store binding's `git_head` and refuses acceptance of any observation of an affected result taken before the change, until the result is re-observed. The independent reviewer derives the affected results from the binding tests. Test: a fixture contract change, with and without a note. |
 | O-33 | Any blob change to a registered file blocks every open observation, adoption or transition that binds the old blob | W9 §4.2 item 3 | WP9.3 (observation and acceptance preparers re-hash at commit); WP9.4 (adoption suspends); test with W9-T6 and W9-T9 |
-| O-34 | Whole-file adoption of a binary or restricted input; the successor Task re-hashes it at use, and a mismatch suspends the adoption | W9 §9 item 1 | WP9.4 (adoption subject); WP9.7 (use-time re-hash in the successor Task path) |
+| O-34 | Whole-file adoption of a binary or restricted input; the successor Task re-hashes it at use, and a mismatch suspends the adoption | W9 §9 item 1 | WP9.4 (adoption subject); WP9.7 (use-time re-hash in the successor Task path, at the seam U-9 settles) |
 | O-35 | In-store manual-operation mode: each human edit enters as an attributed ARS event registering the new bytes; a registry of the keys Stephen registers for named writers | W9 §13.1 | WP9.6 |
 | O-36 | `.apm/` file-level inventory: 34 tracked files, stage logs and the bus, each mapped to exactly one closure or non-import record | W9 §13.3 item 5 | WP9.3 tool; closure is a bijection test (W9-T18) |
 | O-37 | Per-item `pilot_promotion` evidence or waiver, with fixture IDs, before acceptance | W9 §8.5 item 4; P-062 A8 | WP9.1 adds evidence or waiver refs to `legacy-closed-reference-acceptance`; WP9.3 refuses acceptance without them |
@@ -212,8 +230,8 @@ Every forward obligation in W9 and its acceptance trail has a disposition here.
 | W9-T7 detectors fire | WP9.5 | integration, `slow`: scratch clone from the local object store, fixture registry listing the files `5df0c001` and `811d5a2b` touched |
 | W9-T8 no successor use without adoption | WP9.4 (legacy side), WP9.7 (CreateTask guard) | integration |
 | W9-T9 adoption revalidates | WP9.4 | integration |
-| W9-T10 successor work writes nothing legacy | WP9.7 | integration (RegisterArtefact guard) |
-| W9-T11 restricted bytes stay out of the store | WP9.3 (reader), WP9.7 (RegisterArtefact) | integration |
+| W9-T10 successor work writes nothing legacy | WP9.7 | integration (RegisterArtefact guard). Negative controls: a root declared inside `results/`; a `..` path; an alias form. A non-`results/` path under a non-code root must **not** fire. |
+| W9-T11 restricted bytes stay out of the store | WP9.3 (reader), WP9.7 (RegisterArtefact) | integration; a D-9 suffix under any root fires |
 | W9-T12 family coverage at dispatch | WP9.7 | integration |
 | W9-T13 corrections bind generally | WP9.3 | unit |
 | W9-T14 supersession acyclic, history kept | WP9.6 | unit |
@@ -222,7 +240,7 @@ Every forward obligation in W9 and its acceptance trail has a disposition here.
 | W9-T17 paper transition cannot bypass adoption | WP9.4 (legacy side and W5 clause) | integration, with D-3 |
 | W9-T18 closure is a bijection | WP9.3 | unit |
 | W9-T19 legacy entries and locks match baselines | WP9.5 | unit (fixture log and `CONVENTIONS.md`) |
-| W9-T20 Gate 6 store never a W9 target | WP9.2 | integration: a scratch store whose manifest carries the frozen §2.6 `store_identity` under a valid test foundation, plus a copy at a second path. The test asserts the W9 guard's own reason code. |
+| W9-T20 Gate 6 store never a W9 target | WP9.2 | integration. The fixture writes a scratch store's manifest in the **version 1.0.0 form** with the frozen §2.6 `store_identity`. That is the only form whose identity validation accepts an arbitrary 64-hex value (§2.6). It also writes a matching origin witness through `build_store_origin_witness` and `persist_store_origin_witness` (`identity.py:333,355`) under a test foundation. It never patches the guard. Three cases: (1) the original path, and (2) a byte copy at a second path, **both assert the W9 reason code**; (3) a store with a different identity passes the guard. |
 | W9-T21 paper-root records acyclic | WP9.1 (schema), WP9.2 (reducer), WP9.4 (graph) | unit |
 | W9-T22 duplicate anchors block | WP9.3 | unit |
 | W9-T23 manual-mode edits attributable | WP9.6 | unit, with synthetic keys |
@@ -244,10 +262,22 @@ CodeRabbit review before merge, and Stephen merges.
 **Order.** WP9.0 and WP9.1 come first. WP9.2 needs WP9.1's accepted catalogue identity. WP9.3 to WP9.7 follow WP9.2,
 in any order that respects the stated dependencies.
 
-**Recurring owner gate (D-4).** Every package PR that adds a W9 command or changes a protected identity carries the
-changed census row set and digest, the 06h manifest YAML, the append-site classification and any changed tree ID.
-Stephen re-accepts them at exact bytes at that PR's review, and the re-acceptance gets a register entry. Expected:
-WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only if U-2, U-5 or U-6 requires it.
+**Recurring owner gate (D-4).** Every package PR that adds a W9 command, or changes any other protected identity,
+carries these bytes:
+- the changed census row set and digest;
+- the 06h manifest YAML;
+- the append-site classification;
+- any changed tree ID, together with the T2 validator expectations and their seal
+  (`tests/research_system/contracts/wp6_2_t2_expectations.py`; `.research-system/contracts/wp6-2-t2-schema-identities.yaml`).
+
+Stephen re-accepts **the bytes in the merge-queue entry** at exact bytes. Any rebase needs a re-look, and each
+re-acceptance gets a register entry.
+
+**Command-adding packages merge one at a time.** Each rewrites the same census digest and manifest, so two in
+parallel would make one re-accepted byte set stale.
+
+Expected: WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only if U-2, U-5, U-6 or U-9
+requires it.
 
 ### WP9.0 — Documents that gate the code
 
@@ -263,7 +293,8 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
   - the hash input;
   - a required UTC timestamp on every observation.
   
-  It is reviewed with WP9.3, and the Computational-Log export (D-7) uses it.
+  It is reviewed and accepted together with the Computational-Log export (D-7), ahead of the rest of WP9.0 if the
+  export comes first, and WP9.3 implements it.
 - **Done:** the addendum is accepted; the template and the contract are merged.
 
 ### WP9.1 — Schema family, catalogue and bootstrap contract (data, no runtime)
@@ -309,16 +340,20 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
   (`schema_registry.py:209-265`). Events fall back to `ars://core/event`. Census, manifest and append-site changes go
   to D-4.
 - **Shared-ledger replay (M-1; resolve U-7 first).**
-  - A `legacy` command-type predicate, owned by `research_system/legacy/`, that `projection/replay.py` (`:1319-1324`)
-    and `shared_event_partition` (`discovery/routes.py:301-319`) consult before their defaults.
+  - A `legacy` command-type predicate, owned by `research_system/legacy/`. `projection/replay.py` (`:1319-1324`)
+    consults it before its default. `shared_event_partition` (`discovery/routes.py:301-319`) consults it and returns
+    a **new** partition value, `legacy`. Reusing an existing value (for example `context`) is forbidden: it would
+    silently enrol W9 events in the shared-projection positions (`driver.py:62-65`).
+  - **One** `continue` branch for `legacy` in `replay_discovery`'s per-partition dispatch (`driver.py:379-408`).
+    Without it, the event falls through to "unsupported Discovery event" (`:667-669`).
   - A lazy `replay_legacy` call at the generic boundary, next to the `replay_discovery` call (`replay.py:1369-1381`).
-  - The Discovery replay must accept W9 events in the same ledger without treating them as operational.
-  - Editing `shared_event_partition` is in scope **only as the predicate consultation**. The 59/21/1 partition, the
-    excluded rows and every W11 pin stay unchanged. If the edit cannot be confined to that, the package stops and
-    returns Partial.
+  - These three sites are in scope and nothing more (U-7). The 59/21/1 partition, the excluded rows and every W11 pin
+    stay unchanged. If the edit cannot be confined to them, the package stops and returns Partial.
   - **Test.** A scratch store holding W11 genesis, W9 genesis, one W9 observation and one generic command must replay
     through `rebuild_projection`, `replay_discovery` and the verify-restore path. **Negative control:** the same ledger
     with the predicate removed must fail.
+  - **Consumer test.** Every partition consumer leaves W9 events out of its operational or artefact filters:
+    `discovery/runtime.py:2214,2254`, `discovery/spec.py:284` and `discovery/spec_assay.py:1133`.
 - **Genesis.** `ImportAcceptedW9CatalogueGenesis` emits `W9CatalogueGenesisImported`. It copies every W11 guard
   (§2.1):
   - the pre-lock payload check;
@@ -330,11 +365,14 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
   - a route-registry partition check over the W9 catalogue.
   
   It also refuses a store whose **replayed Discovery projection** holds no W11 catalogue (O-5; Info I-3).
-- **Gate 6 store refusal (M-4).**
-  - The runtime reads the bound store's manifest through `load_store_manifest` (`identity.py:857`).
-  - It refuses with a dedicated W9 reason code when `store_identity` equals the frozen §2.6 value. This refuses by
-    identity, so a moved or copied store is still refused.
-  - It does not depend on the live foundation (W9-T20).
+- **Gate 6 store refusal (M-4, N-2).**
+  1. The guard first reads the target store's manifest with `load_store_manifest_unbound` (`identity.py:636`).
+  2. It refuses with a dedicated W9 reason code when `store_identity` equals the frozen §2.6 value.
+  3. Only after that does the runtime bind through `load_store_manifest` (`:857`).
+
+  Because the identity check comes before the control-root path check (`:867-868`), a moved or copied Gate 6 store is
+  refused by the W9 guard itself. The guard does not depend on the live foundation (W9-T20). The unbound read is
+  read-only and adds no state.
 - **Authority.**
   - W9 commands reuse existing scoped-grant subject kinds (`scope_definition`, `review`, `decision`), as Discovery
     does (`runtime.py:209-236`). A new kind would need an authority schema version, which is out of this package's
@@ -351,7 +389,7 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
 - **Tests.**
   - W9-T5, W9-T20 and the store half of W9-T11.
   - The reducer half of W9-T21.
-  - The shared-replay test and its negative control.
+  - The shared-replay test and its negative control, and the consumer test.
   - **Genesis negatives:**
     - a second genesis;
     - the wrong stream version;
@@ -385,7 +423,8 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
   - Precedence follows W0 manifest §8.4 (W9-T4).
   - A status word never yields acceptance (W9-T1).
   - An unassigned key blocks import (W9-T3).
-  - A `shared_enforcement_surface` change marks the bound results for re-observation (O-32).
+  - A `shared_enforcement_surface` change blocks acceptance of earlier observations of the affected results until
+    they are re-observed. The input is WP9.5's committed change list, read at the store binding's `git_head` (O-32).
 - **Closed-reference acceptance.** The preparer refuses a batch unless each item carries its `pilot_promotion` evidence
   or waiver refs with fixture IDs (O-37). It also requires the threshold pre-registration and the governing-record set
   to be hashed and anchored before the batch's first acceptance (O-25; W9-T16). An anchor is either a Git commit that is
@@ -437,7 +476,11 @@ WP9.2, WP9.3, WP9.4 and WP9.6 add commands. WP9.7 changes a protected tree only 
   from a recorded baseline commit and flags:
   1. a commit touching a manifest-registered legacy file without a §4.2 record;
   2. any change under `results/` outside `results/ars/` without a §4.2 record;
-  3. a change to a `shared_enforcement_surface` contract (O-32).
+  3. a change to a `shared_enforcement_surface` contract **without** the W9 §4.3 owner note. Every such change, with
+     or without the note, is appended to the committed change list that WP9.3 reads (O-32).
+
+  The registration manifest is exported in the same batch, before that batch's first observation, so there is no
+  window in which a newly registered file is invisible to rule 1 (re-review I-3).
   
   §4.2 records are keyed by **PR number plus each registered file's old and new blob**, not by commit SHA. The
   detector maps each squash commit to its PR through the merge-queue derivation that `tools/check_merge_admission.py`
@@ -484,16 +527,33 @@ This package edits the generic command service (§2.7). Its review may split it 
   record naming a second-family session that meets W9 §11.2's three-part eligibility test. Someone other than the
   producer and that session must check it. Otherwise the dispatch records `r3_family_coverage_insufficient` and is
   refused before compute (W9-T12).
-- **RegisterArtefact guard** (O-22, O-23). A `manifest.relative_path` is refused if it:
-  - is a manifest-registered legacy file;
-  - falls under `results/` outside `results/ars/`;
-  - matches a registered `restricted_untracked_file`, or a restricted pattern (`*.pkl`, `*.csv`, null caches).
-  
-  This covers W9-T10 and the artefact half of W9-T11.
-- **Use-time re-hash** (O-34). A successor Task that uses an adopted whole-file input re-hashes it at use. A mismatch
-  suspends the adoption.
+- **RegisterArtefact guard** (O-22, O-23; resolve U-8 first).
+  - **Resolution.** The guard resolves `manifest.root_id` to its registered physical root through the store binding's
+    root tokens (`control`, `repo`; `discovery/spec.py:349`). It then normalizes the joined path, refusing any `..`,
+    absolute or alias form.
+  - **Refusal rules.** It refuses when:
+    - (a) the resolved path is a manifest-registered legacy file;
+    - (b) the resolved root is the TDL code root (`repo`) and the path is under `results/` but not under
+      `results/ars/`;
+    - (c) the resolved path equals a registered `restricted_untracked_file`, or lies under `PROJ_ROOT`'s restricted
+      area;
+    - (d) the file suffix is in the owner-accepted restricted-suffix list (D-9; W9 §5.4 names `*.csv` and `*.pkl`), on
+      every root;
+    - (e) the `root_id` cannot be resolved to a registered root (D-9).
+  - **Scope.** Rules (d) and (e) bind every producer in the Gate 7 store, because W9-T11 says "on every path". "Null
+    caches" are covered by rule (c) through their registered restricted identities, not by a pattern.
+  - **Coverage.** This covers W9-T10 and the artefact half of W9-T11.
+- **Use-time re-hash** (O-34; resolve U-9 first). A successor Task that uses an adopted whole-file input re-hashes it
+  at use, at the seam U-9 records. A mismatch suspends the adoption.
 - **Recall and context metric helper** (O-26). It uses the versioned W3 reference tokenizer only.
-- **Tests:** W9-T10, the artefact half of W9-T11, W9-T12, and O-34.
+- **Tests:** W9-T10 and the artefact half of W9-T11, with these negative controls:
+  - a root declared inside `results/`;
+  - a `..` path;
+  - an alias form;
+  - an unresolvable `root_id`;
+  - a D-9 suffix under a non-code root.
+  
+  A non-`results/` path under a non-code root must **not** fire. Also W9-T12, and O-34.
 
 ## 6. Owner decisions this plan asks for
 
@@ -502,10 +562,11 @@ This package edits the generic command service (§2.7). Its review may split it 
 | D-1 | **The W9 store (W9-D10)** | A **new control store, `C:/Users/steph/TDL-ARS-G7-Control`**, created by runbook L1 to L7 (`06s-phase5-runbook.md:189-195`) with Gate 7 names. Specifics below the table. |
 | D-2 | **Command path** | **Discovery-style** (`research_system/legacy/`). It keeps the **legacy commands** out of the protected `core/commands` and `core/events` trees. The successor guards are mapped in §2.7. The conditions are M-1's shared replay and writer lock, one runtime-binding row per command, and §2.7. |
 | D-3 | **W9-T17's second clause (Info I-c)** | **Both.** The deterministic extractor runs over every file type in the root, on observed bytes, projected to families. The reviewer's independent derivation is compared with it, and any difference blocks. |
-| D-4 | **P-059 re-acceptance procedure** | At **every** package PR that adds a command or changes a protected identity, Stephen re-accepts at exact bytes: the census row set and digest, the 06h manifest YAML, the append-site classification, and any changed tree ID. Each re-acceptance gets a register entry, as P-059 did. Expected at WP9.2, WP9.3, WP9.4 and WP9.6, and at WP9.7 if a core schema changes. |
+| D-4 | **P-059 re-acceptance procedure** | At **every** package PR that adds a command or changes a protected identity, Stephen re-accepts, at exact bytes and as they stand in the merge-queue entry, the census row set and digest, the 06h manifest YAML, the append-site classification, any changed tree ID, and the T2 validator expectations and seal. Command-adding packages merge one at a time. Each re-acceptance gets a register entry, as P-059 did. Expected at WP9.2, WP9.3, WP9.4 and WP9.6, and at WP9.7 if a core schema changes. |
 | D-5 | **Vault-detector cadence** | Before every batch, plus a weekly local scheduled run. Each run files an output hash in the W9 evidence area, and a missed run blocks the next batch. CI cannot read the vault. |
 | D-6 | **Package granularity** | One PR per package. WP9.3 may split into reader and selectors, and WP9.7 along its §2.7 seams, if their reviews ask. |
-| D-7 | **Computational-Log baseline timing** (W9 §7.3 item 6) | Take the non-author baseline export as preparation under W9 §4.5 row 1, **as soon as Stephen authorizes it**. That can be before any package lands: a reviewed byte copy with per-entry hashes under the WP9.0 segmentation contract. Otherwise, as soon as WP9.3's exporter merges. The classified legacy-entry list follows, for his acceptance. This is §7 L-0b. |
+| D-7 | **Computational-Log baseline timing** (W9 §7.3 item 6) | Take the non-author baseline export as preparation under W9 §4.5 row 1, **as soon as Stephen authorizes it**, without waiting for any code package. The export is a reviewed byte copy with per-entry hashes, made under the segmentation contract. That contract is WP9.0's document, but it is **reviewed and accepted together with the export** and may go ahead of the rest of WP9.0. WP9.3's exporter later reproduces the same hashes as a check. The classified legacy-entry list follows, for Stephen's acceptance. This is §7 L-0b. |
+| D-9 | **RegisterArtefact guard reach** (re-review N-1) | Accept that, in the Gate 7 store, the guard's rule (d) refuses artefacts whose suffix is in a restricted-suffix list, **for every producer, not only W9 work**. The proposed list is `*.csv` and `*.pkl` (W9 §5.4); Stephen accepts the exact list. Rule (e) refuses an unresolvable `root_id`. ARS-native work in that store that needs a CSV artefact (for example an eval table) would then need an explicit, owner-recorded exemption naming the file. |
 | D-8 | **U-3 fallback**, decided only if U-3 shows the CI token cannot read rule-suites | Record as a known limit that bypass use between batches is seen only at the next pre-batch local read, under the owner's `gh`. The alternative is a token with ruleset read access. |
 
 **D-1 specifics.**
@@ -528,7 +589,7 @@ gate column below adds only what those texts do not already state.
 | Step | Operation | Added gate |
 |---|---|---|
 | L-0 | Stephen signs the eight W0 manifest §14 items after the independent check W0-D1 names. The signing record cites P-062 C1. | Not code; it precedes any closed-reference observation (O-27) |
-| L-0b | Non-author Computational-Log baseline export; then the classified legacy-entry list, accepted by Stephen; the `CONVENTIONS.md` baseline recorded | Stephen's authorization (D-7) |
+| L-0b | Non-author Computational-Log baseline export, under the segmentation contract reviewed with it; then the classified legacy-entry list, accepted by Stephen; the `CONVENTIONS.md` baseline recorded | Stephen's authorization (D-7) |
 | L-1 | Detectors live on real `main` and on the operator machine's vault. Each negative control is watched to fail **on a scratch clone or a byte copy, never by writing `main` or the vault**. | The WP9.5 package merged |
 | L-2 | Create the D-1 store (runbook A1 to A7), then run W11 genesis (`bootstrap_genesis`) | Stephen's store decision; each A-step authorization; a scoped grant |
 | L-3 | W9 genesis, under a grant scoped to the W9 catalogue stream | The catalogue and bootstrap contract accepted (WP9.1) |
@@ -550,7 +611,7 @@ gate column below adds only what those texts do not already state.
 Stop and return the package as Partial when any of these holds:
 - an interface in §2.8 resolves differently from the plan's assumption;
 - a W11 pin would change: the route partition, the schema tree, or the not-runtime-activated test;
-- the shared-replay edit cannot be confined to a predicate (U-7);
+- the shared-replay edit cannot be confined to U-7's three sites, or would reuse an existing partition value;
 - a test needs live legacy, vault or restricted bytes;
 - a command would write a legacy file or the Gate 6 store;
 - a protected identity changes without Stephen's exact-bytes re-acceptance (D-4);
@@ -560,9 +621,11 @@ Stop and return the package as Partial when any of these holds:
 ## 9. Review and acceptance of this plan
 
 - [x] Independent adversarial review of revision 1: REWORK REQUIRED (`b3fe778c`).
-- [x] Author reconciliation (this revision 2).
-- [ ] Narrow re-review of revision 2.
-- [ ] Stephen's exact-revision acceptance of the plan and of D-1 to D-8, recorded as a register entry, as P-062 and
+- [x] Author reconciliation (revision 2).
+- [x] Narrow re-review of revision 2: REWORK REQUIRED, narrow (`d7f149ff`).
+- [x] Author reconciliation (this revision 3).
+- [ ] Reviewer's confirmation of revision 3.
+- [ ] Stephen's exact-revision acceptance of the plan and of D-1 to D-9, recorded as a register entry, as P-062 and
   P-063 were.
 - [ ] Stephen's separate decision authorizing implementation, which this plan does not contain.
 
