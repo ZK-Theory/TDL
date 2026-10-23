@@ -12,7 +12,6 @@
     "created_at",
     "created_by_actor_id",
     "content_hash",
-    "observation_refs",
     "independent_review_ref",
     "decision_ref",
     "items",
@@ -32,15 +31,10 @@
       "$ref": "#/$defs/objId"
     },
     "record_revision": {
-      "type": "integer",
-      "minimum": 1
+      "const": 1
     },
     "supersedes_revision": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 1
+      "const": null
     },
     "project_id": {
       "$ref": "#/$defs/projectId"
@@ -54,19 +48,11 @@
     "content_hash": {
       "$ref": "#/$defs/sha256"
     },
-    "observation_refs": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/recordRef"
-      },
-      "minItems": 1,
-      "uniqueItems": true
-    },
     "independent_review_ref": {
-      "$ref": "#/$defs/recordRef"
+      "$ref": "#/$defs/reviewRef"
     },
     "decision_ref": {
-      "$ref": "#/$defs/recordRef"
+      "$ref": "#/$defs/decisionRef"
     },
     "items": {
       "type": "array",
@@ -81,47 +67,63 @@
             "$ref": "#/$defs/recordRef"
           },
           "pilot_promotion": {
-            "type": "object",
-            "required": [
-              "fixture_ids",
-              "evidence_refs",
-              "waiver_ref"
-            ],
-            "properties": {
-              "fixture_ids": {
-                "type": "array",
-                "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "fixture_id",
+                "disposition",
+                "ref"
+              ],
+              "properties": {
+                "fixture_id": {
                   "type": "string",
                   "pattern": "^[FS]-[0-9]{3}$"
                 },
-                "uniqueItems": true
-              },
-              "evidence_refs": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/recordRef"
+                "disposition": {
+                  "enum": [
+                    "evidence",
+                    "waiver"
+                  ]
+                },
+                "ref": {
+                  "$ref": "#/$defs/anyRef"
                 }
               },
-              "waiver_ref": {
-                "$ref": "#/$defs/nullableRecordRef"
-              }
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "disposition": {
+                        "const": "waiver"
+                      }
+                    },
+                    "required": [
+                      "disposition"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "ref": {
+                        "$ref": "#/$defs/decisionRef"
+                      }
+                    }
+                  }
+                }
+              ]
             },
-            "additionalProperties": false
+            "minItems": 1,
+            "uniqueItems": true
           }
         },
         "additionalProperties": false
       },
-      "minItems": 1
+      "minItems": 1,
+      "uniqueItems": true
     },
     "threshold_preregistration_sha256": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "#/$defs/sha256"
-        }
-      ]
+      "$ref": "#/$defs/sha256"
     },
     "governing_record_set_sha256": {
       "$ref": "#/$defs/sha256"
@@ -131,10 +133,17 @@
       "items": {
         "type": "object",
         "required": [
+          "anchored",
           "anchor_kind",
           "value"
         ],
         "properties": {
+          "anchored": {
+            "enum": [
+              "threshold_preregistration",
+              "governing_record_set"
+            ]
+          },
           "anchor_kind": {
             "enum": [
               "git_commit",
@@ -146,9 +155,58 @@
             "minLength": 1
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "anchor_kind": {
+                  "const": "git_commit"
+                }
+              },
+              "required": [
+                "anchor_kind"
+              ]
+            },
+            "then": {
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/sha1"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/evtId"
+                }
+              }
+            }
+          }
+        ]
       },
-      "minItems": 1
+      "minItems": 2,
+      "uniqueItems": true,
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "anchored": {
+                "const": "threshold_preregistration"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "properties": {
+              "anchored": {
+                "const": "governing_record_set"
+              }
+            }
+          }
+        }
+      ]
     },
     "enforcement_change_list": {
       "oneOf": [
@@ -188,6 +246,26 @@
       "type": "string",
       "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "decId": {
+      "type": "string",
+      "pattern": "^dec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "revId": {
+      "type": "string",
+      "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "artId": {
+      "type": "string",
+      "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "tskId": {
+      "type": "string",
+      "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "evtId": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "projectId": {
       "type": "string",
       "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -201,10 +279,15 @@
       "format": "date-time",
       "pattern": "Z$"
     },
+    "utcMicros": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
     "relPath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$))[^:]+$"
+      "pattern": "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*\\s$).+$"
     },
     "recordRef": {
       "type": "object",
@@ -227,6 +310,109 @@
       },
       "additionalProperties": false
     },
+    "decisionRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/decId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/revId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artefactRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/artId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "taskRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/tskId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "anyRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/recordRef"
+        },
+        {
+          "$ref": "#/$defs/decisionRef"
+        },
+        {
+          "$ref": "#/$defs/reviewRef"
+        },
+        {
+          "$ref": "#/$defs/artefactRef"
+        },
+        {
+          "$ref": "#/$defs/taskRef"
+        }
+      ]
+    },
     "nullableRecordRef": {
       "oneOf": [
         {
@@ -234,6 +420,16 @@
         },
         {
           "$ref": "#/$defs/recordRef"
+        }
+      ]
+    },
+    "nullableAnyRef": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/anyRef"
         }
       ]
     },
@@ -314,7 +510,16 @@
               "const": "git_tracked"
             },
             "repository_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "git_commit": {
               "$ref": "#/$defs/sha1"
@@ -346,7 +551,16 @@
               "const": "untracked_file"
             },
             "path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -356,7 +570,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -400,7 +614,16 @@
               "const": "vault_file"
             },
             "vault_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -410,7 +633,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -471,7 +694,7 @@
           ]
         },
         "source_ref": {
-          "$ref": "#/$defs/recordRef"
+          "$ref": "#/$defs/anyRef"
         },
         "text": {
           "type": "string",

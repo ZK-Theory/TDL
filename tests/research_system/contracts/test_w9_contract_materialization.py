@@ -1,21 +1,24 @@
-# Research context: docs/plans/agentic-research-system/implementation/06v-w9-implementation-plan.md (WP9.1, P-065)
+# Research context: docs/plans/agentic-research-system/implementation/06v-w9-implementation-plan.md (WP9.1; P-065, P-069)
 # Purpose: static controls for the inert W9 ars://legacy/ schema family and its bootstrap contract (stage A).
 """Independent static controls for the inert W9 schema family (06v WP9.1, stage A).
 
-This test owns the expected family and identity set. It does not read a catalogue or derive its expected side from
-the files under test. Stage A materializes schemas and the bootstrap contract only: no catalogue, no acceptance
-envelope instance, and no runtime binding.
+This test owns the expected family, identity set, reference-kind table and edge table. It does not read a catalogue
+or derive its expected side from the files under test. Stage A materializes the schemas, the bootstrap contract and
+their generator only: no catalogue, no acceptance envelope instance, and no runtime binding.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import subprocess
+import sys
 from copy import deepcopy
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, Iterator
 
 import pytest
 import yaml
@@ -25,6 +28,7 @@ from research_system.schema_registry import _RUNTIME_BINDINGS, bundled_runtime_s
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_ROOT = REPO_ROOT / ".research-system" / "schemas" / "contracts" / "w9"
+ALL_SCHEMAS_ROOT = REPO_ROOT / ".research-system" / "schemas"
 BOOTSTRAP_CONTRACT = REPO_ROOT / ".research-system" / "contracts" / "w9" / "w9-materialization-bootstrap-contract.yaml"
 STAGE_B_CATALOGUE = REPO_ROOT / ".research-system" / "evals" / "expected" / "w9-legacy-integration-v1.json"
 
@@ -49,7 +53,8 @@ BOOTSTRAP_KINDS = (
     "import-accepted-w9-catalogue-genesis",
     "w9-schema-catalogue-content",
 )
-EXPECTED_IDS = {f"ars://legacy/{kind}" for kind in RECORD_KINDS + BOOTSTRAP_KINDS}
+ALL_KINDS = RECORD_KINDS + BOOTSTRAP_KINDS
+EXPECTED_IDS = {f"ars://legacy/{kind}" for kind in ALL_KINDS}
 
 # 06v §2.6: the Gate 6 store identity, frozen from foundation.yaml at M2 4d867d85 (P-058).
 GATE6_STORE_IDENTITY = "5e3b95a956a8a416accd697f250088b5c8723924eb68544f01064ede6eb18d69"
@@ -65,25 +70,142 @@ SOURCE_TUPLES = {
         "2b40fae441e07536ce729ef36f1ec69b1a1f7953",
     ),
 }
+# The accepted W11 catalogue the W9 genesis requires in its store (06v O-5).
+W11_CATALOGUE = {
+    "repository_path": ".research-system/evals/expected/w11-portfolio-discovery-v1.json",
+    "git_blob": "8d58818540e04859f929d4b04c71e4cfa0512554",
+    "raw_sha256": "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80",
+    "raw_bytes": 136229,
+}
+# D-9's restricted suffixes (P-064 item 9), copied into the schemas under P-069 item 3.
+D9_SUFFIXES = [".csv", ".pkl"]
+
+# Every reference field of the family and the reference kind it takes (review B-1). The walk below must find exactly
+# these keys, so a new reference field fails until it is classified here.
+REF_FIELDS: dict[tuple[str, str], str] = {
+    ("$defs", "sourceIdentity.frozen_copy_ref"): "artefactRef",
+    ("$defs", "qualifier.source_ref"): "anyRef",
+    ("legacy-path-registration", "registration_decision_ref"): "decisionRef",
+    ("legacy-field-family-membership", "review_ref"): "reviewRef",
+    ("legacy-field-family-membership", "acceptance_decision_ref"): "decisionRef",
+    ("legacy-light-inventory", "registration_ref"): "recordRef",
+    ("legacy-light-inventory", "independent_reproduction_ref"): "anyRef",
+    ("legacy-observation", "registration_ref"): "recordRef",
+    ("legacy-observation", "selector.membership_ref"): "recordRef",
+    ("legacy-observation", "selector.inventory_ref"): "recordRef",
+    ("legacy-observation", "families[].signed_w0_revision_ref"): "anyRef",
+    ("legacy-observation", "families[].signature_record_ref"): "anyRef",
+    ("legacy-observation", "conflicts[].conflicting_record_refs[]"): "anyRef",
+    ("legacy-closed-reference-acceptance", "independent_review_ref"): "reviewRef",
+    ("legacy-closed-reference-acceptance", "decision_ref"): "decisionRef",
+    ("legacy-closed-reference-acceptance", "items[].observation_ref"): "recordRef",
+    ("legacy-closed-reference-acceptance", "items[].pilot_promotion[].ref"): "anyRef",
+    ("legacy-adoption-decision", "observation_ref"): "recordRef",
+    ("legacy-adoption-decision", "intended_use.successor_ref"): "nullableAnyRef",
+    ("legacy-adoption-decision", "decision_ref"): "decisionRef",
+    ("legacy-discharge-relation", "successor_result_ref"): "artefactRef",
+    ("legacy-discharge-relation", "reviewer_ref"): "reviewRef",
+    ("legacy-discharge-relation", "decision_ref"): "decisionRef",
+    ("legacy-paper-root", "recovery.predecessor_root_ref"): "recordRef",
+    ("legacy-paper-root", "recovery.recovery_decision_ref"): "decisionRef",
+    ("legacy-paper-citation-status", "root_ref"): "recordRef",
+    ("legacy-paper-citation-status", "families[].observation_ref"): "recordRef",
+    ("legacy-paper-citation-status", "families[].adoption_ref"): "nullableRecordRef",
+    ("legacy-paper-citation-status", "supersedes_status_ref"): "nullableRecordRef",
+    ("legacy-source-inventory", "root_registration_ref"): "recordRef",
+    ("legacy-source-inventory", "rows[].observation_ref"): "recordRef",
+    ("legacy-source-inventory", "reviewer_ref"): "reviewRef",
+    ("legacy-source-inventory", "decision_ref"): "decisionRef",
+    ("legacy-transition-mapping", "source_inventory_ref"): "recordRef",
+    ("legacy-transition-mapping", "target_paper_root_ref"): "recordRef",
+    ("legacy-transition-mapping", "reviewer_ref"): "reviewRef",
+    ("legacy-transition-mapping", "decision_ref"): "decisionRef",
+    ("legacy-ownership-transitioned", "mapping_ref"): "nullableRecordRef",
+    ("legacy-ownership-transitioned", "subject_registration_ref"): "recordRef",
+    ("legacy-ownership-transitioned", "paper_root_ref"): "nullableRecordRef",
+    ("legacy-ownership-transitioned", "reviewer_ref"): "reviewRef",
+    ("legacy-ownership-transitioned", "decision_ref"): "decisionRef",
+    ("legacy-record-supersession", "superseded_ref"): "recordRef",
+    ("legacy-record-supersession", "replacing_ref"): "recordRef",
+    ("legacy-record-supersession", "reviewer_ref"): "reviewRef",
+    ("legacy-record-supersession", "decision_ref"): "decisionRef",
+    ("w9-catalogue-acceptance-envelope", "independent_observation_ref"): "anyRef",
+    ("w9-catalogue-acceptance-envelope", "independent_review_ref"): "reviewRef",
+    ("w9-catalogue-acceptance-envelope", "acceptance_decision_ref"): "decisionRef",
+}
+REF_DEFS = {
+    "recordRef",
+    "decisionRef",
+    "reviewRef",
+    "artefactRef",
+    "taskRef",
+    "anyRef",
+    "nullableRecordRef",
+    "nullableAnyRef",
+}
+# The W9 record kind each W9-record reference names (review M-4). Same-kind lineage edges are declared apart.
+RECORD_EDGES: dict[tuple[str, str], tuple[str, ...]] = {
+    ("legacy-light-inventory", "registration_ref"): ("legacy-path-registration",),
+    ("legacy-observation", "registration_ref"): ("legacy-path-registration",),
+    ("legacy-observation", "selector.membership_ref"): ("legacy-field-family-membership",),
+    ("legacy-observation", "selector.inventory_ref"): ("legacy-light-inventory",),
+    ("legacy-closed-reference-acceptance", "items[].observation_ref"): ("legacy-observation",),
+    ("legacy-adoption-decision", "observation_ref"): ("legacy-observation",),
+    ("legacy-paper-root", "recovery.predecessor_root_ref"): ("legacy-paper-root",),
+    ("legacy-paper-citation-status", "root_ref"): ("legacy-paper-root",),
+    ("legacy-paper-citation-status", "families[].observation_ref"): ("legacy-observation",),
+    ("legacy-paper-citation-status", "families[].adoption_ref"): ("legacy-adoption-decision",),
+    ("legacy-paper-citation-status", "supersedes_status_ref"): ("legacy-paper-citation-status",),
+    ("legacy-source-inventory", "root_registration_ref"): ("legacy-path-registration",),
+    ("legacy-source-inventory", "rows[].observation_ref"): ("legacy-observation",),
+    ("legacy-transition-mapping", "source_inventory_ref"): ("legacy-source-inventory",),
+    ("legacy-transition-mapping", "target_paper_root_ref"): ("legacy-paper-root",),
+    ("legacy-ownership-transitioned", "mapping_ref"): ("legacy-transition-mapping",),
+    ("legacy-ownership-transitioned", "subject_registration_ref"): ("legacy-path-registration",),
+    ("legacy-ownership-transitioned", "paper_root_ref"): ("legacy-paper-root",),
+    ("legacy-record-supersession", "superseded_ref"): ("legacy-observation", "legacy-transition-mapping"),
+    ("legacy-record-supersession", "replacing_ref"): ("legacy-observation", "legacy-transition-mapping"),
+}
+LINEAGE_EDGES = {
+    ("legacy-paper-root", "recovery.predecessor_root_ref"),
+    ("legacy-paper-citation-status", "supersedes_status_ref"),
+}
+PAPER_ROOT_FIELDS = {"paper_key", "manuscript_root_path", "qualifiers", "owner_actor_id", "recovery"}
 
 _HASH = "0" * 64
 _SHA1 = "0" * 40
-_OBJ = "obj_00000000-0000-7000-8000-000000000001"
-_ACT = "act_00000000-0000-7000-8000-000000000001"
+_UUID = "00000000-0000-7000-8000-000000000001"
+_ACT = f"act_{_UUID}"
 
 
-def _ref() -> dict[str, Any]:
-    return {"id": _OBJ, "record_revision": 1, "content_hash": _HASH}
+def _ref(prefix: str = "obj") -> dict[str, Any]:
+    return {"id": f"{prefix}_{_UUID}", "record_revision": 1, "content_hash": _HASH}
+
+
+def _rec() -> dict[str, Any]:
+    return _ref("obj")
+
+
+def _dec() -> dict[str, Any]:
+    return _ref("dec")
+
+
+def _rev() -> dict[str, Any]:
+    return _ref("rev")
+
+
+def _art() -> dict[str, Any]:
+    return _ref("art")
 
 
 def _header(kind: str) -> dict[str, Any]:
     return {
         "schema_id": f"ars://legacy/{kind}",
         "schema_version": "1.0.0",
-        "record_id": _OBJ,
+        "record_id": f"obj_{_UUID}",
         "record_revision": 1,
         "supersedes_revision": None,
-        "project_id": "prj_00000000-0000-7000-8000-000000000001",
+        "project_id": f"prj_{_UUID}",
         "created_at": "2026-10-23T00:00:00Z",
         "created_by_actor_id": _ACT,
         "content_hash": _HASH,
@@ -95,31 +217,41 @@ def _schema(kind: str) -> dict[str, Any]:
     return json.loads((SCHEMA_ROOT / f"{kind}.schema.json").read_text(encoding="utf-8"))
 
 
-def _validator(kind: str) -> Draft202012Validator:
-    return Draft202012Validator(_schema(kind))
-
-
 def _valid(kind: str, instance: dict[str, Any]) -> bool:
-    return _validator(kind).is_valid(instance)
+    # The runtime registry checks formats, so the controls do too (review m-9).
+    return Draft202012Validator(_schema(kind), format_checker=Draft202012Validator.FORMAT_CHECKER).is_valid(instance)
+
+
+def _git(*args: str) -> str:
+    return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, check=True, text=True).stdout.strip()
 
 
 def _git_bytes(commit: str, path: str) -> bytes:
     return subprocess.run(["git", "show", f"{commit}:{path}"], cwd=REPO_ROOT, capture_output=True, check=True).stdout
 
 
-def _git_blob(commit: str, path: str) -> str:
-    return subprocess.run(
-        ["git", "rev-parse", f"{commit}:{path}"], cwd=REPO_ROOT, capture_output=True, check=True, text=True
-    ).stdout.strip()
+def _load_tool(name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(f"_w9_{name}", REPO_ROOT / "tools" / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _contract() -> dict[str, Any]:
+    return yaml.safe_load(BOOTSTRAP_CONTRACT.read_text(encoding="utf-8"))
+
+
+# --- The family, its generator and the registry ---------------------------------------------------------------------
 
 
 def test_schema_files_are_exactly_the_owned_family() -> None:
     present = {path.name for path in SCHEMA_ROOT.glob("*.schema.json")}
-    expected = {f"{kind}.schema.json" for kind in RECORD_KINDS + BOOTSTRAP_KINDS}
-    assert present == expected
+    assert present == {f"{kind}.schema.json" for kind in ALL_KINDS}
 
 
-@pytest.mark.parametrize("kind", RECORD_KINDS + BOOTSTRAP_KINDS)
+@pytest.mark.parametrize("kind", ALL_KINDS)
 def test_schema_is_valid_closed_and_self_identified(kind: str) -> None:
     schema = _schema(kind)
     Draft202012Validator.check_schema(schema)
@@ -129,16 +261,33 @@ def test_schema_is_valid_closed_and_self_identified(kind: str) -> None:
     assert schema["properties"]["schema_version"] == {"const": "1.0.0"}
 
 
-def test_family_loads_in_registry_without_collision() -> None:
+def test_generator_reproduces_every_committed_schema() -> None:
+    generator = _load_tool("w9_schema_gen")
+    assert sorted(generator.SCHEMAS) == sorted(ALL_KINDS)
+    for kind, schema in generator.SCHEMAS.items():
+        assert (SCHEMA_ROOT / f"{kind}.schema.json").read_text(encoding="utf-8") == generator.render(schema), kind
+
+
+def test_inlined_definitions_are_identical_across_the_family() -> None:
+    blocks = {json.dumps(_schema(kind)["$defs"], sort_keys=True) for kind in ALL_KINDS}
+    assert len(blocks) == 1
+
+
+def test_legacy_namespace_is_exactly_this_family() -> None:
+    owners: dict[str, str] = {}
+    for path in ALL_SCHEMAS_ROOT.rglob("*.schema.json"):
+        schema_id = json.loads(path.read_text(encoding="utf-8")).get("$id", "")
+        if schema_id.startswith("ars://legacy/"):
+            owners[schema_id] = path.parent.name
+    assert set(owners) == EXPECTED_IDS
+    assert set(owners.values()) == {"w9"}
+
+
+def test_family_loads_in_registry_and_is_not_runtime_activated() -> None:
     registry = bundled_runtime_schema_registry()
     for schema_id in EXPECTED_IDS:
         assert registry.resolve_identity(schema_id, "1.0.0").schema_id == schema_id
-    assert all(schema_id.startswith("ars://legacy/") for schema_id in EXPECTED_IDS)
-
-
-def test_legacy_ids_are_not_runtime_activated() -> None:
     active_ids = {binding.schema_id for binding in _RUNTIME_BINDINGS}
-    assert not (EXPECTED_IDS & active_ids)
     assert not any(schema_id.startswith("ars://legacy/") for schema_id in active_ids)
 
 
@@ -146,29 +295,143 @@ def test_stage_a_materializes_no_catalogue() -> None:
     assert not STAGE_B_CATALOGUE.exists()
 
 
+# --- The bootstrap contract -----------------------------------------------------------------------------------------
+
+
 def test_bootstrap_contract_validates_and_matches_owned_values() -> None:
-    contract = yaml.safe_load(BOOTSTRAP_CONTRACT.read_text(encoding="utf-8"))
+    contract = _contract()
     assert _valid("w9-materialization-bootstrap-contract", contract)
     assert tuple(contract["families"]["record"]) == RECORD_KINDS
     assert tuple(contract["families"]["bootstrap"]) == BOOTSTRAP_KINDS
     assert contract["refused_store_identities"] == [GATE6_STORE_IDENTITY]
     assert contract["runtime_activation"] == "forbidden"
     assert contract["segmentation_contract"] == "w9-segmentation/1.0.0"
+    assert contract["required_w11_catalogue"] == W11_CATALOGUE
+    assert contract["restricted_suffixes"] == D9_SUFFIXES
+    assert "the W9 runtime cannot produce or accept its own prerequisite" in contract["verification_rules"]
 
 
 @pytest.mark.parametrize("field", sorted(SOURCE_TUPLES))
-def test_bootstrap_source_tuples_match_main(field: str) -> None:
-    contract = yaml.safe_load(BOOTSTRAP_CONTRACT.read_text(encoding="utf-8"))
+def test_bootstrap_source_tuples_match_pinned_commit_and_head(field: str) -> None:
     path, commit, blob = SOURCE_TUPLES[field]
     raw = _git_bytes(commit, path)
-    assert contract[field] == {
+    assert _contract()[field] == {
         "repository_path": path,
         "reviewed_commit": commit,
         "git_blob": blob,
         "raw_sha256": hashlib.sha256(raw).hexdigest(),
         "raw_bytes": len(raw),
     }
-    assert _git_blob(commit, path) == blob
+    assert _git("rev-parse", f"{commit}:{path}") == blob
+    # A later edit on the checked-out line is a new identity, never silently accepted (review m-9).
+    assert _git("rev-parse", f"HEAD:{path}") == blob
+
+
+def test_required_w11_catalogue_matches_head() -> None:
+    raw = _git_bytes("HEAD", W11_CATALOGUE["repository_path"])
+    assert _git("rev-parse", f"HEAD:{W11_CATALOGUE['repository_path']}") == W11_CATALOGUE["git_blob"]
+    assert (hashlib.sha256(raw).hexdigest(), len(raw)) == (W11_CATALOGUE["raw_sha256"], W11_CATALOGUE["raw_bytes"])
+
+
+# --- Reference kinds (B-1) and the record graph (M-4) ---------------------------------------------------------------
+
+
+def _ref_fields(node: Any, path: str, root: bool = False) -> Iterator[tuple[str, str]]:
+    if not isinstance(node, dict):
+        return
+    target = node.get("$ref", "")
+    if target.startswith("#/$defs/"):
+        name = target.removeprefix("#/$defs/")
+        if name in REF_DEFS:
+            yield path, name
+        return
+    if "items" in node:
+        yield from _ref_fields(node["items"], f"{path}[]")
+    for key, child in node.get("properties", {}).items():
+        yield from _ref_fields(child, f"{path}.{key}" if path else key)
+    if not root:
+        for branch in node.get("oneOf", []):
+            yield from _ref_fields(branch, path)
+
+
+def _walk_ref_fields() -> dict[tuple[str, str], str]:
+    found: dict[tuple[str, str], str] = {}
+    for kind in ALL_KINDS:
+        for path, name in _ref_fields(_schema(kind), "", root=True):
+            assert found.setdefault((kind, path), name) == name, (kind, path)
+    for def_name in ("sourceIdentity", "qualifier"):
+        for path, name in _ref_fields(_schema(RECORD_KINDS[0])["$defs"][def_name], def_name):
+            found[("$defs", path)] = name
+    return found
+
+
+def test_every_reference_field_has_its_owned_kind() -> None:
+    assert _walk_ref_fields() == REF_FIELDS
+
+
+@pytest.mark.parametrize(
+    ("ref_def", "accepted", "rejected"),
+    [
+        ("recordRef", "obj", ["dec", "rev", "art", "tsk", "evt"]),
+        ("decisionRef", "dec", ["obj", "rev", "art"]),
+        ("reviewRef", "rev", ["obj", "dec", "art"]),
+        ("artefactRef", "art", ["obj", "dec", "rev"]),
+    ],
+)
+def test_typed_references_accept_only_their_kind(ref_def: str, accepted: str, rejected: list[str]) -> None:
+    validator = Draft202012Validator({"$ref": f"#/$defs/{ref_def}", "$defs": _schema(RECORD_KINDS[0])["$defs"]})
+    assert validator.is_valid(_ref(accepted))
+    for prefix in rejected:
+        assert not validator.is_valid(_ref(prefix)), prefix
+
+
+def test_any_reference_accepts_named_kinds_only() -> None:
+    validator = Draft202012Validator({"$ref": "#/$defs/anyRef", "$defs": _schema(RECORD_KINDS[0])["$defs"]})
+    for prefix in ("obj", "dec", "rev", "art", "tsk"):
+        assert validator.is_valid(_ref(prefix))
+    for prefix in ("evt", "xyz"):
+        assert not validator.is_valid(_ref(prefix))
+
+
+def _record_graph(edges: dict[tuple[str, str], tuple[str, ...]]) -> dict[str, set[str]]:
+    graph: dict[str, set[str]] = {kind: set() for kind in RECORD_KINDS}
+    for (source, path), targets in edges.items():
+        if (source, path) not in LINEAGE_EDGES:
+            graph[source].update(targets)
+    return graph
+
+
+def _has_cycle(graph: dict[str, set[str]]) -> bool:
+    state: dict[str, int] = {}
+
+    def visit(node: str) -> bool:
+        state[node] = 1
+        for nxt in graph[node]:
+            if state.get(nxt) == 1 or (state.get(nxt) is None and visit(nxt)):
+                return True
+        state[node] = 2
+        return False
+
+    return any(state.get(node) is None and visit(node) for node in graph)
+
+
+def test_record_reference_graph_is_closed_and_acyclic() -> None:
+    record_fields = {key for key, name in REF_FIELDS.items() if name in {"recordRef", "nullableRecordRef"}}
+    assert set(RECORD_EDGES) == record_fields
+    assert not _has_cycle(_record_graph(RECORD_EDGES))
+    for source, path in LINEAGE_EDGES:
+        assert RECORD_EDGES[(source, path)] == (source,)
+    # Negative control (W9-T21): a root that names its transition closes a cycle.
+    cyclic = {**RECORD_EDGES, ("legacy-paper-root", "transition_event_ref"): ("legacy-ownership-transitioned",)}
+    assert _has_cycle(_record_graph(cyclic))
+
+
+def test_paper_root_fields_are_an_owned_allowlist() -> None:
+    fields = set(_schema("legacy-paper-root")["properties"]) - set(_header("legacy-paper-root"))
+    assert fields == PAPER_ROOT_FIELDS
+
+
+# --- Records ---------------------------------------------------------------------------------------------------------
 
 
 def _paper_root() -> dict[str, Any]:
@@ -182,40 +445,57 @@ def _paper_root() -> dict[str, Any]:
     }
 
 
-def test_paper_root_names_no_transition_or_citation_status() -> None:
+def test_paper_root_binds_its_path_and_is_never_revised() -> None:
     root = _paper_root()
     assert _valid("legacy-paper-root", root)
-    for forbidden in ("transition_ref", "citation_status", "citation_status_ref"):
-        bad = {**deepcopy(root), forbidden: _ref()}
-        assert not _valid("legacy-paper-root", bad)
     assert not _valid("legacy-paper-root", {**root, "manuscript_root_path": "papers/P01-B-JRSSB/"})
+    assert not _valid("legacy-paper-root", {**root, "record_revision": 2, "supersedes_revision": 1})
+    recovery = {**root, "recovery": {"predecessor_root_ref": _rec(), "recovery_decision_ref": _dec()}}
+    assert _valid("legacy-paper-root", recovery)
+    recovery["recovery"]["recovery_decision_ref"] = _rec()
+    assert not _valid("legacy-paper-root", recovery)
 
 
-def _transition(from_mode: str, to_mode: str, *, mapping: bool = True) -> dict[str, Any]:
+def _transition(from_mode: str, to_mode: str, *, mapping: bool) -> dict[str, Any]:
     return {
         **_header("legacy-ownership-transitioned"),
-        "mapping_ref": _ref() if mapping else None,
-        "subject_registration_ref": _ref(),
-        "paper_root_ref": _ref() if mapping else None,
+        "mapping_ref": _rec() if mapping else None,
+        "subject_registration_ref": _rec(),
+        "paper_root_ref": _rec() if mapping else None,
         "from_mode": from_mode,
         "to_mode": to_mode,
-        "reviewer_ref": _ref(),
-        "decision_ref": _ref(),
+        "reviewer_ref": _rev(),
+        "decision_ref": _dec(),
     }
 
 
-def test_transitions_never_return_to_legacy_owned() -> None:
-    assert _valid("legacy-ownership-transitioned", _transition("legacy_owned", "successor_owned"))
-    assert _valid("legacy-ownership-transitioned", _transition("legacy_owned", "closed_reference", mapping=False))
-    assert _valid("legacy-ownership-transitioned", _transition("successor_owned", "closed_reference", mapping=False))
-    assert not _valid("legacy-ownership-transitioned", _transition("successor_owned", "legacy_owned"))
-    assert not _valid("legacy-ownership-transitioned", _transition("legacy_owned", "successor_owned", mapping=False))
+def test_transitions_are_w9s_three_and_bind_their_refs() -> None:
+    kind = "legacy-ownership-transitioned"
+    assert _valid(kind, _transition("legacy_owned", "successor_owned", mapping=True))
+    assert _valid(kind, _transition("legacy_owned", "closed_reference", mapping=False))
+    assert _valid(kind, _transition("successor_owned", "closed_reference", mapping=False))
+    assert not _valid(kind, _transition("successor_owned", "legacy_owned", mapping=True))
+    assert not _valid(kind, _transition("legacy_owned", "successor_owned", mapping=False))
+    # Review m-2: a closed-reference transition names no mapping or root.
+    assert not _valid(kind, _transition("legacy_owned", "closed_reference", mapping=True))
+    assert not _valid(kind, _transition("successor_owned", "closed_reference", mapping=True))
+
+
+def _tracked(path: str = "results/x.json") -> dict[str, Any]:
+    return {
+        "identity_kind": "git_tracked",
+        "repository_path": path,
+        "git_commit": _SHA1,
+        "git_blob": _SHA1,
+        "sha256": _HASH,
+        "byte_length": 1,
+    }
 
 
 def _observation(source: dict[str, Any]) -> dict[str, Any]:
     return {
         **_header("legacy-observation"),
-        "registration_ref": _ref(),
+        "registration_ref": _rec(),
         "selector": {"selector_kind": "whole_file"},
         "source_identity": source,
         "segmentation_contract": None,
@@ -227,8 +507,8 @@ def _observation(source: dict[str, Any]) -> dict[str, Any]:
             {
                 "family_name": "whole_file",
                 "w0_class": "authoritative",
-                "signed_w0_revision_ref": _ref(),
-                "signature_record_ref": _ref(),
+                "signed_w0_revision_ref": _art(),
+                "signature_record_ref": _art(),
             }
         ],
         "qualifiers": [],
@@ -237,7 +517,7 @@ def _observation(source: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def test_restricted_sources_cannot_carry_a_frozen_copy() -> None:
+def test_restricted_bytes_never_carry_a_frozen_copy() -> None:
     restricted = {
         "identity_kind": "restricted_untracked_file",
         "path": "x/cache.pkl",
@@ -245,99 +525,119 @@ def test_restricted_sources_cannot_carry_a_frozen_copy() -> None:
         "byte_length": 1,
     }
     assert _valid("legacy-observation", _observation(restricted))
-    assert not _valid("legacy-observation", _observation({**restricted, "frozen_copy_ref": _ref()}))
+    assert not _valid("legacy-observation", _observation({**restricted, "frozen_copy_ref": _art()}))
+    # Review M-3 (P-069 item 3): a restricted suffix under any other label is refused, in either case.
+    untracked = {"identity_kind": "untracked_file", "sha256": _HASH, "byte_length": 1, "frozen_copy_ref": _art()}
+    for path in ("x/null_cache.pkl", "x/data.CSV", "x/a.Pkl"):
+        assert not _valid("legacy-observation", _observation({**untracked, "path": path})), path
+    vault = {"identity_kind": "vault_file", "vault_path": "x/table.csv", "sha256": _HASH, "byte_length": 1}
+    assert not _valid("legacy-observation", _observation({**vault, "frozen_copy_ref": _art()}))
+    assert not _valid("legacy-observation", _observation(_tracked("results/x.csv")))
+    assert _valid("legacy-observation", _observation({**untracked, "path": "x/notes.json"}))
 
 
 def test_observation_classes_require_a_signed_w0_record() -> None:
-    tracked = {
-        "identity_kind": "git_tracked",
-        "repository_path": "results/x.json",
-        "git_commit": _SHA1,
-        "git_blob": _SHA1,
-        "sha256": _HASH,
-        "byte_length": 1,
-    }
-    observation = _observation(tracked)
+    observation = _observation(_tracked())
     assert _valid("legacy-observation", observation)
-    del observation["families"][0]["signature_record_ref"]
+    for field in ("signature_record_ref", "signed_w0_revision_ref"):
+        broken = deepcopy(observation)
+        del broken["families"][0][field]
+        assert not _valid("legacy-observation", broken), field
+    observation["families"][0]["family_name"] = "Whole File"
     assert not _valid("legacy-observation", observation)
 
 
-def test_inventory_blocker_rows_carry_a_reason_and_items_do_not() -> None:
-    row = {
+def test_observation_binds_its_selector_and_conflicts() -> None:
+    observation = _observation(_tracked())
+    item = {
+        "selector_kind": "inventory_item",
+        "inventory_ref": _rec(),
         "row_ordinal": 1,
-        "row_kind": "item",
-        "selector_kind": "heading_section",
-        "anchor_text": "Entry",
-        "unit_hash": None,
-        "start_byte": 0,
-        "byte_length": 10,
-        "start_line": 1,
-        "line_count": 1,
+        "anchor_text": "x",
         "raw_row_sha256": _HASH,
-        "blocker_reason": None,
     }
-    inventory = {
-        **_header("legacy-light-inventory"),
-        "registration_ref": _ref(),
-        "source_identity": {
-            "identity_kind": "git_tracked",
-            "repository_path": ".apm/tracker.md",
-            "git_commit": _SHA1,
-            "git_blob": _SHA1,
-            "sha256": _HASH,
-            "byte_length": 10,
-        },
-        "segmentation_contract": "w9-segmentation/1.0.0",
-        "file_facts": {"line_ending": "LF", "ends_with_terminator": True, "has_utf8_bom": False, "line_count": 1},
-        "observed_at": "2026-10-23T00:00:00Z",
-        "observer_actor_id": _ACT,
-        "rows": [row],
-        "independent_reproduction_ref": None,
+    assert not _valid("legacy-observation", {**observation, "selector": item})
+    assert _valid(
+        "legacy-observation", {**observation, "selector": item, "segmentation_contract": "w9-segmentation/1.0.0"}
+    )
+    assert not _valid("legacy-observation", {**observation, "segmentation_contract": "w9-segmentation/1.0.0"})
+    conflict = {
+        "conflicting_record_refs": [_rec(), _dec()],
+        "resolution": "resolved_by_precedence",
+        "precedence_tier": 2,
     }
-    assert _valid("legacy-light-inventory", inventory)
-    inventory["rows"] = [{**row, "row_kind": "blocker"}]
-    assert not _valid("legacy-light-inventory", inventory)
-    inventory["rows"] = [{**row, "row_kind": "blocker", "blocker_reason": "duplicate_anchor"}]
-    assert _valid("legacy-light-inventory", inventory)
-    inventory["rows"] = [{**row, "blocker_reason": "duplicate_anchor"}]
-    assert not _valid("legacy-light-inventory", inventory)
+    assert _valid("legacy-observation", {**observation, "conflicts": [conflict]})
+    assert not _valid("legacy-observation", {**observation, "conflicts": [{**conflict, "precedence_tier": None}]})
+    assert not _valid(
+        "legacy-observation", {**observation, "conflicts": [{**conflict, "conflicting_record_refs": [_rec(), _rec()]}]}
+    )
+    assert not _valid("legacy-observation", {**observation, "created_at": "notadateZ"})
 
 
-def test_closed_reference_items_carry_pilot_promotion_refs() -> None:
-    acceptance = {
+def _acceptance() -> dict[str, Any]:
+    return {
         **_header("legacy-closed-reference-acceptance"),
-        "observation_refs": [_ref()],
-        "independent_review_ref": _ref(),
-        "decision_ref": _ref(),
+        "independent_review_ref": _rev(),
+        "decision_ref": _dec(),
         "items": [
             {
-                "observation_ref": _ref(),
-                "pilot_promotion": {
-                    "fixture_ids": ["F-018", "S-017"],
-                    "evidence_refs": [_ref()],
-                    "waiver_ref": None,
-                },
+                "observation_ref": _rec(),
+                "pilot_promotion": [
+                    {"fixture_id": "F-018", "disposition": "evidence", "ref": _art()},
+                    {"fixture_id": "S-017", "disposition": "waiver", "ref": _dec()},
+                ],
             }
         ],
         "threshold_preregistration_sha256": _HASH,
         "governing_record_set_sha256": _HASH,
-        "anchors": [{"anchor_kind": "git_commit", "value": _SHA1}],
+        "anchors": [
+            {"anchored": "threshold_preregistration", "anchor_kind": "git_commit", "value": _SHA1},
+            {"anchored": "governing_record_set", "anchor_kind": "ars_event", "value": f"evt_{_UUID}"},
+        ],
         "enforcement_change_list": None,
     }
-    assert _valid("legacy-closed-reference-acceptance", acceptance)
-    # Fixture IDs follow the eval schemas (^[FS]-[0-9]{3}$); there are no variant suffixes (P-066: S-017).
-    acceptance["items"][0]["pilot_promotion"]["fixture_ids"] = ["S-016/OM"]
-    assert not _valid("legacy-closed-reference-acceptance", acceptance)
-    acceptance["items"][0]["pilot_promotion"]["fixture_ids"] = ["S-017"]
-    del acceptance["items"][0]["pilot_promotion"]
-    assert not _valid("legacy-closed-reference-acceptance", acceptance)
+
+
+def test_closed_reference_binds_per_fixture_evidence_or_waiver() -> None:
+    kind = "legacy-closed-reference-acceptance"
+    acceptance = _acceptance()
+    assert _valid(kind, acceptance)
+    # Fixture IDs follow the eval schemas (^[FS]-[0-9]{3}$), with no variant suffix (P-066: S-017).
+    bad = deepcopy(acceptance)
+    bad["items"][0]["pilot_promotion"][0]["fixture_id"] = "S-016/OM"
+    assert not _valid(kind, bad)
+    # Review M-5: a waiver is an owner Decision; every item names its fixtures; refs are typed.
+    bad = deepcopy(acceptance)
+    bad["items"][0]["pilot_promotion"][1]["ref"] = _art()
+    assert not _valid(kind, bad)
+    bad = deepcopy(acceptance)
+    bad["items"][0]["pilot_promotion"] = []
+    assert not _valid(kind, bad)
+    assert not _valid(kind, {**acceptance, "decision_ref": _rec()})
+    assert not _valid(kind, {**acceptance, "independent_review_ref": _dec()})
+    assert not _valid(kind, {**acceptance, "items": acceptance["items"] * 2})
+
+
+def test_closed_reference_anchors_both_hashes() -> None:
+    kind = "legacy-closed-reference-acceptance"
+    acceptance = _acceptance()
+    assert not _valid(kind, {**acceptance, "threshold_preregistration_sha256": None})
+    assert not _valid(kind, {**acceptance, "anchors": [acceptance["anchors"][0], acceptance["anchors"][0]]})
+    one_kind = [{**anchor, "anchored": "governing_record_set"} for anchor in acceptance["anchors"]]
+    assert not _valid(kind, {**acceptance, "anchors": one_kind})
+    bad = deepcopy(acceptance)
+    bad["anchors"][0]["value"] = "not-a-commit"
+    assert not _valid(kind, bad)
+    bad = deepcopy(acceptance)
+    bad["anchors"][1]["value"] = _SHA1
+    assert not _valid(kind, bad)
 
 
 def test_membership_binds_the_accepted_table_and_the_bytes_its_author_read() -> None:
     # WP9.0 membership template §1, §3 rule 10 and §4 (re-review N-8, N-9).
+    kind = "legacy-field-family-membership"
     membership = {
-        **_header("legacy-field-family-membership"),
+        **_header(kind),
         "file_schema_id": "usoc-headline-frozen-2026-05-28",
         "applies_to": [
             {
@@ -352,21 +652,20 @@ def test_membership_binds_the_accepted_table_and_the_bytes_its_author_read() -> 
         "families": [{"name": "h0_w2", "definition_source": "G7-A §6.1 row T1.37", "pointers": ["", "/result/[*]/h0"]}],
         "unassigned": [],
         "author_actor_id": _ACT,
-        "review_ref": _ref(),
-        "acceptance_decision_ref": _ref(),
+        "review_ref": _rev(),
+        "acceptance_decision_ref": _dec(),
     }
-    assert _valid("legacy-field-family-membership", membership)
+    assert _valid(kind, membership)
     untracked = {**membership["applies_to"][0], "identity_kind": "untracked_file"}
-    assert not _valid("legacy-field-family-membership", {**membership, "applies_to": [untracked]})
-    assert _valid("legacy-field-family-membership", {**membership, "applies_to": [{**untracked, "git_blob": None}]})
-    tracked_without_blob = {**membership["applies_to"][0], "git_blob": None}
-    assert not _valid("legacy-field-family-membership", {**membership, "applies_to": [tracked_without_blob]})
-    assert not _valid("legacy-field-family-membership", {k: v for k, v in membership.items() if k != "table_sha256"})
-    old_family = {"name": "h0_w2", "class_source": "x", "pointers": ["/a"]}
-    assert not _valid("legacy-field-family-membership", {**membership, "families": [old_family]})
+    assert not _valid(kind, {**membership, "applies_to": [untracked]})
+    assert _valid(kind, {**membership, "applies_to": [{**untracked, "git_blob": None}]})
+    assert not _valid(kind, {**membership, "applies_to": [{**membership["applies_to"][0], "git_blob": None}]})
+    assert not _valid(kind, {k: v for k, v in membership.items() if k != "table_sha256"})
+    assert not _valid(kind, {**membership, "families": [{"name": "h0_w2", "class_source": "x", "pointers": ["/a"]}]})
+    assert not _valid(kind, {**membership, "review_ref": _dec()})
 
 
-def _registration(role: str, path: str, mode: str) -> dict[str, Any]:
+def _registration(role: str, path: str, mode: str, writers: list[str], **extra: Any) -> dict[str, Any]:
     return {
         **_header("legacy-path-registration"),
         "root_kind": "repository_root",
@@ -385,37 +684,98 @@ def _registration(role: str, path: str, mode: str) -> dict[str, Any]:
         "source_identity_kind": "git_tracked",
         "role": role,
         "ownership_mode": mode,
-        "writer_classes": [],
+        "writer_classes": writers,
         "prohibited_consumers": [],
-        "registration_decision_ref": _ref(),
+        "registration_decision_ref": _dec(),
+        **extra,
     }
 
 
-def test_registration_binds_the_successor_root_and_rejects_traversal() -> None:
-    assert _valid(
-        "legacy-path-registration", _registration("successor_results_root", "results/ars/", "successor_owned")
+def _reg_valid(*args: Any, **kwargs: Any) -> bool:
+    return _valid("legacy-path-registration", _registration(*args, **kwargs))
+
+
+def test_registration_binds_the_successor_root_and_rejects_bad_paths() -> None:
+    ars = ["ars_reviewed_pr"]
+    assert _reg_valid("successor_results_root", "results/ars/", "successor_owned", ars)
+    assert not _reg_valid("successor_results_root", "results/", "successor_owned", ars)
+    assert not _reg_valid("successor_results_root", "results/ars/", "legacy_owned", ars)
+    for path in (
+        "../x.json",
+        "/abs.json",
+        "results\\x.json",
+        "./x.json",
+        "results//x.json",
+        "results/./x.json",
+        "x.json ",
+        "~/x",
+    ):
+        assert not _reg_valid("legacy_research_result", path, "legacy_owned", []), path
+
+
+def test_registration_writer_classes_follow_the_role() -> None:
+    # Review M-1 (W9 §4.2, §4.3): no successor writer on a legacy file; the shared surface has exactly its class.
+    assert _reg_valid("legacy_research_result", "results/x.json", "legacy_owned", ["owner_ruling"])
+    assert not _reg_valid(
+        "legacy_research_result", "results/x.json", "legacy_owned", ["ars_reviewed_pr_with_owner_note"]
     )
-    assert not _valid(
-        "legacy-path-registration", _registration("successor_results_root", "results/", "successor_owned")
+    assert not _reg_valid("legacy_research_result", "results/x.json", "legacy_owned", ["ars_reviewed_pr"])
+    assert _reg_valid(
+        "shared_enforcement_surface", "contracts/x.yaml", "legacy_owned", ["ars_reviewed_pr_with_owner_note"]
     )
-    assert not _valid(
-        "legacy-path-registration", _registration("successor_results_root", "results/ars/", "legacy_owned")
+    assert not _reg_valid("shared_enforcement_surface", "contracts/x.yaml", "legacy_owned", ["owner_ruling"])
+    assert not _reg_valid("successor_results_root", "results/ars/", "successor_owned", ["legacy_lane_commit"])
+    assert _reg_valid("legacy_read_only_projection", "projections/x.md", "legacy_owned", ["ars_reviewed_pr"])
+    assert not _reg_valid("legacy_read_only_projection", "projections/x.md", "legacy_owned", ["owner_ruling"])
+
+
+def test_conventions_is_registrable_only_as_the_lock_at_its_repository_path() -> None:
+    # Review M-2 (W9 §7.3): the vault alias is a prohibited read path.
+    assert _reg_valid("conventions_lock", "CONVENTIONS.md", "legacy_owned", [])
+    vault = {"root_kind": "vault_root", "source_identity_kind": "vault_file"}
+    assert not _reg_valid("conventions_lock", "CONVENTIONS.md", "legacy_owned", [], **vault)
+    assert not _reg_valid("conventions_lock", "CONVENTIONS.md", "legacy_owned", [], source_identity_kind="vault_file")
+    for role in ("legacy_decision_log_entry", "legacy_contract"):
+        assert not _reg_valid(role, "CONVENTIONS.md", "legacy_owned", [], **vault), role
+        assert not _reg_valid(role, "conventions.md", "legacy_owned", [], **vault), role
+        assert not _reg_valid(role, "docs/CONVENTIONS.md", "legacy_owned", []), role
+
+
+def test_manuscript_roots_are_the_two_p01_roots() -> None:
+    for path in ("papers/P01-A-JRSSA/", "papers/P01-B-JRSSB/"):
+        assert _reg_valid("legacy_manuscript_root", path, "legacy_owned", [])
+    assert not _reg_valid("legacy_manuscript_root", "papers/P04-AOAS/", "legacy_owned", [])
+
+
+def test_registration_root_and_identity_kinds_cohere() -> None:
+    # Review m-3 and M-3.
+    vault = {"root_kind": "vault_root", "source_identity_kind": "vault_file"}
+    assert _reg_valid("legacy_decision_log_entry", "04-Methods/Computational-Log.md", "legacy_owned", [], **vault)
+    assert not _reg_valid("legacy_decision_log_entry", "x.md", "legacy_owned", [], root_kind="vault_root")
+    assert not _reg_valid("legacy_research_result", "x.md", "legacy_owned", [], source_identity_kind="vault_file")
+    assert not _reg_valid(
+        "legacy_research_result", "x/null_cache.pkl", "legacy_owned", [], source_identity_kind="untracked_file"
     )
-    assert not _valid("legacy-path-registration", _registration("legacy_research_result", "../x.json", "legacy_owned"))
-    assert not _valid("legacy-path-registration", _registration("legacy_research_result", "/abs.json", "legacy_owned"))
+    assert _reg_valid(
+        "legacy_research_result",
+        "x/null_cache.pkl",
+        "legacy_owned",
+        [],
+        source_identity_kind="restricted_untracked_file",
+    )
 
 
 def test_citation_status_binds_adoption_refs_to_status() -> None:
     status = {
         **_header("legacy-paper-citation-status"),
-        "root_ref": _ref(),
+        "root_ref": _rec(),
         "cited_family_set_sha256": _HASH,
         "derivation": {
             "extractor_output_sha256": _HASH,
             "reviewer_derivation_sha256": _HASH,
             "reviewer_actor_id": _ACT,
         },
-        "families": [{"observation_ref": _ref(), "family_name": "h0_w2", "status": "adopted", "adoption_ref": _ref()}],
+        "families": [{"observation_ref": _rec(), "family_name": "h0_w2", "status": "adopted", "adoption_ref": _rec()}],
         "supersedes_status_ref": None,
     }
     assert _valid("legacy-paper-citation-status", status)
@@ -423,3 +783,106 @@ def test_citation_status_binds_adoption_refs_to_status() -> None:
     assert not _valid("legacy-paper-citation-status", status)
     status["families"][0]["status"] = "unadopted"
     assert _valid("legacy-paper-citation-status", status)
+
+
+# --- The light inventory and the accepted segmentation contract (B-2) -----------------------------------------------
+
+_SEGMENTATION_INPUTS: dict[str, tuple[bytes, dict[str, Any]]] = {
+    "heading_section": (
+        b"## Lifecycle\n```\n## fake\n```\n---\n## item-a\nx\n## item-a\ny\n",
+        {"level": 2, "structural": [(1, 5)]},
+    ),
+    "computational_log_entry": (b"# Log\n\n### 2026-01-01 a\nx\n### 2026-13x bad\ny\n", {}),
+    "tracker_task_row": (b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.37 | a |\n| bad | b |\n", {}),
+    "working_note_entry": (b"## Working Notes\n- **2026-01-01: a**\n- undated\nstray\n", {}),
+    "log_frontmatter": (b"\xef\xbb\xbf---\r\na: b\r\n---\r\n", {}),
+    "conventions_unit": (b"# C\n## S\n- x\n- x\n\nPara\n\n*Last updated: 2026-07-16*\n", {}),
+}
+
+
+def _inventory(selector: str, result: dict[str, Any], *, level: int | None = None) -> dict[str, Any]:
+    rows = [
+        {
+            "selector_kind": selector,
+            **{key: None for key in ("unit_hash", "unit_ordinal", "dated", "task_id")},
+            **row,
+        }
+        for row in result["rows"]
+    ]
+    region: dict[str, Any] = {"form": "fixed_by_selector"}
+    if selector == "heading_section":
+        lines = result["file_facts"]["line_count"]
+        region = {"form": "line_range", "first_line": 1, "last_line": lines, "anchor_line_sha256s": [_HASH]}
+    return {
+        **_header("legacy-light-inventory"),
+        "registration_ref": _rec(),
+        "source_identity": _tracked("legacy/source.md"),
+        "segmentation_contract": result["segmentation_contract"],
+        "selector_kind": selector,
+        "heading_level": level,
+        "covered_region": region,
+        "structural_ranges": [{"first_line": 1, "last_line": 5}] if selector == "heading_section" else [],
+        "suppressed_anchors": result["suppressed_anchors"],
+        "file_facts": result["file_facts"],
+        "read_started_at": "2026-10-23T09:07:42.990960Z",
+        "read_ended_at": "2026-10-23T09:07:43.027460Z",
+        "path_form": {"path_as_given": "legacy/source.md", "resolved_through_link": False, "resolved_target": None},
+        "observer_actor_id": _ACT,
+        "rows": rows,
+        "independent_reproduction_ref": _rev(),
+    }
+
+
+@pytest.mark.parametrize("selector", sorted(_SEGMENTATION_INPUTS))
+def test_inventory_holds_what_the_reference_tool_emits(selector: str) -> None:
+    tool = _load_tool("w9_segmentation")
+    data, options = _SEGMENTATION_INPUTS[selector]
+    result = tool.segment(data, selector, **options)
+    inventory = _inventory(selector, result, level=options.get("level"))
+    validator = Draft202012Validator(
+        _schema("legacy-light-inventory"), format_checker=Draft202012Validator.FORMAT_CHECKER
+    )
+    assert not list(validator.iter_errors(inventory))
+    stripped = deepcopy(inventory)
+    del stripped["rows"][0]["anchor_line_sha256"]
+    assert not validator.is_valid(stripped)
+
+
+def test_inventory_holds_the_empty_file_blocker_row() -> None:
+    tool = _load_tool("w9_segmentation")
+    result = tool.segment(b"", "log_frontmatter")
+    inventory = _inventory("log_frontmatter", result)
+    assert _valid("legacy-light-inventory", inventory)
+    bad = deepcopy(inventory)
+    bad["rows"][0]["byte_length"] = 1
+    assert not _valid("legacy-light-inventory", bad)
+    bad = deepcopy(inventory)
+    bad["rows"][0]["row_kind"] = "item"
+    bad["rows"][0]["blocker_reason"] = None
+    bad["rows"][0]["anchor_text"] = "frontmatter"
+    assert not _valid("legacy-light-inventory", bad)
+
+
+def test_inventory_binds_selector_fields_region_and_read_record() -> None:
+    tool = _load_tool("w9_segmentation")
+    data, options = _SEGMENTATION_INPUTS["tracker_task_row"]
+    inventory = _inventory("tracker_task_row", tool.segment(data, "tracker_task_row", **options))
+    assert _valid("legacy-light-inventory", inventory)
+    item = next(row for row in inventory["rows"] if row["row_kind"] == "item")
+    for field, value in (("task_id", None), ("dated", True), ("unit_ordinal", 1), ("anchor_text", None)):
+        bad = deepcopy(inventory)
+        next(row for row in bad["rows"] if row["row_ordinal"] == item["row_ordinal"])[field] = value
+        assert not _valid("legacy-light-inventory", bad), field
+    for field, value in (
+        ("covered_region", {"form": "line_range", "first_line": 1, "last_line": 2, "anchor_line_sha256s": []}),
+        ("heading_level", 2),
+        ("read_started_at", "2026-10-23T09:07:42Z"),
+        ("independent_reproduction_ref", None),
+        ("path_form", {"path_as_given": "x", "resolved_through_link": True, "resolved_target": None}),
+    ):
+        assert not _valid("legacy-light-inventory", {**inventory, field: value}), field
+    data, options = _SEGMENTATION_INPUTS["heading_section"]
+    heading = _inventory("heading_section", tool.segment(data, "heading_section", **options), level=2)
+    assert _valid("legacy-light-inventory", heading)
+    assert not _valid("legacy-light-inventory", {**heading, "covered_region": {"form": "fixed_by_selector"}})
+    assert not _valid("legacy-light-inventory", {**heading, "heading_level": None})

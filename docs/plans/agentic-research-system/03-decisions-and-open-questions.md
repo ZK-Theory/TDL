@@ -4389,6 +4389,64 @@ the exact old and new lines; I re-accept the corrected 06d and tool blobs."
 
 The segmentation contract (`8692c3c0`) and the vectors (`e2e2b295`) are unchanged.
 
+### P-069 - WP9.1: two PRs, no event schemas, a restricted-path schema guard, and a named boundary
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), answering the owner decisions raised by the WP9.1 stage A
+review (`reviews/wp9-1-stage-a-review-b089f1fa-2026-10-23.md`, commit `d9a7d22b`: M-7, M-3, m-12 and m-10).<br>
+**Authority:** Stephen, in chat, 2026-10-23, choosing the recommended option each time:
+- **The PR split (M-7).** He chose "Two PRs: A, then B (Recommended)". The option read: "Stage A (schemas, contract,
+  tests) merges first; stage B (catalogue, envelope instance, verifier) pins main's commits and ends with your catalogue
+  acceptance. Record it as a named exception to D-6, following W11's forbidden_in_pr1 precedent."
+- **Event schemas (M-7).** He chose "Accept, with conditions (Recommended)". The option read: "Accept, as the reviewer
+  recommends, on two conditions: stage B's catalogue rows name every W9 event, and WP9.2 validates each event's payload
+  record through the registry."
+- **The restricted-path fix (M-3).** He chose "Schema guard (Recommended)". The option read: "Option 1: every
+  non-restricted identity branch and the registration reject a case-insensitive .csv/.pkl path, failing closed. The
+  schema copy of the D-9 suffix list must then change with D-9."
+- **The boundary (m-12, m-10).** He chose "Name both (Recommended)". The option read: "Confirm the stage-A test is
+  within P-065, and extend the boundary by name to a committed generator, tools/w9_schema_gen.py, so all 17 schemas are
+  reproducible. Record it as P-069, like P-067."
+
+**Decision:**
+1. **Two PRs for WP9.1.** This is a named exception to D-6 ("One PR per package") and to P-065 item 3, for WP9.1 only.
+   - **Stage A** (the schemas, the bootstrap contract, the generator, the test and the note) is reviewed and merged
+     first.
+   - **Stage B** (the catalogue rows, the acceptance-envelope instance and the materialization verifier) pins the
+     schema files by their commit on main. It ends with Stephen's acceptance of the catalogue identity.
+
+   The reason is W11's precedent (`expected_catalogue: forbidden_in_pr1`). Rows that pin schema files by commit cannot
+   precede those files on main, and a squash merge rewrites branch commits.
+2. **No event schemas.** The departure from 06v WP9.1 ("one … schema per W9 §5.2 record and per emitted event") is
+   accepted. W9 events fall back to `ars://core/event` 1.0.0, as W11's do. The two conditions are binding:
+   - stage B's catalogue rows name every W9 event;
+   - WP9.2 validates each event's payload record through the schema registry.
+3. **Restricted paths.** The schemas reject a path ending `.csv` or `.pkl`, case-insensitively, in every
+   non-restricted source-identity branch. They also reject it in a path registration of any other identity kind.
+   - The schemas hold a copy of the D-9 suffix list.
+   - That copy changes with D-9's committed list and its exemptions, under the same reviewed PR.
+   - WP9.7's RegisterArtefact guard (O-22) stays the store-side control.
+4. **Boundary.** P-065's Boundary line ("Docs and data files only") is extended, by name, to two files:
+   - `tests/research_system/contracts/test_w9_contract_materialization.py`, the stage A static test, which 06v WP9.1
+     lists;
+   - `tools/w9_schema_gen.py`, the generator of the 17 `ars://legacy/` schemas, committed so that the schema bytes can
+     be reproduced.
+
+   Both stay non-runtime: outside `research_system/`, opening no store, and writing only the schema files the generator
+   is run to regenerate.
+
+**Not decided here:** acceptance of stage A or of the catalogue; WP9.2 to WP9.7.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs, plus the two files named in item 4.<br>
+**Affected specifications:**
+- 06v WP9.1 (two PRs; no event schemas, under conditions);
+- D-6 (WP9.1 exception);
+- D-9 (a schema copy of the suffix list);
+- P-065 (Boundary extended);
+- WP9.2 (event-payload validation).<br>
+
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:

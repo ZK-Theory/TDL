@@ -34,15 +34,10 @@
       "$ref": "#/$defs/objId"
     },
     "record_revision": {
-      "type": "integer",
-      "minimum": 1
+      "const": 1
     },
     "supersedes_revision": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 1
+      "const": null
     },
     "project_id": {
       "$ref": "#/$defs/projectId"
@@ -111,7 +106,8 @@
           "legacy_lane_commit",
           "repository_wide_change_with_owner_note",
           "owner_ruling",
-          "ars_reviewed_pr_with_owner_note"
+          "ars_reviewed_pr_with_owner_note",
+          "ars_reviewed_pr"
         ]
       },
       "uniqueItems": true
@@ -125,7 +121,7 @@
       "uniqueItems": true
     },
     "registration_decision_ref": {
-      "$ref": "#/$defs/recordRef"
+      "$ref": "#/$defs/decisionRef"
     }
   },
   "additionalProperties": false,
@@ -173,6 +169,18 @@
           },
           "normalized_path": {
             "const": "CONVENTIONS.md"
+          },
+          "source_identity_kind": {
+            "const": "git_tracked"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "normalized_path": {
+            "not": {
+              "pattern": "(^|/)[Cc][Oo][Nn][Vv][Ee][Nn][Tt][Ii][Oo][Nn][Ss]\\.[Mm][Dd]$"
+            }
           }
         }
       }
@@ -201,6 +209,138 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "enum": [
+              "legacy_research_result",
+              "legacy_supersession_manifest",
+              "legacy_pre_registration",
+              "legacy_contract",
+              "legacy_coordination",
+              "legacy_task_log",
+              "legacy_bus_file",
+              "legacy_manuscript_root",
+              "legacy_decision_log_entry",
+              "conventions_lock"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "writer_classes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "legacy_lane_commit",
+                "repository_wide_change_with_owner_note",
+                "owner_ruling"
+              ]
+            },
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "shared_enforcement_surface"
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "writer_classes": {
+            "const": [
+              "ars_reviewed_pr_with_owner_note"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "enum": [
+              "successor_results_root",
+              "legacy_read_only_projection"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ]
+      },
+      "then": {
+        "properties": {
+          "writer_classes": {
+            "const": [
+              "ars_reviewed_pr"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "root_kind": {
+            "const": "vault_root"
+          }
+        },
+        "required": [
+          "root_kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_identity_kind": {
+            "const": "vault_file"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "source_identity_kind": {
+            "enum": [
+              "git_tracked",
+              "untracked_file",
+              "restricted_untracked_file"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "normalized_path": {
+            "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+          }
+        },
+        "required": [
+          "normalized_path"
+        ]
+      },
+      "then": {
+        "properties": {
+          "source_identity_kind": {
+            "const": "restricted_untracked_file"
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -216,6 +356,26 @@
       "type": "string",
       "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "decId": {
+      "type": "string",
+      "pattern": "^dec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "revId": {
+      "type": "string",
+      "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "artId": {
+      "type": "string",
+      "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "tskId": {
+      "type": "string",
+      "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "evtId": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "projectId": {
       "type": "string",
       "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -229,10 +389,15 @@
       "format": "date-time",
       "pattern": "Z$"
     },
+    "utcMicros": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
     "relPath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$))[^:]+$"
+      "pattern": "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*\\s$).+$"
     },
     "recordRef": {
       "type": "object",
@@ -255,6 +420,109 @@
       },
       "additionalProperties": false
     },
+    "decisionRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/decId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/revId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artefactRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/artId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "taskRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/tskId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "anyRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/recordRef"
+        },
+        {
+          "$ref": "#/$defs/decisionRef"
+        },
+        {
+          "$ref": "#/$defs/reviewRef"
+        },
+        {
+          "$ref": "#/$defs/artefactRef"
+        },
+        {
+          "$ref": "#/$defs/taskRef"
+        }
+      ]
+    },
     "nullableRecordRef": {
       "oneOf": [
         {
@@ -262,6 +530,16 @@
         },
         {
           "$ref": "#/$defs/recordRef"
+        }
+      ]
+    },
+    "nullableAnyRef": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/anyRef"
         }
       ]
     },
@@ -342,7 +620,16 @@
               "const": "git_tracked"
             },
             "repository_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "git_commit": {
               "$ref": "#/$defs/sha1"
@@ -374,7 +661,16 @@
               "const": "untracked_file"
             },
             "path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -384,7 +680,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -428,7 +724,16 @@
               "const": "vault_file"
             },
             "vault_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -438,7 +743,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -499,7 +804,7 @@
           ]
         },
         "source_ref": {
-          "$ref": "#/$defs/recordRef"
+          "$ref": "#/$defs/anyRef"
         },
         "text": {
           "type": "string",

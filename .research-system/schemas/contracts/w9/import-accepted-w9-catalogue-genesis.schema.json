@@ -5,11 +5,10 @@
   "required": [
     "schema_id",
     "schema_version",
-    "bootstrap_contract_ref",
-    "external_envelope_ref",
-    "external_envelope_sha256",
+    "bootstrap_contract_identity",
+    "external_envelope_identity",
     "requested_genesis_transaction_id",
-    "requires_w11_genesis_in_store",
+    "required_w11_catalogue",
     "refused_store_identities",
     "verification_requirements",
     "activation_status"
@@ -21,21 +20,92 @@
     "schema_version": {
       "const": "1.0.0"
     },
-    "bootstrap_contract_ref": {
-      "$ref": "#/$defs/recordRef"
+    "bootstrap_contract_identity": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "git_commit",
+        "git_blob",
+        "file_length",
+        "file_sha256"
+      ],
+      "properties": {
+        "repository_path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "git_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "file_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
     },
-    "external_envelope_ref": {
-      "$ref": "#/$defs/recordRef"
-    },
-    "external_envelope_sha256": {
-      "$ref": "#/$defs/sha256"
+    "external_envelope_identity": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "git_commit",
+        "git_blob",
+        "file_length",
+        "file_sha256"
+      ],
+      "properties": {
+        "repository_path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "git_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "file_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
     },
     "requested_genesis_transaction_id": {
       "type": "string",
       "minLength": 1
     },
-    "requires_w11_genesis_in_store": {
-      "const": true
+    "required_w11_catalogue": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "git_blob",
+        "raw_sha256",
+        "raw_bytes"
+      ],
+      "properties": {
+        "repository_path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "raw_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raw_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
     },
     "refused_store_identities": {
       "type": "array",
@@ -71,6 +141,26 @@
       "type": "string",
       "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
+    "decId": {
+      "type": "string",
+      "pattern": "^dec_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "revId": {
+      "type": "string",
+      "pattern": "^rev_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "artId": {
+      "type": "string",
+      "pattern": "^art_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "tskId": {
+      "type": "string",
+      "pattern": "^tsk_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "evtId": {
+      "type": "string",
+      "pattern": "^evt_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
     "projectId": {
       "type": "string",
       "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -84,10 +174,15 @@
       "format": "date-time",
       "pattern": "Z$"
     },
+    "utcMicros": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{6}Z$"
+    },
     "relPath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$))[^:]+$"
+      "pattern": "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*\\s$).+$"
     },
     "recordRef": {
       "type": "object",
@@ -110,6 +205,109 @@
       },
       "additionalProperties": false
     },
+    "decisionRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/decId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/revId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "artefactRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/artId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "taskRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/tskId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "anyRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/recordRef"
+        },
+        {
+          "$ref": "#/$defs/decisionRef"
+        },
+        {
+          "$ref": "#/$defs/reviewRef"
+        },
+        {
+          "$ref": "#/$defs/artefactRef"
+        },
+        {
+          "$ref": "#/$defs/taskRef"
+        }
+      ]
+    },
     "nullableRecordRef": {
       "oneOf": [
         {
@@ -117,6 +315,16 @@
         },
         {
           "$ref": "#/$defs/recordRef"
+        }
+      ]
+    },
+    "nullableAnyRef": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/anyRef"
         }
       ]
     },
@@ -197,7 +405,16 @@
               "const": "git_tracked"
             },
             "repository_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "git_commit": {
               "$ref": "#/$defs/sha1"
@@ -229,7 +446,16 @@
               "const": "untracked_file"
             },
             "path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -239,7 +465,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -283,7 +509,16 @@
               "const": "vault_file"
             },
             "vault_path": {
-              "$ref": "#/$defs/relPath"
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
             },
             "sha256": {
               "$ref": "#/$defs/sha256"
@@ -293,7 +528,7 @@
               "minimum": 0
             },
             "frozen_copy_ref": {
-              "$ref": "#/$defs/recordRef"
+              "$ref": "#/$defs/artefactRef"
             }
           },
           "additionalProperties": false
@@ -354,7 +589,7 @@
           ]
         },
         "source_ref": {
-          "$ref": "#/$defs/recordRef"
+          "$ref": "#/$defs/anyRef"
         },
         "text": {
           "type": "string",
