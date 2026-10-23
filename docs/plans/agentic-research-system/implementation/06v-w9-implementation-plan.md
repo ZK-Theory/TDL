@@ -148,7 +148,7 @@ A test store can therefore carry an arbitrary frozen identity only in the 1.0.0 
 | W9-T17, W5 clause: an unadopted family blocks its claims | W5 assurance engine under `research_system/assurance/` (likely `resolver.py`) | The citation-status relation | **U-6**: the exact hook and whether W5's claim inputs need a new field |
 
 Each guard reads the store's W9 projection through the legacy package's read interface, not by importing its
-internals. If any of U-2, U-5 or U-6 requires a change to a `core/commands` or `core/events` schema, that is a
+internals. If any of U-2, U-5, U-6 or U-9 requires a change to a `core/commands` or `core/events` schema, that is a
 protected-tree change under D-4.
 
 ### 2.8 Interface-unverified items (dispatch blockers for the named package)
@@ -160,7 +160,7 @@ protected-tree change under D-4.
 | U-4 | The operator machine's path to the vault (junction behaviour) for the Computational-Log detector; CI cannot see the vault | WP9.5 | Recorded from a dry run on the operator machine |
 | U-5 | Whether `source_import_refs` can reference a legacy-observation family without a schema change | WP9.4 | Read the CreateTask preparer and schema; record the answer before writing code |
 | U-6 | The W5 hook for "an unadopted family blocks its claims" | WP9.4 | Read `research_system/assurance/`; record `path:line` before writing code |
-| U-7 | Whether the shared-replay edits (WP9.2) can be confined to three sites: (1) a predicate that `projection/replay.py` (`:1319-1324`) consults before its default; (2) a predicate that `shared_event_partition` (`discovery/routes.py:301-319`) consults, returning a **new** `legacy` partition value, never an existing one; (3) **one** `continue` branch for `legacy` in `replay_discovery`'s per-partition dispatch (`discovery/replay/driver.py:379-408`; the fall-through raises "unsupported Discovery event" at `:667-669`). The 59/21/1 partition and every W11 pin stay unchanged. | WP9.2 | Read and prototype on a scratch store. If the edit cannot be confined to those three sites, stop and return Partial (§8). |
+| U-7 | Whether the shared-replay edits (WP9.2) can be confined to four sites: (1) a predicate that `projection/replay.py` (`:1319-1324`) consults before its default; (2) a predicate that `shared_event_partition` (`discovery/routes.py:301-319`) consults, returning a **new** `legacy` partition value, never an existing one; (3) **one** `continue` branch for `legacy` in `replay_discovery`'s per-partition dispatch (`discovery/replay/driver.py:379-408`; the fall-through raises "unsupported Discovery event" at `:667-669`); (4) a lazy `replay_legacy` call at the generic replay boundary, next to the `replay_discovery` call (`projection/replay.py:1369-1381`). The 59/21/1 partition and every W11 pin stay unchanged. | WP9.2 | Read and prototype on a scratch store. If the edit cannot be confined to those four sites, stop and return Partial (§8). |
 | U-8 | How a successor result under the repository's `results/ars/` is registered and read back, given that the only content reader reads `root_id == "control"` (`artefacts/runtime.py:38-50`) | WP9.7 | Read the artefact registration and use paths; record the root and reader before writing the guard |
 | U-9 | Where a successor Task reads and re-hashes an adopted whole-file input (O-34), given rule (d) | WP9.4, WP9.7 | Read the CreateTask and dispatch paths with U-5; record `path:line` |
 
@@ -347,7 +347,7 @@ requires it.
   - **One** `continue` branch for `legacy` in `replay_discovery`'s per-partition dispatch (`driver.py:379-408`).
     Without it, the event falls through to "unsupported Discovery event" (`:667-669`).
   - A lazy `replay_legacy` call at the generic boundary, next to the `replay_discovery` call (`replay.py:1369-1381`).
-  - These three sites are in scope and nothing more (U-7). The 59/21/1 partition, the excluded rows and every W11 pin
+  - These four sites are in scope and nothing more (U-7). The 59/21/1 partition, the excluded rows and every W11 pin
     stay unchanged. If the edit cannot be confined to them, the package stops and returns Partial.
   - **Test.** A scratch store holding W11 genesis, W9 genesis, one W9 observation and one generic command must replay
     through `rebuild_projection`, `replay_discovery` and the verify-restore path. **Negative control:** the same ledger
@@ -612,7 +612,7 @@ gate column below adds only what those texts do not already state.
 Stop and return the package as Partial when any of these holds:
 - an interface in §2.8 resolves differently from the plan's assumption;
 - a W11 pin would change: the route partition, the schema tree, or the not-runtime-activated test;
-- the shared-replay edit cannot be confined to U-7's three sites, or would reuse an existing partition value;
+- the shared-replay edit cannot be confined to U-7's four sites, or would reuse an existing partition value;
 - a test needs live legacy, vault or restricted bytes;
 - a command would write a legacy file or the Gate 6 store;
 - a protected identity changes without Stephen's exact-bytes re-acceptance (D-4);

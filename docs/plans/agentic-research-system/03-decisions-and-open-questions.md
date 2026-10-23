@@ -4144,7 +4144,8 @@ as Gate 7's bounded intake.<br>
      `prj_01978abc-1000-7000-8000-000000001000`.
    - The Gate 6 store's identity is frozen from M2 `4d867d85` (06v §2.6). After the foundation re-pin, the Gate 6
      store is readable only from the M2 checkout.
-   - Each binding advance, and each runbook step A1 to A7, needs Stephen's own authorization.
+   - Each binding advance, and each runbook step L1 to L7 (with its authorization A1 to A7), needs Stephen's own
+     authorization.
 2. **D-2, the command path.** W9 uses the Discovery-style command path in `research_system/legacy/`, with the
    shared-replay predicate and writer lock. Successor-side guards are built in the generic command service (06v §2.7).
 3. **D-3, W9-T17's citation check.** A deterministic extractor over every file type in the paper root, run on
@@ -4177,6 +4178,24 @@ Implementation needs Stephen's separate decision. Each live operation needs its 
 resolved in that package's PR.<br>
 **Status lines:** the commit recording this entry also updates 06v's status row and its §9 acceptance checkbox to
 record the acceptance. These are status-only changes; no other line of the accepted plan changes.<br>
+**Post-acceptance correction (2026-10-23, PR #392 CodeRabbit review).** Stephen authorized three corrections and
+re-accepted the corrected bytes: "fix the three findings in 06v (U-9 in the protected-tree caveat; U-7 and §8 naming
+four sites including the replay_legacy call) and P-064 (runbook steps L1 to L7, each with its authorization A1 to
+A7), recorded in P-064 as a post-acceptance correction with the exact lines; I re-accept the corrected bytes". The
+correction commit changes exactly these lines and nothing else:
+- **06v §2.7, the protected-tree caveat.** "If any of U-2, U-5 or U-6 requires" becomes "If any of U-2, U-5, U-6 or
+  U-9 requires". §5 already listed U-9.
+- **06v §2.8, the U-7 row.** "confined to three sites" becomes "confined to four sites". A fourth site is added: "(4)
+  a lazy `replay_legacy` call at the generic replay boundary, next to the `replay_discovery` call
+  (`projection/replay.py:1369-1381`)". "those three sites" becomes "those four sites". WP9.2 already required that
+  call.
+- **06v WP9.2.** "These three sites are in scope" becomes "These four sites are in scope".
+- **06v §8.** "U-7's three sites" becomes "U-7's four sites".
+- **P-064, decision 1.** "each runbook step A1 to A7" becomes "each runbook step L1 to L7 (with its authorization A1 to
+  A7)".
+
+The accepted subject is now 06v at the correction commit. Revision 4 (`7b19e40b`) plus these lines is the whole
+change. Nothing else in the plan's substance or in D-1 to D-9 changes.<br>
 **Capability status:** Gate 7 is OPEN, INCOMPLETE. No W9 implementation is accepted, so no observation, import or
 transition can run.<br>
 **Boundary:** Docs only.<br>
