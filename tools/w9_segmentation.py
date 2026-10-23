@@ -466,7 +466,27 @@ def segment(
     region: tuple[int, int] | None = None,
     structural: list[tuple[int, int]] | None = None,
 ) -> dict[str, Any]:
-    """Segment `data` under one selector kind and return file facts plus rows."""
+    """Segment `data` under one selector kind and return file facts plus rows.
+
+    Args:
+        data: The exact bytes read; never decoded, normalized or stripped of a BOM (contract §2.1).
+        selector_kind: One of `heading_section`, `computational_log_entry`, `tracker_task_row`,
+            `working_note_entry`, `log_frontmatter` or `conventions_unit` (contract §3).
+        level: The heading level k; required for `heading_section`, ignored otherwise.
+        region: The covered region as 1-based inclusive line numbers (first, last); defaults to the whole file.
+            Used by `heading_section` and `computational_log_entry`; the other selectors have fixed regions.
+        structural: Declared structural ranges as 1-based inclusive (first, last) pairs; `heading_section` only.
+
+    Returns:
+        A mapping with `segmentation_contract`, `selector_kind`, `file_sha256`, `file_bytes`, `file_facts`
+        (line ending, final terminator, BOM, line count), `rows` (each with its ordinal, kind, anchor text, byte
+        offset and length, start line, line count, `raw_row_sha256`, `anchor_line_sha256` and blocker reason) and
+        `suppressed_anchors`.
+
+    Raises:
+        SegmentationError: For an unknown selector kind, a `heading_section` call without `level`, a structural
+            range outside the file, or a missing `## Task Tracking` or `## Working Notes` section.
+    """
     lines = split_lines(data)
     whole = (1, len(lines))
     suppressed: list[dict[str, Any]] = []

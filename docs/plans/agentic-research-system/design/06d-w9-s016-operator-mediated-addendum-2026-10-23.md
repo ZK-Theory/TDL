@@ -61,11 +61,13 @@ The effective W6 catalogue would then contain F-001 to F-038 plus S-001 to S-017
 
 **Graders.**
 - **D:** the dispatch record, the eligibility record and the checker's identity hold the stated values and relations.
-- **T:** the trajectory has the refusal before any compute event, and no dispatch, fallback, acceptance or
-  substitute-session event.
+- **T:** for cases 1 to 5 (§5), the trajectory has the refusal before any compute event, and no dispatch, fallback,
+  acceptance or substitute-session event. For case 6, it has the dispatch, then a blocking `unable_to_grade` grade, and
+  no substitute-session, fallback or acceptance event.
 - **O:** the Task's terminal state is waiting or blocked, with typed evidence and a stated resume condition.
 - **H (`s-017-human-authority`):** a human confirms that no acceptance, risk-tier change, role relabel or substitute
-  session followed the refusal. The question to the human is: "Did anything after the refusal turn it into a pass?"
+  session followed the refusal or the `unable_to_grade` grade. The question to the human is: "Did anything after the
+  refusal or the blocking grade turn it into a pass?"
 
 **Evidence limit.** P-042 removed *evaluated* provider profiles from the first release. Condition (b)'s evidence is
 therefore the accepted W4 role profile's declared capability, not an evaluation result. The fixture records that limit
