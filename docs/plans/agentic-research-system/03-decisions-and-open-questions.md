@@ -4203,6 +4203,46 @@ transition can run.<br>
 track is implementation, on Stephen's decision).<br>
 **Migration consequence:** None. Every legacy item stays `legacy_owned`.
 
+### P-065 - W9 implementation authorized for WP9.0 and WP9.1 only
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23). This is the separate implementation decision that P-064
+reserved.<br>
+**Authority:** Stephen, in chat, 2026-10-23: "Merged, let's proceed". Asked what that authorizes, he chose the scope
+"WP9.0 + WP9.1": "Authorize implementing the first two packages only. WP9.0: the S-016 W6 addendum, the
+membership-table template and the segmentation contract. WP9.1: the ars://legacy/ schemas, the W9 catalogue and the
+bootstrap contract; data only, no runtime, ending with your acceptance of the catalogue identity. Each package is one
+reviewed PR." PR #392 (06v, P-064) merged as `4999111c`.<br>
+**Decision:**
+1. **WP9.0** (06v §5) is authorized:
+   - the dated W6 addendum re-specifying S-016 under P-042;
+   - the membership-table template and authoring guide;
+   - the versioned segmentation contract.
+2. **WP9.1** (06v §5) is authorized:
+   - the `ars://legacy/` schemas;
+   - the W9 catalogue;
+   - the acceptance envelope;
+   - the bootstrap contract.
+
+   This is data only, with no runtime. It ends with Stephen's acceptance of the catalogue at an exact identity, and
+   only then is `accepted_w9.py` added.
+3. **Each package is one PR** on a `pipe/` branch. Each gets an independent adversarial review by a distinct session,
+   then CodeRabbit review, and Stephen merges. The S-016 addendum and the segmentation contract each also need
+   Stephen's own acceptance as documents.
+
+**Not authorized:**
+- WP9.2 to WP9.7;
+- any runtime code;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- store creation, genesis, grants, observation, adoption, transition and compute;
+- any write to a legacy file.
+
+Each needs a later decision.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs and data files only.<br>
+**Affected specifications:** 06v (WP9.0, WP9.1 started); W6 (an addendum follows).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
