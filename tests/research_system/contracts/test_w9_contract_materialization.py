@@ -334,6 +334,38 @@ def test_closed_reference_items_carry_pilot_promotion_refs() -> None:
     assert not _valid("legacy-closed-reference-acceptance", acceptance)
 
 
+def test_membership_binds_the_accepted_table_and_the_bytes_its_author_read() -> None:
+    # WP9.0 membership template §1, §3 rule 10 and §4 (re-review N-8, N-9).
+    membership = {
+        **_header("legacy-field-family-membership"),
+        "file_schema_id": "usoc-headline-frozen-2026-05-28",
+        "applies_to": [
+            {
+                "path": "results/example.json",
+                "identity_kind": "git_tracked",
+                "git_blob": _SHA1,
+                "sha256": _HASH,
+                "size_bytes": 10,
+            }
+        ],
+        "table_sha256": _HASH,
+        "families": [{"name": "h0_w2", "definition_source": "G7-A §6.1 row T1.37", "pointers": ["", "/result/[*]/h0"]}],
+        "unassigned": [],
+        "author_actor_id": _ACT,
+        "review_ref": _ref(),
+        "acceptance_decision_ref": _ref(),
+    }
+    assert _valid("legacy-field-family-membership", membership)
+    untracked = {**membership["applies_to"][0], "identity_kind": "untracked_file"}
+    assert not _valid("legacy-field-family-membership", {**membership, "applies_to": [untracked]})
+    assert _valid("legacy-field-family-membership", {**membership, "applies_to": [{**untracked, "git_blob": None}]})
+    tracked_without_blob = {**membership["applies_to"][0], "git_blob": None}
+    assert not _valid("legacy-field-family-membership", {**membership, "applies_to": [tracked_without_blob]})
+    assert not _valid("legacy-field-family-membership", {k: v for k, v in membership.items() if k != "table_sha256"})
+    old_family = {"name": "h0_w2", "class_source": "x", "pointers": ["/a"]}
+    assert not _valid("legacy-field-family-membership", {**membership, "families": [old_family]})
+
+
 def _registration(role: str, path: str, mode: str) -> dict[str, Any]:
     return {
         **_header("legacy-path-registration"),

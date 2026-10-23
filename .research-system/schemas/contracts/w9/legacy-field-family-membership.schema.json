@@ -14,6 +14,7 @@
     "content_hash",
     "file_schema_id",
     "applies_to",
+    "table_sha256",
     "families",
     "unassigned",
     "author_actor_id",
@@ -62,20 +63,69 @@
       "items": {
         "type": "object",
         "required": [
-          "repository_path",
-          "git_blob"
+          "path",
+          "identity_kind",
+          "git_blob",
+          "sha256",
+          "size_bytes"
         ],
         "properties": {
-          "repository_path": {
+          "path": {
             "$ref": "#/$defs/relPath"
           },
+          "identity_kind": {
+            "enum": [
+              "git_tracked",
+              "untracked_file",
+              "restricted_untracked_file",
+              "vault_file"
+            ]
+          },
           "git_blob": {
-            "$ref": "#/$defs/sha1"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/sha1"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 0
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "identity_kind": {
+              "const": "git_tracked"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "git_blob": {
+              "$ref": "#/$defs/sha1"
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "git_blob": {
+              "type": "null"
+            }
+          }
+        }
       },
       "minItems": 1
+    },
+    "table_sha256": {
+      "$ref": "#/$defs/sha256"
     },
     "families": {
       "type": "array",
@@ -83,7 +133,7 @@
         "type": "object",
         "required": [
           "name",
-          "class_source",
+          "definition_source",
           "pointers"
         ],
         "properties": {
@@ -91,7 +141,7 @@
             "type": "string",
             "pattern": "^[a-z0-9_]+$"
           },
-          "class_source": {
+          "definition_source": {
             "type": "string",
             "minLength": 1
           },

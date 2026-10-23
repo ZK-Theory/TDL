@@ -47,6 +47,18 @@ file, as W11's `legacy-record-observed` does, so no schema references another fi
 - **Fixture IDs.** A `pilot_promotion` fixture ID uses the eval schemas' own pattern, `^[FS]-[0-9]{3}$`, with no
   variant suffix. Stephen gave the operator-mediated R3 scenario a new ID, S-017, and left S-016 r1 unchanged
   (P-066). The test uses `S-017` and rejects `S-016/OM`.
+- **Membership record.** `legacy-field-family-membership` follows WP9.0 revision 3's template (§1, §3 rule 10, §4):
+  - `applies_to` binds the bytes the table's author read: path, W9 §5.4 identity kind, blob (required for
+    `git_tracked`, null otherwise), SHA-256 and size;
+  - `table_sha256` binds the accepted table bytes;
+  - each family cites a `definition_source`, which replaces `class_source`.
+
+## 4. `accepted_w9.py` is not in WP9.1
+
+06v WP9.1's gate, step 3, says a follow-up commit adds `research_system/legacy/accepted_w9.py`. Under P-066 item 2,
+that file belongs to WP9.2, under its own later authorization. 06v's accepted bytes are unchanged (P-067 item 3), so
+this note and every WP9.1 or WP9.2 dispatch brief cite P-066 item 2. WP9.1 ends with Stephen's acceptance of the
+catalogue identity.
 - **Registration bindings.**
   - The `successor_results_root` role binds `results/ars/` and `successor_owned`.
   - `conventions_lock` binds `CONVENTIONS.md` at the repository root; the vault alias is unregistrable.
