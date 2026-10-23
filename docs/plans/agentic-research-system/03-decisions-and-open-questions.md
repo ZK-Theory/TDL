@@ -4224,8 +4224,8 @@ reviewed PR." PR #392 (06v, P-064) merged as `4999111c`.<br>
    - the acceptance envelope;
    - the bootstrap contract.
 
-   This is data only, with no runtime. It ends with Stephen's acceptance of the catalogue at an exact identity, and
-   only then is `accepted_w9.py` added.
+   This is data only, with no runtime. It ends with Stephen's acceptance of the catalogue at an exact identity.
+   `accepted_w9.py` is not part of WP9.1; it is added with WP9.2, under its own later authorization (P-066).
 3. **Each package is one PR** on a `pipe/` branch. Each gets an independent adversarial review by a distinct session,
    then CodeRabbit review, and Stephen merges. The S-016 addendum and the segmentation contract each also need
    Stephen's own acceptance as documents.
@@ -4241,6 +4241,43 @@ Each needs a later decision.<br>
 **Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
 **Boundary:** Docs and data files only.<br>
 **Affected specifications:** 06v (WP9.0, WP9.1 started); W6 (an addendum follows).<br>
+**Migration consequence:** None.<br>
+**Correction (P-066, 2026-10-23).** Decision item 2 ended "…at an exact identity, and only then is `accepted_w9.py`
+added." Stephen struck that clause (P-066 item 2), and the item now reads as above. Nothing else in P-065 changed.
+
+### P-066 - WP9.0 review owner decisions: S-017, `accepted_w9.py` outside P-065, and a W9 §12.3 erratum
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), answering the three owner decisions raised by the WP9.0 review
+(`reviews/wp9-0-review-a427084e-2026-10-23.md`, M-1, M-12 and m-3).<br>
+**Authority:** Stephen, in chat, 2026-10-23, choosing each recommended option:
+- on the S-016 identity (M-1): "New ID S-017 (Recommended)". The option read: "Reserve S-017 for the operator-mediated
+  R3 second-family scenario, as 06a/06b added new IDs. S-016 r1 stays unchanged and executed. W9-D12b's wording
+  ("S-016's change lands as a dated W6 addendum") is read as satisfied by an addendum that adds S-017 and records S-016
+  r1 as unchanged."
+- on `accepted_w9.py` (M-12): "Not in P-065 (Recommended)". The option read: "Strike it from P-065. accepted_w9.py is
+  added with WP9.2 (the runtime package), under its own later authorization."
+- on W9 §12.3 (m-3): "Record an erratum (Recommended)". The option read: "Record a W9 erratum note in the register (no
+  edit to W9's accepted bytes): the H row is not excluded; the S-016 row governs."
+
+**Decision:**
+1. **S-017.** The operator-mediated R3 second-family scenario gets a new catalogue ID, S-017, reserved by the W6
+   addendum 06d (WP9.0). S-016 r1 (`.research-system/evals/fixtures/S-016/`, tree `af1c8691`) stays unchanged,
+   executed in the release tranche, with its pins. W9-D12b is satisfied by 06d as so written. For Gate 7 items, W9
+   §12.3's S-016 row is served by S-017.
+2. **`accepted_w9.py`.** It is outside P-065. It is added with WP9.2 under a later authorization. P-065 item 2 is
+   corrected (see the correction note there).
+3. **W9 §12.3 erratum.** The closing sentence of W9 §12.3 reads: "An exclusion (F-024, S-016's H row) is an
+   owner-accepted record." That sentence's "S-016's H row" is an erratum. The H row is not excluded; the S-016 row
+   ("its `unable_to_grade` H row stays") governs. For Gate 7 items that H row is S-017's H grader. W9's bytes are not
+   edited.
+
+**Not decided here:** the WP9.0 documents themselves, which still need re-review and Stephen's acceptance (P-065
+item 3).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** W6 (06d reserves S-017); W9 §12.3 (erratum, bytes unchanged); 06v WP9.1 and WP9.2
+(`accepted_w9.py` moves to WP9.2); P-065 (item 2 corrected).<br>
 **Migration consequence:** None.
 
 ## Decision protocol
