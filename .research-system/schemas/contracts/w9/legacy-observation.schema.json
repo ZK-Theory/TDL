@@ -1,0 +1,581 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ars://legacy/legacy-observation",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "record_id",
+    "record_revision",
+    "supersedes_revision",
+    "project_id",
+    "created_at",
+    "created_by_actor_id",
+    "content_hash",
+    "registration_ref",
+    "selector",
+    "source_identity",
+    "segmentation_contract",
+    "file_facts",
+    "importer",
+    "observer_actor_id",
+    "observed_at",
+    "families",
+    "qualifiers",
+    "conflicts",
+    "non_inferences"
+  ],
+  "properties": {
+    "schema_id": {
+      "const": "ars://legacy/legacy-observation"
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "record_id": {
+      "$ref": "#/$defs/objId"
+    },
+    "record_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes_revision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "project_id": {
+      "$ref": "#/$defs/projectId"
+    },
+    "created_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "created_by_actor_id": {
+      "$ref": "#/$defs/actorId"
+    },
+    "content_hash": {
+      "$ref": "#/$defs/sha256"
+    },
+    "registration_ref": {
+      "$ref": "#/$defs/recordRef"
+    },
+    "selector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "selector_kind"
+          ],
+          "properties": {
+            "selector_kind": {
+              "const": "whole_file"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "selector_kind",
+            "membership_ref",
+            "family_names"
+          ],
+          "properties": {
+            "selector_kind": {
+              "const": "json_family_set"
+            },
+            "membership_ref": {
+              "$ref": "#/$defs/recordRef"
+            },
+            "family_names": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]+$"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "selector_kind",
+            "inventory_ref",
+            "row_ordinal",
+            "anchor_text",
+            "raw_row_sha256"
+          ],
+          "properties": {
+            "selector_kind": {
+              "const": "inventory_item"
+            },
+            "inventory_ref": {
+              "$ref": "#/$defs/recordRef"
+            },
+            "row_ordinal": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "anchor_text": {
+              "type": "string",
+              "minLength": 1
+            },
+            "raw_row_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "source_identity": {
+      "$ref": "#/$defs/sourceIdentity"
+    },
+    "segmentation_contract": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "const": "w9-segmentation/1.0.0"
+        }
+      ]
+    },
+    "file_facts": {
+      "$ref": "#/$defs/fileFacts"
+    },
+    "importer": {
+      "type": "object",
+      "required": [
+        "actor_id",
+        "tool_id",
+        "tool_version",
+        "tool_sha256"
+      ],
+      "properties": {
+        "actor_id": {
+          "$ref": "#/$defs/actorId"
+        },
+        "tool_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observer_actor_id": {
+      "$ref": "#/$defs/actorId"
+    },
+    "observed_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "families": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "family_name",
+          "w0_class",
+          "signed_w0_revision_ref",
+          "signature_record_ref"
+        ],
+        "properties": {
+          "family_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "w0_class": {
+            "enum": [
+              "authoritative",
+              "authoritative_supersession",
+              "merged_draft",
+              "prepared",
+              "active",
+              "blocked",
+              "deferred",
+              "superseded",
+              "stale_projection",
+              "unverified"
+            ]
+          },
+          "signed_w0_revision_ref": {
+            "$ref": "#/$defs/recordRef"
+          },
+          "signature_record_ref": {
+            "$ref": "#/$defs/recordRef"
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 1
+    },
+    "qualifiers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/qualifier"
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "conflicting_record_refs",
+          "resolution",
+          "precedence_tier"
+        ],
+        "properties": {
+          "conflicting_record_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/recordRef"
+            },
+            "minItems": 2
+          },
+          "resolution": {
+            "enum": [
+              "resolved_by_precedence",
+              "blocked"
+            ]
+          },
+          "precedence_tier": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 7
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "non_inferences": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "objId": {
+      "type": "string",
+      "pattern": "^obj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "projectId": {
+      "type": "string",
+      "pattern": "^prj_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "actorId": {
+      "type": "string",
+      "pattern": "^act_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "relPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/\\\\])(?!.*(^|[/\\\\])\\.\\.([/\\\\]|$))[^:]+$"
+    },
+    "recordRef": {
+      "type": "object",
+      "required": [
+        "id",
+        "record_revision",
+        "content_hash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/objId"
+        },
+        "record_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "content_hash": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "nullableRecordRef": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/recordRef"
+        }
+      ]
+    },
+    "physicalIdentity": {
+      "type": "object",
+      "required": [
+        "canonical_target",
+        "reparse_chain",
+        "volume_serial_number",
+        "stable_file_id",
+        "link_count",
+        "case_aliases",
+        "unicode_aliases",
+        "short_name_aliases"
+      ],
+      "properties": {
+        "canonical_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reparse_chain": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "volume_serial_number": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stable_file_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "link_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "case_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "unicode_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "short_name_aliases": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceIdentity": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "identity_kind",
+            "repository_path",
+            "git_commit",
+            "git_blob",
+            "sha256",
+            "byte_length"
+          ],
+          "properties": {
+            "identity_kind": {
+              "const": "git_tracked"
+            },
+            "repository_path": {
+              "$ref": "#/$defs/relPath"
+            },
+            "git_commit": {
+              "$ref": "#/$defs/sha1"
+            },
+            "git_blob": {
+              "$ref": "#/$defs/sha1"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "identity_kind",
+            "path",
+            "sha256",
+            "byte_length",
+            "frozen_copy_ref"
+          ],
+          "properties": {
+            "identity_kind": {
+              "const": "untracked_file"
+            },
+            "path": {
+              "$ref": "#/$defs/relPath"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "frozen_copy_ref": {
+              "$ref": "#/$defs/recordRef"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "identity_kind",
+            "path",
+            "sha256",
+            "byte_length"
+          ],
+          "properties": {
+            "identity_kind": {
+              "const": "restricted_untracked_file"
+            },
+            "path": {
+              "$ref": "#/$defs/relPath"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "identity_kind",
+            "vault_path",
+            "sha256",
+            "byte_length",
+            "frozen_copy_ref"
+          ],
+          "properties": {
+            "identity_kind": {
+              "const": "vault_file"
+            },
+            "vault_path": {
+              "$ref": "#/$defs/relPath"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "frozen_copy_ref": {
+              "$ref": "#/$defs/recordRef"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "fileFacts": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "line_ending",
+            "ends_with_terminator",
+            "has_utf8_bom",
+            "line_count"
+          ],
+          "properties": {
+            "line_ending": {
+              "enum": [
+                "LF",
+                "CRLF",
+                "mixed",
+                "none"
+              ]
+            },
+            "ends_with_terminator": {
+              "type": "boolean"
+            },
+            "has_utf8_bom": {
+              "type": "boolean"
+            },
+            "line_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "qualifier": {
+      "type": "object",
+      "required": [
+        "qualifier_kind",
+        "source_ref",
+        "text"
+      ],
+      "properties": {
+        "qualifier_kind": {
+          "enum": [
+            "open_review_finding",
+            "audit_verdict",
+            "stale_projection_of",
+            "corrected_by"
+          ]
+        },
+        "source_ref": {
+          "$ref": "#/$defs/recordRef"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
