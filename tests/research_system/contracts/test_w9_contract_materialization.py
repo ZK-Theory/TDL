@@ -314,7 +314,7 @@ def test_closed_reference_items_carry_pilot_promotion_refs() -> None:
             {
                 "observation_ref": _ref(),
                 "pilot_promotion": {
-                    "fixture_ids": ["F-018", "S-016/OM"],
+                    "fixture_ids": ["F-018", "S-017"],
                     "evidence_refs": [_ref()],
                     "waiver_ref": None,
                 },
@@ -326,6 +326,10 @@ def test_closed_reference_items_carry_pilot_promotion_refs() -> None:
         "enforcement_change_list": None,
     }
     assert _valid("legacy-closed-reference-acceptance", acceptance)
+    # Fixture IDs follow the eval schemas (^[FS]-[0-9]{3}$); there are no variant suffixes (P-066: S-017).
+    acceptance["items"][0]["pilot_promotion"]["fixture_ids"] = ["S-016/OM"]
+    assert not _valid("legacy-closed-reference-acceptance", acceptance)
+    acceptance["items"][0]["pilot_promotion"]["fixture_ids"] = ["S-017"]
     del acceptance["items"][0]["pilot_promotion"]
     assert not _valid("legacy-closed-reference-acceptance", acceptance)
 

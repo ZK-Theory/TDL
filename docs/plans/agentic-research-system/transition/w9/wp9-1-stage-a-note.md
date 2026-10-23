@@ -1,7 +1,8 @@
 # WP9.1 stage A: the inert `ars://legacy/` schema family
 
 **Date:** 2026-10-23<br>
-**Status:** Draft, revision 1, for independent review (P-065)<br>
+**Status:** Draft, revision 1, for independent review (P-065). The fixture-ID pattern follows WP9.0 revision 2 and
+P-066.<br>
 **Package:** 06v WP9.1, stage A of two<br>
 **Implementation authority:** P-065 (WP9.0 and WP9.1 only). Stage A changes no runtime Python.
 
@@ -43,6 +44,9 @@ file, as W11's `legacy-record-observed` does, so no schema references another fi
   `w9-segmentation/1.0.0` §4).
 - **Closed-reference acceptance.** Each item carries its `pilot_promotion` fixture IDs, evidence and waiver
   reference (O-37), plus the threshold and governing-record hashes and their anchors (O-25).
+- **Fixture IDs.** A `pilot_promotion` fixture ID uses the eval schemas' own pattern, `^[FS]-[0-9]{3}$`, with no
+  variant suffix. Stephen gave the operator-mediated R3 scenario a new ID, S-017, and left S-016 r1 unchanged
+  (P-066). The test uses `S-017` and rejects `S-016/OM`.
 - **Registration bindings.**
   - The `successor_results_root` role binds `results/ars/` and `successor_owned`.
   - `conventions_lock` binds `CONVENTIONS.md` at the repository root; the vault alias is unregistrable.
