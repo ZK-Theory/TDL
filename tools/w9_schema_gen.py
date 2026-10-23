@@ -28,12 +28,22 @@ OUT_DIR = REPO_ROOT / ".research-system" / "schemas" / "contracts" / "w9"
 Schema = dict[str, Any]
 
 UUID7 = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
-# D-9's restricted suffixes (P-064 item 9), copied here under P-069 item 3; matched case-insensitively.
-RESTRICTED_SUFFIX = "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
-CONVENTIONS_NAME = "(^|/)[Cc][Oo][Nn][Vv][Ee][Nn][Tt][Ii][Oo][Nn][Ss]\\.[Mm][Dd]$"
-# Relative, forward-slash only: no leading slash or "~", no backslash or ":", no "." / ".." / empty segment, and no
-# trailing whitespace. A trailing "/" (a directory root) is allowed.
-REL_PATH_PATTERN = "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*\\s$).+$"
+# D-9's restricted suffixes (P-064 item 9), copied here under P-069 item 3. The contract's `restricted_suffixes` must
+# equal this list (the stage A test asserts it); the schema pattern is derived from it, matched case-insensitively.
+RESTRICTED_SUFFIXES = [".csv", ".pkl"]
+
+
+def _any_case(text: str) -> str:
+    return "".join(f"[{c.upper()}{c.lower()}]" if c.isalpha() else f"\\{c}" if c == "." else c for c in text)
+
+
+RESTRICTED_SUFFIX = "(" + "|".join(_any_case(suffix) for suffix in RESTRICTED_SUFFIXES) + ")$"
+CONVENTIONS_NAME = "(^|/)" + _any_case("CONVENTIONS.md") + "$"
+# Relative, forward-slash only: no leading slash or "~", no backslash or ":", no "." / ".." / empty segment, no
+# segment ending in "." or a space, no 8.3 short-name form ("~" and a digit), and no trailing whitespace. Win32 strips
+# a trailing dot or space and resolves short names, so these would alias another path (review n-1). A trailing "/"
+# (a directory root) is allowed. Full alias closure is the handle-bound read's (`physical_identity`).
+REL_PATH_PATTERN = "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*[. ](/|$))(?!.*~[0-9])(?!.*\\s$).+$"
 
 
 def _id(prefix: str) -> Schema:
@@ -179,7 +189,7 @@ QUALIFIER = obj(
     ["qualifier_kind", "source_ref", "text"],
     {
         "qualifier_kind": {"enum": ["open_review_finding", "audit_verdict", "stale_projection_of", "corrected_by"]},
-        "source_ref": ref("anyRef"),
+        "source_ref": ref("sourceRef"),
         "text": TEXT,
     },
 )
@@ -223,6 +233,46 @@ DEFS: Schema = {
     "anyRef": {"oneOf": [ref("recordRef"), ref("decisionRef"), ref("reviewRef"), ref("artefactRef"), ref("taskRef")]},
     "nullableRecordRef": {"oneOf": [{"type": "null"}, ref("recordRef")]},
     "nullableAnyRef": {"oneOf": [{"type": "null"}, ref("anyRef")]},
+    # A source ARS has not observed: a repository file at a commit or a vault file, as W11's `sourceRef` `external`
+    # form. W9-T4 imports SUPERSEDED.md lines 69-71 alone while naming the tier-1 file (re-review N-2).
+    "sourceLocator": {
+        "oneOf": [
+            obj(
+                ["locator_kind", "repository_path", "git_commit", "git_blob", "sha256", "byte_length", "line_span"],
+                {
+                    "locator_kind": {"const": "git_file"},
+                    "repository_path": UNRESTRICTED_PATH,
+                    "git_commit": ref("sha1"),
+                    "git_blob": ref("sha1"),
+                    "sha256": ref("sha256"),
+                    "byte_length": {"type": "integer", "minimum": 0},
+                    "line_span": {
+                        "oneOf": [
+                            {"type": "null"},
+                            obj(
+                                ["first_line", "last_line"],
+                                {
+                                    "first_line": {"type": "integer", "minimum": 1},
+                                    "last_line": {"type": "integer", "minimum": 1},
+                                },
+                            ),
+                        ]
+                    },
+                },
+            ),
+            obj(
+                ["locator_kind", "vault_path", "sha256", "byte_length", "heading_anchor"],
+                {
+                    "locator_kind": {"const": "vault_file"},
+                    "vault_path": UNRESTRICTED_PATH,
+                    "sha256": ref("sha256"),
+                    "byte_length": {"type": "integer", "minimum": 0},
+                    "heading_anchor": {"type": ["string", "null"], "minLength": 1},
+                },
+            ),
+        ]
+    },
+    "sourceRef": {"oneOf": [ref("anyRef"), ref("sourceLocator")]},
     "physicalIdentity": PHYSICAL_IDENTITY,
     "sourceIdentity": SOURCE_IDENTITY,
     "fileFacts": FILE_FACTS,
@@ -272,7 +322,12 @@ LEGACY_ROLES = [role for role in ROLES if role not in ARS_ROLES and role != "sha
 MODES = ["legacy_owned", "successor_owned", "closed_reference"]
 # W9 §4.2's three legacy writer classes, §4.3's shared-surface class, and the ARS writer of an ARS-owned path.
 LEGACY_WRITER_CLASSES = ["legacy_lane_commit", "repository_wide_change_with_owner_note", "owner_ruling"]
-WRITER_CLASSES = [*LEGACY_WRITER_CLASSES, "ars_reviewed_pr_with_owner_note", "ars_reviewed_pr"]
+WRITER_CLASSES = [
+    *LEGACY_WRITER_CLASSES,
+    "ars_reviewed_pr_with_owner_note",
+    "ars_reviewed_pr",
+    "ars_projection_rebuild",
+]
 P01_ROOTS = ["papers/P01-A-JRSSA/", "papers/P01-B-JRSSB/"]
 
 
@@ -398,10 +453,20 @@ SCHEMAS["legacy-path-registration"] = record(
                 "shared_enforcement_surface",
                 props(writer_classes={"const": ["ars_reviewed_pr_with_owner_note"]}),
             ),
-            {
-                "if": {"properties": {"role": {"enum": ARS_ROLES}}, "required": ["role"]},
-                "then": props(writer_classes={"const": ["ars_reviewed_pr"]}),
-            },
+            when("role", "successor_results_root", props(writer_classes={"const": ["ars_reviewed_pr"]})),
+            # The read-only projection (W9 §7.2, 06v O-16) is gitignored and written only by `ars projection rebuild`
+            # from the store; no PR can write it (re-review N-1).
+            when(
+                "role",
+                "legacy_read_only_projection",
+                props(
+                    ownership_mode={"const": "successor_owned"},
+                    root_kind={"const": "repository_root"},
+                    normalized_path={"pattern": "^\\.research-system/projections/legacy/"},
+                    source_identity_kind={"const": "untracked_file"},
+                    writer_classes={"const": ["ars_projection_rebuild"]},
+                ),
+            ),
             # A vault root holds vault files, and only vault files sit under one (review m-3).
             when(
                 "root_kind",
@@ -655,6 +720,11 @@ SCHEMAS["legacy-light-inventory"] = record(
                 "then": props(path_form=props(resolved_target={"type": "null"})),
                 "else": props(path_form=props(resolved_target={"type": "string"})),
             },
+            # Every row has the inventory's own selector kind (re-review n-4).
+            *(
+                when("selector_kind", kind, props(rows={"items": props(selector_kind={"const": kind})}))
+                for kind in SELECTOR_KINDS
+            ),
         ]
     },
 )
@@ -702,7 +772,7 @@ SCHEMAS["legacy-observation"] = record(
                 {
                     "family_name": FAMILY_NAME,
                     "w0_class": {"enum": W0_CLASSES},
-                    "signed_w0_revision_ref": ref("anyRef"),
+                    "signed_w0_revision_ref": ref("sourceRef"),
                     "signature_record_ref": ref("anyRef"),
                 },
             ),
@@ -713,7 +783,7 @@ SCHEMAS["legacy-observation"] = record(
             obj(
                 ["conflicting_record_refs", "resolution", "precedence_tier"],
                 {
-                    "conflicting_record_refs": arr(ref("anyRef"), 2, unique=True),
+                    "conflicting_record_refs": arr(ref("sourceRef"), 2, unique=True),
                     "resolution": {"enum": ["resolved_by_precedence", "blocked"]},
                     "precedence_tier": {"type": ["integer", "null"], "minimum": 1, "maximum": 7},
                 },
@@ -1003,6 +1073,8 @@ SCHEMAS["legacy-ownership-transitioned"] = record(
     },
 )
 
+# Targets: an observation, closed-reference acceptance, adoption or mapping (W9 §13.1-13.2, read by P-070 over §5.2's
+# narrower row). A record ID does not carry its kind, so the target set is declared in the stage A test's edge table.
 SCHEMAS["legacy-record-supersession"] = record(
     "legacy-record-supersession",
     {
@@ -1238,13 +1310,14 @@ def main(argv: list[str] | None = None) -> int:
     stale = []
     for kind, schema in sorted(SCHEMAS.items()):
         path = OUT_DIR / f"{kind}.schema.json"
-        text = render(schema)
+        data = render(schema).encode("utf-8")
         if args.check:
-            if not path.exists() or path.read_text(encoding="utf-8") != text:
+            # Bytes, not decoded text, so a CRLF copy is stale too (re-review n-3).
+            if not path.exists() or path.read_bytes() != data:
                 stale.append(path.relative_to(REPO_ROOT).as_posix())
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8", newline="\n")
+        path.write_bytes(data)
     for name in stale:
         print(f"stale: {name}", file=sys.stderr)
     return 1 if stale else 0

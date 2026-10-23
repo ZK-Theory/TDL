@@ -4447,6 +4447,30 @@ review (`reviews/wp9-1-stage-a-review-b089f1fa-2026-10-23.md`, commit `d9a7d22b`
 
 **Migration consequence:** None.
 
+### P-070 - W9 erratum reading: §13.1–13.2 fix the supersession targets, not §5.2's row
+
+**Date:** 2026-10-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-23), on finding N-4 of the WP9.1 stage A re-review
+(`reviews/wp9-1-stage-a-re-review-c17c9e57-2026-10-23.md`, commit `e65abca1`).<br>
+**Authority:** Stephen, in chat, 2026-10-23: "Yes: write WP9.1 stage A revision 3 fixing N-1 to N-4 and n-1 to n-5,
+record an erratum reading that W9 §13.1–13.2 (not §5.2's row) fix the supersession targets, then get the reviewer's
+narrow confirmation."<br>
+**Decision:**
+1. **The erratum.** W9 §5.2's `legacy-record-supersession` row reads "Corrects an erroneous accepted observation or
+   mapping". That is a narrower restatement. The targets are fixed by W9 §13.2 and §13.1:
+   - §13.2: "An accepted observation, closed-reference acceptance, adoption or mapping found wrong is superseded by a
+     new record";
+   - §13.1: "After commit, closed-reference item: the accepted record is superseded by `legacy-record-supersession`".
+2. **The supersession targets** are therefore four record kinds: `legacy-observation`,
+   `legacy-closed-reference-acceptance`, `legacy-adoption-decision` and `legacy-transition-mapping`. W9's bytes are not
+   edited (as P-066 item 3 did for §12.3).
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** W9 §5.2 (erratum, bytes unchanged); WP9.1 stage A (the supersession edge table); WP9.6
+(the rollback routes, O-17).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:

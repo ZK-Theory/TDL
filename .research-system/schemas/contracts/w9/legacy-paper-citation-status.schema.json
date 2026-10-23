@@ -191,7 +191,7 @@
     "relPath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*\\s$).+$"
+      "pattern": "^(?![/~])(?!.*[\\\\:])(?!.*//)(?!(.*/)?\\.\\.?(/|$))(?!.*[. ](/|$))(?!.*~[0-9])(?!.*\\s$).+$"
     },
     "recordRef": {
       "type": "object",
@@ -337,6 +337,130 @@
         }
       ]
     },
+    "sourceLocator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "locator_kind",
+            "repository_path",
+            "git_commit",
+            "git_blob",
+            "sha256",
+            "byte_length",
+            "line_span"
+          ],
+          "properties": {
+            "locator_kind": {
+              "const": "git_file"
+            },
+            "repository_path": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
+            },
+            "git_commit": {
+              "$ref": "#/$defs/sha1"
+            },
+            "git_blob": {
+              "$ref": "#/$defs/sha1"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "line_span": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "first_line",
+                    "last_line"
+                  ],
+                  "properties": {
+                    "first_line": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "last_line": {
+                      "type": "integer",
+                      "minimum": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "locator_kind",
+            "vault_path",
+            "sha256",
+            "byte_length",
+            "heading_anchor"
+          ],
+          "properties": {
+            "locator_kind": {
+              "const": "vault_file"
+            },
+            "vault_path": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/relPath"
+                },
+                {
+                  "not": {
+                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
+                  }
+                }
+              ]
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "heading_anchor": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "sourceRef": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/anyRef"
+        },
+        {
+          "$ref": "#/$defs/sourceLocator"
+        }
+      ]
+    },
     "physicalIdentity": {
       "type": "object",
       "required": [
@@ -420,7 +544,7 @@
                 },
                 {
                   "not": {
-                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
                   }
                 }
               ]
@@ -461,7 +585,7 @@
                 },
                 {
                   "not": {
-                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
                   }
                 }
               ]
@@ -524,7 +648,7 @@
                 },
                 {
                   "not": {
-                    "pattern": "\\.([Cc][Ss][Vv]|[Pp][Kk][Ll])$"
+                    "pattern": "(\\.[Cc][Ss][Vv]|\\.[Pp][Kk][Ll])$"
                   }
                 }
               ]
@@ -598,7 +722,7 @@
           ]
         },
         "source_ref": {
-          "$ref": "#/$defs/anyRef"
+          "$ref": "#/$defs/sourceRef"
         },
         "text": {
           "type": "string",

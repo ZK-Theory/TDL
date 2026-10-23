@@ -77,7 +77,35 @@
   skipped, in 510.87 s.
 - **Lint.** `ruff check` and `ruff format` are clean on the generator and the test.
 
-## 5. Not done
+## 5. Revision 3, against the re-review of `c17c9e57`
+
+The re-review (`reviews/wp9-1-stage-a-re-review-c17c9e57-2026-10-23.md`, commit `e65abca1`) returned REWORK REQUIRED
+(narrow): 0 Blocking, 4 Major, 5 Minor and 8 Info findings. Every first-review finding was closed or correctly carried.
+Stephen asked for revision 3 and recorded the erratum reading for N-4 as P-070.
+
+| Finding | Disposition | Where |
+|---|---|---|
+| **N-1** projection writer | Fixed. `legacy_read_only_projection` is now `successor_owned`, under `.research-system/projections/legacy/` (06v O-16), as `untracked_file`, with a new writer class `ars_projection_rebuild`. `ars_reviewed_pr` stays for `successor_results_root` only. The review's P2 to P5 are controls. Both ARS classes are recorded in the note as the author's reading, for Stephen at catalogue acceptance | Generator; `test_projection_is_successor_owned_untracked_and_rebuilt`; note §2 |
+| **N-2** sources ARS has not observed | Fixed. A `sourceLocator` definition, either a Git file (path, commit, blob, SHA-256, size, optional line span) or a vault file (path, SHA-256, size, optional heading anchor), after W11's `sourceRef` `external` form. `sourceRef` is `anyRef` or a locator, used for qualifier sources, conflicting records and the signed W0 revision. The review's R1 and R3 are positive controls (the W9-T4 shape) | Generator `DEFS`; `test_source_reference_admits_…`, `test_observation_names_unobserved_sources_…` |
+| **N-3** edge table omits `anyRef` fields | Fixed. The closure is now every field whose definition admits `obj_`. The walk follows qualifiers and source identities into each host schema, so a paper root's qualifier source is its own edge, limited to observations. R4, a root naming its transition through a qualifier, is a negative control | Test `RECORD_EDGES`, `SAME_KIND_EDGES`, `test_record_reference_graph_is_closed_and_acyclic` |
+| **N-4** supersession targets | Fixed: W9 §13.1–13.2's four kinds (observation, closed-reference acceptance, adoption, mapping). P-070 records §5.2's row as the narrower restatement | P-070; test `SUPERSESSION_TARGETS`; generator comment; note §2 |
+| **n-1** Windows aliases | Fixed. The path grammar rejects a segment ending in `.` or a space, and 8.3 short-name forms. Q1 to Q3 are controls. The note says full alias closure belongs to the handle-bound read | `REL_PATH_PATTERN`; three tests; note §2 |
+| **n-2** suffix list not bound | Fixed. The pattern is derived from the generator's `RESTRICTED_SUFFIXES`, the test asserts it equals the contract's list, and each suffix is tested in both cases against every non-restricted branch | Generator; two tests |
+| **n-3** text, not bytes | Fixed: `--check` and the test compare bytes | Generator `main`; test |
+| **n-4** row selector kind | Fixed: one branch per selector binds `rows[].selector_kind` to the inventory's | `legacy-light-inventory`; test |
+| **n-5** the adapter | Stated in the note: WP9.3's importer fills absent selector fields with null and adds the selector kind, as the test's `_inventory` does | Note §1 |
+| i-6, i-7 | Added to note §3: D-9 is suffix-only; a supersession naming itself belongs to WP9.6 (W9-T14) | Note §2, §3 |
+| i-1 to i-5, i-8 | Recorded | — |
+
+**Verification:**
+- **Stage A test:** 61 passed.
+- **Mutation probe for the new guards.** It removed each of these in turn: the projection rule, the source locator,
+  the trailing-dot/space alias rule and the row selector binding. Each time, the owning test failed. Afterwards the
+  schemas were restored and the generator's `--check` passed.
+- **Related suites:** the first review's command-9 set, plus the segmentation vectors: 555 passed and 1 skipped, in
+  455.33 s.
+
+## 6. Not done
 
 - Stage B: the catalogue, the envelope instance and the verifier.
 - No push, no store, no legacy write.
