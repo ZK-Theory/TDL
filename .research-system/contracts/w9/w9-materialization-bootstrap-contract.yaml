@@ -1,0 +1,71 @@
+schema_id: ars://legacy/w9-materialization-bootstrap-contract
+schema_version: 1.0.0
+source_spec:
+  repository_path: docs/plans/agentic-research-system/design/09-migration-compatibility-and-pilot.md
+  reviewed_commit: 50371fac50f6c600f552ae687b0cea90dca1d0a6
+  git_blob: ea3a8e4a5e89a599c255fd881c2a040db4f2d3c5
+  raw_sha256: cf5ce6718a79ab6e84f8a48f3dc611d85235f5a4e8d2dea5f2dbcc151fe8fac2
+  raw_bytes: 68637
+source_plan:
+  repository_path: docs/plans/agentic-research-system/implementation/06v-w9-implementation-plan.md
+  reviewed_commit: 4999111c078ddf7bae6766c86c1d077833182d2d
+  git_blob: 2b40fae441e07536ce729ef36f1ec69b1a1f7953
+  raw_sha256: 95e3307a3f2b9c1b14ff6824053600941bcc9de5e17694f7f1468b7317ad1630
+  raw_bytes: 58809
+materialization_status: inert_foundation_only
+runtime_activation: forbidden
+expected_catalogue: forbidden_in_stage_a
+acceptance_instance: forbidden_in_stage_a
+segmentation_contract: w9-segmentation/1.0.0
+refused_store_identities:
+  - 5e3b95a956a8a416accd697f250088b5c8723924eb68544f01064ede6eb18d69
+required_w11_catalogue:
+  repository_path: .research-system/evals/expected/w11-portfolio-discovery-v1.json
+  git_blob: 8d58818540e04859f929d4b04c71e4cfa0512554
+  raw_sha256: 7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80
+  raw_bytes: 136229
+restricted_suffixes:
+  - .csv
+  - .pkl
+verification_rules:
+  - the accepted W9 and 06v raw-byte tuples are independently observed at their pinned commits and at the checked-out HEAD
+  - the W9 runtime cannot produce or accept its own prerequisite
+  - restricted_suffixes is a copy of the D-9 list and changes with it under the same reviewed PR (P-069 item 3)
+  - every W9 schema is reproduced byte for byte by tools/w9_schema_gen.py
+  - every materialized schema is Draft 2020-12 valid, closed at the top level, and carries schema_id equal to its $id
+  - every W9 schema id is under ars://legacy/ and none collides with ars://portfolio/ or ars://core/
+  - ars://legacy/ schema ids remain absent from runtime bindings; the W9 runtime validates content through the registry
+  - the accepted W11 schema tree, route partition and catalogue are unchanged
+  - no expected catalogue or acceptance instance is materialized in stage A
+  - no runtime production Python is changed
+  - the W9 genesis requires a store whose replayed Discovery projection holds the accepted W11 catalogue
+  - the W9 genesis refuses every store identity listed in refused_store_identities, read before binding
+families:
+  record:
+    - legacy-path-registration
+    - legacy-field-family-membership
+    - legacy-light-inventory
+    - legacy-observation
+    - legacy-closed-reference-acceptance
+    - legacy-adoption-decision
+    - legacy-discharge-relation
+    - legacy-paper-root
+    - legacy-paper-citation-status
+    - legacy-source-inventory
+    - legacy-transition-mapping
+    - legacy-ownership-transitioned
+    - legacy-record-supersession
+  bootstrap:
+    - w9-catalogue-acceptance-envelope
+    - w9-materialization-bootstrap-contract
+    - import-accepted-w9-catalogue-genesis
+    - w9-schema-catalogue-content
+forbidden:
+  - runtime_schema_registry binding for any ars://legacy/ schema
+  - runtime handlers, ledger append, reducers, or projectors
+  - expected catalogue instance
+  - catalogue acceptance envelope instance
+  - W9 genesis import
+  - any write to the Gate 6 store TDL-ARS-G6-Control
+  - observation, adoption, transition, cutover, or retirement of any legacy item
+  - provider, credential, Jira, PR, or merge action
