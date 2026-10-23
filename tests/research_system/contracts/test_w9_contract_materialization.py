@@ -754,6 +754,9 @@ def test_closed_reference_anchors_both_hashes() -> None:
     bad = deepcopy(acceptance)
     bad["anchors"][1]["value"] = _SHA1
     assert not _valid(kind, bad)
+    # PR #394 review: each hash has exactly one anchor; two different threshold anchors leave no rule to choose.
+    second = {"anchored": "threshold_preregistration", "anchor_kind": "git_commit", "value": "1" * 40}
+    assert not _valid(kind, {**acceptance, "anchors": [*acceptance["anchors"], second]})
 
 
 def test_membership_binds_the_accepted_table_and_the_bytes_its_author_read() -> None:

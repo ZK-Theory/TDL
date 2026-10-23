@@ -861,8 +861,8 @@ SCHEMAS["legacy-closed-reference-acceptance"] = record(
         "anchors": {
             **arr(ANCHOR, 2, unique=True),
             "allOf": [
-                {"contains": props(anchored={"const": "threshold_preregistration"})},
-                {"contains": props(anchored={"const": "governing_record_set"})},
+                {"contains": props(anchored={"const": "threshold_preregistration"}), "maxContains": 1},
+                {"contains": props(anchored={"const": "governing_record_set"}), "maxContains": 1},
             ],
         },
         "enforcement_change_list": {

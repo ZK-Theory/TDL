@@ -195,7 +195,8 @@
                 "const": "threshold_preregistration"
               }
             }
-          }
+          },
+          "maxContains": 1
         },
         {
           "contains": {
@@ -204,7 +205,8 @@
                 "const": "governing_record_set"
               }
             }
-          }
+          },
+          "maxContains": 1
         }
       ]
     },
