@@ -8,7 +8,7 @@
     "bootstrap_contract_identity",
     "superseded_catalogue_identity",
     "revision_envelope_identity",
-    "superseded_owner_row_ids",
+    "row_supersessions",
     "requested_transaction_id",
     "refused_store_identities",
     "verification_requirements",
@@ -108,11 +108,25 @@
       },
       "additionalProperties": false
     },
-    "superseded_owner_row_ids": {
+    "row_supersessions": {
       "type": "array",
       "items": {
-        "type": "string",
-        "pattern": "^LR-[0-9]{3}$"
+        "type": "object",
+        "required": [
+          "superseded_owner_row_id",
+          "replacing_owner_row_id"
+        ],
+        "properties": {
+          "superseded_owner_row_id": {
+            "type": "string",
+            "pattern": "^LR-[0-9]{3}$"
+          },
+          "replacing_owner_row_id": {
+            "type": "string",
+            "pattern": "^LR-[0-9]{3}$"
+          }
+        },
+        "additionalProperties": false
       },
       "uniqueItems": true
     },

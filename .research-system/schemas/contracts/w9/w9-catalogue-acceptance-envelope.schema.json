@@ -8,6 +8,7 @@
     "specification_identity",
     "plan_identity",
     "catalogue_identity",
+    "owner_annex_identity",
     "schema_identities",
     "owner_row_multiset_hash",
     "bootstrap_contract_identity",
@@ -86,6 +87,35 @@
       "additionalProperties": false
     },
     "catalogue_identity": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "git_commit",
+        "git_blob",
+        "file_length",
+        "file_sha256"
+      ],
+      "properties": {
+        "repository_path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "git_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "file_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "owner_annex_identity": {
       "type": "object",
       "required": [
         "repository_path",

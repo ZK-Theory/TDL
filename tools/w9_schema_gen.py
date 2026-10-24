@@ -2,8 +2,8 @@
 # Purpose: generate the inert ars://legacy/ schema family (W9 §5.2) so its committed bytes can be reproduced.
 """Generator for the W9 WP9.1 stage A schema family under `.research-system/schemas/contracts/w9/`.
 
-This is a non-runtime tool (P-069 item 4). It writes only the 17 schema files it owns and reads nothing else. Every
-shared definition is inlined in each schema, so no schema references another file; a test asserts that the 17 inlined
+This is a non-runtime tool (P-069 item 4). It writes only the 19 schema files it owns and reads nothing else. Every
+shared definition is inlined in each schema, so no schema references another file; a test asserts that the 19 inlined
 `$defs` blocks are identical.
 
 Usage::
@@ -1156,6 +1156,7 @@ SCHEMAS["w9-catalogue-acceptance-envelope"] = bootstrap_schema(
             "specification_identity",
             "plan_identity",
             "catalogue_identity",
+            "owner_annex_identity",
             "schema_identities",
             "owner_row_multiset_hash",
             "bootstrap_contract_identity",
@@ -1174,7 +1175,10 @@ SCHEMAS["w9-catalogue-acceptance-envelope"] = bootstrap_schema(
             "specification_identity": SPEC_IDENTITY,
             "plan_identity": SPEC_IDENTITY,
             "catalogue_identity": CODE_IDENTITY,
+            # The O-8 envelope names the owner annex explicitly (P-072 item 6; P-074 item 3).
+            "owner_annex_identity": CODE_IDENTITY,
             "schema_identities": arr(SCHEMA_FILE_IDENTITY, 1, unique=True),
+            # SHA-256 of the canonical JSON of the sorted per-row canonical-JSON SHA-256s (P-074 item 1).
             "owner_row_multiset_hash": ref("sha256"),
             "bootstrap_contract_identity": CODE_IDENTITY,
             "schema_generator_identity": CODE_IDENTITY,
@@ -1219,7 +1223,7 @@ SCHEMAS["import-accepted-w9-catalogue-genesis"] = bootstrap_schema(
 )
 
 # The inert revision import (P-072 item 5; owner annex LR-002): a later accepted catalogue revision enters a store that
-# already holds v1. Every v1 row is unchanged or named here as superseded.
+# already holds v1. Every v1 row is unchanged or superseded by a named revision row, mapped here (P-074 item 2).
 SCHEMAS["import-accepted-w9-catalogue-revision"] = bootstrap_schema(
     "import-accepted-w9-catalogue-revision",
     obj(
@@ -1229,7 +1233,7 @@ SCHEMAS["import-accepted-w9-catalogue-revision"] = bootstrap_schema(
             "bootstrap_contract_identity",
             "superseded_catalogue_identity",
             "revision_envelope_identity",
-            "superseded_owner_row_ids",
+            "row_supersessions",
             "requested_transaction_id",
             "refused_store_identities",
             "verification_requirements",
@@ -1241,7 +1245,16 @@ SCHEMAS["import-accepted-w9-catalogue-revision"] = bootstrap_schema(
             "bootstrap_contract_identity": CODE_IDENTITY,
             "superseded_catalogue_identity": CODE_IDENTITY,
             "revision_envelope_identity": CODE_IDENTITY,
-            "superseded_owner_row_ids": arr({"type": "string", "pattern": "^LR-[0-9]{3}$"}, unique=True),
+            "row_supersessions": arr(
+                obj(
+                    ["superseded_owner_row_id", "replacing_owner_row_id"],
+                    {
+                        "superseded_owner_row_id": {"type": "string", "pattern": "^LR-[0-9]{3}$"},
+                        "replacing_owner_row_id": {"type": "string", "pattern": "^LR-[0-9]{3}$"},
+                    },
+                ),
+                unique=True,
+            ),
             "requested_transaction_id": TEXT,
             "refused_store_identities": arr(ref("sha256"), 1, unique=True),
             "verification_requirements": arr(TEXT, 1),
@@ -1431,7 +1444,7 @@ def render(schema: Schema) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Write (or, with --check, compare) the 17 schema files.
+    """Write (or, with --check, compare) the 19 schema files.
 
     Args:
         argv: Command-line arguments; defaults to `sys.argv[1:]`.

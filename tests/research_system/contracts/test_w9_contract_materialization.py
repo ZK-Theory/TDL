@@ -1082,7 +1082,8 @@ def test_catalogue_revision_import_is_inert_and_names_superseded_rows() -> None:
         "bootstrap_contract_identity": identity,
         "superseded_catalogue_identity": identity,
         "revision_envelope_identity": identity,
-        "superseded_owner_row_ids": ["LR-016"],
+        # P-074 item 2: each superseded v1 row maps to its named replacing revision row.
+        "row_supersessions": [{"superseded_owner_row_id": "LR-016", "replacing_owner_row_id": "LR-062"}],
         "requested_transaction_id": "txn",
         "refused_store_identities": [GATE6_STORE_IDENTITY],
         "verification_requirements": ["every v1 row unchanged or superseded"],
@@ -1090,4 +1091,12 @@ def test_catalogue_revision_import_is_inert_and_names_superseded_rows() -> None:
     }
     assert _valid(kind, revision)
     assert not _valid(kind, {**revision, "activation_status": "executed"})
-    assert not _valid(kind, {**revision, "superseded_owner_row_ids": ["OR-016"]})
+    assert not _valid(kind, {**revision, "row_supersessions": [{"superseded_owner_row_id": "OR-016"}]})
+    unnamed = [{"superseded_owner_row_id": "LR-016", "replacing_owner_row_id": None}]
+    assert not _valid(kind, {**revision, "row_supersessions": unnamed})
+
+
+def test_acceptance_envelope_names_the_owner_annex() -> None:
+    # P-074 item 3: the O-8 envelope names the annex explicitly.
+    envelope = _schema("w9-catalogue-acceptance-envelope")
+    assert "owner_annex_identity" in envelope["required"]

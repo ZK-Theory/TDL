@@ -1,20 +1,24 @@
-# Research context: docs/plans/agentic-research-system/transition/w9/wp9-1-stage-b-design-note.md (WP9.1 B1; P-072, P-073)
-# Purpose: controls for tools/verify_w9_materialization.py and the owner annex it derives the W9 catalogue from.
+# Research context: docs/plans/agentic-research-system/transition/w9/wp9-1-stage-b-design-note.md (WP9.1 B1; P-072, P-074)
+# Purpose: controls for tools/verify_w9_materialization.py: the pinned annex, per-row W9-C01/W9-C03, and refusals.
 """Controls for the W9 catalogue verifier (WP9.1 stage B1).
 
-The annex is the expected side (P-072 item 6; note §3). These controls check that:
-- the verifier accepts the committed annex;
-- every derived row fits the widened catalogue row schema;
-- the annex covers the owned record family and command set;
-- the verifier refuses each rule violation and detects a mutation of any catalogue field.
+The verifier's expected side is the owner annex, pinned by blob, together with Git and the bootstrap contract. These
+controls cover the following (B1 review B-1, B-2, M-1, M-2, m-1 to m-3 and m-8):
+- the pinned annex is the committed one;
+- each row's W9-C01 positive control and W9-C03 mutation control, under W11's test-ID scheme;
+- a golden literal row;
+- every refusal the verifier owes.
 
-No catalogue exists in B1. Comparison is exercised against a catalogue built here from the derived rows.
+No catalogue exists in B1. The catalogue under test is the one the verifier expects for this checkout, built at
+``HEAD``, with ``HEAD`` as the main ref.
 """
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 from copy import deepcopy
 from functools import lru_cache
@@ -24,29 +28,10 @@ from typing import Any
 
 import pytest
 import yaml
-from jsonschema import Draft202012Validator
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-CONTRACT = REPO_ROOT / ".research-system" / "contracts" / "w9" / "w9-materialization-bootstrap-contract.yaml"
-
-# The command types the annex may use (re-review I-2: the WP9.2 census grows by these, not by the row count).
-COMMAND_TYPES = {
-    "ImportAcceptedW9CatalogueGenesis",
-    "ImportAcceptedW9CatalogueRevision",
-    "ProposeLegacyRecord",
-    "RequestW9AuthorityReview",
-    "RecordW9AuthorityReview",
-    "ProposeW9AuthorityDecision",
-    "ResolveW9AuthorityDecision",
-    "RecordLegacyLightInventory",
-    "ObserveLegacyRecord",
-    "CreateLegacyPaperRoot",
-    "RecordPaperCitationStatus",
-    "RecordAdoptionUseMismatch",
-}
-_HASH = "0" * 64
-_SHA1 = "0" * 40
-_UUID = "00000000-0000-7000-8000-000000000001"
+PRE_FOLD_ANNEX_COMMIT = "8a0d68fc"  # revision 3 before the confirmation's residuals were folded (B1 review probe P2)
+STAGE_A_MAIN = "5d325c5b"  # main before stage B: it holds no annex
 
 
 @lru_cache(maxsize=None)
@@ -59,157 +44,210 @@ def _verifier() -> ModuleType:
     return module
 
 
-@lru_cache(maxsize=None)
-def _annex() -> dict[str, Any]:
-    return _verifier().load_annex("HEAD")
+V = _verifier()
+ROW_IDS = V.W9_OWNER_ROW_IDS
+
+
+def _head() -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, check=True, text=True
+    ).stdout.strip()
 
 
 @lru_cache(maxsize=None)
-def _identity() -> dict[str, Any]:
-    return _verifier().annex_identity("HEAD")
-
-
-def _schema_ids() -> set[str]:
-    return _verifier().committed_record_schema_ids()
+def _expected() -> dict[str, Any]:
+    return V.expected_catalogue(_head(), _head())
 
 
 def _catalogue() -> dict[str, Any]:
-    rows = _verifier().expected_rows(_annex(), _identity())
-    return {
-        "schema_id": "ars://legacy/w9-schema-catalogue-content",
-        "schema_version": "1.0.0",
-        "record_id": f"obj_{_UUID}",
-        "record_revision": 1,
-        "supersedes_revision": None,
-        "project_id": f"prj_{_UUID}",
-        "created_at": "2026-10-24T00:00:00Z",
-        "created_by_actor_id": f"act_{_UUID}",
-        "content_hash": _HASH,
-        "owner_spec_identity": {
-            "repository_path": "docs/w9.md",
-            "reviewed_commit": _SHA1,
-            "git_blob": _SHA1,
-            "raw_sha256": _HASH,
-            "raw_bytes": 1,
-        },
-        "owner_plan_identity": {
-            "repository_path": "docs/06v.md",
-            "reviewed_commit": _SHA1,
-            "git_blob": _SHA1,
-            "raw_sha256": _HASH,
-            "raw_bytes": 1,
-        },
-        "owner_annex_identity": dict(_identity()),
-        "global_preconditions": list(_annex()["global_preconditions"]),
-        "owner_row_count": len(rows),
-        "owner_row_range_hash": _verifier().sha256_hex(_verifier().canonical_json(rows)),
-        "schema_source_rows": [
-            {
-                "repository_path": "x.schema.json",
-                "schema_id": "ars://legacy/legacy-observation",
-                "schema_version": "1.0.0",
-                "git_commit": _SHA1,
-                "git_blob": _SHA1,
-                "file_length": 1,
-                "file_sha256": _HASH,
-            }
-        ],
-        "owner_contract_rows": rows,
-    }
+    return deepcopy(_expected())
 
 
-def _catalogue_validator() -> Draft202012Validator:
-    schema_path = REPO_ROOT / _verifier().CATALOGUE_SCHEMA
-    schema = json.loads(schema_path.read_text(encoding="utf-8"))
-    return Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+def _resign(catalogue: dict[str, Any]) -> dict[str, Any]:
+    unsigned = {key: value for key, value in catalogue.items() if key != "content_hash"}
+    catalogue["content_hash"] = V.sha256_hex(V.canonical_bytes(unsigned))
+    return catalogue
 
 
-def test_committed_annex_passes_its_own_rules() -> None:
-    assert _verifier().check_annex(_annex(), _schema_ids()) == []
+def _problems(catalogue: Any, main_ref: str | None = None) -> list[str]:
+    return V.verify_catalogue(catalogue, main_ref or _head())
 
 
-def test_derived_catalogue_fits_the_widened_row_schema() -> None:
-    errors = [error.message for error in _catalogue_validator().iter_errors(_catalogue())]
-    assert errors == []
+def _independent_annex_rows() -> dict[str, dict[str, Any]]:
+    """The pinned annex, read by blob through a plain YAML parse, independently of the verifier's loader."""
+    data = subprocess.run(
+        ["git", "cat-file", "blob", V.W9_ANNEX_BLOB], cwd=REPO_ROOT, capture_output=True, check=True
+    ).stdout
+    assert hashlib.sha256(data).hexdigest() == V.W9_ANNEX_SHA256
+    return {row["owner_row_id"]: row for row in yaml.safe_load(data.decode("utf-8"))["rows"]}
 
 
-def test_annex_covers_the_owned_family_and_command_set() -> None:
-    rows = _annex()["rows"]
-    contract = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))
-    records = {f"ars://legacy/{kind}" for kind in contract["families"]["record"]}
-    named = {row["record_schema_id"] for row in rows}
-    # Every W9 record is created or worked on by at least one row; the bootstrap rows name their two import inputs.
-    assert records <= named
-    assert named - records == {
-        "ars://legacy/import-accepted-w9-catalogue-genesis",
-        "ars://legacy/import-accepted-w9-catalogue-revision",
-    }
-    assert {row["command_type"] for row in rows} == COMMAND_TYPES
+# --- The pinned annex ------------------------------------------------------------------------------------------------
 
 
-def test_every_row_resolved_by_stephen_is_submitted_by_stephen() -> None:
-    for row in _annex()["rows"]:
-        assert (row["resolver"] == "stephen") == (row["eligible_actor"] == "stephen"), row["owner_row_id"]
+def test_pinned_annex_is_the_committed_annex_and_passes_its_rules() -> None:
+    blob = subprocess.run(
+        ["git", "rev-parse", f"HEAD:{V.ANNEX_PATH}"], cwd=REPO_ROOT, capture_output=True, check=True, text=True
+    ).stdout.strip()
+    assert blob == V.W9_ANNEX_BLOB
+    assert V.check_annex(V.pinned_annex()) == []
+    assert tuple(_independent_annex_rows()) == ROW_IDS
 
 
-def test_matching_catalogue_verifies_clean() -> None:
-    assert _verifier().compare_catalogue(_catalogue(), _annex(), _identity()) == []
+def test_expected_catalogue_verifies_clean() -> None:
+    assert _problems(_catalogue()) == []
 
 
-@pytest.mark.parametrize("field", sorted(_verifier().COPIED_FIELDS + _verifier().DERIVED_FIELDS))
-def test_mutating_any_field_of_a_row_is_detected(field: str) -> None:
-    # W9-C03: a mutation of any one catalogue field is detected against the annex.
+# --- W9-C01 and W9-C03, per row (W11's scheme: test_w11_expected_catalogue.py:47-96) -------------------------------
+
+
+@pytest.mark.parametrize("row_id", ROW_IDS, ids=[f"W9-C01-{row_id}" for row_id in ROW_IDS])
+def test_w9_c01_row_matches_the_annex(row_id: str) -> None:
+    annex_row = _independent_annex_rows()[row_id]
+    row = next(r for r in _expected()["owner_contract_rows"] if r["owner_row_id"] == row_id)
+    for field in V.COPIED_FIELDS:
+        assert row[field] == annex_row[field], field
+    assert row["owner_annex_ref"]["row_sha256"] == V.sha256_hex(V.canonical_bytes(annex_row))
+    assert row["positive_test_identity"] == f"W9-C01-{row_id}"
+    assert row["negative_mutation_test_identity"] == f"W9-C03-{row_id}-owner-row-mutation"
+    assert row["retry_test_identity"] == f"W9-C11-{row_id}"
+
+
+@pytest.mark.parametrize("row_id", ROW_IDS, ids=[f"W9-C03-{row_id}-owner-row-mutation" for row_id in ROW_IDS])
+def test_w9_c03_any_field_mutation_is_detected(row_id: str) -> None:
+    expected = _expected()["owner_contract_rows"]
+    index = ROW_IDS.index(row_id)
+    for field in (*V.COPIED_FIELDS, *V.DERIVED_FIELDS):
+        rows = deepcopy(expected)
+        value = rows[index][field]
+        rows[index][field] = {"mutated": True} if isinstance(value, dict) else "mutated"
+        problems = V.compare_rows(rows, expected)
+        assert problems == [f"{row_id}: field {field} differs from the annex-derived value"], (field, problems)
+
+
+def test_a_row_mutation_fails_the_whole_catalogue() -> None:
+    # The full path: a mutated row in a re-signed catalogue is refused by verify_catalogue itself.
     catalogue = _catalogue()
-    row = catalogue["owner_contract_rows"][19]
-    row[field] = {"mutated": True} if isinstance(row[field], dict) else "mutated"
-    catalogue["owner_row_range_hash"] = _verifier().sha256_hex(
-        _verifier().canonical_json(catalogue["owner_contract_rows"])
+    catalogue["owner_contract_rows"][19]["authority_subject"] = "exact decision-proposal subject, loosened"
+    problems = _problems(_resign(catalogue))
+    assert "LR-020: field authority_subject differs from the annex-derived value" in problems
+
+
+def test_golden_row_lr_020() -> None:
+    # A literal check, so the derivation is not proved only against itself (B1 review M-2).
+    row = _expected()["owner_contract_rows"][19]
+    assert row["owner_row_id"] == "LR-020"
+    assert row["complete_write_set"] == [
+        "W2:DecisionResolved",
+        "E:legacy-closed-reference-acceptance-recorded",
+        "E:legacy-ownership-transitioned-recorded",
+        "record stream of the pre-assigned legacy_closed_reference_acceptance ID",
+        "legacy_closed_reference_acceptance index",
+    ]
+    assert row["receipt_identity"] == "R:resolve-w9-authority-decision/legacy_closed_reference_acceptance"
+    assert row["reducer"] == "U:legacy-closed-reference-acceptance, U:legacy-ownership-transitioned"
+    assert row["owner_annex_ref"]["repository_path"] == (
+        "docs/plans/agentic-research-system/transition/w9/wp9-1-catalogue-owner-annex.yaml"
     )
-    problems = _verifier().compare_catalogue(catalogue, _annex(), _identity())
-    assert any(field in problem for problem in problems), problems
+    assert row["owner_annex_ref"]["git_blob"] == "d8fbda416b016f5e19c03689f336caff3166d0d9"
+    assert row["owner_annex_ref"]["file_sha256"] == "36a3d1ac945930ae68a24059fc4be1a7f90050ff99a4038fd41853e01a3536fc"
+    assert (
+        _expected()["owner_row_range_hash"]
+        == hashlib.sha256(json.dumps(sorted(ROW_IDS), separators=(",", ":")).encode("utf-8")).hexdigest()
+    )
+
+
+# --- Refusals: the catalogue's non-row fields (B1 review B-1) ------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     ("change", "expected"),
     [
+        (lambda c: c.update(unexpected_key=1), "schema:"),
+        (lambda c: c.update(record_id="obj_00000000-0000-7000-8000-000000000001"), "record_id"),
+        (lambda c: c.update(project_id="prj_00000000-0000-7000-8000-000000000002"), "project_id"),
+        (lambda c: c["owner_spec_identity"].update(raw_bytes=1), "owner_spec_identity"),
+        (lambda c: c["schema_source_rows"][0].update(git_blob="0" * 40), "schema_source_rows do not match"),
+        (lambda c: c["schema_source_rows"].pop(), "schema_source_rows do not match"),
         (lambda c: c.update(owner_row_count=1), "owner_row_count"),
-        (lambda c: c.update(owner_row_range_hash=_HASH), "owner_row_range_hash"),
-        (lambda c: c["owner_contract_rows"].pop(), "rows in the catalogue"),
+        (lambda c: c.update(owner_row_range_hash="0" * 64), "owner_row_range_hash"),
         (lambda c: c.update(global_preconditions=["G1"]), "global_preconditions"),
-        (lambda c: c["owner_annex_identity"].update(git_commit=_SHA1), "owner_annex_identity"),
+        (lambda c: c["owner_contract_rows"].pop(), "rows in the catalogue"),
     ],
 )
-def test_catalogue_level_differences_are_detected(change: Any, expected: str) -> None:
+def test_non_row_field_errors_are_refused(change: Any, expected: str) -> None:
     catalogue = _catalogue()
     change(catalogue)
-    assert any(expected in problem for problem in _verifier().compare_catalogue(catalogue, _annex(), _identity()))
+    problems = _problems(_resign(catalogue))
+    assert any(expected in problem for problem in problems), problems
 
 
-def _first_flow_row(annex: dict[str, Any]) -> dict[str, Any]:
-    return next(row for row in annex["rows"] if row["w9c_only_reason"] == "authority_flow_step")
+def test_stale_content_hash_is_refused() -> None:
+    catalogue = _catalogue()
+    catalogue["owner_row_count"] = 61  # unchanged value, unsigned edit below
+    catalogue["created_at"] = "2026-10-25T00:00:00Z"
+    assert any("content_hash" in problem for problem in _problems(catalogue))
 
 
-def _first_t_row(annex: dict[str, Any]) -> dict[str, Any]:
-    return next(row for row in annex["rows"] if row["w9c_only_reason"] is None)
+def test_schema_source_commit_off_main_is_refused() -> None:
+    assert any("schema source commit is not on" in p for p in _problems(_catalogue(), main_ref=STAGE_A_MAIN))
+
+
+# --- Refusals: the expected side (B1 review B-2) -------------------------------------------------------------------
+
+
+def test_annex_at_a_commit_off_main_is_refused() -> None:
+    assert any("is not on" in p for p in _problems(_catalogue(), main_ref=STAGE_A_MAIN))
+
+
+def test_catalogue_cannot_choose_the_pre_fold_annex() -> None:
+    catalogue = _catalogue()
+    catalogue["owner_annex_identity"] = V.annex_identity(V.resolve_commit(PRE_FOLD_ANNEX_COMMIT))
+    problems = _problems(_resign(catalogue))
+    assert any("pinned annex blob" in p for p in problems), problems
+
+
+def test_annex_commit_without_the_annex_is_refused() -> None:
+    catalogue = _catalogue()
+    catalogue["owner_annex_identity"]["git_commit"] = V.resolve_commit(STAGE_A_MAIN)
+    problems = _problems(_resign(catalogue))
+    assert any("does not hold the pinned annex blob" in p for p in problems), problems
+
+
+def test_non_object_catalogue_is_a_problem_not_a_traceback() -> None:
+    assert _problems([]) == ["the catalogue is not a JSON object"]
+
+
+# --- Refusals: annex rules (P-073 item 1; B1 review m-2) -----------------------------------------------------------
+
+
+def _first(annex: dict[str, Any], reason: str | None) -> dict[str, Any]:
+    return next(row for row in annex["rows"] if row["w9c_only_reason"] == reason)
 
 
 @pytest.mark.parametrize(
     ("mutate", "expected"),
     [
-        # P-073 item 1: a W9-C-only row must carry a reason and bind a W9-C2x test.
-        (lambda a: _first_flow_row(a).update(binding_tests=[]), "must bind a W9-C2x test"),
-        (lambda a: _first_flow_row(a).update(w9c_only_reason=None), "needs a w9c_only_reason"),
-        (lambda a: _first_t_row(a).update(w9c_only_reason="authority_flow_step"), "carries a w9c_only_reason"),
-        (lambda a: _first_flow_row(a).update(binding_tests=["W9-C29"]), "not a declared W9-C2x"),
-        (lambda a: _first_t_row(a).update(binding_tests=["W9-T24"]), "outside W9 §17"),
-        (lambda a: a["rows"][0].update(owner_row_id="LR-099"), "contiguous"),
+        (lambda a: _first(a, "authority_flow_step").update(binding_tests=[]), "must bind a W9-C2x test"),
+        (lambda a: _first(a, "authority_flow_step").update(w9c_only_reason=None), "needs a w9c_only_reason"),
+        (lambda a: _first(a, None).update(w9c_only_reason="authority_flow_step"), "carries a w9c_only_reason"),
+        (lambda a: _first(a, "authority_flow_step").update(binding_tests=["W9-C29"]), "not a declared W9-C2x"),
+        (lambda a: _first(a, None).update(binding_tests=["W9-T24"]), "outside W9 §17"),
+        (lambda a: a["catalogue_tests"].pop("W9-C24"), "catalogue_tests"),
+        (lambda a: a["rows"][0].update(owner_row_id="LR-099"), "LR-001 to LR-061"),
         (lambda a: a["rows"][1].update(payload_discriminant=a["rows"][0]["payload_discriminant"]), "unique"),
+        (lambda a: a["rows"][0].update(command_type="NewCommand"), "command-type set"),
         (lambda a: a["rows"][0].update(eligible_actor="manager"), "closed set"),
-        (lambda a: a["rows"][0].update(record_schema_id="ars://legacy/none"), "not a committed schema"),
+        (lambda a: a["rows"][0].update(resolver="anyone"), "resolver"),
+        (lambda a: a["rows"][4].update(eligible_actor="migration_analyst"), "submitted by Stephen"),
+        (lambda a: a["rows"][0].update(projection_targets=["not a P token"]), "P: tokens"),
+        (lambda a: a["rows"][0].update(reducer="nope"), "U: token"),
         (
-            lambda a: _first_t_row(a).update(pilot_promotion_fixtures=[{"fixture_id": "F-039", "when": None}]),
-            "outside F-001",
+            lambda a: a["rows"][0].update(record_schema_id="ars://legacy/w9-materialization-bootstrap-contract"),
+            "not a W9 record or import schema",
         ),
+        (lambda a: a["rows"][0].update(record_schema_version="2.0.0"), "record_schema_version"),
+        (lambda a: _first(a, None).update(pilot_promotion_fixtures=[{"fixture_id": "F-039", "when": None}]), "F-001"),
         (lambda a: a["rows"][0]["ordered_events"][0].update(multiplicity="many"), "multiplicity"),
         (lambda a: a["rows"][0]["ordered_events"][0].update(event="E:bad token"), "malformed"),
         (lambda a: a["rows"][0].update(receipt_identity="R:other"), "receipt_identity"),
@@ -217,14 +255,35 @@ def _first_t_row(annex: dict[str, Any]) -> dict[str, Any]:
     ],
 )
 def test_annex_rule_violations_are_refused(mutate: Any, expected: str) -> None:
-    annex = deepcopy(_annex())
+    annex = deepcopy(V.pinned_annex())
     mutate(annex)
-    problems = _verifier().check_annex(annex, _schema_ids())
+    problems = V.check_annex(annex)
     assert any(expected in problem for problem in problems), problems
 
 
 def test_a_conditional_event_needs_its_condition() -> None:
-    annex = deepcopy(_annex())
+    annex = deepcopy(V.pinned_annex())
     row = next(r for r in annex["rows"] if any(e["multiplicity"] == "0..n" for e in r["ordered_events"]))
     next(e for e in row["ordered_events"] if e["multiplicity"] == "0..n")["condition"] = None
-    assert any("needs its condition" in p for p in _verifier().check_annex(annex, _schema_ids()))
+    assert any("needs its condition" in p for p in V.check_annex(annex))
+
+
+def test_duplicate_yaml_keys_are_refused() -> None:
+    with pytest.raises(yaml.YAMLError):
+        V.strict_yaml(b"rows:\n- resolver: stephen\n  resolver: none\n")
+
+
+# --- The command line (B1 review M-1, m-8) -------------------------------------------------------------------------
+
+
+def test_missing_named_catalogue_fails() -> None:
+    assert V.main(["--catalogue", "does/not/exist.json"]) == 1
+
+
+def test_required_absent_catalogue_fails() -> None:
+    assert not (REPO_ROOT / V.CATALOGUE_PATH).exists()
+    assert V.main(["--require-catalogue"]) == 1
+
+
+def test_annex_only_run_passes() -> None:
+    assert V.main([]) == 0

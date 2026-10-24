@@ -4634,6 +4634,35 @@ M-4, M-5, M-6 and m-7).<br>
 are named); 06v O-31 (read); the stage B verifier.<br>
 **Migration consequence:** None.
 
+### P-074 - WP9.1 stage B1: catalogue row hashes, the revision map, and the annex in the envelope
+
+**Date:** 2026-10-24<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-24), answering the owner points of the B1 review
+(`reviews/wp9-1-stage-b1-review-07cbcf32-2026-10-24.md`, commit `d6c969fa`: m-3, m-4 and m-5).<br>
+**Authority:** Stephen, in chat, 2026-10-24, choosing the recommended option each time:
+- m-3, row hashes: "W11's definitions (Recommended)";
+- m-4, revision map: "Add a map now (Recommended)";
+- m-5, envelope: "Widen the envelope (Recommended)".
+
+**Decision:**
+1. **Row hashes (m-3), on W11's definitions.**
+   - `owner_row_range_hash` is the SHA-256 of the canonical JSON of the sorted owner row IDs. It is not circular.
+   - The envelope's `owner_row_multiset_hash` is the SHA-256 of the canonical JSON of the sorted list of each row's
+     canonical-JSON SHA-256.
+   - Canonical JSON is `research_system.canonical.canonical_bytes`.
+2. **The revision map (m-4).** `import-accepted-w9-catalogue-revision` carries an ordered array of
+   `{superseded_owner_row_id, replacing_owner_row_id}` pairs. That is what LR-002's "superseded by a named revision row"
+   names. The change is made in B1, before B2 pins the schemas.
+3. **The annex in the envelope (m-5).** `w9-catalogue-acceptance-envelope` gains a required `owner_annex_identity`, so
+   the O-8 envelope names the annex explicitly, as P-072 item 6 reads.
+
+**Not decided here:** the catalogue's acceptance (O-8).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** the stage B design note §3 (the hash definitions); stage B1 (the revision-import and
+envelope schemas, and the verifier); O-8.<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:

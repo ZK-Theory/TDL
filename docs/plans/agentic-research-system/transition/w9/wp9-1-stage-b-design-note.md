@@ -114,13 +114,27 @@ W9-C03), as W11's verifier does (`tools/verify_w11_materialization.py:539-579`).
 | `retry_test_identity` | yes | derived |
 | `owner_annex_ref` | yes | derived. It replaces W11's `file_observation_ref`. `source_refs` stays in the annex as provenance |
 
+**Row hashes (P-074 item 1).** Canonical JSON is `research_system.canonical.canonical_bytes`.
+- `owner_row_range_hash` is the SHA-256 of the canonical JSON of the sorted owner row IDs, as in W11.
+- The envelope's `owner_row_multiset_hash` is the SHA-256 of the canonical JSON of the sorted per-row SHA-256s.
+
+**The verifier's independent side (B1 review B-1, B-2).** The verifier pins:
+- the annex's blob, SHA-256 and size, plus its owner-row ID set, its command-type set and its catalogue-test set;
+- the catalogue's own record, project and actor IDs.
+
+It derives three things itself: the schema source rows, from the family's files at one commit on main whose blobs are
+unchanged at `HEAD`; the owner specification and plan identities, from the bootstrap contract; and `content_hash`.
+It also validates the catalogue against its schema. A catalogue cannot choose its own expected side.
+
 **Schema changes in B1:**
 - the catalogue row widens to these fields;
 - the `ordered_events` entry shape changes, and its token may be `E:` or `W2:`;
 - `binding_tests` admits `W9-C2n`;
 - `membership_author` joins the actor set;
 - `legacy-adoption-use-mismatch` is added as a 14th record;
-- `import-accepted-w9-catalogue-revision` is added as a bootstrap schema.
+- `import-accepted-w9-catalogue-revision` is added as a bootstrap schema, with a `{superseded, replacing}` row map
+  (P-074 item 2);
+- the acceptance envelope gains `owner_annex_identity` (P-074 item 3).
 
 All of these are made through `tools/w9_schema_gen.py`, with stage A's test widened to match.
 
@@ -195,11 +209,24 @@ proposals, resolutions, ownership proposals and content proposals.
   - the verifier run green.
 
   B2 is reviewed, then goes to Stephen's O-8 acceptance.
+
+  **B2's anticipated edits** (B1 review m-7):
+  - B2 writes the catalogue with the verifier's own `expected_catalogue(schema_commit, annex_commit)`;
+  - B2 runs the verifier with `--require-catalogue`;
+  - in the bootstrap contract, B2 replaces three stage A clauses: `expected_catalogue: forbidden_in_stage_a`, the
+    `forbidden` entry "expected catalogue instance", and the verification rule "no expected catalogue or acceptance
+    instance is materialized in stage A";
+  - B2 replaces the stage A test `test_stage_a_materializes_no_catalogue` with a check that the catalogue verifies.
 - **The acceptance-envelope instance** is written at L-3 in the store, or with WP9.2's `accepted_w9.py` (P-072 item 6;
   P-066 item 2). It is not a stage B file.
 - **WP9.2's runtime census** grows by the annex's distinct command types, not by its row count (re-review I-2).
   WP9.2 also names the payload schema for the W2-typed events, and puts the `legacy` predicate ahead of
   `shared_event_partition`'s event-type sets (re-review I-3).
+- **WP9.2 runtime obligations with no stage B artefact** (B1 review i-3):
+  - the record content-hash rule;
+  - `created_at` and `created_by_actor_id` taken from the proposal;
+  - the retry control W9-C11;
+  - the behavioural controls W9-C20 to W9-C25.
 
 ## 7. Points still open
 
