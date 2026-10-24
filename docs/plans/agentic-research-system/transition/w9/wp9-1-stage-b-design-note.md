@@ -1,139 +1,193 @@
 # WP9.1 stage B design note: the W9 command set and the catalogue row shape
 
 **Date:** 2026-10-24<br>
-**Status:** Draft, revision 1. Stephen has answered SB-Q1 to SB-Q6, choosing every recommendation (P-071). The note
-is ready for an independent review. Nothing in it is materialized.<br>
-**Package:** 06v WP9.1, stage B (P-069 item 1). Stage A is merged as `5d325c5b` (PR #394).<br>
-**Authority:** P-065 (WP9.1); 06v WP9.1 "Catalogue"; W9 §§5.2, 5.3, 8, 9, 12.1, 13 and 17<br>
-**Implementation authority:** None. This note proposes the rows that stage B's catalogue
-(`.research-system/evals/expected/w9-legacy-integration-v1.json`) will hold. Stephen accepts the catalogue at an exact
-identity, and that is where stage B ends (O-8). After acceptance, every change to a row is a new catalogue identity and
-a new acceptance.
+**Status:** Draft, revision 2, for re-review. It reconciles the review
+`reviews/wp9-1-stage-b-note-review-0cf8acd3-2026-10-24.md` (see `reviews/wp9-1-stage-b-note-reconciliation-2026-10-24.md`)
+under Stephen's decisions P-071 and P-072. Nothing in it is materialized.<br>
+**Package:** 06v WP9.1, stage B (P-069 item 1), in two steps, B1 and B2 (P-072 item 6). Stage A is merged as
+`5d325c5b` (PR #394).<br>
+**Authority:** P-065 (WP9.0, WP9.1); 06v WP9.1 "Catalogue"; W9 §§4.4, 4.5, 5.2–5.5, 7.3, 8, 9, 11.2, 12, 13, 14 and 17<br>
+**Normative owner annex:** `transition/w9/wp9-1-catalogue-owner-annex.yaml`, 57 rows (§3)<br>
+**Implementation authority:** None. This note and its annex define the rows that stage B's catalogue
+(`.research-system/evals/expected/w9-legacy-integration-v1.json`) will hold. Stephen's O-8 acceptance names the
+catalogue and the annex by main commit, blob and SHA-256 (P-072 item 6). After that, every row change is a new
+catalogue identity and a new acceptance.
 
-## 1. The gap this note closes
+## 1. The gap, and the derivation rule
 
-06v WP9.1 says the catalogue "has one row per W9 command, with IDs `LR-001` onward … Each row lists the command, actor
-class, preconditions, events, touched streams and binding tests." Neither W9 nor 06v lists the W9 commands. The only
-one named is `AdoptLegacyAuthority` (W9 §9). Two more are named in 06v:
-- `ImportAcceptedW9CatalogueGenesis`, which emits `W9CatalogueGenesisImported` (WP9.2);
-- the record kinds' preparers (WP9.3 to WP9.6).
+06v WP9.1 requires one catalogue row per W9 command, but neither W9 nor 06v lists the commands. The rows are derived
+here as follows:
 
-This note derives the command set from W9's records and procedures, so that the set is reviewed before it is pinned.
+1. **One record-emitting row per W9 record kind.** That is stage A's 13 kinds, plus `legacy-adoption-use-mismatch`
+   (P-072 item 3).
+2. **W9-path review and decision rows** for every record that carries a review or a Decision (P-072 item 1). Generic
+   W2 `RequestReview` refuses a subject that is not a replayed generic stream (`research_system/command/service.py:3713-3720`),
+   and W9 records replay into the separate `legacy` partition (06v WP9.2, U-7). W11 met the same constraint with its
+   own rows (`discovery/commands.py:14-44`; OR-122 to OR-133); W9 follows that pattern.
+3. **The catalogue's own import rows:** the genesis, and an inert revision import (P-072 item 5).
 
-**Derivation rule.** There is one command per W9 §5.2 record kind, because each record is created by exactly one
-command. The genesis import is added. Decisions and reviews are not W9 commands. Stephen's Decisions (`dec_`) and
-independent reviews (`rev_`) are recorded through W2's existing decision and review commands, and W9 records cite them
-(stage A's typed references). So no row records a Decision or a review.
+Not W9 commands, because they live elsewhere:
+- the §4.4 detectors (W9-T7, W9-T19) are WP9.5 tools;
+- the successor-side guards (W9-T10, W9-T12, and the use-time re-hash that requests `RecordAdoptionUseMismatch`) are
+  WP9.7 guards on existing W2 commands;
+- the read-only projection rebuild (O-16) is a projector.
 
-## 2. Row shape, against W11's catalogue
+The later-gate actions stay deferred to a reviewed catalogue revision (P-071 item 4): writer revocation, the bus
+non-import inventory, file-level closure, cutover, retirement and manual-mode imports.
 
-W11's accepted catalogue (`.research-system/evals/expected/w11-portfolio-discovery-v1.json`, blob `8d588185`) has 81
-rows, each with the same 19 fields. Stage A's `w9-schema-catalogue-content` row (`OWNER_ROW`) has 9. The proposal is to
-follow W11's shape, adapted where W9 differs:
+## 2. The authority flow
 
-| W11 field | Proposed W9 field | Note |
+A record whose schema carries a review or a Decision is created in five steps, all on the W9 append site:
+
+| Step | Command (payload discriminant `…/<kind>`) | Submitter | Event |
+|---|---|---|---|
+| 1 | `ProposeLegacyRecord` | the content's proposer (W9 §8.6) | `E:<kind>-proposed`, holding the full proposed content, its pre-assigned `obj_` ID and the pre-assigned `rev_` and `dec_` IDs it will cite |
+| 2 | `RequestW9AuthorityReview` | migration analyst | `W2:ReviewRequested`, on the proposal's ID and exact content hash |
+| 3 | `RecordW9AuthorityReview` | independent reviewer | `W2:ReviewVerdictRecorded` |
+| 4 | `ProposeW9AuthorityDecision` | migration analyst | `W2:DecisionProposed`, with the pre-assigned `dec_` ID |
+| 5 | `ResolveW9AuthorityDecision` | Stephen | `W2:DecisionResolved`, then `E:<kind>-recorded`, in one transaction (as W11's OR-127 and OR-133 emit their acceptance event) |
+
+Records that carry a Decision but no review skip steps 2 and 3: the path registration, and the paper-root recovery
+Decision. The pre-assigned IDs mean no hash depends on itself. The record is written only by step 5, so a reviewed
+proposal can never be committed with different bytes.
+
+The light inventory uses steps 1 to 3 as an independent reproduction (contract §7), then `RecordLegacyLightInventory`.
+An observation, an ordinary paper root, a citation status and a use-time mismatch are recorded directly by their
+actor.
+
+**Naming.** The resolving command is `ResolveW9AuthorityDecision`, not `ResolveDecision`. Discovery's command set
+already holds `ResolveDecision` (`discovery/commands.py:41`), and U-7's `legacy` command-type predicate must not
+overlap Discovery's set. Otherwise one command type would sit in two partitions (§7, open point 2).
+
+## 3. The owner annex and the row shape
+
+`transition/w9/wp9-1-catalogue-owner-annex.yaml` is the normative expected side (review M-2). It holds:
+- **global preconditions G1 to G5**, which bind every row (G2 binds every row but LR-001; G5 binds every row Stephen
+  resolves);
+- **57 rows**, each with every field below that is not mechanically derived.
+
+The stage B verifier, `tools/verify_w9_materialization.py` (P-072 item 7), reads the annex blob at its pinned commit.
+It derives each expected catalogue row from the annex, and its tests compare row for row (W9-C01, W9-C03), as W11's
+verifier does (`tools/verify_w11_materialization.py:539-579`).
+
+**Catalogue row fields** (23; widened from stage A's 9 in B1):
+
+| Field | Required | Source |
 |---|---|---|
-| `owner_row_id` (`OR-nnn`) | `owner_row_id` (`LR-nnn`) | Kept (06v) |
-| `command_type` | `command_type` | Kept |
-| `logical_key`, `payload_discriminant` | `logical_key`, `payload_discriminant` | Kept; kebab-case of the command |
-| `schema_id`, `schema_version` | `record_schema_id`, `record_schema_version` | The `ars://legacy/` record the command creates |
-| `eligible_profile` (free text) | `eligible_actor` (closed enum) plus `requester` | W9 §8.6 roles, closed (stage A's enum, extended by SB-Q5) |
-| — | `resolver` (`stephen` or `none`) | W9 §8.6: Stephen resolves; P-005 |
-| `authority_subject` | `authority_subject` | What the scoped grant binds |
-| `preconditions` | `preconditions` | Each cites its W9 or 06v source |
-| `ordered_events` (`E:kebab`) | `ordered_events` | Kept |
-| `complete_write_set` | `complete_write_set` | Kept: the events and every touched stream |
-| `affected_streams` | `affected_streams` | Kept |
-| `projection_targets` (`P:`) | `projection_targets` | Kept |
-| `reducer` (`U:`) | `reducer` | Kept |
-| `receipt_identity` (`R:`) | `receipt_identity` | Kept |
-| `positive_test_identity`, `negative_mutation_test_identity`, `retry_test_identity` | Same three, `W9-C01`, `W9-C03` and `W9-C11` style | The catalogue verifier's generic tests, as W11's `W11-T01`, `T03` and `T11` |
-| — | `binding_tests` (`W9-T<n>`) | W9 §17 tests the row's behaviour must pass (stage A field) |
-| `file_observation_ref` | `source_refs` | W11's rows came from an observed owner table in W11 itself. W9 has no owner table, so each row cites the W9 and 06v sections it derives from (§1 rule) |
+| `owner_row_id` (`LR-nnn`) | yes | annex |
+| `command_type` | yes | annex |
+| `payload_discriminant`, `logical_key` | yes | annex. The two are equal; `/` separates a variant |
+| `record_schema_id`, `record_schema_version` | yes | annex. The `ars://legacy/` record the row creates or works on |
+| `eligible_actor` | yes | annex. The **submitter**, from the closed set `migration_analyst`, `membership_author`, `observer`, `independent_reviewer`, `stephen`, `operator`, `system_guard` |
+| `requester` | nullable | annex. Null where the submitter is self-initiated (an observer's or reviewer's own step, or the genesis) |
+| `resolver` | yes | annex: `stephen` or `none` |
+| `authority_subject` | yes | annex. What the exact-subject grant binds (G4) |
+| `preconditions` | yes | annex. Each item cites its source |
+| `ordered_events` | yes | annex. `E:` events or `W2:` events; `x0..n` marks a conditional, repeated event |
+| `affected_streams` | yes | annex. Per-record streams, plus a kind index where one exists |
+| `complete_write_set` | yes | derived: `ordered_events` then `affected_streams` |
+| `projection_targets` (`P:`), `reducer` (`U:`) | yes | annex |
+| `receipt_identity` | yes | derived: `R:<logical_key>` |
+| `binding_tests` | may be empty | annex. W9 §17 tests |
+| `w9c_only_reason` | nullable | annex. Required when `binding_tests` is empty: `authority_flow_step` or `discharge_no_w9_test` (§7, open point 1) |
+| `pilot_promotion_fixtures` | may be empty | annex. `{fixture_id, when}`, where `when` is null or the W9 §12.3 condition |
+| `positive_test_identity`, `negative_mutation_test_identity`, `retry_test_identity` | yes | derived: `W9-C01-LR-nnn`, `W9-C03-LR-nnn-owner-row-mutation`, `W9-C11-LR-nnn` |
+| `owner_annex_ref` | yes | derived: the annex's commit, blob and SHA-256, plus the SHA-256 of the row's canonical JSON. This is the analogue of W11's `file_observation_ref`, and it replaces revision 1's free-text `source_refs`, which stays in the annex as provenance |
 
-Widening stage A's `OWNER_ROW` to this shape changes the catalogue-content schema and needs stage A's generator and
-test. That is still allowed, because nothing is pinned until the catalogue is accepted (SB-Q1).
+**Schema changes in B1:**
+- the catalogue row widens to these fields;
+- event names may be `E:` or `W2:`;
+- `membership_author` joins the actor set;
+- `legacy-adoption-use-mismatch` is added as a 14th record;
+- `import-accepted-w9-catalogue-revision` is added as a bootstrap schema.
 
-## 3. Proposed rows
+All of these are made through `tools/w9_schema_gen.py`, with stage A's test widened to match.
 
-Throughout: **A** is the migration analyst (requester and proposer), **O** the observer, **R** the independent
-reviewer, and **S** Stephen (W9 §8.6). Every command refuses an actor who produced the item for the O and R roles
-(06v WP9.2), and refuses the Gate 6 store (W9-T20, before binding). "Window" means the W9 §8.3 rule: the blob, or the
-item hash, is re-hashed at commit and an unchanged value is required.
+## 4. Decisions applied
 
-| Row | Command | Record | Actor / resolver | Key preconditions | Ordered events | Binding tests |
-|---|---|---|---|---|---|---|
-| LR-001 | `ImportAcceptedW9CatalogueGenesis` | bootstrap genesis input | operator holding the exact verified bootstrap grant / none (Stephen's acceptance is the external envelope) | Envelope current and re-hashed; the accepted W11 catalogue's genesis replayed in the store (O-5); store identity not Gate 6; no prior W9 genesis; stream version 0; row-set and route-partition checks (06v WP9.2) | `E:w9-catalogue-genesis-imported` | W9-T20 |
-| LR-002 | `RegisterLegacyPath` | `legacy-path-registration` | A / S (`registration_decision_ref`) | W9 genesis present; one physical identity, read handle-bound; role rules (writers, `CONVENTIONS.md`, roots, restricted suffix; stage A); no live registration of the same physical identity | `E:legacy-path-registered` | W9-T10, W9-T11 |
-| LR-003 | `RecordFieldFamilyMembership` | `legacy-field-family-membership` | membership author (SB-Q5) / S (`acceptance_decision_ref`) | Author excluded per template §2; `applies_to` bytes re-hashed equal; review on the table's SHA-256; Stephen's acceptance of those bytes | `E:legacy-field-family-membership-recorded` | W9-T2, W9-T3 |
-| LR-004 | `RecordLegacyLightInventory` | `legacy-light-inventory` | O / none | Registration live; read under `w9-segmentation/1.0.0`; independent reproduction by a distinct session; no blocker row may be dropped | `E:legacy-light-inventory-recorded` | W9-T18, W9-T22 |
-| LR-005 | `ObserveLegacyRecord` | `legacy-observation` | O / none | Registration live; handle-bound read in its window; JSON families from an accepted membership table; item selector bound to an inventory row; W0 class from a signed W0 record (O-27); restricted kinds carry no frozen copy | `E:legacy-record-observed`; then `E:legacy-adoption-suspended` for each adoption whose source blob changed (SB-Q3) | W9-T1, T2, T3, T4, T6, T9, T11, T13 |
-| LR-006 | `AcceptClosedReferenceBatch` | `legacy-closed-reference-acceptance` | A requests / S | §4.5 column; Stephen's W0-D1 signature (§8.5 item 2); independent review on current hashes; per-item `pilot_promotion`; threshold and governing-record hashes anchored before the batch; every item in its window | `E:legacy-closed-reference-accepted`; and the light-path ownership change (SB-Q2) | W9-T1, W9-T6, W9-T16 |
-| LR-007 | `AdoptLegacyAuthority` | `legacy-adoption-decision` | A requests / S | The source's closed-reference acceptance; families and signed classes; intended successor use; qualifiers to discharge; no blocking qualifier for that use (W9 §9) | `E:legacy-authority-adopted` | W9-T8, W9-T9 |
-| LR-008 | `RecordLegacyDischarge` | `legacy-discharge-relation` | A requests; R reviews / S (under W0-D1) | A successor result artefact; the legacy open item named; reviewer independent of the result's producer | `E:legacy-item-discharged` | none in W9 §17 (SB-Q6) |
-| LR-009 | `CreateLegacyPaperRoot` | `legacy-paper-root` | A requests / S | A P01 key bound to its root path. A recovery root names its predecessor and a recovery Decision that came first (W9 §13.1) | `E:legacy-paper-root-created` | W9-T15, W9-T21 |
-| LR-010 | `RecordPaperCitationStatus` | `legacy-paper-citation-status` | R derives the cited-family set / S | The root exists; the frozen cited-family hash; every family adopted or marked unadopted (W9 §12.1) | `E:legacy-paper-citation-status-recorded` | W9-T17 |
-| LR-011 | `RecordLegacySourceInventory` | `legacy-source-inventory` | O; R reviews / S | The root's registration; every row bound to an accepted observation; the window held | `E:legacy-source-inventory-recorded` | W9-T17, W9-T21 |
-| LR-012 | `ProposeLegacyTransitionMapping` | `legacy-transition-mapping` | A proposes; R reviews / S | The accepted source inventory; the target paper root; the mapped rows a subset of the inventory | `E:legacy-transition-mapping-recorded` | W9-T21 |
-| LR-013 | `TransitionLegacyOwnership` | `legacy-ownership-transitioned` | A requests; R reviews / S | Only W9 §8.2's three transitions; to `successor_owned`: the accepted mapping, the root, the citation status complete and the §4.5 column; the window held | `E:legacy-ownership-transitioned` | W9-T5, W9-T17, W9-T21 |
-| LR-014 | `SupersedeLegacyRecord` | `legacy-record-supersession` | A requests; R reviews / S | The target is one of P-070's four kinds; a reason; no cycle; current use re-points | `E:legacy-record-superseded`; then `E:legacy-adoption-suspended` for each adoption relying on the superseded record | W9-T14 |
+- **Ownership (P-072 item 2).** The closed-reference resolution (LR-020) emits `E:legacy-ownership-transitioned`
+  (`x0..n`) only for an accepted whole-file observation of a `legacy_owned` file. An item observation never moves its
+  file. The ownership flow (LR-046 to LR-051) admits only `legacy_owned → successor_owned` (LR-050) and
+  `successor_owned → closed_reference` (LR-051), and refuses `legacy_owned → closed_reference`.
+- **Suspension (P-072 item 3).** `P:legacy-adoption-status` projects an adoption as suspended whenever one of these
+  exists:
+  - a later observation of its source (LR-015, on any re-observation, whatever the bytes);
+  - a supersession of a record it relies on (LR-056);
+  - a recorded use-time mismatch (LR-057).
 
-**Streams, projections, reducers and receipts** follow one pattern, which the catalogue spells out per row:
-- each record kind has its own stream;
-- a registry projection exists per kind (`P:legacy-<kind>`);
-- the reducer is named after the record (`U:legacy-<kind>`);
-- a receipt is named after the command (`R:<logical-key>`).
+  No suspension event exists. Re-resolution is a new adoption flow (LR-021 to LR-025).
+- **The adoption bar (P-072 item 4).** Each record-emitting row lists its W9 §12.3 fixtures, with conditions.
+  Evidence or waiver refs travel in the resolving Decision, or in the batch record (LR-020). LR-021's preconditions
+  require a W9 §11.2 second-family coverage record, which Stephen checks before the adoption's review starts.
+- **Preconditions (review M-3)** are added with their sources. Examples:
+  - the detectors' controls watched before the first registration (LR-003);
+  - the §4.5 column, the registration manifest, the frozen baselines and the membership-author exclusion (LR-015);
+  - the enforcement-change rule, the reviewer-fixed applicability and the first-batch bounds (LR-016, LR-020);
+  - use-scoped active adoptions (LR-035);
+  - inventory completeness (LR-036);
+  - D-3, active adoptions and the enumerated §4.5 paper-root column (LR-050);
+  - same-kind replacement and no re-supersession (LR-052).
+- **Variants (review m-4).** The ordinary and recovery paper roots are split (LR-031; LR-032 to LR-034), and so are
+  the two ownership transitions (LR-050, LR-051).
+- **Naming (review m-5).** No content row is named "Propose…" unless it is a proposal: the content proposal is
+  `ProposeLegacyRecord`, and the Decision commits it.
 
-LR-005, LR-006, LR-013 and LR-014 also touch the registration's ownership or adoption state (see SB-Q2 and SB-Q3).
+## 5. W9 §17 tests against rows
 
-**Not W9 commands.** Each of these belongs elsewhere:
-- the §4.4 detectors (W9-T7, W9-T19) are tools (WP9.5);
-- the successor-side guards (W9-T10's RegisterArtefact half, W9-T12's dispatch guard) are WP9.7 guards on existing W2
-  commands;
-- the read-only projection rebuild (O-16) is a projector, not a command.
+| Test | Rows | Note |
+|---|---|---|
+| T1 | LR-015, LR-020, LR-025 | |
+| T2, T3 | LR-010, LR-015 | |
+| T4, T13 | LR-015 | |
+| T5 | LR-050, LR-051 | Includes the refusal of `legacy_owned → closed_reference` |
+| T6 | LR-015, LR-020, LR-025, LR-040, LR-050, LR-051 | Windows (O-33) |
+| T8 | LR-025 | Legacy side; WP9.7 guards the successor side |
+| T9 | LR-015, LR-025, LR-056, LR-057 | Suspension is projected (P-072 item 3), including an unchanged-blob re-observation |
+| T11 | LR-005, LR-015 | |
+| T14 | LR-056 | |
+| T15 | LR-033, LR-034 | |
+| T16 | LR-020 | |
+| T17 | LR-035, LR-040, LR-050 | |
+| T20 | LR-001, LR-002, and G1 on every row | |
+| T21 | LR-031, LR-034, LR-040, LR-045, LR-050 | |
+| T22 | LR-014 | |
+| T7, T19 | none | WP9.5 tools |
+| T10, T12 | none | WP9.7 guards (revision 1's T10 on registration is removed, review m-1) |
+| T18 | none in v1 | File closure is deferred (P-071 item 4). In v1, T18 is a tool-level test of the O-36 inventory and closure tool |
+| T23 | none in v1 | A unit test of WP9.6's importer. The manual-mode import row comes with the deferred revision |
 
-## 4. Scope questions for Stephen
+## 6. What B1 and B2 produce
 
-- **SB-Q1, row shape.** Adopt §2's W11-derived row shape, which widens stage A's `OWNER_ROW` from 9 to about 20 fields
-  before the catalogue is pinned? The alternative is to keep stage A's 9 fields and carry streams, projections,
-  reducers and receipts only in WP9.2's code. **Recommendation: adopt it.** The catalogue is the accepted contract
-  that WP9.2 implements, as W11's was.
-- **SB-Q2, light-path ownership.** W9 §8.2 lists `legacy_owned → closed_reference` as a transition, and stage A's
-  `legacy-ownership-transitioned` admits it with a null mapping. Does the closed-reference batch acceptance (LR-006)
-  emit each item's ownership change itself, or must each item then take its own `TransitionLegacyOwnership` (LR-013)?
-  **Recommendation: LR-006 emits one `E:legacy-ownership-transitioned` per item, in the same transaction.** That
-  avoids a window between acceptance and ownership.
-- **SB-Q3, adoption suspension.** W9 §9 item 5 says a re-observation, a new qualifier or a supersession suspends an
-  adoption until it is re-resolved. Is suspension an event emitted by the command that causes it (LR-005, LR-014), or
-  its own command? **Recommendation: an event emitted by the causing command.** Re-resolution is a new
-  `AdoptLegacyAuthority` (LR-007).
-- **SB-Q4, later-gate actions.** W9 §13.3 and §13.1 also describe:
-  - writer revocation for `.apm/`;
-  - the bus's non-import inventory record;
-  - the file-level inventory and closure;
-  - cutover and retirement records;
-  - manual-mode edit imports (O-35, W9-T23).
+- **B1:**
+  - the schema widening in §3, through the generator, with stage A's test widened;
+  - the verifier `tools/verify_w9_materialization.py`;
+  - its test `tests/research_system/contracts/test_w9_expected_catalogue.py` (P-072 item 7).
 
-  Include them now as inert rows, or leave them to a later catalogue revision, which would be a new identity and a
-  new acceptance? **Recommendation: leave them to a later revision.** Their gates (W9 §4.5) are far off, and pinning
-  their shape now would freeze guesses.
-- **SB-Q5, actor classes.** Stage A's `eligible_actor` enum is: `migration_analyst`, `observer`,
-  `independent_reviewer`, `stephen`, `operator` and `system_guard`. The membership table's author (template §2) is
-  none of these. **Recommendation:** add `membership_author`, and add a `requester` field so that the A-requests,
-  S-resolves rows are explicit.
-- **SB-Q6, rows with no W9 §17 test.** LR-008 (discharge) has no W9 binding test, and stage A's schema requires at
-  least one. **Recommendation:** allow catalogue-level tests (`W9-C…`) to satisfy the minimum, and name the stage B
-  verifier's positive and negative-mutation tests for the row. Adding a new W9 §17 test would mean editing W9, which
-  is accepted.
+  B1 is reviewed and merged.
+- **B2:**
+  - the catalogue, with every schema source row pinned at B1's main commit;
+  - each row's `owner_annex_ref` pinned to the annex at its main commit;
+  - the verifier run green.
 
-## 5. What stage B then materializes
+  B2 is reviewed, then goes to Stephen's O-8 acceptance.
+- **The acceptance-envelope instance** is written at L-3 in the store, or with WP9.2's `accepted_w9.py` (P-072 item 6;
+  P-066 item 2). It is not a stage B file.
 
-After Stephen's answers, stage B will produce:
-- the catalogue, with every row derived from §3 and every schema source row pinned at `5d325c5b`;
-- the acceptance-envelope instance;
-- a materialization verifier: the owner-row count and range hash; row-ID uniqueness; every binding test named in W9
-  §17 or the `W9-C…` set; every fixture within S-001 to S-017 and F-001 to F-038 (stage A note §3);
-- any `OWNER_ROW` widening, made through `tools/w9_schema_gen.py` and stage A's test.
+## 7. Open points for the re-review and for Stephen
 
-Stage B then goes to an independent review, then to Stephen's acceptance of the catalogue at an exact identity (O-8).
-`accepted_w9.py` stays in WP9.2 (P-066 item 2).
+1. **Authority-flow rows with no §17 test.** P-071 item 6 allowed a catalogue-level `W9-C` test to meet the
+   binding-test minimum for the discharge row: LR-008 in revision 1, LR-030 now. P-072 item 1's review and decision
+   rows (proposal, request, review and decision-proposal steps) also have no §17 test of their own. The annex marks
+   them `w9c_only_reason: authority_flow_step`. Extending P-071 item 6 to them is an owner decision. The verifier
+   refuses an empty `binding_tests` without one of the two reasons.
+2. **`ResolveW9AuthorityDecision`** in place of a W9 `ResolveDecision`, so that the command-type sets stay disjoint
+   (§2).
+3. **The `anyRef` kinds** that stage A's note left open are deferred by name to WP9.2's preparers:
+   - the signature record;
+   - a `pilot_promotion` evidence ref;
+   - an adoption's successor use;
+   - the inventory's independent reproduction, which this annex makes a W9 review, `rev_` (LR-012, LR-013);
+   - the envelope's independent observation.
+4. **O-31.** 06v puts paper-root transitions out of scope "for this plan's code", while assigning W9-T5, T17 and T21
+   to code. The reading here is that the full-path rows (LR-031 to LR-051) are built and tested, and refuse until
+   their §4.5 gate; no transition runs under this plan.

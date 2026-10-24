@@ -4503,6 +4503,88 @@ The command set is the note's LR-001 to LR-014, subject to its independent revie
 **Boundary:** Docs only.<br>
 **Affected specifications:** 06v WP9.1 (the catalogue); stage A's catalogue-content schema (widened in stage B);
 WP9.2 (the commands it implements).<br>
+**Migration consequence:** None.<br>
+**Amended by P-072** (2026-10-24). Items 2 and 3 are replaced, and item 4 and the command-set sentence are extended,
+as P-072 records.
+
+### P-072 - WP9.1 stage B: review and decision routes, item-grained ownership, suspension, adoption coverage, revisions and the split
+
+**Date:** 2026-10-24<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-24), answering the owner decisions raised by the review of the
+stage B design note (`reviews/wp9-1-stage-b-note-review-0cf8acd3-2026-10-24.md`, commit `4bf94d61`: B-1, B-2, M-1,
+M-4, M-5, M-6 and m-7).<br>
+**Authority:** Stephen, in chat, 2026-10-24, choosing the recommended option each time:
+- B-1, reviews: "W9-path rows (Recommended)";
+- B-2, ownership: "Reviewer's text (Recommended)";
+- M-1, suspension: "A projection (Recommended)";
+- M-4, adoption bar: "Coverage required (Recommended)";
+- M-5, revisions: "Inert import row (Recommended)";
+- M-6, stage B split: "B1 then B2 (Recommended)";
+- m-7, verifier: "Name both (Recommended)".
+
+**Decision:**
+1. **Reviews and Decisions (B-1).** Generic W2 `RequestReview` refuses a subject that is not a replayed generic stream
+   (`research_system/command/service.py:3713-3720`). W9 therefore has its own review and decision rows on W11's
+   pattern: `RequestW9AuthorityReview`, `RecordW9AuthorityReview`, `ProposeW9AuthorityDecision` and a W9
+   `ResolveDecision`, one variant row per record kind that needs them.
+   - The review subject is a proposed record's pre-assigned ID plus its exact proposed content hash. The proposed
+     content already carries the pre-assigned `dec_` and `rev_` IDs, so no hash depends on itself.
+   - P-071's sentence "the command set is the note's LR-001 to LR-014" is replaced by the note's revision 2 annex.
+2. **Ownership (B-2), replacing P-071 item 2.**
+   - LR-006's acceptance emits `E:legacy-ownership-transitioned` (`legacy_owned → closed_reference`, with a null
+     mapping and root, and the batch's review and Decision) only in one case: an accepted observation whose selector
+     covers the whole registered file (`whole_file`, or the complete family set of the file's accepted membership
+     table), when the registration's current mode is `legacy_owned`.
+   - An inventory-item observation never changes its registration's mode. Its `closed_reference` status is the
+     acceptance itself, projected per item. The file's mode changes only through the deferred file-closure command.
+   - `TransitionLegacyOwnership` refuses `legacy_owned → closed_reference`.
+3. **Adoption suspension (M-1), replacing P-071 item 3.** Suspension is a projection, not an event. An adoption is
+   suspended whenever any of these exists:
+   - a later observation of its source, on any re-observation, whether or not the bytes changed;
+   - a supersession of a record it relies on;
+   - a recorded use-time mismatch.
+
+   One row, `RecordAdoptionUseMismatch`, with its own record kind, `legacy-adoption-use-mismatch`, is added for
+   WP9.7's guard to request. It is a 14th W9 record and a stage A schema change made in stage B1.
+   Re-resolution is a new `AdoptLegacyAuthority`.
+4. **The adoption bar (M-4).** Every catalogue row carries a `pilot_promotion_fixtures` field listing its W9 §12.3
+   set. Per-fixture evidence or waiver refs travel in the resolving Decision, or, for a closed-reference batch, in the
+   record itself (stage A).
+   - Adoption also requires a W9 §11.2 second-family coverage record before Stephen decides, as W9-D3's accepted
+     reading says.
+   - Adoption's independent reviewer is an eligible second-family session, checked before the review starts.
+5. **Revisions (M-5), extending P-071 item 4.** Catalogue v1 adds an inert row, `ImportAcceptedW9CatalogueRevision`.
+   Its preconditions:
+   - the v1 genesis is present;
+   - the new envelope supersedes the current identity;
+   - Stephen has accepted the revision;
+   - every v1 row is unchanged or explicitly superseded;
+   - the route partition is re-proved.
+
+   The deferral of the later-gate actions stands.
+6. **Stage B in two steps (M-6), refining P-069 item 1.**
+   - **B1** widens the catalogue-content schema, the generator, the stage A test and the record family (item 3), adds
+     the verifier, and merges.
+   - **B2** adds the catalogue, with every schema source row pinned at B1's main commit.
+   - The acceptance-envelope instance, with its `rev_` and `dec_`, is written at L-3 in the store, or with WP9.2's
+     `accepted_w9.py`, as W11 did. It is not a repository file in stage B.
+   - Stephen's O-8 acceptance names the catalogue, and the note's owner-annex blob, by main commit, blob and SHA-256.
+7. **Boundary (m-7).** P-065's Boundary line is extended, by name, to `tools/verify_w9_materialization.py` and
+   `tests/research_system/contracts/test_w9_expected_catalogue.py`. Both are non-runtime, outside `research_system/`,
+   and read-only.
+
+**Not decided here:** the catalogue's acceptance (O-8).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs, plus the two files named in item 7.<br>
+**Affected specifications:**
+- P-071 (items 2 and 3 replaced; item 4 and the command-set sentence extended);
+- P-069 item 1 (stage B in two steps);
+- P-065 (Boundary extended);
+- stage A (a 14th record kind; the catalogue-content schema);
+- WP9.2 (the review and decision commands; the revision import);
+- WP9.4 and WP9.7 (suspension, and the use-mismatch request);
+- O-8.<br>
+
 **Migration consequence:** None.
 
 ## Decision protocol
