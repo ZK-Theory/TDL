@@ -6,7 +6,7 @@
 2 Blocking, 6 Major, 7 Minor, 5 Info.<br>
 **Owner decisions:** P-072. Stephen chose the recommended option on all seven owner points: B-1, B-2, M-1, M-4, M-5,
 M-6 and m-7.<br>
-**Status:** Revision 2 is ready for re-review. It is not accepted.
+**Status:** Revision 3 (§4) is ready for the reviewer's narrow confirmation. It is not accepted.
 
 ## 1. Files
 
@@ -49,6 +49,32 @@ M-6 and m-7.<br>
 3. **The annex as a verifier input.** Is it parseable and complete, so that every derived field follows mechanically?
 4. **Open points 1 to 4** in note §7.
 
-## 4. Not done
+## 4. Revision 3, against the re-review of `479745fc`
+
+The re-review (`reviews/wp9-1-stage-b-note-re-review-479745fc-2026-10-24.md`, commit `71d01975`) returned rework
+required, narrow: 0 Blocking, 4 Major, 7 Minor and 6 Info findings. Stephen answered its four owner points (P-073).
+The reviewer offered a narrow confirmation of the corrected annex.
+
+| Finding | Disposition | Where |
+|---|---|---|
+| **M-1** same bytes | Fixed. Every review request binds the proposal's pre-assigned `rev_` as the new review's ID. G5 requires the record's refs to be exactly the pre-assigned IDs. W9-C23 refuses differing refs or bytes. LR-016's proposal lists every ownership record, and LR-020 refuses a different set at commit | Annex G5, request rows, LR-016, LR-020; note §2 |
+| **M-2** G5 scope | Fixed. G5 is scoped to Stephen-resolved rows that write a W9 record. The recovery, reviewer-eligibility and integration-pilot Decisions are excluded, and LR-037 says so itself | Annex G5, LR-037 |
+| **M-3** facts no row produces | Fixed by P-073 item 3. The eligibility Decision (LR-024, LR-025) is named by LR-026 and matched by LR-027. The integration-pilot outcome Decision (LR-021, LR-022) is read by LR-016, LR-035 and LR-054. LR-003 reads D-5's control-output hash files | Annex; note §4 |
+| **M-4** shape tests only | Fixed by P-073 item 1: W9-C20 to W9-C25. Every authority-flow row binds at least one, and the annex generator checks the rule | Annex `catalogue_tests`; note §3, §5 |
+| **m-1** named reviewer | Fixed in every record-review row's subject and preconditions | Annex |
+| **m-2** suspension inputs | Fixed. LR-060 projects `P:legacy-adoption-status`. `suspension_rule` defines "source" and "relies on" | Annex |
+| **m-3** event tokens | Fixed. One token, `E:legacy-ownership-transitioned-recorded`, for every ownership record; `ordered_events` entries are `{event, multiplicity, condition}` | Annex; note §3 |
+| **m-4** T5 placement | Fixed: T5 and W9-C24 are bound to LR-050 | Annex LR-050 |
+| **m-5** derivation rules | Fixed. There are 24 fields. `derivation_rules` states the precondition scope, the content-hash rule, the row hash, the proposal's `created_at`, and that a changed applicability needs a new proposal | Annex; note §3 |
+| **m-6** P-072 names | Fixed: P-072 carries a correction pointer (P-073 item 2) | Register |
+| **m-7** fixtures | Fixed. LR-044 gets F-018, F-023 and F-037; LR-054 gets F-023; the decision-proposal rows after a review get S-007 | Annex |
+| I-1, I-2, I-5, I-6 | Recorded. I-2 is carried in note §6 | Note §6 |
+| **I-3** partition ordering | Carried to WP9.2 in note §6 | Note §6 |
+| **I-4** O-31 reading | Recorded as Stephen's reading (P-073 item 4) | P-073; note §4 |
+
+The annex now has 61 rows. The eligibility pair and the pilot-outcome pair are new, and the row numbers changed from
+revision 2.
+
+## 5. Not done
 
 Nothing is materialized: no schema change, no catalogue, no verifier. Nothing is pushed.

@@ -4,8 +4,31 @@ global_preconditions:
 - 'G2: the W9 genesis is present in the replayed projection (every row but LR-001)'
 - 'G3: an observer or reviewer who produced the item is refused (06v WP9.2; W9 §8.6)'
 - 'G4: the scoped grant binds the row''s exact authority subject; a path-only, role-only or wildcard subject never satisfies a row'
-- 'G5 (every row resolved by Stephen): the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is
-  satisfied on that same hash (P-005; W9 §8.5 item 5; S-007)'
+- 'G5 (every row resolved by Stephen that writes a W9 record; not the recovery, reviewer-eligibility or integration-pilot Decisions, which write none; W9 §13.1; W9-T21): the Decision is resolved by Stephen,
+  of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and the record''s review and Decision refs are
+  exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
+suspension_rule: 'An adoption is projected suspended while any of these exists: a later observation of its source, where the source is the registration plus the adoption''s selector (a whole-file adoption:
+  any later observation of the registration; an item adoption: a later observation of the same item selector), whether or not the bytes changed; a supersession of a record it relies on, which is its observation,
+  that observation''s closed-reference acceptance, or the adoption itself; a recorded use-time mismatch (P-072 item 3)'
+derivation_rules:
+- complete_write_set = the ordered_events' event tokens, then affected_streams
+- receipt_identity = 'R:' + logical_key; logical_key = payload_discriminant
+- positive_test_identity = W9-C01-<row id>; negative_mutation_test_identity = W9-C03-<row id>-owner-row-mutation; retry_test_identity = W9-C11-<row id>
+- owner_annex_ref = the annex's main commit, blob and SHA-256, plus the SHA-256 of the row's canonical JSON (sorted keys, no whitespace, source_refs included)
+- preconditions = the row's own list; the global preconditions G1 to G5 apply by their stated scope and are not repeated per row
+- a content hash is SHA-256 of canonical_bytes over the record without content_hash (the W11 rule)
+- a record written at resolution takes its created_at and created_by_actor_id from the proposal
+- a row with no W9-T test carries a w9c_only_reason and at least one W9-C2x test
+catalogue_tests:
+  W9-C01: 'positive: the catalogue row equals the row derived from this annex (per row: W9-C01-LR-nnn)'
+  W9-C03: 'negative mutation: any one field of the catalogue row mutated is detected (W9-C03-LR-nnn-owner-row-mutation)'
+  W9-C11: 'retry: the row''s command, retried with the same idempotency key, appends nothing new (W9-C11-LR-nnn)'
+  W9-C20: a reviewer who produced the item, shares the analyst's session, or is not the eligible session is refused
+  W9-C21: a verdict recorded by anyone other than the reviewer the request named is refused
+  W9-C22: a request, verdict or decision proposal on a stale proposal hash is refused (S-007)
+  W9-C23: a resolution whose record refs differ from the proposal's pre-assigned IDs, or whose bytes differ from the proposal, is refused
+  W9-C24: a proposal for legacy_owned -> closed_reference is refused
+  W9-C25: a proposal whose content fails its record schema, or whose pre-assigned IDs already exist, is refused
 rows:
 - owner_row_id: LR-001
   command_type: ImportAcceptedW9CatalogueGenesis
@@ -26,7 +49,9 @@ rows:
   - no W9 genesis in the replayed projection; stream version 0 (06v WP9.2)
   - row-set and route-partition checks over the catalogue pass (06v WP9.2)
   ordered_events:
-  - E:w9-catalogue-genesis-imported
+  - event: E:w9-catalogue-genesis-imported
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - W9 catalogue stream
   projection_targets:
@@ -60,7 +85,9 @@ rows:
   - the route partition re-proved over the revised catalogue
   - the target store's identity is not the frozen Gate 6 identity (W9-T20)
   ordered_events:
-  - E:w9-catalogue-revision-imported
+  - event: E:w9-catalogue-revision-imported
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - W9 catalogue stream
   projection_targets:
@@ -88,21 +115,26 @@ rows:
   - the proposed content validates against the record schema
   - one physical identity, read handle-bound; stage A's role, writer, root and restricted-suffix rules hold
   - no live registration of the same physical identity
-  - 'before the first registration: every §4.4 detector''s negative control watched to fail (W9 §4.4; O-13)'
+  - 'before the first registration: every §4.4 detector''s negative control watched to fail, read from the control-output hash files D-5 places in the W9 evidence area, at the store binding''s git_head
+    (W9 §4.4; O-13; P-064 D-5)'
   ordered_events:
-  - E:legacy-path-registration-proposed
+  - event: E:legacy-path-registration-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_path_registration record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_path_registration
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §4.2, §4.4, §5.2, §5.4
   - 06v WP9.5
+  - P-064 D-5
 - owner_row_id: LR-004
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_path_registration
@@ -116,19 +148,23 @@ rows:
   preconditions:
   - the proposal current
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_path_registration proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_path_registration
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §4.2, §4.4, §5.2, §5.4
   - 06v WP9.5
+  - P-064 D-5
 - owner_row_id: LR-005
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_path_registration
@@ -140,12 +176,16 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - the proposal current and its physical identity re-read unchanged
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-path-registration-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-path-registration-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_path_registration ID
   - legacy_path_registration index
@@ -155,11 +195,13 @@ rows:
   receipt_identity: R:resolve-w9-authority-decision/legacy_path_registration
   binding_tests:
   - W9-T11
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §4.2, §4.4, §5.2, §5.4
   - 06v WP9.5
+  - P-064 D-5
 - owner_row_id: LR-006
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_field_family_membership
@@ -175,14 +217,17 @@ rows:
   - the author is none of the file's importer, observer, item producer or the migration analyst (template §2)
   - applies_to binds the bytes the author read; parsing per template §3 rule 1; every pointer assigned
   ordered_events:
-  - E:legacy-field-family-membership-proposed
+  - event: E:legacy-field-family-membership-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_field_family_membership record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_field_family_membership
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
@@ -198,19 +243,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_field_family_membership proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_field_family_membership
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -228,18 +278,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_field_family_membership proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_field_family_membership
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -262,16 +317,21 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_field_family_membership proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_field_family_membership
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §5.2, §6.2
   - membership template §2, §3
@@ -287,12 +347,16 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - applies_to bytes re-hashed equal (template §3 rule 10)
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-field-family-membership-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-field-family-membership-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_field_family_membership ID
   - legacy_field_family_membership index
@@ -303,6 +367,7 @@ rows:
   binding_tests:
   - W9-T2
   - W9-T3
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
@@ -320,16 +385,20 @@ rows:
   resolver: none
   authority_subject: pre-assigned record ID + exact proposed content hash (its pre-assigned rev_ and dec_ IDs inside)
   preconditions:
+  - the proposed content validates against the record schema
   - the registration live; segmented under w9-segmentation/1.0.0; no blocker row dropped (W9 §5.5)
   ordered_events:
-  - E:legacy-light-inventory-proposed
+  - event: E:legacy-light-inventory-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned inventory ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_light_inventory
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
@@ -344,18 +413,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact inventory proposal + the named reproducer
+  authority_subject: exact inventory proposal + the named reproducer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
+  - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reproducer on a session distinct from the observer and the contract's author (contract §7)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the inventory proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_light_inventory_reproduction
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -372,18 +447,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact inventory proposal subject
+  authority_subject: exact inventory proposal subject + the reproducer the request named
   preconditions:
+  - the submitter is the reproducer the request named (re-review m-1)
   - the reproducer re-segments the same bytes and reproduces every row, hash and offset
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the inventory proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_light_inventory_reproduction
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -403,8 +483,11 @@ rows:
   authority_subject: exact inventory proposal + the positive reproduction review
   preconditions:
   - a positive reproduction review on the proposal's current hash; the bytes re-hashed unchanged
+  - the record's independent_reproduction_ref is exactly the proposal's pre-assigned rev_ ID, and its bytes are the proposal's (re-review M-1)
   ordered_events:
-  - E:legacy-light-inventory-recorded
+  - event: E:legacy-light-inventory-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - inventory record stream
   - registration's inventory index
@@ -414,6 +497,7 @@ rows:
   receipt_identity: R:record-legacy-light-inventory
   binding_tests:
   - W9-T22
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
@@ -437,7 +521,9 @@ rows:
   - an item selector bound to a recorded light-inventory row
   - every W0 class from a signed W0 record (O-27); restricted kinds carry no frozen copy
   ordered_events:
-  - E:legacy-record-observed
+  - event: E:legacy-record-observed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - observation record stream
   - registration's observation index
@@ -475,18 +561,23 @@ rows:
   - §4.5's closed-reference column holds (W9 §4.5)
   - every item's observation accepted by no earlier batch; every item in its window (W9 §8.3; O-33)
   - per-item pilot_promotion applicability proposed by the reviewer, never the producer (W9 §12.3)
-  - the first batch holds closed-reference items only, at most 20; after a missed threshold, no further batch (W9 §14.2, §14.3; 06v L-4)
+  - 'until the integration-pilot outcome Decision is resolved, the batch is the integration pilot: closed-reference items only, at most 20 (W9 §14.2; 06v L-4)'
+  - no integration-pilot outcome Decision records a missed threshold (W9 §14.3)
   - the threshold pre-registration and governing-record set hashed and anchored before the batch (O-25; W9-T16)
   - an observation of a result whose enforcement state a later shared_enforcement_surface change affects is refused, by the committed change list at the binding's git_head (O-32)
+  - the proposal lists, with pre-assigned IDs and full content, every legacy-ownership-transitioned record the resolution will emit (re-review M-1)
   ordered_events:
-  - E:legacy-closed-reference-acceptance-proposed
+  - event: E:legacy-closed-reference-acceptance-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_closed_reference_acceptance record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_closed_reference_acceptance
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
@@ -502,19 +593,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_closed_reference_acceptance proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_closed_reference_acceptance
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -532,18 +628,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_closed_reference_acceptance proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_closed_reference_acceptance
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -566,16 +667,21 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_closed_reference_acceptance proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_closed_reference_acceptance
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §8.1, §8.3, §8.5, §12.3, §14
   - 06v WP9.3
@@ -591,15 +697,22 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - every item still in its window at commit (W9 §8.3)
-  - per-item pilot_promotion evidence or waiver fixed by Stephen in the batch Decision (W9 §12.3)
+  - per-item pilot_promotion evidence or waiver as proposed and fixed by Stephen in the batch Decision; a change of applicability requires a new proposal (W9 §12.3)
+  - the ownership records computed at commit equal the proposal's list, else refused (re-review M-1)
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-closed-reference-acceptance-recorded
-  - 'E:legacy-ownership-transitioned x0..n: one per accepted whole-file observation (whole_file, or the complete family set of the file''s accepted membership table) whose registration is legacy_owned;
-    never for an inventory-item observation (P-072 item 2)'
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-closed-reference-acceptance-recorded
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-ownership-transitioned-recorded
+    multiplicity: 0..n
+    condition: one per accepted whole-file observation (whole_file, or the complete family set of the file's accepted membership table) whose registration is legacy_owned; never for an inventory-item observation
+      (P-072 item 2)
   affected_streams:
   - record stream of the pre-assigned legacy_closed_reference_acceptance ID
   - legacy_closed_reference_acceptance index
@@ -612,6 +725,7 @@ rows:
   - W9-T1
   - W9-T6
   - W9-T16
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures:
   - fixture_id: F-017
@@ -633,6 +747,66 @@ rows:
   - 06v WP9.3
   - P-072 item 2
 - owner_row_id: LR-021
+  command_type: ProposeW9AuthorityDecision
+  payload_discriminant: propose-w9-authority-decision/integration_pilot_outcome
+  logical_key: propose-w9-authority-decision/integration_pilot_outcome
+  record_schema_id: ars://legacy/legacy-closed-reference-acceptance
+  record_schema_version: 1.0.0
+  eligible_actor: migration_analyst
+  requester: migration_analyst
+  resolver: none
+  authority_subject: the integration-pilot batch's acceptance record + the §14.3 threshold pre-registration's hash + the measured values + the pre-assigned dec_ ID
+  preconditions:
+  - the pilot batch's acceptance recorded; the thresholds pre-registered and anchored before that batch (O-25)
+  - every §14.3 metric measured and its value bound by hash
+  ordered_events:
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
+  affected_streams:
+  - decision stream of the integration-pilot outcome
+  projection_targets:
+  - P:legacy-decisions
+  reducer: U:w9-authority-decision
+  receipt_identity: R:propose-w9-authority-decision/integration_pilot_outcome
+  binding_tests:
+  - W9-C22
+  w9c_only_reason: authority_flow_step
+  pilot_promotion_fixtures: []
+  source_refs:
+  - W9 §14.2, §14.3
+  - P-073 item 3
+- owner_row_id: LR-022
+  command_type: ResolveW9AuthorityDecision
+  payload_discriminant: resolve-w9-authority-decision/integration_pilot_outcome
+  logical_key: resolve-w9-authority-decision/integration_pilot_outcome
+  record_schema_id: ars://legacy/legacy-closed-reference-acceptance
+  record_schema_version: 1.0.0
+  eligible_actor: stephen
+  requester: migration_analyst
+  resolver: stephen
+  authority_subject: exact integration-pilot outcome proposal
+  preconditions:
+  - resolved by Stephen, of kind result_interpretation, as passed or missed against the pre-registered thresholds (W9 §14.3; P-073 item 3)
+  ordered_events:
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  affected_streams:
+  - decision stream of the integration-pilot outcome
+  projection_targets:
+  - P:legacy-decisions
+  - P:legacy-integration-pilot
+  reducer: U:w9-authority-decision
+  receipt_identity: R:resolve-w9-authority-decision/integration_pilot_outcome
+  binding_tests:
+  - W9-C22
+  w9c_only_reason: authority_flow_step
+  pilot_promotion_fixtures: []
+  source_refs:
+  - W9 §14.3
+  - P-073 item 3
+- owner_row_id: LR-023
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_adoption_decision
   logical_key: propose-legacy-record/legacy_adoption_decision
@@ -646,24 +820,91 @@ rows:
   - the proposed content validates against the record schema
   - the source observation accepted closed_reference; its families and signed classes named (W9 §9 items 1-2)
   - the intended successor use named; no blocking qualifier for that use (W9 §9 item 4)
-  - 'a §11.2 second-family coverage record: the reviewer''s model family and version differ from the producer''s, its role profile declares the lane''s capability, its context is independent at the required
-    grade; checked by Stephen before the review starts (W9 §11.2; W9-D3; P-072 item 4)'
   ordered_events:
-  - E:legacy-adoption-decision-proposed
+  - event: E:legacy-adoption-decision-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_adoption_decision record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_adoption_decision
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §9, §11.2, §12.3
   - 06v WP9.4
   - P-072 items 3-4
-- owner_row_id: LR-022
+  - P-073 item 3
+- owner_row_id: LR-024
+  command_type: ProposeW9AuthorityDecision
+  payload_discriminant: propose-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  logical_key: propose-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  record_schema_id: ars://legacy/legacy-adoption-decision
+  record_schema_version: 1.0.0
+  eligible_actor: migration_analyst
+  requester: migration_analyst
+  resolver: none
+  authority_subject: the adoption proposal + the named reviewer session + its operator-recorded model family and version, role profile and context grade + the pre-assigned dec_ ID
+  preconditions:
+  - the adoption proposal current
+  - the session's model family and version differ from the producer's, as the operator records them (§11.2 a)
+  - its W4 role profile declares the capability the lane requires (§11.2 b)
+  - its context is independent of the producer's at the required grade (§11.2 c; P-022; P-029)
+  ordered_events:
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
+  affected_streams:
+  - decision stream of the reviewer eligibility
+  projection_targets:
+  - P:legacy-decisions
+  reducer: U:w9-authority-decision
+  receipt_identity: R:propose-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  binding_tests:
+  - W9-C22
+  w9c_only_reason: authority_flow_step
+  pilot_promotion_fixtures: []
+  source_refs:
+  - W9 §9, §11.2, §12.3
+  - 06v WP9.4
+  - P-072 items 3-4
+  - P-073 item 3
+- owner_row_id: LR-025
+  command_type: ResolveW9AuthorityDecision
+  payload_discriminant: resolve-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  logical_key: resolve-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  record_schema_id: ars://legacy/legacy-adoption-decision
+  record_schema_version: 1.0.0
+  eligible_actor: stephen
+  requester: migration_analyst
+  resolver: stephen
+  authority_subject: exact reviewer-eligibility proposal
+  preconditions:
+  - resolved by Stephen before the adoption's review is requested; checked by Stephen, never by the producer or the named session (W9 §11.2; P-073 item 3)
+  ordered_events:
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  affected_streams:
+  - decision stream of the reviewer eligibility
+  projection_targets:
+  - P:legacy-decisions
+  reducer: U:w9-authority-decision
+  receipt_identity: R:resolve-w9-authority-decision/legacy_adoption_reviewer_eligibility
+  binding_tests:
+  - W9-C20
+  w9c_only_reason: authority_flow_step
+  pilot_promotion_fixtures: []
+  source_refs:
+  - W9 §9, §11.2, §12.3
+  - 06v WP9.4
+  - P-072 items 3-4
+  - P-073 item 3
+- owner_row_id: LR-026
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_adoption_decision
   logical_key: request-w9-authority-review/legacy_adoption_decision
@@ -672,19 +913,25 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
+  - the named reviewer is the session that Stephen's resolved reviewer-eligibility Decision names (P-073 item 3)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_adoption_decision proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_adoption_decision
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -693,7 +940,8 @@ rows:
   - W9 §9, §11.2, §12.3
   - 06v WP9.4
   - P-072 items 3-4
-- owner_row_id: LR-023
+  - P-073 item 3
+- owner_row_id: LR-027
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_adoption_decision
   logical_key: record-w9-authority-review/legacy_adoption_decision
@@ -702,18 +950,24 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
+  - the verdict's reviewer_model_metadata and reviewer_profile match the eligibility Decision's recorded family, version, role profile and context grade (W9 §11.2 a-c)
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_adoption_decision proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_adoption_decision
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -722,7 +976,8 @@ rows:
   - W9 §9, §11.2, §12.3
   - 06v WP9.4
   - P-072 items 3-4
-- owner_row_id: LR-024
+  - P-073 item 3
+- owner_row_id: LR-028
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_adoption_decision
   logical_key: propose-w9-authority-decision/legacy_adoption_decision
@@ -736,21 +991,27 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_adoption_decision proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_adoption_decision
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §9, §11.2, §12.3
   - 06v WP9.4
   - P-072 items 3-4
-- owner_row_id: LR-025
+  - P-073 item 3
+- owner_row_id: LR-029
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_adoption_decision
   logical_key: resolve-w9-authority-decision/legacy_adoption_decision
@@ -761,12 +1022,16 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
-  - the source observation not superseded and not followed by a later observation of its source (W9 §9 item 5)
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
+  - 'the adoption not projected suspended: no later observation of its source, no supersession of a record it relies on, no recorded use-time mismatch (W9 §9 item 5; P-072 item 3)'
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-adoption-decision-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-adoption-decision-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_adoption_decision ID
   - legacy_adoption_decision index
@@ -779,6 +1044,7 @@ rows:
   - W9-T6
   - W9-T8
   - W9-T9
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures:
   - fixture_id: F-015
@@ -793,7 +1059,8 @@ rows:
   - W9 §9, §11.2, §12.3
   - 06v WP9.4
   - P-072 items 3-4
-- owner_row_id: LR-026
+  - P-073 item 3
+- owner_row_id: LR-030
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_discharge_relation
   logical_key: propose-legacy-record/legacy_discharge_relation
@@ -809,20 +1076,23 @@ rows:
   - the successor result artefact accepted, not only registered
   - the reviewer independent of the result's producer
   ordered_events:
-  - E:legacy-discharge-relation-proposed
+  - event: E:legacy-discharge-relation-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_discharge_relation record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_discharge_relation
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §5.2
   - 06v WP9.4
-- owner_row_id: LR-027
+- owner_row_id: LR-031
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_discharge_relation
   logical_key: request-w9-authority-review/legacy_discharge_relation
@@ -831,19 +1101,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_discharge_relation proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_discharge_relation
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -851,7 +1126,7 @@ rows:
   source_refs:
   - W9 §5.2
   - 06v WP9.4
-- owner_row_id: LR-028
+- owner_row_id: LR-032
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_discharge_relation
   logical_key: record-w9-authority-review/legacy_discharge_relation
@@ -860,18 +1135,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_discharge_relation proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_discharge_relation
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -879,7 +1159,7 @@ rows:
   source_refs:
   - W9 §5.2
   - 06v WP9.4
-- owner_row_id: LR-029
+- owner_row_id: LR-033
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_discharge_relation
   logical_key: propose-w9-authority-decision/legacy_discharge_relation
@@ -893,20 +1173,25 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_discharge_relation proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_discharge_relation
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §5.2
   - 06v WP9.4
-- owner_row_id: LR-030
+- owner_row_id: LR-034
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_discharge_relation
   logical_key: resolve-w9-authority-decision/legacy_discharge_relation
@@ -917,11 +1202,15 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-discharge-relation-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-discharge-relation-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_discharge_relation ID
   - legacy_discharge_relation index
@@ -929,13 +1218,14 @@ rows:
   - P:legacy-discharge-relation
   reducer: U:legacy-discharge-relation
   receipt_identity: R:resolve-w9-authority-decision/legacy_discharge_relation
-  binding_tests: []
+  binding_tests:
+  - W9-C23
   w9c_only_reason: discharge_no_w9_test
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §5.2
   - 06v WP9.4
-- owner_row_id: LR-031
+- owner_row_id: LR-035
   command_type: CreateLegacyPaperRoot
   payload_discriminant: create-legacy-paper-root/ordinary
   logical_key: create-legacy-paper-root/ordinary
@@ -947,9 +1237,11 @@ rows:
   authority_subject: the P01 key + its manuscript root path
   preconditions:
   - no root exists for the key
-  - the integration-pilot batch has passed (W9 §12.1 'Papers transition last'; §14.3)
+  - the integration-pilot outcome Decision (LR integration_pilot_outcome) resolved by Stephen as passed (W9 §12.1; §14.3; P-073 item 3)
   ordered_events:
-  - E:legacy-paper-root-created
+  - event: E:legacy-paper-root-created
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - paper-root record stream
   - paper-root index
@@ -963,7 +1255,7 @@ rows:
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §5.2, §8.2, §12.1
-- owner_row_id: LR-032
+- owner_row_id: LR-036
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_paper_root_recovery
   logical_key: propose-w9-authority-decision/legacy_paper_root_recovery
@@ -976,20 +1268,23 @@ rows:
   preconditions:
   - the predecessor root is successor_owned (W9 §13.1)
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the recovery
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_paper_root_recovery
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §13.1
   - 06v WP9.6
-- owner_row_id: LR-033
+- owner_row_id: LR-037
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_paper_root_recovery
   logical_key: resolve-w9-authority-decision/legacy_paper_root_recovery
@@ -1000,9 +1295,11 @@ rows:
   resolver: stephen
   authority_subject: exact recovery-decision proposal
   preconditions:
-  - the Decision is resolved by Stephen, of kind migration_authority, naming only the predecessor root and the recovery intent (W9 §13.1; P-005)
+  - the Decision is resolved by Stephen, of kind migration_authority, naming only the predecessor root and the recovery intent, never the recovery root; G5 does not apply (W9 §13.1; W9-T21; P-005)
   ordered_events:
-  - W2:DecisionResolved
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the recovery
   projection_targets:
@@ -1011,12 +1308,13 @@ rows:
   receipt_identity: R:resolve-w9-authority-decision/legacy_paper_root_recovery
   binding_tests:
   - W9-T15
+  - W9-T21
   w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §13.1
   - 06v WP9.6
-- owner_row_id: LR-034
+- owner_row_id: LR-038
   command_type: CreateLegacyPaperRoot
   payload_discriminant: create-legacy-paper-root/recovery
   logical_key: create-legacy-paper-root/recovery
@@ -1030,7 +1328,9 @@ rows:
   - the recovery Decision resolved before this root and naming only the predecessor and the intent (W9 §13.1)
   - the predecessor root is successor_owned; no accepted research artefact, result or decision changes
   ordered_events:
-  - E:legacy-paper-root-created
+  - event: E:legacy-paper-root-created
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - paper-root record stream
   - paper-root index
@@ -1046,7 +1346,7 @@ rows:
   source_refs:
   - W9 §13.1
   - 06v WP9.6
-- owner_row_id: LR-035
+- owner_row_id: LR-039
   command_type: RecordPaperCitationStatus
   payload_discriminant: record-paper-citation-status
   logical_key: record-paper-citation-status
@@ -1060,7 +1360,9 @@ rows:
   - the cited-family set derived by an independent reviewer from the drafts and the claim-trace artifact map, never by the transition's producer; hashed and filed before the transition (W9 §12.1)
   - every adoption_ref names an active (not projected suspended) adoption for the use 'evidence for the manuscript claims of paper X' (W9 §12.1; §9 item 4)
   ordered_events:
-  - E:legacy-paper-citation-status-recorded
+  - event: E:legacy-paper-citation-status-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - citation-status record stream
   - root's citation index
@@ -1076,7 +1378,7 @@ rows:
   - W9 §5.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-036
+- owner_row_id: LR-040
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_source_inventory
   logical_key: propose-legacy-record/legacy_source_inventory
@@ -1091,20 +1393,23 @@ rows:
   - the root's registration live; the inventory complete over every file under the root at the observation commit (W9 §8.2; W11 OR-122 'complete final-byte membership')
   - every row bound to an accepted observation
   ordered_events:
-  - E:legacy-source-inventory-proposed
+  - event: E:legacy-source-inventory-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_source_inventory record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_source_inventory
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
-  - W9 §8.2
+  - W9 §8.2, §12.3
   - 06v WP9.3
-- owner_row_id: LR-037
+- owner_row_id: LR-041
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_source_inventory
   logical_key: request-w9-authority-review/legacy_source_inventory
@@ -1113,27 +1418,32 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_source_inventory proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_source_inventory
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
     when: null
   source_refs:
-  - W9 §8.2
+  - W9 §8.2, §12.3
   - 06v WP9.3
-- owner_row_id: LR-038
+- owner_row_id: LR-042
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_source_inventory
   logical_key: record-w9-authority-review/legacy_source_inventory
@@ -1142,26 +1452,31 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_source_inventory proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_source_inventory
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
     when: null
   source_refs:
-  - W9 §8.2
+  - W9 §8.2, §12.3
   - 06v WP9.3
-- owner_row_id: LR-039
+- owner_row_id: LR-043
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_source_inventory
   logical_key: propose-w9-authority-decision/legacy_source_inventory
@@ -1175,20 +1490,25 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_source_inventory proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_source_inventory
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
-  - W9 §8.2
+  - W9 §8.2, §12.3
   - 06v WP9.3
-- owner_row_id: LR-040
+- owner_row_id: LR-044
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_source_inventory
   logical_key: resolve-w9-authority-decision/legacy_source_inventory
@@ -1199,12 +1519,16 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - the window held for every row (W9 §8.3)
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-source-inventory-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-source-inventory-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_source_inventory ID
   - legacy_source_inventory index
@@ -1216,12 +1540,19 @@ rows:
   - W9-T6
   - W9-T17
   - W9-T21
+  - W9-C23
   w9c_only_reason: null
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: F-018
+    when: null
+  - fixture_id: F-023
+    when: null
+  - fixture_id: F-037
+    when: null
   source_refs:
-  - W9 §8.2
+  - W9 §8.2, §12.3
   - 06v WP9.3
-- owner_row_id: LR-041
+- owner_row_id: LR-045
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_transition_mapping
   logical_key: propose-legacy-record/legacy_transition_mapping
@@ -1236,20 +1567,23 @@ rows:
   - the source inventory accepted; the target legacy-paper-root exists
   - the mapped row ordinals a subset of the accepted inventory's rows
   ordered_events:
-  - E:legacy-transition-mapping-proposed
+  - event: E:legacy-transition-mapping-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_transition_mapping record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_transition_mapping
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §8.2
   - 06v WP9.4
-- owner_row_id: LR-042
+- owner_row_id: LR-046
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_transition_mapping
   logical_key: request-w9-authority-review/legacy_transition_mapping
@@ -1258,19 +1592,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_transition_mapping proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_transition_mapping
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1278,7 +1617,7 @@ rows:
   source_refs:
   - W9 §8.2
   - 06v WP9.4
-- owner_row_id: LR-043
+- owner_row_id: LR-047
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_transition_mapping
   logical_key: record-w9-authority-review/legacy_transition_mapping
@@ -1287,18 +1626,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_transition_mapping proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_transition_mapping
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1306,7 +1650,7 @@ rows:
   source_refs:
   - W9 §8.2
   - 06v WP9.4
-- owner_row_id: LR-044
+- owner_row_id: LR-048
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_transition_mapping
   logical_key: propose-w9-authority-decision/legacy_transition_mapping
@@ -1320,20 +1664,25 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_transition_mapping proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_transition_mapping
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §8.2
   - 06v WP9.4
-- owner_row_id: LR-045
+- owner_row_id: LR-049
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_transition_mapping
   logical_key: resolve-w9-authority-decision/legacy_transition_mapping
@@ -1344,11 +1693,15 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-transition-mapping-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-transition-mapping-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_transition_mapping ID
   - legacy_transition_mapping index
@@ -1358,12 +1711,13 @@ rows:
   receipt_identity: R:resolve-w9-authority-decision/legacy_transition_mapping
   binding_tests:
   - W9-T21
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §8.2
   - 06v WP9.4
-- owner_row_id: LR-046
+- owner_row_id: LR-050
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_ownership_transitioned
   logical_key: propose-legacy-record/legacy_ownership_transitioned
@@ -1377,21 +1731,26 @@ rows:
   - the proposed content validates against the record schema
   - only W9 §8.2's transitions legacy_owned -> successor_owned and successor_owned -> closed_reference; legacy_owned -> closed_reference is refused here (P-072 item 2; W9-T5)
   ordered_events:
-  - E:legacy-ownership-transitioned-proposed
+  - event: E:legacy-ownership-transitioned-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_ownership_transitioned record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_ownership_transitioned
-  binding_tests: []
-  w9c_only_reason: authority_flow_step
+  binding_tests:
+  - W9-T5
+  - W9-C24
+  - W9-C25
+  w9c_only_reason: null
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-047
+- owner_row_id: LR-051
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_ownership_transitioned
   logical_key: request-w9-authority-review/legacy_ownership_transitioned
@@ -1400,19 +1759,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_ownership_transitioned proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_ownership_transitioned
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1421,7 +1785,7 @@ rows:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-048
+- owner_row_id: LR-052
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_ownership_transitioned
   logical_key: record-w9-authority-review/legacy_ownership_transitioned
@@ -1430,18 +1794,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_ownership_transitioned proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_ownership_transitioned
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1450,7 +1819,7 @@ rows:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-049
+- owner_row_id: LR-053
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_ownership_transitioned
   logical_key: propose-w9-authority-decision/legacy_ownership_transitioned
@@ -1464,21 +1833,26 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_ownership_transitioned proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_ownership_transitioned
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-050
+- owner_row_id: LR-054
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_ownership_transitioned/to_successor_owned
   logical_key: resolve-w9-authority-decision/legacy_ownership_transitioned/to_successor_owned
@@ -1489,17 +1863,22 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - the subject in its window (W9 §8.3)
-  - '§4.5''s paper-root column, enumerated: the closed-reference column''s conditions; the integration-pilot batch passed (§14.3); W0-D2 Stage 2 scope for its rows; the A-001 items feeding its claims resolved
-    or scoped out; every cited family adopted or marked unadopted (§12.1); its pilot_promotion evidence (§12.3); the W9-D7 manuscript route; Stephen''s batch approval (D-G6-4 limb 2)'
+  - '§4.5''s paper-root column, enumerated: the closed-reference column''s conditions; the integration-pilot outcome Decision (LR integration_pilot_outcome) resolved by Stephen as passed (W9 §12.1; §14.3;
+    P-073 item 3); W0-D2 Stage 2 scope for its rows; the A-001 items feeding its claims resolved or scoped out; every cited family adopted or marked unadopted (§12.1); its pilot_promotion evidence (§12.3);
+    the W9-D7 manuscript route; Stephen''s batch approval (D-G6-4 limb 2)'
   - the accepted mapping and the target root named; the citation status complete (W9-T17)
   - 'D-3: the citation extractor''s output equals the reviewer''s derivation, else blocked'
   - every cited adoption still active (not projected suspended) at transition
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-ownership-transitioned-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-ownership-transitioned-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_ownership_transitioned ID
   - legacy_ownership_transitioned index
@@ -1512,25 +1891,24 @@ rows:
   - W9-T6
   - W9-T17
   - W9-T21
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures:
-  - &id001
-    fixture_id: F-006
+  - fixture_id: F-006
     when: null
-  - &id002
-    fixture_id: F-019
+  - fixture_id: F-019
     when: null
-  - &id003
-    fixture_id: F-037
+  - fixture_id: F-023
     when: null
-  - &id004
-    fixture_id: F-038
+  - fixture_id: F-037
+    when: null
+  - fixture_id: F-038
     when: the root's families use the TDA pack's lanes
   source_refs:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-051
+- owner_row_id: LR-055
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_ownership_transitioned/successor_to_closed_reference
   logical_key: resolve-w9-authority-decision/legacy_ownership_transitioned/successor_to_closed_reference
@@ -1541,13 +1919,17 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - the subject in its window (W9 §8.3)
   - the subject currently successor_owned; W9 states no further precondition for this transition, and none is added here
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-ownership-transitioned-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-ownership-transitioned-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_ownership_transitioned ID
   - legacy_ownership_transitioned index
@@ -1558,17 +1940,14 @@ rows:
   binding_tests:
   - W9-T5
   - W9-T6
+  - W9-C23
   w9c_only_reason: null
-  pilot_promotion_fixtures:
-  - *id001
-  - *id002
-  - *id003
-  - *id004
+  pilot_promotion_fixtures: []
   source_refs:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4
   - P-064 D-3
-- owner_row_id: LR-052
+- owner_row_id: LR-056
   command_type: ProposeLegacyRecord
   payload_discriminant: propose-legacy-record/legacy_record_supersession
   logical_key: propose-legacy-record/legacy_record_supersession
@@ -1584,21 +1963,24 @@ rows:
   - the replacing record is of the same kind and passed its own row; a reason is given
   - no supersession cycle (W9 §13.2; S-015)
   ordered_events:
-  - E:legacy-record-supersession-proposed
+  - event: E:legacy-record-supersession-proposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - proposal stream of the pre-assigned legacy_record_supersession record ID
   projection_targets:
   - P:legacy-proposals
   reducer: U:legacy-proposal
   receipt_identity: R:propose-legacy-record/legacy_record_supersession
-  binding_tests: []
+  binding_tests:
+  - W9-C25
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures: []
   source_refs:
   - W9 §13.1, §13.2
   - 06v WP9.6
   - P-070
-- owner_row_id: LR-053
+- owner_row_id: LR-057
   command_type: RequestW9AuthorityReview
   payload_discriminant: request-w9-authority-review/legacy_record_supersession
   logical_key: request-w9-authority-review/legacy_record_supersession
@@ -1607,19 +1989,24 @@ rows:
   eligible_actor: migration_analyst
   requester: migration_analyst
   resolver: none
-  authority_subject: exact proposal subject + the named reviewer
+  authority_subject: exact proposal subject + the named reviewer + the proposal's pre-assigned rev_ ID as the new review's ID
   preconditions:
   - the proposal current at its exact content hash
+  - the new review's ID is the proposal's pre-assigned rev_ ID (re-review M-1)
   - the reviewer independent of the item's producer and on a session distinct from the analyst (W9 §8.6)
   ordered_events:
-  - W2:ReviewRequested
+  - event: W2:ReviewRequested
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_record_supersession proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:request-w9-authority-review/legacy_record_supersession
-  binding_tests: []
+  binding_tests:
+  - W9-C20
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1628,7 +2015,7 @@ rows:
   - W9 §13.1, §13.2
   - 06v WP9.6
   - P-070
-- owner_row_id: LR-054
+- owner_row_id: LR-058
   command_type: RecordW9AuthorityReview
   payload_discriminant: record-w9-authority-review/legacy_record_supersession
   logical_key: record-w9-authority-review/legacy_record_supersession
@@ -1637,18 +2024,23 @@ rows:
   eligible_actor: independent_reviewer
   requester: null
   resolver: none
-  authority_subject: exact proposal subject (record ID + content hash)
+  authority_subject: exact proposal subject (record ID + content hash) + the reviewer the request named
   preconditions:
+  - the submitter is the reviewer the request named (re-review m-1)
   - the requested review open on the current hash; the reviewer independently reloads every bound member
   ordered_events:
-  - W2:ReviewVerdictRecorded
+  - event: W2:ReviewVerdictRecorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - review stream of the legacy_record_supersession proposal
   projection_targets:
   - P:legacy-reviews
   reducer: U:w9-authority-review
   receipt_identity: R:record-w9-authority-review/legacy_record_supersession
-  binding_tests: []
+  binding_tests:
+  - W9-C21
+  - W9-C22
   w9c_only_reason: authority_flow_step
   pilot_promotion_fixtures:
   - fixture_id: S-007
@@ -1657,7 +2049,7 @@ rows:
   - W9 §13.1, §13.2
   - 06v WP9.6
   - P-070
-- owner_row_id: LR-055
+- owner_row_id: LR-059
   command_type: ProposeW9AuthorityDecision
   payload_discriminant: propose-w9-authority-decision/legacy_record_supersession
   logical_key: propose-w9-authority-decision/legacy_record_supersession
@@ -1671,21 +2063,26 @@ rows:
   - the proposal current
   - a positive review on the current hash
   ordered_events:
-  - W2:DecisionProposed
+  - event: W2:DecisionProposed
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - decision stream of the legacy_record_supersession proposal
   projection_targets:
   - P:legacy-decisions
   reducer: U:w9-authority-decision
   receipt_identity: R:propose-w9-authority-decision/legacy_record_supersession
-  binding_tests: []
+  binding_tests:
+  - W9-C22
   w9c_only_reason: authority_flow_step
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: S-007
+    when: null
   source_refs:
   - W9 §13.1, §13.2
   - 06v WP9.6
   - P-070
-- owner_row_id: LR-056
+- owner_row_id: LR-060
   command_type: ResolveW9AuthorityDecision
   payload_discriminant: resolve-w9-authority-decision/legacy_record_supersession
   logical_key: resolve-w9-authority-decision/legacy_record_supersession
@@ -1696,22 +2093,28 @@ rows:
   resolver: stephen
   authority_subject: exact decision-proposal subject
   preconditions:
-  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash (P-005;
-    W9 §8.5 item 5; S-007)'
+  - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
+    the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - current use re-points to the replacing record; dependent adoptions are projected suspended (P-072 item 3)
   ordered_events:
-  - W2:DecisionResolved
-  - E:legacy-record-supersession-recorded
+  - event: W2:DecisionResolved
+    multiplicity: '1'
+    condition: null
+  - event: E:legacy-record-supersession-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - record stream of the pre-assigned legacy_record_supersession ID
   - legacy_record_supersession index
   projection_targets:
   - P:legacy-record-supersession
+  - P:legacy-adoption-status
   reducer: U:legacy-record-supersession
   receipt_identity: R:resolve-w9-authority-decision/legacy_record_supersession
   binding_tests:
   - W9-T9
   - W9-T14
+  - W9-C23
   w9c_only_reason: null
   pilot_promotion_fixtures:
   - fixture_id: S-015
@@ -1720,7 +2123,7 @@ rows:
   - W9 §13.1, §13.2
   - 06v WP9.6
   - P-070
-- owner_row_id: LR-057
+- owner_row_id: LR-061
   command_type: RecordAdoptionUseMismatch
   payload_discriminant: record-adoption-use-mismatch
   logical_key: record-adoption-use-mismatch
@@ -1733,7 +2136,9 @@ rows:
   preconditions:
   - requested by WP9.7's use-time guard on a whole-file adoption whose source re-hash differs (W9 §9 item 1; O-34)
   ordered_events:
-  - E:legacy-adoption-use-mismatch-recorded
+  - event: E:legacy-adoption-use-mismatch-recorded
+    multiplicity: '1'
+    condition: null
   affected_streams:
   - adoption's mismatch stream
   projection_targets:

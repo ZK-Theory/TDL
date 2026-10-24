@@ -4585,6 +4585,53 @@ M-4, M-5, M-6 and m-7).<br>
 - WP9.4 and WP9.7 (suspension, and the use-mismatch request);
 - O-8.<br>
 
+**Migration consequence:** None.<br>
+**Correction pointer (P-073 item 2).** This entry's names map to revision 3 of the note and annex as follows:
+- "a W9 `ResolveDecision`" is `ResolveW9AuthorityDecision`;
+- "LR-006's acceptance" is LR-020;
+- "`TransitionLegacyOwnership`" is the ownership flow, LR-050 to LR-055, whose proposal (LR-050) refuses
+  `legacy_owned → closed_reference`.
+
+### P-073 - WP9.1 stage B: behavioural catalogue tests, the resolver's name, the eligibility and pilot Decisions, and the O-31 reading
+
+**Date:** 2026-10-24<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-24), answering the owner points of the stage B note re-review
+(`reviews/wp9-1-stage-b-note-re-review-479745fc-2026-10-24.md`, commit `71d01975`: M-4, m-6, M-3 and I-4).<br>
+**Authority:** Stephen, in chat, 2026-10-24, choosing the recommended option each time:
+- M-4, flow tests: "Add W9-C2x tests (Recommended)";
+- m-6, resolver: "ResolveW9AuthorityDecision (Recommended)";
+- M-3, coverage: "Stephen eligibility Decision (Recommended)";
+- I-4, O-31: "Record that reading (Recommended)".
+
+**Decision:**
+1. **Behavioural catalogue tests (M-4).** P-071 item 6 is extended to the authority-flow rows, together with a closed
+   family of negative controls, W9-C20 to W9-C25 (the annex's `catalogue_tests`):
+   - W9-C20: a reviewer who produced the item, shares the analyst's session, or is not the eligible session;
+   - W9-C21: a verdict from anyone other than the named reviewer;
+   - W9-C22: a stale proposal hash (S-007);
+   - W9-C23: a resolution whose refs or bytes differ from the proposal;
+   - W9-C24: a proposal for `legacy_owned → closed_reference`;
+   - W9-C25: a proposal whose content fails its schema, or whose pre-assigned IDs already exist.
+
+   Each is refused. A row with no W9-T test carries a `w9c_only_reason` and binds at least one W9-C2x test.
+2. **The resolver's name (m-6).** `ResolveW9AuthorityDecision` is confirmed. P-072 carries a correction pointer from
+   its old names to the revision 3 rows.
+3. **Eligibility and pilot Decisions (M-3).**
+   - Before an adoption's review, Stephen resolves a reviewer-eligibility Decision (LR-024, LR-025). It names the
+     reviewer session and its operator-recorded model family and version, role profile and context grade (W9 §11.2
+     a–c).
+   - The review request must name that session (LR-026). The verdict's `reviewer_model_metadata` must match
+     (LR-027).
+   - The integration-pilot outcome is a Stephen Decision of kind `result_interpretation` (LR-021, LR-022). It cites
+     the §14.3 pre-registration and the measured values. LR-016, LR-035 and LR-054 read it.
+4. **O-31 (I-4).** Stephen's reading of 06v O-31: the full-path rows (LR-035 to LR-055) are built and tested, and
+   refuse until their §4.5 gate. No paper-root transition runs under 06v.
+
+**Not decided here:** the catalogue's acceptance (O-8).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** P-071 item 6 (extended); P-072 (correction pointer); W9 §11.2, §14.3 (their Decisions
+are named); 06v O-31 (read); the stage B verifier.<br>
 **Migration consequence:** None.
 
 ## Decision protocol
