@@ -561,8 +561,7 @@ rows:
   - §4.5's closed-reference column holds (W9 §4.5)
   - every item's observation accepted by no earlier batch; every item in its window (W9 §8.3; O-33)
   - per-item pilot_promotion applicability proposed by the reviewer, never the producer (W9 §12.3)
-  - 'until the integration-pilot outcome Decision is resolved, the batch is the integration pilot: closed-reference items only, at most 20 (W9 §14.2; 06v L-4)'
-  - no integration-pilot outcome Decision records a missed threshold (W9 §14.3)
+  - 'a batch after the first requires the integration-pilot outcome Decision resolved as passed; the first batch is the integration pilot: closed-reference items only, at most 20 (W9 §14.2, §14.3; 06v L-4)'
   - the threshold pre-registration and governing-record set hashed and anchored before the batch (O-25; W9-T16)
   - an observation of a result whose enforcement state a later shared_enforcement_surface change affects is refused, by the committed change list at the binding's git_head (O-32)
   - the proposal lists, with pre-assigned IDs and full content, every legacy-ownership-transitioned record the resolution will emit (re-review M-1)
@@ -718,8 +717,8 @@ rows:
   - legacy_closed_reference_acceptance index
   projection_targets:
   - P:legacy-closed-reference-acceptance
-  - P:legacy-ownership
-  reducer: U:legacy-closed-reference-acceptance
+  - P:legacy-ownership-transitioned
+  reducer: U:legacy-closed-reference-acceptance, U:legacy-ownership-transitioned
   receipt_identity: R:resolve-w9-authority-decision/legacy_closed_reference_acceptance
   binding_tests:
   - W9-T1
@@ -1237,7 +1236,7 @@ rows:
   authority_subject: the P01 key + its manuscript root path
   preconditions:
   - no root exists for the key
-  - the integration-pilot outcome Decision (LR integration_pilot_outcome) resolved by Stephen as passed (W9 §12.1; §14.3; P-073 item 3)
+  - the integration-pilot outcome Decision (LR-022) resolved by Stephen as passed (W9 §12.1; §14.3; P-073 item 3)
   ordered_events:
   - event: E:legacy-paper-root-created
     multiplicity: '1'
@@ -1866,9 +1865,9 @@ rows:
   - 'G5: the Decision is resolved by Stephen, of kind migration_authority, and its subject is this record''s pre-assigned ID and exact content hash; the review it names is satisfied on that same hash; and
     the record''s review and Decision refs are exactly the proposal''s pre-assigned rev_ and dec_ IDs, which are the review satisfied and the Decision resolved (P-005; W9 §8.5 item 5; S-007)'
   - the subject in its window (W9 §8.3)
-  - '§4.5''s paper-root column, enumerated: the closed-reference column''s conditions; the integration-pilot outcome Decision (LR integration_pilot_outcome) resolved by Stephen as passed (W9 §12.1; §14.3;
-    P-073 item 3); W0-D2 Stage 2 scope for its rows; the A-001 items feeding its claims resolved or scoped out; every cited family adopted or marked unadopted (§12.1); its pilot_promotion evidence (§12.3);
-    the W9-D7 manuscript route; Stephen''s batch approval (D-G6-4 limb 2)'
+  - '§4.5''s paper-root column, enumerated: the closed-reference column''s conditions; the integration-pilot outcome Decision (LR-022) resolved by Stephen as passed (W9 §12.1; §14.3; P-073 item 3); W0-D2
+    Stage 2 scope for its rows; the A-001 items feeding its claims resolved or scoped out; every cited family adopted or marked unadopted (§12.1); its pilot_promotion evidence (§12.3); the W9-D7 manuscript
+    route; Stephen''s batch approval (D-G6-4 limb 2)'
   - the accepted mapping and the target root named; the citation status complete (W9-T17)
   - 'D-3: the citation extractor''s output equals the reviewer''s derivation, else blocked'
   - every cited adoption still active (not projected suspended) at transition
@@ -1942,7 +1941,15 @@ rows:
   - W9-T6
   - W9-C23
   w9c_only_reason: null
-  pilot_promotion_fixtures: []
+  pilot_promotion_fixtures:
+  - fixture_id: F-006
+    when: null
+  - fixture_id: F-019
+    when: null
+  - fixture_id: F-037
+    when: null
+  - fixture_id: F-038
+    when: the root's families use the TDA pack's lanes
   source_refs:
   - W9 §4.5, §8.2, §12.1
   - 06v WP9.4

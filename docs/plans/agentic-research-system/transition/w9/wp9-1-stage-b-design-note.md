@@ -1,7 +1,8 @@
 # WP9.1 stage B design note: the W9 command set and the catalogue row shape
 
 **Date:** 2026-10-24<br>
-**Status:** Draft, revision 3, for the reviewer's narrow confirmation. It reconciles the review
+**Status:** Revision 3, confirmed (`reviews/wp9-1-stage-b-note-confirmation-8a0d68fc-2026-10-24.md`). Its residuals
+c-1 to c-4 and i-1 were folded in at Stephen's request, with no further round. It reconciles the review
 `reviews/wp9-1-stage-b-note-review-0cf8acd3-2026-10-24.md` and the re-review
 `reviews/wp9-1-stage-b-note-re-review-479745fc-2026-10-24.md` (see
 `reviews/wp9-1-stage-b-note-reconciliation-2026-10-24.md`), under Stephen's decisions P-071, P-072 and P-073. Nothing

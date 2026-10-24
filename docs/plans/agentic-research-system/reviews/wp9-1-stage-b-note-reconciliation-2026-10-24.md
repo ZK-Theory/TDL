@@ -60,7 +60,7 @@ The reviewer offered a narrow confirmation of the corrected annex.
 | **M-1** same bytes | Fixed. Every review request binds the proposal's pre-assigned `rev_` as the new review's ID. G5 requires the record's refs to be exactly the pre-assigned IDs. W9-C23 refuses differing refs or bytes. LR-016's proposal lists every ownership record, and LR-020 refuses a different set at commit | Annex G5, request rows, LR-016, LR-020; note §2 |
 | **M-2** G5 scope | Fixed. G5 is scoped to Stephen-resolved rows that write a W9 record. The recovery, reviewer-eligibility and integration-pilot Decisions are excluded, and LR-037 says so itself | Annex G5, LR-037 |
 | **M-3** facts no row produces | Fixed by P-073 item 3. The eligibility Decision (LR-024, LR-025) is named by LR-026 and matched by LR-027. The integration-pilot outcome Decision (LR-021, LR-022) is read by LR-016, LR-035 and LR-054. LR-003 reads D-5's control-output hash files | Annex; note §4 |
-| **M-4** shape tests only | Fixed by P-073 item 1: W9-C20 to W9-C25. Every authority-flow row binds at least one, and the annex generator checks the rule | Annex `catalogue_tests`; note §3, §5 |
+| **M-4** shape tests only | Fixed by P-073 item 1: W9-C20 to W9-C25. Every authority-flow row binds at least one. The rule is stated in the annex's `derivation_rules`, and the B1 verifier enforces it with a negative control (confirmation c-4; the annex was authored with an uncommitted helper, which is not a control) | Annex `catalogue_tests`; note §3, §5 |
 | **m-1** named reviewer | Fixed in every record-review row's subject and preconditions | Annex |
 | **m-2** suspension inputs | Fixed. LR-060 projects `P:legacy-adoption-status`. `suspension_rule` defines "source" and "relies on" | Annex |
 | **m-3** event tokens | Fixed. One token, `E:legacy-ownership-transitioned-recorded`, for every ownership record; `ordered_events` entries are `{event, multiplicity, condition}` | Annex; note §3 |
@@ -75,6 +75,21 @@ The reviewer offered a narrow confirmation of the corrected annex.
 The annex now has 61 rows. The eligibility pair and the pilot-outcome pair are new, and the row numbers changed from
 revision 2.
 
-## 5. Not done
+## 5. The confirmation's residuals
+
+The confirmation (`reviews/wp9-1-stage-b-note-confirmation-8a0d68fc-2026-10-24.md`, commit `ba5ec32d`) returned PASS
+WITH FINDINGS: 0 Blocking, 1 Major, 3 Minor and 2 Info findings. Stephen asked for all of them to be folded in with no
+further round.
+
+| Finding | Disposition |
+|---|---|
+| **c-1** LR-016's stop rule passed vacuously before the pilot outcome existed | Fixed with the reviewer's exact text: "a batch after the first requires the integration-pilot outcome Decision resolved as passed; the first batch is the integration pilot: closed-reference items only, at most 20 (W9 §14.2, §14.3; 06v L-4)" |
+| **c-2** LR-055's fixtures dropped | Restored: F-006, F-019, F-037, and F-038 when the root's families use the TDA pack's lanes |
+| **c-3** two ownership projection and reducer names | Fixed. LR-020 writes ownership records under `P:legacy-ownership-transitioned` with `U:legacy-ownership-transitioned`, as LR-054 and LR-055 do |
+| **c-4** the uncommitted generator claim | §4's M-4 wording is corrected. The B1 verifier enforces the rule, with a negative control |
+| **i-1** cite by row | LR-035 and LR-054 now cite "LR-022" |
+| i-2 | Recorded |
+
+## 6. Not done
 
 Nothing is materialized: no schema change, no catalogue, no verifier. Nothing is pushed.
