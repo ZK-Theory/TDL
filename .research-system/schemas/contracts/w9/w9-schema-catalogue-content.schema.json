@@ -14,6 +14,8 @@
     "content_hash",
     "owner_spec_identity",
     "owner_plan_identity",
+    "owner_annex_identity",
+    "global_preconditions",
     "owner_row_count",
     "owner_row_range_hash",
     "schema_source_rows",
@@ -105,6 +107,43 @@
       },
       "additionalProperties": false
     },
+    "owner_annex_identity": {
+      "type": "object",
+      "required": [
+        "repository_path",
+        "git_commit",
+        "git_blob",
+        "file_length",
+        "file_sha256"
+      ],
+      "properties": {
+        "repository_path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "git_commit": {
+          "$ref": "#/$defs/sha1"
+        },
+        "git_blob": {
+          "$ref": "#/$defs/sha1"
+        },
+        "file_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false
+    },
+    "global_preconditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
     "owner_row_count": {
       "type": "integer",
       "minimum": 1
@@ -162,13 +201,28 @@
         "required": [
           "owner_row_id",
           "command_type",
+          "payload_discriminant",
+          "logical_key",
           "record_schema_id",
+          "record_schema_version",
           "eligible_actor",
+          "requester",
           "resolver",
+          "authority_subject",
           "preconditions",
           "ordered_events",
           "affected_streams",
-          "binding_tests"
+          "complete_write_set",
+          "projection_targets",
+          "reducer",
+          "receipt_identity",
+          "binding_tests",
+          "w9c_only_reason",
+          "pilot_promotion_fixtures",
+          "positive_test_identity",
+          "negative_mutation_test_identity",
+          "retry_test_identity",
+          "owner_annex_ref"
         ],
         "properties": {
           "owner_row_id": {
@@ -179,20 +233,37 @@
             "type": "string",
             "pattern": "^[A-Z][A-Za-z0-9]+$"
           },
+          "payload_discriminant": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+(/[a-z0-9_]+)*$"
+          },
+          "logical_key": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+(/[a-z0-9_]+)*$"
+          },
           "record_schema_id": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "type": "string",
-                "pattern": "^ars://legacy/[a-z0-9-]+$"
-              }
-            ]
+            "type": "string",
+            "pattern": "^ars://legacy/[a-z0-9-]+$"
+          },
+          "record_schema_version": {
+            "const": "1.0.0"
           },
           "eligible_actor": {
             "enum": [
               "migration_analyst",
+              "membership_author",
+              "observer",
+              "independent_reviewer",
+              "stephen",
+              "operator",
+              "system_guard"
+            ]
+          },
+          "requester": {
+            "enum": [
+              null,
+              "migration_analyst",
+              "membership_author",
               "observer",
               "independent_reviewer",
               "stephen",
@@ -206,6 +277,10 @@
               "none"
             ]
           },
+          "authority_subject": {
+            "type": "string",
+            "minLength": 1
+          },
           "preconditions": {
             "type": "array",
             "items": {
@@ -217,8 +292,53 @@
           "ordered_events": {
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^E:[a-z0-9-]+$"
+              "type": "object",
+              "required": [
+                "event",
+                "multiplicity",
+                "condition"
+              ],
+              "properties": {
+                "event": {
+                  "type": "string",
+                  "pattern": "^(E|W2):[A-Za-z0-9-]+$"
+                },
+                "multiplicity": {
+                  "enum": [
+                    "1",
+                    "0..n"
+                  ]
+                },
+                "condition": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "multiplicity": {
+                        "const": "0..n"
+                      }
+                    },
+                    "required": [
+                      "multiplicity"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "condition": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "minItems": 1
           },
@@ -230,16 +350,148 @@
             },
             "minItems": 1
           },
+          "complete_write_set": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1
+          },
+          "projection_targets": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^P:[a-z0-9-]+$"
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "reducer": {
+            "type": "string",
+            "pattern": "^U:[a-z0-9-]+(, U:[a-z0-9-]+)*$"
+          },
+          "receipt_identity": {
+            "type": "string",
+            "pattern": "^R:[a-z0-9-]+(/[a-z0-9_]+)*$"
+          },
           "binding_tests": {
             "type": "array",
             "items": {
               "type": "string",
-              "pattern": "^W9-T[0-9]+$"
+              "pattern": "^W9-(T[0-9]+|C2[0-9])$"
             },
-            "minItems": 1
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "w9c_only_reason": {
+            "enum": [
+              null,
+              "authority_flow_step",
+              "discharge_no_w9_test"
+            ]
+          },
+          "pilot_promotion_fixtures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "fixture_id",
+                "when"
+              ],
+              "properties": {
+                "fixture_id": {
+                  "type": "string",
+                  "pattern": "^[FS]-[0-9]{3}$"
+                },
+                "when": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                }
+              },
+              "additionalProperties": false
+            },
+            "uniqueItems": true
+          },
+          "positive_test_identity": {
+            "type": "string",
+            "pattern": "^W9-C01-LR-[0-9]{3}$"
+          },
+          "negative_mutation_test_identity": {
+            "type": "string",
+            "pattern": "^W9-C03-LR-[0-9]{3}-owner-row-mutation$"
+          },
+          "retry_test_identity": {
+            "type": "string",
+            "pattern": "^W9-C11-LR-[0-9]{3}$"
+          },
+          "owner_annex_ref": {
+            "type": "object",
+            "required": [
+              "repository_path",
+              "git_commit",
+              "git_blob",
+              "file_sha256",
+              "row_sha256"
+            ],
+            "properties": {
+              "repository_path": {
+                "$ref": "#/$defs/relPath"
+              },
+              "git_commit": {
+                "$ref": "#/$defs/sha1"
+              },
+              "git_blob": {
+                "$ref": "#/$defs/sha1"
+              },
+              "file_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "row_sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "additionalProperties": false
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "w9c_only_reason": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "binding_tests": {
+                  "contains": {
+                    "pattern": "^W9-T"
+                  }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "binding_tests": {
+                  "not": {
+                    "contains": {
+                      "pattern": "^W9-T"
+                    }
+                  },
+                  "contains": {
+                    "pattern": "^W9-C2"
+                  }
+                }
+              }
+            }
+          }
+        ]
       },
       "minItems": 1,
       "uniqueItems": true

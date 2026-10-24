@@ -10,6 +10,15 @@ with Stephen's decisions in P-069 and P-070.<br>
 **Implementation authority:** P-065 (WP9.0 and WP9.1 only), with P-069 item 4 naming the test and the generator.
 Stage A changes no runtime Python.
 
+**Stage B1 additions** (P-072 items 3, 5 and 6). B1 extends the family on the same generator:
+- a 14th record, `legacy-adoption-use-mismatch`;
+- a fifth bootstrap schema, `import-accepted-w9-catalogue-revision`;
+- the catalogue-content row, widened to the stage B design note's 24 fields.
+
+That makes 19 schemas. The stage A test grows to 66 controls. The new verifier is
+`tools/verify_w9_materialization.py`, and its test is `tests/research_system/contracts/test_w9_expected_catalogue.py`.
+The table below describes stage A as merged at `5d325c5b`.
+
 ## 1. What stage A materializes
 
 | Path | Content |

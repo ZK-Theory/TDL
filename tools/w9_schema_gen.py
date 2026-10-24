@@ -1090,6 +1090,30 @@ SCHEMAS["legacy-record-supersession"] = record(
     ["superseded_ref", "replacing_ref", "reason", "reviewer_ref", "decision_ref"],
 )
 
+# A use-time re-hash mismatch on a whole-file adoption, requested by WP9.7's guard (W9 §9 item 1; O-34). It suspends the
+# adoption by projection; it is the payload of its own event (P-072 item 3; stage B owner annex LR-061).
+SCHEMAS["legacy-adoption-use-mismatch"] = record(
+    "legacy-adoption-use-mismatch",
+    {
+        "adoption_ref": ref("recordRef"),
+        "successor_task_ref": ref("taskRef"),
+        "expected_sha256": ref("sha256"),
+        "observed_sha256": ref("sha256"),
+        "observed_byte_length": {"type": "integer", "minimum": 0},
+        "detected_at": ref("utc"),
+        "guard_actor_id": ref("actorId"),
+    },
+    [
+        "adoption_ref",
+        "successor_task_ref",
+        "expected_sha256",
+        "observed_sha256",
+        "observed_byte_length",
+        "detected_at",
+        "guard_actor_id",
+    ],
+)
+
 SCHEMA_FILE_IDENTITY = obj(
     ["repository_path", "schema_id", "schema_version", "git_commit", "git_blob", "file_length", "file_sha256"],
     {
@@ -1194,37 +1218,143 @@ SCHEMAS["import-accepted-w9-catalogue-genesis"] = bootstrap_schema(
     ),
 )
 
+# The inert revision import (P-072 item 5; owner annex LR-002): a later accepted catalogue revision enters a store that
+# already holds v1. Every v1 row is unchanged or named here as superseded.
+SCHEMAS["import-accepted-w9-catalogue-revision"] = bootstrap_schema(
+    "import-accepted-w9-catalogue-revision",
+    obj(
+        [
+            "schema_id",
+            "schema_version",
+            "bootstrap_contract_identity",
+            "superseded_catalogue_identity",
+            "revision_envelope_identity",
+            "superseded_owner_row_ids",
+            "requested_transaction_id",
+            "refused_store_identities",
+            "verification_requirements",
+            "activation_status",
+        ],
+        {
+            "schema_id": {"const": "ars://legacy/import-accepted-w9-catalogue-revision"},
+            "schema_version": {"const": "1.0.0"},
+            "bootstrap_contract_identity": CODE_IDENTITY,
+            "superseded_catalogue_identity": CODE_IDENTITY,
+            "revision_envelope_identity": CODE_IDENTITY,
+            "superseded_owner_row_ids": arr({"type": "string", "pattern": "^LR-[0-9]{3}$"}, unique=True),
+            "requested_transaction_id": TEXT,
+            "refused_store_identities": arr(ref("sha256"), 1, unique=True),
+            "verification_requirements": arr(TEXT, 1),
+            "activation_status": {"const": "not_executed"},
+        },
+    ),
+)
+
+# The catalogue row: the 24 fields of the stage B design note §3 (P-071 item 1; P-072; P-073), on W11's row shape.
+ACTORS = [
+    "migration_analyst",
+    "membership_author",
+    "observer",
+    "independent_reviewer",
+    "stephen",
+    "operator",
+    "system_guard",
+]
+LR_ID = "LR-[0-9]{3}"
 OWNER_ROW = obj(
     [
         "owner_row_id",
         "command_type",
+        "payload_discriminant",
+        "logical_key",
         "record_schema_id",
+        "record_schema_version",
         "eligible_actor",
+        "requester",
         "resolver",
+        "authority_subject",
         "preconditions",
         "ordered_events",
         "affected_streams",
+        "complete_write_set",
+        "projection_targets",
+        "reducer",
+        "receipt_identity",
         "binding_tests",
+        "w9c_only_reason",
+        "pilot_promotion_fixtures",
+        "positive_test_identity",
+        "negative_mutation_test_identity",
+        "retry_test_identity",
+        "owner_annex_ref",
     ],
     {
-        "owner_row_id": {"type": "string", "pattern": "^LR-[0-9]{3}$"},
+        "owner_row_id": {"type": "string", "pattern": f"^{LR_ID}$"},
         "command_type": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]+$"},
-        "record_schema_id": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^ars://legacy/[a-z0-9-]+$"}]},
-        "eligible_actor": {
-            "enum": ["migration_analyst", "observer", "independent_reviewer", "stephen", "operator", "system_guard"]
-        },
+        "payload_discriminant": {"type": "string", "pattern": "^[a-z0-9-]+(/[a-z0-9_]+)*$"},
+        "logical_key": {"type": "string", "pattern": "^[a-z0-9-]+(/[a-z0-9_]+)*$"},
+        "record_schema_id": {"type": "string", "pattern": "^ars://legacy/[a-z0-9-]+$"},
+        "record_schema_version": {"const": "1.0.0"},
+        "eligible_actor": {"enum": ACTORS},
+        "requester": {"enum": [None, *ACTORS]},
         "resolver": {"enum": ["stephen", "none"]},
+        "authority_subject": TEXT,
         "preconditions": arr(TEXT, 1),
-        "ordered_events": arr({"type": "string", "pattern": "^E:[a-z0-9-]+$"}, 1),
+        "ordered_events": arr(
+            obj(
+                ["event", "multiplicity", "condition"],
+                {
+                    "event": {"type": "string", "pattern": "^(E|W2):[A-Za-z0-9-]+$"},
+                    "multiplicity": {"enum": ["1", "0..n"]},
+                    "condition": {"type": ["string", "null"], "minLength": 1},
+                },
+                allOf=[when("multiplicity", "0..n", props(condition={"type": "string"}))],
+            ),
+            1,
+        ),
         "affected_streams": arr(TEXT, 1),
-        "binding_tests": arr({"type": "string", "pattern": "^W9-T[0-9]+$"}, 1),
+        "complete_write_set": arr(TEXT, 1),
+        "projection_targets": arr({"type": "string", "pattern": "^P:[a-z0-9-]+$"}, 1, unique=True),
+        "reducer": {"type": "string", "pattern": "^U:[a-z0-9-]+(, U:[a-z0-9-]+)*$"},
+        "receipt_identity": {"type": "string", "pattern": "^R:[a-z0-9-]+(/[a-z0-9_]+)*$"},
+        "binding_tests": arr({"type": "string", "pattern": "^W9-(T[0-9]+|C2[0-9])$"}, 1, unique=True),
+        "w9c_only_reason": {"enum": [None, "authority_flow_step", "discharge_no_w9_test"]},
+        "pilot_promotion_fixtures": arr(
+            obj(
+                ["fixture_id", "when"], {"fixture_id": FIXTURE_ID, "when": {"type": ["string", "null"], "minLength": 1}}
+            ),
+            unique=True,
+        ),
+        "positive_test_identity": {"type": "string", "pattern": f"^W9-C01-{LR_ID}$"},
+        "negative_mutation_test_identity": {"type": "string", "pattern": f"^W9-C03-{LR_ID}-owner-row-mutation$"},
+        "retry_test_identity": {"type": "string", "pattern": f"^W9-C11-{LR_ID}$"},
+        "owner_annex_ref": obj(
+            ["repository_path", "git_commit", "git_blob", "file_sha256", "row_sha256"],
+            {
+                "repository_path": ref("relPath"),
+                "git_commit": ref("sha1"),
+                "git_blob": ref("sha1"),
+                "file_sha256": ref("sha256"),
+                "row_sha256": ref("sha256"),
+            },
+        ),
     },
+    # A row with no W9-T test carries a reason and binds a W9-C2x test; a row with one carries no reason (P-073).
+    allOf=[
+        {
+            "if": props(w9c_only_reason={"type": "null"}),
+            "then": props(binding_tests={"contains": {"pattern": "^W9-T"}}),
+            "else": props(binding_tests={"not": {"contains": {"pattern": "^W9-T"}}, "contains": {"pattern": "^W9-C2"}}),
+        }
+    ],
 )
 _cat_required, _cat_props = header("w9-schema-catalogue-content")
 _cat_props.update(
     {
         "owner_spec_identity": SPEC_IDENTITY,
         "owner_plan_identity": SPEC_IDENTITY,
+        "owner_annex_identity": CODE_IDENTITY,
+        "global_preconditions": arr(TEXT, 1),
         "owner_row_count": {"type": "integer", "minimum": 1},
         "owner_row_range_hash": ref("sha256"),
         "schema_source_rows": arr(SCHEMA_FILE_IDENTITY, 1, unique=True),
@@ -1239,6 +1369,8 @@ SCHEMAS["w9-schema-catalogue-content"] = bootstrap_schema(
         + [
             "owner_spec_identity",
             "owner_plan_identity",
+            "owner_annex_identity",
+            "global_preconditions",
             "owner_row_count",
             "owner_row_range_hash",
             "schema_source_rows",

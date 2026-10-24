@@ -46,12 +46,14 @@ RECORD_KINDS = (
     "legacy-transition-mapping",
     "legacy-ownership-transitioned",
     "legacy-record-supersession",
+    "legacy-adoption-use-mismatch",
 )
 BOOTSTRAP_KINDS = (
     "w9-catalogue-acceptance-envelope",
     "w9-materialization-bootstrap-contract",
     "import-accepted-w9-catalogue-genesis",
     "w9-schema-catalogue-content",
+    "import-accepted-w9-catalogue-revision",
 )
 ALL_KINDS = RECORD_KINDS + BOOTSTRAP_KINDS
 EXPECTED_IDS = {f"ars://legacy/{kind}" for kind in ALL_KINDS}
@@ -132,6 +134,8 @@ REF_FIELDS: dict[tuple[str, str], str] = {
     ("legacy-record-supersession", "replacing_ref"): "recordRef",
     ("legacy-record-supersession", "reviewer_ref"): "reviewRef",
     ("legacy-record-supersession", "decision_ref"): "decisionRef",
+    ("legacy-adoption-use-mismatch", "adoption_ref"): "recordRef",
+    ("legacy-adoption-use-mismatch", "successor_task_ref"): "taskRef",
     ("w9-catalogue-acceptance-envelope", "independent_observation_ref"): "anyRef",
     ("w9-catalogue-acceptance-envelope", "independent_review_ref"): "reviewRef",
     ("w9-catalogue-acceptance-envelope", "acceptance_decision_ref"): "decisionRef",
@@ -191,6 +195,7 @@ RECORD_EDGES: dict[tuple[str, str], tuple[str, ...]] = {
     # W9 §13.1-13.2 fix the targets, not §5.2's narrower row (P-070; re-review N-4).
     ("legacy-record-supersession", "superseded_ref"): SUPERSESSION_TARGETS,
     ("legacy-record-supersession", "replacing_ref"): SUPERSESSION_TARGETS,
+    ("legacy-adoption-use-mismatch", "adoption_ref"): ("legacy-adoption-decision",),
     ("w9-catalogue-acceptance-envelope", "independent_observation_ref"): (),
 }
 # Same-kind edges: lineage (a recovery root's predecessor, a superseded citation status) and an observation that
@@ -1039,3 +1044,50 @@ def test_inventory_binds_selector_fields_region_and_read_record() -> None:
     mixed = deepcopy(heading)
     mixed["rows"][0]["selector_kind"] = "computational_log_entry"
     assert not _valid("legacy-light-inventory", mixed)
+
+
+# --- Stage B1 additions: the use-time mismatch record and the inert revision import (P-072 items 3 and 5) ----------
+
+
+def test_adoption_use_mismatch_binds_the_adoption_and_the_successor_task() -> None:
+    kind = "legacy-adoption-use-mismatch"
+    mismatch = {
+        **_header(kind),
+        "adoption_ref": _rec(),
+        "successor_task_ref": _ref("tsk"),
+        "expected_sha256": _HASH,
+        "observed_sha256": "1" * 64,
+        "observed_byte_length": 10,
+        "detected_at": "2026-10-24T00:00:00Z",
+        "guard_actor_id": _ACT,
+    }
+    assert _valid(kind, mismatch)
+    assert not _valid(kind, {**mismatch, "adoption_ref": _dec()})
+    assert not _valid(kind, {**mismatch, "successor_task_ref": _art()})
+    assert not _valid(kind, {k: v for k, v in mismatch.items() if k != "observed_sha256"})
+
+
+def test_catalogue_revision_import_is_inert_and_names_superseded_rows() -> None:
+    kind = "import-accepted-w9-catalogue-revision"
+    identity = {
+        "repository_path": "x.json",
+        "git_commit": _SHA1,
+        "git_blob": _SHA1,
+        "file_length": 1,
+        "file_sha256": _HASH,
+    }
+    revision = {
+        "schema_id": f"ars://legacy/{kind}",
+        "schema_version": "1.0.0",
+        "bootstrap_contract_identity": identity,
+        "superseded_catalogue_identity": identity,
+        "revision_envelope_identity": identity,
+        "superseded_owner_row_ids": ["LR-016"],
+        "requested_transaction_id": "txn",
+        "refused_store_identities": [GATE6_STORE_IDENTITY],
+        "verification_requirements": ["every v1 row unchanged or superseded"],
+        "activation_status": "not_executed",
+    }
+    assert _valid(kind, revision)
+    assert not _valid(kind, {**revision, "activation_status": "executed"})
+    assert not _valid(kind, {**revision, "superseded_owner_row_ids": ["OR-016"]})
