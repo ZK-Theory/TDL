@@ -213,10 +213,15 @@ proposals, resolutions, ownership proposals and content proposals.
   **B2's anticipated edits** (B1 review m-7):
   - B2 writes the catalogue with the verifier's own `expected_catalogue(schema_commit, annex_commit)`;
   - B2 runs the verifier with `--require-catalogue`;
-  - in the bootstrap contract, B2 replaces three stage A clauses: `expected_catalogue: forbidden_in_stage_a`, the
-    `forbidden` entry "expected catalogue instance", and the verification rule "no expected catalogue or acceptance
-    instance is materialized in stage A";
-  - B2 replaces the stage A test `test_stage_a_materializes_no_catalogue` with a check that the catalogue verifies.
+  - in the bootstrap contract, B2 replaces two stage A clauses: the `forbidden` entry "expected catalogue instance",
+    and the verification rule "no expected catalogue or acceptance instance is materialized in stage A". The schema
+    leaves both values free (`arr(TEXT, 1)`), so neither edit changes a schema;
+  - B2 leaves `expected_catalogue: forbidden_in_stage_a` and `acceptance_instance: forbidden_in_stage_a` in place.
+    They describe stage A and stay true, as W11's corresponding text does. The bootstrap-contract schema fixes them as
+    `const`s, and changing that schema would break B2's pin at B1's main commit (B1 re-review R-M1);
+  - B2 replaces the stage A test `test_stage_a_materializes_no_catalogue` with a check that the catalogue verifies;
+  - B2 replaces the verifier test `test_required_absent_catalogue_fails`, which asserts the catalogue is absent, with
+    a check that `--require-catalogue` passes (B1 re-review r-6).
 - **The acceptance-envelope instance** is written at L-3 in the store, or with WP9.2's `accepted_w9.py` (P-072 item 6;
   P-066 item 2). It is not a stage B file.
 - **WP9.2's runtime census** grows by the annex's distinct command types, not by its row count (re-review I-2).

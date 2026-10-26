@@ -83,6 +83,14 @@ W9_RECORD_KINDS = frozenset(
     }
 )
 W9_IMPORT_KINDS = frozenset({"import-accepted-w9-catalogue-genesis", "import-accepted-w9-catalogue-revision"})
+W9_BOOTSTRAP_KINDS = frozenset(
+    {
+        "w9-catalogue-acceptance-envelope",
+        "w9-materialization-bootstrap-contract",
+        "w9-schema-catalogue-content",
+        *W9_IMPORT_KINDS,
+    }
+)
 W9_CATALOGUE_TESTS = frozenset({"W9-C01", "W9-C03", "W9-C11", *(f"W9-C2{n}" for n in range(6))})
 # The catalogue's own record identities, pinned as W11 pins its own (verify_w11_materialization.py:39-41).
 W9_CATALOGUE_RECORD_ID = "obj_00000000-0000-7000-8000-000000000009"
@@ -344,10 +352,20 @@ def owner_row_multiset_hash(rows: list[dict[str, Any]]) -> str:
     return sha256_hex(canonical_bytes(sorted(sha256_hex(canonical_bytes(row)) for row in rows)))
 
 
+def _contract(commit: str) -> dict[str, Any]:
+    return strict_yaml(_git("show", f"{commit}:{CONTRACT_PATH}", binary=True))
+
+
+def family_parts(commit: str) -> tuple[list[str], list[str]]:
+    """Return the W9 family's record and bootstrap schema names, as the bootstrap contract at ``commit`` lists them."""
+    families = _contract(commit)["families"]
+    return list(families["record"]), list(families["bootstrap"])
+
+
 def family_files(commit: str) -> list[str]:
     """Return the W9 family's schema file names, as the bootstrap contract at ``commit`` lists them."""
-    contract = strict_yaml(_git("show", f"{commit}:{CONTRACT_PATH}", binary=True))
-    return [*contract["families"]["record"], *contract["families"]["bootstrap"]]
+    record, bootstrap = family_parts(commit)
+    return [*record, *bootstrap]
 
 
 def expected_schema_source_rows(commit: str) -> list[dict[str, Any]]:
@@ -372,7 +390,7 @@ def expected_schema_source_rows(commit: str) -> list[dict[str, Any]]:
 
 def expected_owner_identities(commit: str) -> dict[str, Any]:
     """Return the owner specification and plan identities from the bootstrap contract at ``commit``."""
-    contract = strict_yaml(_git("show", f"{commit}:{CONTRACT_PATH}", binary=True))
+    contract = _contract(commit)
     return {"owner_spec_identity": contract["source_spec"], "owner_plan_identity": contract["source_plan"]}
 
 
@@ -447,32 +465,24 @@ def verify_catalogue(catalogue: Any, main_ref: str = "origin/main") -> list[str]
         elif not is_ancestor(annex_commit, main_ref):
             problems.append(f"owner_annex_identity.git_commit is not on {main_ref}")
 
-    # B-1: schema source rows name one commit on main_ref, with blobs unchanged at HEAD.
+    # B-1: schema source rows name one commit on main_ref, with blobs unchanged at HEAD. Inner shapes are checked
+    # before use, so a malformed row is a reported problem, not a traceback (B1 re-review r-5).
     source_rows = catalogue.get("schema_source_rows")
-    commits = {row.get("git_commit") for row in source_rows} if isinstance(source_rows, list) and source_rows else set()
+    well_formed = (
+        isinstance(source_rows, list)
+        and bool(source_rows)
+        and all(isinstance(row, dict) and isinstance(row.get("git_commit"), str) for row in source_rows)
+    )
+    commits = {row["git_commit"] for row in source_rows} if well_formed else set()
     schema_commit = resolve_commit(next(iter(commits))) if len(commits) == 1 else None
     if schema_commit is None or schema_commit not in commits:
         problems.append("schema_source_rows do not all name one full commit SHA in this repository")
         schema_commit = None
     else:
-        if not is_ancestor(schema_commit, main_ref):
-            problems.append(f"the schema source commit is not on {main_ref}")
-        expected_sources = expected_schema_source_rows(schema_commit)
-        if source_rows != expected_sources:
-            problems.append("schema_source_rows do not match the family's files at their commit")
-        for row in expected_sources:
-            if _git("rev-parse", f"HEAD:{row['repository_path']}") != row["git_blob"]:
-                problems.append(f"{row['repository_path']} changed after the schema source commit")
-
-    # B-1: validate against the catalogue schema as committed at the schema commit.
-    if schema_commit is not None:
-        schema = json.loads(_git("show", f"{schema_commit}:{CATALOGUE_SCHEMA}", binary=True))
-        validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
-        problems += [f"schema: {error.message}" for error in validator.iter_errors(catalogue)]
-        if {k: catalogue.get(k) for k in ("owner_spec_identity", "owner_plan_identity")} != expected_owner_identities(
-            schema_commit
-        ):
-            problems.append("owner_spec_identity or owner_plan_identity differs from the bootstrap contract")
+        try:
+            problems += _check_schema_commit(catalogue, source_rows, schema_commit, main_ref)
+        except (subprocess.CalledProcessError, KeyError, TypeError, yaml.YAMLError):
+            problems.append("the W9 family or its bootstrap contract is not complete at the schema source commit")
 
     # B-1: pinned record identities, and the content hash over the object without itself.
     pins = {
@@ -500,6 +510,42 @@ def verify_catalogue(catalogue: Any, main_ref: str = "origin/main") -> list[str]
         problems += compare_rows(actual, expected_rows(annex, annex_identity(annex_commit)))
     elif not isinstance(actual, list):
         problems.append("owner_contract_rows is not a list")
+    return problems
+
+
+def _check_schema_commit(
+    catalogue: dict[str, Any], source_rows: list[dict[str, Any]], schema_commit: str, main_ref: str
+) -> list[str]:
+    """Check the parts of a catalogue that depend on its schema source commit (B1 review B-1; re-review r-4)."""
+    problems: list[str] = []
+    if not is_ancestor(schema_commit, main_ref):
+        problems.append(f"the schema source commit is not on {main_ref}")
+
+    # The family is the pinned one at HEAD, and the contract at the schema commit lists that same family.
+    head_record, head_bootstrap = family_parts("HEAD")
+    if set(head_record) != W9_RECORD_KINDS or set(head_bootstrap) != W9_BOOTSTRAP_KINDS:
+        problems.append("the bootstrap contract at HEAD does not list the pinned W9 record and bootstrap family")
+    if family_parts(schema_commit) != (head_record, head_bootstrap):
+        problems.append("the bootstrap contract's family at the schema source commit differs from HEAD's")
+
+    expected_sources = expected_schema_source_rows(schema_commit)
+    if source_rows != expected_sources:
+        problems.append("schema_source_rows do not match the family's files at their commit")
+    for row in expected_sources:
+        if _git("rev-parse", f"HEAD:{row['repository_path']}") != row["git_blob"]:
+            problems.append(f"{row['repository_path']} changed after the schema source commit")
+
+    # Validate against the catalogue schema as committed at the schema commit.
+    schema = json.loads(_git("show", f"{schema_commit}:{CATALOGUE_SCHEMA}", binary=True))
+    validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
+    problems += [f"schema: {error.message}" for error in validator.iter_errors(catalogue)]
+
+    # The owner identities are HEAD's contract's, and the contract at the schema commit agrees with HEAD's.
+    owners = {key: catalogue.get(key) for key in ("owner_spec_identity", "owner_plan_identity")}
+    if owners != expected_owner_identities("HEAD"):
+        problems.append("owner_spec_identity or owner_plan_identity differs from the bootstrap contract at HEAD")
+    if expected_owner_identities(schema_commit) != expected_owner_identities("HEAD"):
+        problems.append("the bootstrap contract's owner identities at the schema source commit differ from HEAD's")
     return problems
 
 

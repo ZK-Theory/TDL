@@ -30,8 +30,17 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PRE_FOLD_ANNEX_COMMIT = "8a0d68fc"  # revision 3 before the confirmation's residuals were folded (B1 review probe P2)
-STAGE_A_MAIN = "5d325c5b"  # main before stage B: it holds no annex
+# Revision 3's annex before the confirmation's residuals were folded (B1 review probe P2), as literals. Its commit,
+# 8a0d68fc, is a branch commit that a squash merge leaves off main, so the control must not read it (re-review R-M2).
+PRE_FOLD_ANNEX_IDENTITY = {
+    "repository_path": "docs/plans/agentic-research-system/transition/w9/wp9-1-catalogue-owner-annex.yaml",
+    "git_commit": "8a0d68fc6038bd815dea0686eeb9f38543035da3",
+    "git_blob": "4e648b7f28f8925643ccf3559e943b1e59510491",
+    "file_length": 85510,
+    "file_sha256": "cd4838767c24ed070709f9c53a94abcc59a66cd8fb6d0b00229f8e5b80d39377",
+}
+STAGE_A_MAIN = "5d325c5b"  # main before stage B: it holds no annex, and an older W9 family
+PRE_W9_MAIN = "d660f091"  # main before stage A: it holds no W9 family at all
 
 
 @lru_cache(maxsize=None)
@@ -107,6 +116,17 @@ def test_w9_c01_row_matches_the_annex(row_id: str) -> None:
     row = next(r for r in _expected()["owner_contract_rows"] if r["owner_row_id"] == row_id)
     for field in V.COPIED_FIELDS:
         assert row[field] == annex_row[field], field
+    # The derived fields, against the independent parse rather than derive_row (B1 re-review r-3).
+    assert row["logical_key"] == annex_row["logical_key"]
+    assert row["receipt_identity"] == annex_row["receipt_identity"]
+    assert (
+        row["complete_write_set"] == [e["event"] for e in annex_row["ordered_events"]] + annex_row["affected_streams"]
+    )
+    assert row["owner_annex_ref"]["repository_path"] == (
+        "docs/plans/agentic-research-system/transition/w9/wp9-1-catalogue-owner-annex.yaml"
+    )
+    assert row["owner_annex_ref"]["git_blob"] == "d8fbda416b016f5e19c03689f336caff3166d0d9"
+    assert row["owner_annex_ref"]["file_sha256"] == "36a3d1ac945930ae68a24059fc4be1a7f90050ff99a4038fd41853e01a3536fc"
     assert row["owner_annex_ref"]["row_sha256"] == V.sha256_hex(V.canonical_bytes(annex_row))
     assert row["positive_test_identity"] == f"W9-C01-{row_id}"
     assert row["negative_mutation_test_identity"] == f"W9-C03-{row_id}-owner-row-mutation"
@@ -193,18 +213,81 @@ def test_schema_source_commit_off_main_is_refused() -> None:
     assert any("schema source commit is not on" in p for p in _problems(_catalogue(), main_ref=STAGE_A_MAIN))
 
 
+def _catalogue_with_schema_commit(revision: str) -> dict[str, Any]:
+    catalogue = _catalogue()
+    catalogue["schema_source_rows"] = V.expected_schema_source_rows(V.resolve_commit(revision))
+    return _resign(catalogue)
+
+
+def test_schema_changed_after_its_source_commit_is_refused() -> None:
+    # Stage A's main commit is on main and its rows match its own files, but the catalogue-content schema changed
+    # afterwards, so only the HEAD-drift check can refuse it (B1 re-review r-2).
+    problems = _problems(_catalogue_with_schema_commit(STAGE_A_MAIN))
+    drift = f"{V.SCHEMA_DIR}/w9-schema-catalogue-content.schema.json changed after the schema source commit"
+    assert drift in problems, problems
+
+
+def test_contract_family_at_the_schema_commit_must_be_heads() -> None:
+    # Stage A's contract lists 17 schemas; HEAD's lists 19 (B1 re-review r-4).
+    problems = _problems(_catalogue_with_schema_commit(STAGE_A_MAIN))
+    assert "the bootstrap contract's family at the schema source commit differs from HEAD's" in problems, problems
+
+
+def test_head_contract_must_list_the_pinned_family(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = V.family_parts
+    monkeypatch.setattr(V, "family_parts", lambda commit: (real(commit)[0][:-1], real(commit)[1]))
+    problems = _problems(_catalogue())
+    assert "the bootstrap contract at HEAD does not list the pinned W9 record and bootstrap family" in problems
+
+
+def test_contract_owner_identities_at_the_schema_commit_must_be_heads(monkeypatch: pytest.MonkeyPatch) -> None:
+    real = V.expected_owner_identities
+
+    def drifted(commit: str) -> dict[str, Any]:
+        owners = deepcopy(real(commit))
+        if commit != "HEAD":
+            owners["owner_spec_identity"]["git_blob"] = "0" * 40
+        return owners
+
+    monkeypatch.setattr(V, "expected_owner_identities", drifted)
+    problems = _problems(_catalogue())
+    assert "the bootstrap contract's owner identities at the schema source commit differ from HEAD's" in problems
+
+
+def test_schema_commit_without_the_w9_family_is_a_problem_not_a_traceback() -> None:
+    catalogue = _catalogue()
+    for row in catalogue["schema_source_rows"]:
+        row["git_commit"] = V.resolve_commit(PRE_W9_MAIN)
+    problems = _problems(_resign(catalogue))
+    assert "the W9 family or its bootstrap contract is not complete at the schema source commit" in problems
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [["x"], [{"git_commit": ["not", "a", "string"]}], [], "not a list"],
+    ids=["string-row", "list-commit", "empty", "not-a-list"],
+)
+def test_malformed_schema_source_rows_are_a_problem_not_a_traceback(rows: Any) -> None:
+    catalogue = _catalogue()
+    catalogue["schema_source_rows"] = rows
+    problems = _problems(_resign(catalogue))
+    assert "schema_source_rows do not all name one full commit SHA in this repository" in problems
+
+
 # --- Refusals: the expected side (B1 review B-2) -------------------------------------------------------------------
 
 
 def test_annex_at_a_commit_off_main_is_refused() -> None:
-    assert any("is not on" in p for p in _problems(_catalogue(), main_ref=STAGE_A_MAIN))
+    # Match the annex's own ancestry message: the schema source check also fails on this ref (B1 re-review r-1).
+    problems = _problems(_catalogue(), main_ref=STAGE_A_MAIN)
+    assert f"owner_annex_identity.git_commit is not on {STAGE_A_MAIN}" in problems, problems
 
 
 def test_catalogue_cannot_choose_the_pre_fold_annex() -> None:
     catalogue = _catalogue()
-    catalogue["owner_annex_identity"] = V.annex_identity(V.resolve_commit(PRE_FOLD_ANNEX_COMMIT))
+    catalogue["owner_annex_identity"] = dict(PRE_FOLD_ANNEX_IDENTITY)
     problems = _problems(_resign(catalogue))
-    assert any("pinned annex blob" in p for p in problems), problems
+    assert "owner_annex_identity does not name the pinned annex blob, SHA-256 and size" in problems, problems
 
 
 def test_annex_commit_without_the_annex_is_refused() -> None:

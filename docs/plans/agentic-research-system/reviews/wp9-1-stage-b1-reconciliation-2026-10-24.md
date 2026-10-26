@@ -51,7 +51,34 @@ about 1,500 times. The run did not finish within 10 minutes and was stopped. Two
 
 The verifier test file now runs in about 12 seconds.
 
-## 4. Not done
+## 4. Revision 3: against the re-review of `427d277a`
+
+**Re-review:** `reviews/wp9-1-stage-b1-re-review-427d277a-2026-10-24.md` (commit `2166721a`). Verdict accept with
+required changes: 0 Blocking, 2 Major, 6 Minor, 6 Info. Stephen chose option (a) for R-M1 and asked for every Minor in
+the same pass, followed by a narrow confirmation.
+
+| Finding | Disposition |
+|---|---|
+| **R-M1** note §6 edits a schema `const` | Option (a). §6 now lists two contract edits for B2, the `forbidden` entry and the verification rule. The schema leaves both free. `expected_catalogue` and `acceptance_instance: forbidden_in_stage_a` stay, and §6 says why |
+| **R-M2** a branch-only commit | The pre-fold control is built from literal values: path, commit, blob `4e648b7f`, 85,510 bytes and the SHA-256. The verifier's blob, SHA-256 and size check refuses it before any Git read. No other branch-only SHA is in the W9 tests (`git grep` of hex literals) |
+| **r-1** a hollow off-main control | It now asserts the exact message `owner_annex_identity.git_commit is not on 5d325c5b` |
+| **r-2** HEAD drift had no control | New control: schema source rows at stage A's main commit `5d325c5b`, which is on main, but whose `w9-schema-catalogue-content` blob differs from `HEAD`'s. It asserts the drift message for that file |
+| **r-3** W9-C01 derived fields | Each W9-C01 node now checks `logical_key`, `receipt_identity` and `complete_write_set` against the independent parse, and checks the three `owner_annex_ref` constants |
+| **r-4** the contract at the schema commit | `_check_schema_commit` now runs three more checks, each with a control: <ul><li>`HEAD`'s contract must list the pinned record family (`W9_RECORD_KINDS`) and the new pinned `W9_BOOTSTRAP_KINDS`</li><li>the family at the schema commit must equal `HEAD`'s</li><li>the owner identities are compared with `HEAD`'s contract, and the schema commit's contract must agree with `HEAD`'s</li></ul> B2's contract edits touch neither the family nor the owner identities |
+| **r-5** inner-shape tracebacks | `schema_source_rows` is shape-checked before use. Four malformed inputs have controls: a string row, a list-valued commit, an empty list, a non-list. A schema commit with no W9 family (`d660f091`, main before stage A) is a reported problem. The Git, key, type and YAML errors there are caught |
+| **r-6** a test B2 must change | §6 now names `test_required_absent_catalogue_fails` |
+| ri-1 to ri-6 | Recorded. ri-2's golden multiset value waits for its consumer, the envelope instance |
+
+**Mutation probes (scratchpad, in memory).** Each probe removes one check and runs its control. All 7 are caught:
+- r-1, the annex ancestry check;
+- r-2, the `HEAD` drift check;
+- r-4's three checks;
+- R-M2, the blob check;
+- r-3, a `derive_row` that puts streams before events on every row except LR-020.
+
+**Tests.** The verifier test file has 177 tests and the stage A test 67.
+
+## 5. Not done
 
 - No catalogue, no envelope instance, no runtime code, nothing under `research_system/`.
 - Nothing is pushed.
