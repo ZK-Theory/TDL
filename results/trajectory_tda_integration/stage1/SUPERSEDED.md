@@ -69,6 +69,15 @@ Additional constraints from the audit:
 - **`markov2_alpha_sweep_summary_2026-06-16.json`** — dated after the 2026-05-29/30
   boundary ⇒ **exact era, presumed IMMUNE**, but never explicitly gated. Feeds
   P01-B §4.2 Table 2's Markov-2 rows. Confirm by gate before citing as verified.
+  **Updated 2026-10-27 (system review 2026-10-27, Group E1):** the gate ran, and
+  "presumed IMMUNE" above no longer holds. The T1.38 Phase 1 `[RESULT]`
+  (2026-07-16) classifies this summary **UNVERIFIABLE**: no retained diagram
+  cache or solver-identifying natural experiment exists, and the date and POT pin
+  are not accepted as substitutes. Its **W₂ fields are do-not-cite**, the same
+  solver-uncertifiable class as the per-cell files below (H6 ruling, 2026-07-18).
+  The file lives at `post_audit/`, not `stage1/`. The pre-registered exact-W₂
+  recompute (2026-07-17 `[DECISION]`) has no recorded `[RESULT]` as of this
+  update, so no Markov-2 W₂ value from this summary is citable.
 - **`post_audit/markov2_alpha_sweep_cell_{usoc,bhps}_alpha1_B1000_L5000_seed42_*.json`**
   (USoc 2026-06-15, BHPS 2026-06-08; committed under the H6 ruling, 2026-07-18
   `[DECISION]`) — split verdict by field family. **Landscape L² blocks

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -11,6 +12,7 @@ import subprocess
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.discovery.accepted_w11 import ACCEPTED
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaBinding, bundled_runtime_schema_registry
 import tools.verify_w11_materialization as w11_verifier
@@ -285,3 +287,36 @@ def test_wp66_runtime_activation_preserves_accepted_w11_bytes_and_is_explicit() 
         event_type="DecisionResolved",
         producer_command_type="ResolveDecision",
     )
+
+
+def _is_accepted_bytes(data: bytes) -> bool:
+    """True only for the byte string Stephen accepted under KAN-84: its length and raw SHA-256."""
+    return len(data) == ACCEPTED["catalogue_bytes"] and hashlib.sha256(data).hexdigest() == ACCEPTED["catalogue_sha256"]
+
+
+def test_committed_w11_catalogue_is_the_accepted_byte_string() -> None:
+    # Obs 2026-10-27-gate-pass-set-wider-than-accepted-identity: the owner accepted bytes, so the bytes are checked.
+    assert _is_accepted_bytes(CATALOGUE_PATH.read_bytes())
+    blob = subprocess.run(
+        ["git", "rev-parse", f"HEAD:{CATALOGUE_PATH.relative_to(REPO_ROOT).as_posix()}"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert blob == ACCEPTED["catalogue_blob"]
+
+
+def test_w11_byte_identity_refuses_a_re_encoding_a_line_ending_or_a_new_created_at() -> None:
+    data = CATALOGUE_PATH.read_bytes()
+    assert b"\n" not in data  # canonical JSON is one line, so encoding drift shows up as an added line ending
+    catalogue = json.loads(data)
+    assert not _is_accepted_bytes(json.dumps(catalogue, indent=2, sort_keys=True).encode())
+    assert not _is_accepted_bytes(data + b"\n")
+    assert not _is_accepted_bytes(data + b"\r\n")
+    catalogue["created_at"] = "2030-01-01T00:00:00Z"
+    catalogue["content_hash"] = sha256_hex(
+        canonical_bytes({key: value for key, value in catalogue.items() if key != "content_hash"})
+    )
+    w11_verifier.verify_expected_catalogue(REPO_ROOT, catalogue)  # the object comparison alone admits it
+    assert not _is_accepted_bytes(canonical_bytes(catalogue))
