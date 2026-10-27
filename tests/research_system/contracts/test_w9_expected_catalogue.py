@@ -11,7 +11,8 @@ controls cover the following (B1 review B-1, B-2, M-1, M-2, m-1 to m-3 and m-8):
 
 From B2 the committed catalogue exists. Most controls here use the catalogue the verifier expects for this checkout,
 built at ``HEAD``, with ``HEAD`` as the main ref. The B2 controls read the committed catalogue, with ``origin/main`` as
-the main ref.
+the main ref. After Stephen's O-8 acceptance (P-075), the committed catalogue and annex are also pinned to the
+accepted bytes.
 """
 
 from __future__ import annotations
@@ -402,14 +403,64 @@ def test_committed_catalogue_is_the_verifier_output_at_b1_main() -> None:
 
 
 def test_byte_identity_refuses_a_re_encoding_or_a_new_created_at() -> None:
-    catalogue = json.loads((REPO_ROOT / V.CATALOGUE_PATH).read_bytes())
-    assert not _is_b1_main_output(json.dumps(catalogue, indent=2, sort_keys=True).encode())
+    data = (REPO_ROOT / V.CATALOGUE_PATH).read_bytes()
+    catalogue = json.loads(data)
+    re_encoded = json.dumps(catalogue, indent=2, sort_keys=True).encode()
+    assert not _is_b1_main_output(re_encoded)
+    assert not _is_o8_accepted(re_encoded, "catalogue")
+    assert not _is_o8_accepted(data + b"\n", "catalogue")
+    assert not _is_o8_accepted(data + b"\r\n", "catalogue")
     catalogue["created_at"] = "2030-01-01T00:00:00Z"
     catalogue["content_hash"] = V.sha256_hex(
         V.canonical_bytes({key: value for key, value in catalogue.items() if key != "content_hash"})
     )
     assert V.verify_catalogue(catalogue) == []  # the verifier alone passes it
     assert not _is_b1_main_output(V.canonical_bytes(catalogue))
+    assert not _is_o8_accepted(V.canonical_bytes(catalogue), "catalogue")
+
+
+# Stephen's O-8 acceptance (P-075): the catalogue and the owner annex at main commit 7979e85a, by blob and SHA-256.
+# Literals until WP9.2 adds accepted_w9.py (P-066), as W11's catalogue is pinned from accepted_w11.py. After O-8 any row
+# change is a new catalogue identity and needs a new acceptance (B2 confirmation c-i3).
+O8_ACCEPTED = {
+    "main_commit": "7979e85a075ab6a643a7b201ac4186b0b2090d74",
+    "catalogue": {
+        "path": V.CATALOGUE_PATH,
+        "blob": "d1916ffd380050f193fb2c927bb4d724cd2f8a88",
+        "sha256": "f7e2d9e2deac022790c296a4962ea3feb7feb1e646da125edf7819ff8719db8c",
+        "bytes": 128583,
+    },
+    "annex": {
+        "path": V.ANNEX_PATH,
+        "blob": "d8fbda416b016f5e19c03689f336caff3166d0d9",
+        "sha256": "36a3d1ac945930ae68a24059fc4be1a7f90050ff99a4038fd41853e01a3536fc",
+        "bytes": 85664,
+    },
+}
+
+
+def _is_o8_accepted(data: bytes, kind: str) -> bool:
+    accepted = O8_ACCEPTED[kind]
+    return len(data) == accepted["bytes"] and hashlib.sha256(data).hexdigest() == accepted["sha256"]
+
+
+def _blob(revision: str, path: str) -> str:
+    result = subprocess.run(["git", "rev-parse", f"{revision}:{path}"], cwd=REPO_ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
+
+
+@pytest.mark.parametrize("kind", ["catalogue", "annex"])
+def test_committed_file_is_the_o8_accepted_byte_string(kind: str) -> None:
+    accepted = O8_ACCEPTED[kind]
+    assert _is_o8_accepted((REPO_ROOT / accepted["path"]).read_bytes(), kind)
+    assert _blob("HEAD", accepted["path"]) == accepted["blob"]
+    assert _blob(O8_ACCEPTED["main_commit"], accepted["path"]) == accepted["blob"]
+
+
+def test_o8_pin_refuses_the_other_file() -> None:
+    assert not _is_o8_accepted((REPO_ROOT / V.ANNEX_PATH).read_bytes(), "catalogue")
+    assert not _is_o8_accepted((REPO_ROOT / V.CATALOGUE_PATH).read_bytes(), "annex")
 
 
 def _legacy_instances(paths: list[Path]) -> set[str]:
