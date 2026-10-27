@@ -55,11 +55,13 @@ families:
     - legacy-transition-mapping
     - legacy-ownership-transitioned
     - legacy-record-supersession
+    - legacy-adoption-use-mismatch
   bootstrap:
     - w9-catalogue-acceptance-envelope
     - w9-materialization-bootstrap-contract
     - import-accepted-w9-catalogue-genesis
     - w9-schema-catalogue-content
+    - import-accepted-w9-catalogue-revision
 forbidden:
   - runtime_schema_registry binding for any ars://legacy/ schema
   - runtime handlers, ledger append, reducers, or projectors
