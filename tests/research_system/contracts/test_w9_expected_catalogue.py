@@ -35,7 +35,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # 8a0d68fc, is a branch commit that a squash merge leaves off main, so the control must not read it (re-review R-M2).
 PRE_FOLD_ANNEX_IDENTITY = {
     "repository_path": "docs/plans/agentic-research-system/transition/w9/wp9-1-catalogue-owner-annex.yaml",
-    "git_commit": "8a0d68fc6038bd815dea0686eeb9f38543035da3",
+    "git_commit": "8a0d68fc6038bd815dea0686eeb9f38543035da3",  # commit-literal: data
     "git_blob": "4e648b7f28f8925643ccf3559e943b1e59510491",
     "file_length": 85510,
     "file_sha256": "cd4838767c24ed070709f9c53a94abcc59a66cd8fb6d0b00229f8e5b80d39377",

@@ -45,7 +45,7 @@ CONFIG_PATH = REPO_ROOT / ".github" / "merge-admission.yml"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "merge-admission.yml"
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "pr262_merge_candidate_snapshot.json"
 
-PR262_CANDIDATE = "af680b81f10df2bf0f0803a475e34656a926f766"
+PR262_CANDIDATE = "af680b81f10df2bf0f0803a475e34656a926f766"  # commit-literal: data
 PR262_LAST_CLEAN_READBACK = "2026-08-23T07:28:14Z"
 PR262_LATE_THREADS_AT = "2026-08-23T07:40:23Z"
 
@@ -152,6 +152,7 @@ def test_a_producer_that_has_not_reviewed_the_candidate_blocks(
 def test_evidence_from_an_earlier_head_is_refused(snapshot: dict[str, Any], config: dict[str, Any]) -> None:
     """A snapshot that does not describe the candidate is not admission evidence."""
     with pytest.raises(ValueError, match="is not the merge candidate"):
+        # commit-literal: data (a PR #262 head compared as a string, never resolved)
         _thread_finality(snapshot, config, candidate="7df10de65eed3dd7e3668bf4bbe5c291aabb161d")
 
 
@@ -297,7 +298,7 @@ def test_a_codex_review_naming_another_commit_after_the_push_voids_the_plus_one(
             "state": "COMMENTED",
             "submittedAt": "2026-08-23T07:36:00Z",
             "author": {"login": "chatgpt-codex-connector"},
-            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
+            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},  # commit-literal: data
         }
     )
     with pytest.raises(ValueError, match="names another commit"):
@@ -315,7 +316,7 @@ def test_a_foreign_review_older_than_the_accepted_plus_one_does_not_void_it(
             "state": "COMMENTED",
             "submittedAt": "2026-08-23T07:32:00Z",
             "author": {"login": "chatgpt-codex-connector"},
-            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},
+            "commit": {"oid": "7df10de65eed3dd7e3668bf4bbe5c291aabb161d"},  # commit-literal: data
         }
     )
     _thread_finality(snapshot, WITH_A_PRODUCER)
