@@ -233,7 +233,7 @@ def _genesis() -> dict[str, object]:
             "catalogue_sha256": "7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80",
             "bootstrap_blob": "aac7242072c3ce62370dd74d9a27a29e1a33070d",
             "bootstrap_sha256": "ebb7529a3bbf8faea9101b1556b3b71e6e0b3b9dbe0df163591466903d569d38",
-            "review_commit": "bd61f00d05191de1fd330e997d33ba74ac1b506c",
+            "review_commit": "bd61f00d05191de1fd330e997d33ba74ac1b506c",  # commit-literal: data
             "review_blob": "2e0deee51e526cc712c6b04a79695abaa4fb6442",
             "review_sha256": "beb96faa0b58d3ba5faf326b94bb7bc7e1d6649b00c577f2239e1083fe09eaf9",
             "owner_decision": "I accept the KAN 84 envelope, proceed.",

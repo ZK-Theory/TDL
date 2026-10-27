@@ -114,6 +114,12 @@ class Publication:
         merged = self.pulls_lookup(self.repo, full) if self.pulls_lookup else None
         return f"merged PR #{merged}" if merged else None
 
+    def published_by_tag(self, sha: str) -> str | None:
+        """Return a remote tag that contains ``sha``, or None. Unlike a branch, a tag survives a squash merge."""
+        self._load()
+        tags = git_out(self.repo, "for-each-ref", "--contains", sha, "--format=%(refname)", "refs/tags") or ""
+        return next((ref for ref in tags.splitlines() if ref in (self._remote_tags or set())), None)
+
     def _pull_heads(self) -> dict[str, str]:
         """Map each remote ``refs/pull/<n>/head`` commit to its ref, listed once.
 
