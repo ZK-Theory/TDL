@@ -2,7 +2,7 @@
 name: tda-handoff
 description: Use when ending a substantial session, switching agent runtime (Claude Code, Codex, ChatGPT), pausing a task mid-flight, or preserving decisions before context loss — when the state is not already captured in a plan, commit, or vault entry.
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   tier: core
   lanes: []
   roles:
@@ -94,6 +94,14 @@ worktree cannot be both frozen and written to. A brief committed there first
 makes the 02:00 run refuse with "not the clean SHA" while nobody is watching
 (obs 2026-10-15-handoff-one-worktree-conflicts-with-clean-sha-runner).
 `tools/certify_packet.py` also checks cleanliness at launch.
+
+## Inherited Status Tables
+
+A handoff or currency addendum that carries forward a status table also
+carries its claims of currency. Re-derive every inherited row against current
+evidence, or mark each row "not re-checked at `<commit>`". Adding rows for new
+items while saying the old table "stands" passes stale classes on rows nobody
+re-checked.
 
 ## Dispatch Safety
 

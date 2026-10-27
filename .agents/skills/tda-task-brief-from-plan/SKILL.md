@@ -2,7 +2,7 @@
 name: tda-task-brief-from-plan
 description: Use when converting a research plan, note, review finding, or conversation into agent-ready TDL work — implementation tickets, compute tasks, or patch tasks for Claude Code or Codex.
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   tier: core
   lanes: []
   roles:
@@ -104,6 +104,15 @@ When the agent must stop and ask or escalate.
   agent.
 - "Tests pass" alone is never an acceptance criterion for a lane-touching
   task — name the enforcement artifact or record why none applies.
+- **Verify-before items come first.** When a scope note or plan names a
+  "verify before X" item, X's brief starts by doing that verification and
+  stops if it fails. A brief that drafts X first and leaves the check for
+  later has dropped the item.
+- **Cited decisions carry their current status.** For every decision ID the
+  brief cites (`P-0NN`, `S-0NN`), search the register for a later entry whose
+  Supersedes or Amends line names it, and state the ID as accepted,
+  superseded-by or amended-by. Likewise re-check any "open" item against its
+  own row before carrying it into intake.
 - Long stochastic compute carries the runtime constraints from
   `tda-resource-preflight`: preflight-selected optimal worker count,
   checkpointing, wall-time budget, no-overwrite.
