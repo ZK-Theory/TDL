@@ -2,9 +2,10 @@
 # Purpose: static controls for the inert W9 ars://legacy/ schema family and its bootstrap contract (stage A).
 """Independent static controls for the inert W9 schema family (06v WP9.1, stage A).
 
-This test owns the expected family, identity set, reference-kind table and edge table. It does not read a catalogue
-or derive its expected side from the files under test. Stage A materializes the schemas, the bootstrap contract and
-their generator only: no catalogue, no acceptance envelope instance, and no runtime binding.
+This test owns the expected family, identity set, reference-kind table and edge table. It does not derive its expected
+side from the files under test. Stage A materializes the schemas, the bootstrap contract and their generator only: no
+catalogue, no acceptance envelope instance, and no runtime binding. Stage B2 adds the catalogue, which this test
+checks only through the stage B verifier.
 """
 
 from __future__ import annotations
@@ -328,8 +329,10 @@ def test_family_loads_in_registry_and_is_not_runtime_activated() -> None:
     assert not any(schema_id.startswith("ars://legacy/") for schema_id in active_ids)
 
 
-def test_stage_a_materializes_no_catalogue() -> None:
-    assert not STAGE_B_CATALOGUE.exists()
+def test_stage_b_catalogue_verifies() -> None:
+    # Stage B2 replaces stage A's absence check (design note §6): the catalogue now exists, and the verifier passes it.
+    assert STAGE_B_CATALOGUE.exists()
+    assert _load_tool("verify_w9_materialization").main(["--require-catalogue"]) == 0
 
 
 # --- The bootstrap contract -----------------------------------------------------------------------------------------
