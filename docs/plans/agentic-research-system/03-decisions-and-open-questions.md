@@ -1189,10 +1189,12 @@ as the sole active recovery and closure plan; SCALE-01 is not a Gate 6 closure
 prerequisite and Gate 7 remains blocked on integrated Gate 6 plus final closure
 evidence.
 
-## W11 specification status (non-decision)
+## W11 specification status and D-G6-4 disposition
 
-The WP6.5 specification-only draft exists at
-`design/11-portfolio-and-discovery-lifecycle.md` with status `review_pending`.
+The WP6.5 specification exists at
+`design/11-portfolio-and-discovery-lifecycle.md`. Its embedded
+`review_pending` field is an immutable historical snapshot; the effective
+external status is now `accepted_exact_revision` for D-G6-4 limb 1.
 Independent review of exact revision `70074d42eade8460808e4d1d29348b7806eff2d0`
 returned `rework_required` (2 Critical, 6 Major, 2 Minor). R2 review of exact revision
 `d24df9d26f0d906d177eafa1eaeabb65a5515004` also returned `rework_required`
@@ -1214,14 +1216,80 @@ separate cancellation review and overlay cleanup, and closes the annotation cuto
 race with the accepted epoch/fence protocol. It also separates W2 verdict recording
 from W11 gate satisfaction through a closed six-subject verdict/effect and review-
 supersession policy. The dated addendum remains in the tracked
-root evidence register. A fresh independent R5 review of the new exact commit is
-mandatory and author reconciliation is not acceptance. This status entry does not
-amend P-032/P-034, accept W11, authorize implementation or WP6.6/WP6.7, create any
-schema/projection, ingest/admit any item, transition ownership, cut over a path, or
-perform any result/eligibility/claim action. D-G6-4 remains open for (1) Stephen's
-exact-revision acceptance after the fresh review and reconciliation and (2) a
-separately content-addressed first ownership-transition batch using the accepted W11
-relation.
+root evidence register. The W11-specific R5 review approved exact content subject
+`892d1d1650cdcf71d2a886318e174a18e11d5de0`; W11 R6 approved follow-up
+subject `c21b366caa751265e455435f23d1232f0bb6220c`; and W11 R7 approved
+erratum subject `4e7ec91a7815b808ae0ee8af3421eab20840094e`. Each resolved W11 to
+blob `f90729d0c42a0de98d064fac0824d1969c871c82`. Their copied raw SHA-256
+assertion was later shown to be unreproducible, so PR #202 added a factual erratum
+without rewriting W11 or those immutable review epochs. Fresh R8 review independently
+recomputed the raw object and returned `accept_exact_subject` with zero findings.
+
+On 2026-08-01 Stephen stated, "I accept the corrected exact W11 revision for
+D-G6-4 limb 1 as PR 202." The external owner record at
+`reviews/wp6-5-w11-d-g6-4-limb-1-owner-acceptance-2026-08-01.md` binds that
+acceptance to content commit `892d1d1650cdcf71d2a886318e174a18e11d5de0`,
+blob `f90729d0c42a0de98d064fac0824d1969c871c82`, 185,214 raw bytes, raw
+SHA-256 `65a7bc6a69c29d9bf7c4bde805aa8103b60738a0c9c63399661c60d37ea40f70`,
+R8 head `14975af6590282a8018ca8fcce05f08ef08fac2d`, and PR #202 merge
+`c84eb2aaf0890d36d3735d08a14169f4c50935cd`.
+
+D-G6-4 limb 1 is therefore closed and inert W11 schema/catalogue materialization may
+proceed. This does not accept future catalogue bytes or activate WP6.6 runtime.
+D-G6-4 limb 2 remains open for a separately content-addressed first
+ownership-transition batch. No dossier admission, ownership transition, migration,
+cutover, writer revocation, legacy retirement, provider action, research dispatch,
+result, eligibility, claim, publication, Gate 6, or Gate 7 authority is inferred.
+
+**Recording note (2026-10-22).** The three paragraphs above were written on
+2026-08-01 in commit `cee20209` ("[DECISION] P00: record D-G6-4 limb-1 W11
+acceptance"), which reached only the branches `codex/wp6-gate6-completion` and
+`codex/wp6-lifecycle-family-pilot-design`. Until this note landed, `main` still
+said D-G6-4 was open for limb 1. The independent review of the Gate 7 W9 draft
+found the gap (`reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md`, B-1
+and I-5; that review reached `main` with PR #389). This note was written on
+2026-10-22 but sat on an unpushed local branch until 2026-10-27. It carries the 2026-08-01 record onto `main` unchanged and
+decides nothing new. The owner statement is KAN-19 comment `10358`; comment
+`10357` holds the integration evidence, comment `10361` names `cee20209` as the
+durable record, and KAN-58 comment `10359` records the start of the catalogue
+lane. The W11 blob on `main` is still `f90729d0…`.
+
+**Strict-catalogue acceptance, KAN-84 (2026-08-10), recorded 2026-10-22.** The
+2026-08-01 paragraph above does not accept catalogue bytes. A later, separate
+owner decision did. On 2026-08-10 Stephen stated, "I accept the KAN 84 envelope,
+proceed." (KAN-84 comment `10943`). That decision binds to:
+
+- candidate commit `09be63a9ba7e9525f5f69b8b8154b06d86a3c2b6`, tree
+  `151e0f8b24ad76913640aa0f1de66cd177a44f8f`;
+- catalogue `.research-system/evals/expected/w11-portfolio-discovery-v1.json`, blob
+  `8d58818540e04859f929d4b04c71e4cfa0512554`, 136,229 bytes, SHA-256
+  `7e36b39a3a0aa0a01e262e9f8a8c0d8a35f111c76efa0054f2c326ee15860b80`;
+- bootstrap contract `.research-system/contracts/w11/w11-materialization-bootstrap-contract.yaml`,
+  blob `aac7242072c3ce62370dd74d9a27a29e1a33070d`, SHA-256
+  `ebb7529a3bbf8faea9101b1556b3b71e6e0b3b9dbe0df163591466903d569d38`;
+- the independent exact-subject review (verdict `accept_exact_subject`, no
+  findings), commit `bd61f00d05191de1fd330e997d33ba74ac1b506c`, report
+  `reviews/wp6-5-w11-catalogue-09be63a-exact-subject-review-2026-08-10.md`, blob
+  `2e0deee51e526cc712c6b04a79695abaa4fb6442`, SHA-256
+  `beb96faa0b58d3ba5faf326b94bb7bc7e1d6649b00c577f2239e1083fe09eaf9`.
+
+The comment excludes WP6.6, runtime genesis and admission, providers, migration,
+pilot execution and Gate 6 closure. Commit `09be63a9` is on `main` and the
+catalogue blob on `main` is still `8d588185…`. The review commit `bd61f00d` is
+only on `review/wp6-5-w11-09be63a-kan83`, so its report is not on `main`; the
+identities above are verified from that branch's Git objects. In code, the
+identities are pinned in `research_system/discovery/accepted_w11.py` (`ACCEPTED`),
+the one subject that Discovery genesis (OR-140) imports. This register held no
+entry for KAN-84 before this note.
+
+**Genesis import into the Gate 6 store.** The accepted envelope was imported once
+into the fresh Gate 6 store under P-058, Phase 5 step 3 batch 1 (2026-10-17): the
+owner grant `agr_01a147fc-2c7c-71e9-b2aa-51c8c863aa80` for
+`ImportAcceptedW11CatalogueGenesis` on stream
+`obj_019fed25-b33e-7740-b280-000000000001`, then `bootstrap_genesis` with one
+OR-140 effect, event `evt_01a1480b-81d5-…`. P-058 holds the run record. That
+import is the only runtime use of the envelope recorded here. D-G6-4 limb 2 is
+unchanged by it and stays open.
 
 ## Assumptions requiring confirmation
 
