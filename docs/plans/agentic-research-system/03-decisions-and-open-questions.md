@@ -1247,8 +1247,8 @@ acceptance"), which reached only the branches `codex/wp6-gate6-completion` and
 `codex/wp6-lifecycle-family-pilot-design`. Until this note landed, `main` still
 said D-G6-4 was open for limb 1. The independent review of the Gate 7 W9 draft
 found the gap (`reviews/g7b-w9-draft-0-1-review-97f71c19-2026-10-22.md`, B-1
-and I-5; that review is on the Gate 7 documentation branch and not yet on
-`main`). This note carries the 2026-08-01 record onto `main` unchanged and
+and I-5; that review reached `main` with PR #389). This note was written on
+2026-10-22 but sat on an unpushed local branch until 2026-10-27. It carries the 2026-08-01 record onto `main` unchanged and
 decides nothing new. The owner statement is KAN-19 comment `10358`; comment
 `10357` holds the integration evidence, comment `10361` names `cee20209` as the
 durable record, and KAN-58 comment `10359` records the start of the catalogue
