@@ -41,7 +41,16 @@ The catalogue is unchanged: blob `d1916ffd380050f193fb2c927bb4d724cd2f8a88`.
 - `w9_schema_gen.py --check`: clean.
 - The W9 tests: 250 passed. The stage A test has 67 and the verifier test 183.
 
-## 4. Not done
+## 4. After the confirmation: the PR #396 review
+
+CodeRabbit raised one nitpick, the confirmation's c-i2: the instance scan's `git grep -F` prefilter missed a JSON or
+YAML instance that writes the ID with escaped slashes. Its suggested fix parses every tracked JSON and YAML file, but
+some results files are tens of MB. Instead, the prefilter now matches the two kind names, which hold no `/`, so an
+escaped-slash ID still matches. The negative control now runs the prefilter itself, with `git grep --no-index`, over
+plain JSON, escaped JSON and escaped YAML instances of each kind. That also gives the YAML leg the control c-i1 noted
+it lacked. A `\u`-escaped ID is still outside the scan, which is a stated limit. The test file is the only change.
+
+## 5. Not done
 
 - No acceptance-envelope instance, no runtime code, nothing under `research_system/`, and no store writes.
 - Nothing is pushed.

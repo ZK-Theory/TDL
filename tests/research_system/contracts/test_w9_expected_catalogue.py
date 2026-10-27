@@ -426,27 +426,42 @@ def _legacy_instances(paths: list[Path]) -> set[str]:
     return found
 
 
-def _tracked_legacy_candidates() -> list[Path]:
-    patterns = [arg for schema_id in sorted(LEGACY_INSTANCE_IDS) for arg in ("-e", schema_id)]
+def _legacy_candidates(root: Path = REPO_ROOT, *, tracked: bool = True) -> list[Path]:
+    """Prefilter JSON and YAML files under ``root`` that name a W9 catalogue or envelope kind.
+
+    The patterns are the kind names, which hold no ``/``, so an ID written with escaped slashes still matches
+    (B2 confirmation c-i2; PR #396 review). Parsing every tracked file instead would read results files of tens of MB.
+    """
+    patterns = [arg for schema_id in sorted(LEGACY_INSTANCE_IDS) for arg in ("-e", schema_id.rsplit("/", 1)[1])]
+    index = [] if tracked else ["--no-index"]
     result = subprocess.run(
-        ["git", "grep", "-l", "-F", *patterns, "--", "*.json", "*.yaml", "*.yml"],
-        cwd=REPO_ROOT,
+        ["git", "grep", *index, "-l", "-F", *patterns, "--", "*.json", "*.yaml", "*.yml"],
+        cwd=root,
         capture_output=True,
         text=True,
         check=False,
     )
     assert result.returncode in (0, 1), result.stderr
-    return [REPO_ROOT / line for line in result.stdout.splitlines()]
+    return [root / line for line in result.stdout.splitlines()]
 
 
 def test_the_only_tracked_instance_is_the_w9_catalogue() -> None:
     # The bootstrap contract: one W9 expected catalogue, and no acceptance-envelope instance in the repository.
-    assert _legacy_instances(_tracked_legacy_candidates()) == {V.CATALOGUE_PATH}
+    assert _legacy_instances(_legacy_candidates()) == {V.CATALOGUE_PATH}
 
 
 @pytest.mark.parametrize("schema_id", sorted(LEGACY_INSTANCE_IDS))
 def test_a_second_instance_is_found(tmp_path: Path, schema_id: str) -> None:
-    extra = tmp_path / "w9-legacy-integration-v2.json"
-    extra.write_text(json.dumps({"schema_id": schema_id}), encoding="utf-8")
-    found = _legacy_instances([*_tracked_legacy_candidates(), extra])
-    assert found == {V.CATALOGUE_PATH, extra.as_posix()}
+    # Each kind, as plain JSON and as YAML and JSON with escaped slashes, passes through the prefilter and the parse
+    # (B2 confirmation c-i1 and c-i2).
+    escaped = schema_id.replace("/", "\\/")
+    files = {
+        tmp_path / "plain.json": json.dumps({"schema_id": schema_id}),
+        tmp_path / "escaped.json": '{"schema_id": "' + escaped + '"}',
+        tmp_path / "escaped.yaml": 'schema_id: "' + escaped + '"\n',
+    }
+    for path, text in files.items():
+        path.write_text(text, encoding="utf-8")
+    candidates = _legacy_candidates(tmp_path, tracked=False)
+    assert sorted(candidates) == sorted(files)
+    assert _legacy_instances(candidates) == {path.as_posix() for path in files}
