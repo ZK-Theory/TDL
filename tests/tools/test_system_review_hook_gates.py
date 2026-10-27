@@ -422,6 +422,27 @@ def test_research_context_check_receipt_records_advise_and_silent(tmp_path: Path
     assert "hook=research-context-check decision=silent" in with_header
 
 
+def test_research_context_check_advises_only_on_files_the_convention_governs(tmp_path: Path) -> None:
+    """Obs 2026-10-27-research-context-advisory-fires-mostly-outside-the-repo: 247 of 282 advisories were noise."""
+    headerless = "import numpy as np\n"
+    project = tmp_path / "project"
+    inside = _run_advisory(
+        RESEARCH_CONTEXT_CHECK,
+        project,
+        {"tool_input": {"file_path": str(project / "trajectory_tda" / "run_probe.py"), "content": headerless}},
+    )
+    assert "hook=research-context-check decision=advise" in inside
+
+    for name in ("scratchpad", "other-tree"):
+        own_project = tmp_path / f"project-{name}"
+        path = own_project / "scratchpad" / "probe.py" if name == "scratchpad" else tmp_path / name / "probe.py"
+        log = _run_advisory(
+            RESEARCH_CONTEXT_CHECK, own_project, {"tool_input": {"file_path": str(path), "content": headerless}}
+        )
+        assert "hook=research-context-check decision=silent" in log, name
+        assert "decision=advise" not in log, name
+
+
 def test_advisory_mode_flags_a_pretooluse_gate_instead_of_downgrading_it(tmp_path: Path) -> None:
     """A gate wrapped in advisory mode must be flagged, never recorded as mere advice.
 

@@ -190,6 +190,10 @@ jobs:
           tests/tools/test_observation_log_lint.py
           tests/tools/test_retired_imperatives.py
           tests/tools/test_check_pinned_commits.py
+          tests/tools/test_pre_push_hook.py
+          tests/tools/test_commit_msg_hooks.py
+          tests/tools/test_handoff_surface_hook.py
+          tests/tools/test_hook_script_lf_bytes.py
           --junitxml=admission-controls.xml
           -o "addopts=" -p no:cacheprovider -p no:cov
 
