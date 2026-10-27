@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: domain
   lanes: []
   roles:
@@ -89,3 +89,16 @@ disposition. For any entry classified "protected", require a runtime
 negative that enters through the real root and proves capability rejection
 before route/grant/lease/provider effects — a unit test at the final wrapper
 alone does not establish the claim.
+
+## Shared-Ledger Reader Inventory
+
+A plan that adds a command or event family to a shared store must map what
+the family will meet, not only the path it copies. Enumerate every reducer
+that replays the whole ledger, with the branch each takes for an unknown
+event type (raise, ignore, misroute to a default reducer), and every closed
+allowlist the family must join: runtime bindings, grant command types,
+subject-kind enums, census pins. Cite each with a `path:line`. Settle these
+before marking an interface unverified, because the code often already
+answers the question. A cheap control is a test that replays a ledger holding
+one synthetic foreign event through every public replay entry point and
+asserts a named, intended outcome for each.
