@@ -363,8 +363,15 @@ def test_missing_named_catalogue_fails() -> None:
     assert V.main(["--catalogue", "does/not/exist.json"]) == 1
 
 
-def test_required_absent_catalogue_fails() -> None:
-    assert not (REPO_ROOT / V.CATALOGUE_PATH).exists()
+def test_required_catalogue_passes() -> None:
+    # Stage B2 replaces B1's absence check (design note §6; B1 re-review r-6).
+    assert (REPO_ROOT / V.CATALOGUE_PATH).exists()
+    assert V.main(["--require-catalogue"]) == 0
+
+
+def test_required_absent_catalogue_still_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    # B1 review M-1's control stays: with no catalogue at the default path, --require-catalogue fails.
+    monkeypatch.setattr(V, "CATALOGUE_PATH", ".research-system/evals/expected/does-not-exist.json")
     assert V.main(["--require-catalogue"]) == 1
 
 
