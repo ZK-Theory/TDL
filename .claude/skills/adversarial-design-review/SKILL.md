@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: domain
   lanes: []
   roles:
@@ -139,7 +139,17 @@ inflating a Minor into a Major.
      and quote the owner entry before proposing a new identity;
    - derive every required evidence set from its owning contract and attack empty,
      partial, stale-revision, duplicate, extra, and incompatible sets. A gate passes only
-     on exact required-set closure, not merely because all supplied evidence passed.
+     on exact required-set closure, not merely because all supplied evidence passed;
+   - for every claim that a document reuses or extends another spec's records ("reuses
+     §7.5 unchanged", "extends the role enum"), open the materialized, accepted schema
+     files for those records and check every field, enum and `additionalProperties` the
+     claim depends on; then inspect one real instance of each source the design must
+     address. Prose that looks compatible is not evidence: the schema bytes decide;
+   - when a design adds a command or event family to a shared store, enumerate every
+     reducer that replays the whole ledger and the branch it takes for an unknown type
+     (raise, ignore, misroute), and every closed allowlist the family must join (runtime
+     bindings, grant command types, subject-kind enums, census pins). A new tenant is
+     defined as much by the readers it must not break as by the writer it adds.
 4. **Currency.** If the document is a dated snapshot, check live state read-only and
    record divergences as a **proposed dated addendum** — never rewrite the snapshot. Do
    not use active or no-migration work as an experiment. When the artifact set is
@@ -226,6 +236,13 @@ verification evidence for any edits.
   canonical `main` tree, because a `.gitattributes` eol rule added after checkout
   never renormalized the already-checked-out files; MSYS `grep` could not detect
   the CRLF bytes that a Python bytes check confirmed.
+- The W9 review chain (2026-10-22 – 2026-10-23) found two Blocking gaps that the
+  document's prose could not show. W9 claimed to reuse W11 §7.5 "unchanged", but W11's
+  accepted schemas were closed (`additionalProperties: false`, a closed role enum,
+  `target_object_refs` minItems 1). The 06v plan mapped the Discovery command path it
+  copied but not `projection/replay.py`, which raises on any event outside its closed
+  predicates, so the first W9 event would have broken projection rebuild. Both surfaced
+  only when the reviewer opened the bytes and the replay code.
 
 ## Related Skills
 
