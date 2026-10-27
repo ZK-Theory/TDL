@@ -4784,6 +4784,104 @@ and the owner annex (blob d8fbda41, SHA-256 36a3d1ac…36fc) at main commit 7979
 **Affected specifications:** 06v O-8 (met); WP9.1 (complete); WP9.2 (its genesis imports this identity).<br>
 **Migration consequence:** None.
 
+### P-076 - W9 implementation authorized for WP9.2, design note first
+
+**Date:** 2026-10-27<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-27). This is the later authorization that P-065 and P-066 item 2
+reserved for WP9.2.<br>
+**Authority:** Stephen, in chat, 2026-10-27, after PR #404 (O-8, P-075) merged as `eab253f6`: "merge complete,
+allons-y". Asked what that authorizes, he chose "WP9.2, note first (Recommended)". The option read: "Authorize WP9.2
+as one package. First the U-7 probe on a scratch store and a design note, reviewed independently; then the code PR.
+Tests run only on scratch stores. Not authorized: WP9.3+, live operations L-0 to L-5, real store creation or genesis,
+and legacy writes."<br>
+**Decision:**
+1. **WP9.2** (06v §5, "Legacy runtime, genesis, shared replay and CLI") is authorized as one package:
+   `research_system/legacy/` (commands, routes, runtime, replay and `accepted_w9.py`), its runtime-binding rows, the
+   shared-ledger replay edits, genesis, the Gate 6 store refusal and the CLI that 06v §5 lists.
+2. **Order.**
+   1. U-7 is resolved first: the four replay sites are read and the edit is prototyped on a scratch store. If it cannot
+      be confined to those four sites, the package stops and returns Partial (06v §8).
+   2. A WP9.2 design note records the U-7 result and the package's design. It gets an independent adversarial review
+      in a fresh session, and Stephen decides its owner points.
+   3. Then the code PR, with its own independent review, CodeRabbit, and Stephen's merge.
+3. **Scratch stores** are stores that a test or probe creates under a temporary directory and discards. No existing
+   store is written, including `C:/Users/steph/TDL-ARS-G6-Control` and the named scratch stores.
+
+**Not authorized:**
+- WP9.3 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- creating a real store, running genesis on one, issuing a grant on one, observation, adoption, transition and
+  compute;
+- any write to a legacy file.
+
+Each needs a later decision.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Runtime code under `research_system/legacy/`; the four shared-replay sites named in 06v U-7; the
+runtime-binding rows; tests; docs. Census, manifest and append-site changes go to D-4 (06v WP9.2).<br>
+**Affected specifications:** 06v WP9.2 (started); P-065 and P-066 item 2 (the reserved authorization is given).<br>
+**Migration consequence:** None until a live store runs W9 genesis, which is not authorized here.
+
+### P-077 - WP9.2 design note owner points: genesis-only binding, reserved external refs, the catalogue-row hash, and two PRs
+
+**Date:** 2026-10-27<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-27), answering owner points A to D of the WP9.2 design note
+(`transition/w9/wp9-2-design-note.md`, revision 1 `6b5aeee3`) as amended by its review
+(`reviews/wp9-2-design-note-review-6b5aeee3-2026-10-27.md`, verdict rework required (narrow); M-2 to M-8, m-2, m-12).<br>
+**Authority:** Stephen, in chat, 2026-10-27, choosing the recommended option each time:
+- A: "Genesis only (Recommended)";
+- B: "Reserved external refs (Recommended)";
+- C: "Catalogue rows (Recommended)";
+- D: "Two PRs, amend (Recommended)".
+
+**Decision:**
+1. **Binding rows (A).** WP9.2 adds one runtime-binding row, for `ImportAcceptedW9CatalogueGenesis`, and its
+   `research_system/authority.py` entries: subject kind `scope_definition`, as W11's genesis has, and the subject ID
+   equal to the W9 `CATALOGUE_STREAM_ID` (O-4; catalogue global precondition G4). The census grows by 1. The inert
+   `ImportAcceptedW9CatalogueRevision` gets no row; its replay and guard tests use a test registry. The legacy
+   command-type predicate covers all 12 catalogue command types. Every other W9 command gets its row with its own
+   package, under D-4.
+2. **External refs (B).** The acceptance envelope cites the three out-of-store records by deterministic UUIDv7 refs:
+   - `independent_observation_ref`: the canonical-checkout verifier run that P-075 cites (B2 review i-6);
+   - `independent_review_ref`: the B2 confirmation (`reviews/wp9-1-stage-b2-confirmation-3241f0e9-2026-10-27.md`);
+   - `acceptance_decision_ref`: P-075.
+
+   Each ID is derived from a pinned domain string and timestamp, and its `content_hash` is the raw SHA-256 of the
+   named file. The derivation is fixed in the design note. Genesis reserves the three IDs in the W9 projection's
+   identity set, and the W9 identity check (W9-C25, P-073 item 1) refuses any pre-assigned ID equal to one of them. No
+   consumer dereferences these refs as store records.
+3. **The multiset hash (C).** `owner_row_multiset_hash` is computed over the accepted catalogue's 61 24-field owner rows
+   under P-074 item 1's definition: `a80788184c02b5baa9ea47cf2f1a254f4f14499188e6a0dcbef8d083072ffde7`. This closes B2
+   review i-3.
+4. **Two PRs, with the contract amended (D).**
+   1. **WP9.2-1**: the bootstrap contract's free-text `forbidden` and `verification_rules` lists are amended to the
+      runtime state; the acceptance-envelope instance is committed; the tracked-instance scan allows that one envelope
+      path. The envelope cites the contract as merged at `7979e85a` (blob `96a63114`), as P-075 carried.
+   2. **WP9.2-2**: the runtime. `accepted_w9.py` pins the amended contract and the envelope at WP9.2-1's main commit.
+      The genesis payload's own `bootstrap_contract_identity` names the amended contract. D-4 applies here.
+
+   The schema consts stay. The amended `verification_rules` record their reading: `runtime_activation: forbidden` and
+   `materialization_status: inert_foundation_only` govern the `ars://legacy/` schemas' runtime bindings only, and the
+   W9 runtime is WP9.2's (review M-6). Stephen's acceptance of the amended contract (06v O-3) follows WP9.2-1's merge,
+   as its own decision.
+5. **D-6 exception and boundary extension (review M-8).** WP9.2 lands as the two PRs of item 4, a named exception to D-6
+   ("one PR per package") and to P-076 item 2.3 ("then the code PR"). P-076's Boundary line is extended by name to:
+   - `.research-system/contracts/w9/w9-materialization-bootstrap-contract.yaml`;
+   - the acceptance-envelope instance under `.research-system/evals/expected/`;
+   - `research_system/authority.py` (the item 1 entries);
+   - `research_system/cli.py` (the `ars legacy` group, which P-076 item 1 already names).
+6. **P-072 item 6 departure (review M-5).** P-072 item 6 placed the envelope instance "at L-3 in the store, or with
+   WP9.2's `accepted_w9.py`". The genesis schema's `external_envelope_identity` requires a repository path, commit,
+   blob, length and SHA-256, which neither placement supplies. The envelope is therefore a committed repository file,
+   written in WP9.2-1.
+
+**Not decided here:** the design note's revision 2 and its confirmation; O-3 (after WP9.2-1); the code itself; D-4 at
+WP9.2-2.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** 06v WP9.2, D-6, O-3, O-4; P-072 item 6 (departure recorded); P-073 item 1 (W9-C25 covers the
+reserved IDs); P-075 (its carried envelope citation kept); P-076 (Boundary extended, item 2.3 excepted).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
