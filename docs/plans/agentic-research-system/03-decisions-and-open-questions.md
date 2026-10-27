@@ -4731,6 +4731,59 @@ are named); 06v O-31 (read); the stage B verifier.<br>
 envelope schemas, and the verifier); O-8.<br>
 **Migration consequence:** None.
 
+### P-075 - O-8: the W9 expected catalogue and its owner annex accepted at main commit `7979e85a`
+
+**Date:** 2026-10-27<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-27). This is the O-8 owner gate (06v §5 WP9.1; P-065 item 2) that
+ends WP9.1 stage B.<br>
+**Authority:** Stephen, in chat, 2026-10-27: "I accept O-8: the W9 catalogue (blob d1916ffd, SHA-256 f7e2d9e2…db8c)
+and the owner annex (blob d8fbda41, SHA-256 36a3d1ac…36fc) at main commit 7979e85a. Record the acceptance."<br>
+**Evidence:**
+- PR #396 (stage B2) merged as `7979e85a075ab6a643a7b201ac4186b0b2090d74` after an independent review
+  (`reviews/wp9-1-stage-b2-review-ea989c7e-2026-10-27.md`), revision 2, a passing confirmation
+  (`reviews/wp9-1-stage-b2-confirmation-3241f0e9-2026-10-27.md`) and CodeRabbit (one nitpick, fixed in `7d0872f9`).
+- In the canonical checkout on `main` (B2 review i-6): `tools/verify_w9_materialization.py --require-catalogue`
+  reports 61 pinned rows and 0 problems; `tools/w9_schema_gen.py --check` is clean; the W9 tests pass (250).
+
+**Decision:**
+1. **The catalogue is accepted** at main commit `7979e85a075ab6a643a7b201ac4186b0b2090d74`:
+
+   | Field | Value |
+   |---|---|
+   | Path | `.research-system/evals/expected/w9-legacy-integration-v1.json` |
+   | Git blob | `d1916ffd380050f193fb2c927bb4d724cd2f8a88` |
+   | SHA-256 | `f7e2d9e2deac022790c296a4962ea3feb7feb1e646da125edf7819ff8719db8c` |
+   | Size | 128,583 bytes |
+   | `content_hash` | `fd94dc94f309106ab5b3f84513b450525eaf23678c1896f7b623dd33681e5676` |
+   | Rows | 61 owner rows (LR-001 to LR-061); 19 schema source rows, all at `fc5f356b` |
+
+2. **The owner annex is accepted with it** (P-072 item 6), at the same main commit:
+
+   | Field | Value |
+   |---|---|
+   | Path | `docs/plans/agentic-research-system/transition/w9/wp9-1-catalogue-owner-annex.yaml` |
+   | Git blob | `d8fbda416b016f5e19c03689f336caff3166d0d9` |
+   | SHA-256 | `36a3d1ac945930ae68a24059fc4be1a7f90050ff99a4038fd41853e01a3536fc` |
+   | Size | 85,664 bytes |
+   | Main commit that wrote it | `fc5f356b` (B1, PR #395); unchanged at `7979e85a` |
+
+3. **What acceptance fixes.** The accepted object is these byte strings, not only the rows the verifier compares. Any
+   change to either file, a row or an encoding, is a new catalogue identity and needs a new acceptance. The W9 test
+   suite pins both by length, SHA-256 and blob (B2 confirmation c-i3), as literals until `accepted_w9.py` exists.
+4. **`created_at`** stays `2026-10-24T00:00:00Z`, a nominal fixed value and not the write date (B2 review m-3,
+   Stephen's option (a)).
+
+**Not decided here:**
+- WP9.2 to WP9.7, including `accepted_w9.py` (P-066 item 2), the acceptance-envelope instance and genesis. Each needs
+  its own authorization.
+- Carried to WP9.2: the row set for `owner_row_multiset_hash` (B2 review i-3); the envelope cites the merged contract
+  (`96a63114`), verifier (`e8bb5085`) and test blobs (B2 review i-4).
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE. WP9.0 and WP9.1 are complete.<br>
+**Boundary:** Docs and one test file.<br>
+**Affected specifications:** 06v O-8 (met); WP9.1 (complete); WP9.2 (its genesis imports this identity).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:

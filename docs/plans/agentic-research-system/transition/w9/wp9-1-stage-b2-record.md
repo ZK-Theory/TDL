@@ -1,9 +1,9 @@
 # WP9.1 stage B2: the W9 expected catalogue
 
 **Date:** 2026-10-27<br>
-**Status:** Revision 2. It reconciles the review `reviews/wp9-1-stage-b2-review-ea989c7e-2026-10-27.md` (see
-`reviews/wp9-1-stage-b2-reconciliation-2026-10-27.md`). It goes to the reviewer's confirmation, then to Stephen's O-8
-acceptance (P-072 item 6). It is not accepted.<br>
+**Status:** Accepted. Revision 2 reconciled the review `reviews/wp9-1-stage-b2-review-ea989c7e-2026-10-27.md` (see
+`reviews/wp9-1-stage-b2-reconciliation-2026-10-27.md`), and the reviewer's confirmation passed. PR #396 merged as
+`7979e85a`. Stephen accepted the catalogue and the annex at that main commit on 2026-10-27 (O-8, P-075).<br>
 **Package:** 06v WP9.1, stage B, step B2 (P-072 item 6). B1 is merged as `fc5f356b` (PR #395).<br>
 **Implementation authority:** P-065 (WP9.0 and WP9.1 only). The design note's §6 lists what B2 produces and edits.
 B2 changes no runtime Python and writes to no store.
@@ -29,8 +29,10 @@ the same encoding as W11's catalogue.
 `created_at` is `2026-10-24T00:00:00Z`. That is the verifier's fixed value, the annex's confirmation date, and not the
 write date. W11's catalogue uses the same convention (B2 review m-3, Stephen's option (a)).
 
-Stephen's O-8 acceptance names the catalogue and the annex by main commit, blob and SHA-256. The catalogue's main
-commit will be B2's merge commit. After acceptance, any row change is a new catalogue identity and a new acceptance.
+Stephen's O-8 acceptance (P-075, 2026-10-27) names the catalogue and the annex by main commit, blob and SHA-256. The
+main commit is B2's merge commit, `7979e85a075ab6a643a7b201ac4186b0b2090d74`; the blobs and SHA-256s are those in the
+table above. Before it, the verifier ran in the canonical checkout on `main` with 0 problems (review i-6). Any change
+to either file is now a new catalogue identity and needs a new acceptance. The W9 tests pin both byte strings.
 
 ## 2. The §6 edits
 
