@@ -65,7 +65,7 @@ families:
 forbidden:
   - runtime_schema_registry binding for any ars://legacy/ schema
   - runtime handlers, ledger append, reducers, or projectors
-  - any W9 expected catalogue instance other than w9-legacy-integration-v1.json
+  - any W9 expected catalogue instance other than .research-system/evals/expected/w9-legacy-integration-v1.json
   - catalogue acceptance envelope instance
   - W9 genesis import
   - any write to the Gate 6 store TDL-ARS-G6-Control

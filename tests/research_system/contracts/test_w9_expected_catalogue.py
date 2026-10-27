@@ -9,8 +9,9 @@ controls cover the following (B1 review B-1, B-2, M-1, M-2, m-1 to m-3 and m-8):
 - a golden literal row;
 - every refusal the verifier owes.
 
-No catalogue exists in B1. The catalogue under test is the one the verifier expects for this checkout, built at
-``HEAD``, with ``HEAD`` as the main ref.
+From B2 the committed catalogue exists. Most controls here use the catalogue the verifier expects for this checkout,
+built at ``HEAD``, with ``HEAD`` as the main ref. The B2 controls read the committed catalogue, with ``origin/main`` as
+the main ref.
 """
 
 from __future__ import annotations
@@ -369,11 +370,83 @@ def test_required_catalogue_passes() -> None:
     assert V.main(["--require-catalogue"]) == 0
 
 
-def test_required_absent_catalogue_still_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    # B1 review M-1's control stays: with no catalogue at the default path, --require-catalogue fails.
+def test_required_absent_catalogue_still_fails(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # B1 review M-1's control stays: with no catalogue at the default path, --require-catalogue fails, and it fails on
+    # that guard rather than on some other problem (B2 review i-2).
     monkeypatch.setattr(V, "CATALOGUE_PATH", ".research-system/evals/expected/does-not-exist.json")
     assert V.main(["--require-catalogue"]) == 1
+    assert "no catalogue at" in capsys.readouterr().err
 
 
 def test_annex_only_run_passes() -> None:
     assert V.main([]) == 0
+
+
+# --- The committed catalogue (B2 review m-2, m-4) ------------------------------------------------------------------
+
+B1_MAIN = "fc5f356ba3488d8250180e15bc9b7df8a9a2e12a"  # B1's squash commit on main; the catalogue's pin (note §6)
+LEGACY_INSTANCE_IDS = frozenset(
+    {"ars://legacy/w9-schema-catalogue-content", "ars://legacy/w9-catalogue-acceptance-envelope"}
+)
+
+
+def _is_b1_main_output(data: bytes) -> bool:
+    return data == V.canonical_bytes(V.expected_catalogue(B1_MAIN, B1_MAIN))
+
+
+def test_committed_catalogue_is_the_verifier_output_at_b1_main() -> None:
+    # The verifier compares objects, so it passes a re-encoding or a re-signed created_at. O-8 accepts one byte string.
+    assert _is_b1_main_output((REPO_ROOT / V.CATALOGUE_PATH).read_bytes())
+
+
+def test_byte_identity_refuses_a_re_encoding_or_a_new_created_at() -> None:
+    catalogue = json.loads((REPO_ROOT / V.CATALOGUE_PATH).read_bytes())
+    assert not _is_b1_main_output(json.dumps(catalogue, indent=2, sort_keys=True).encode())
+    catalogue["created_at"] = "2030-01-01T00:00:00Z"
+    catalogue["content_hash"] = V.sha256_hex(
+        V.canonical_bytes({key: value for key, value in catalogue.items() if key != "content_hash"})
+    )
+    assert V.verify_catalogue(catalogue) == []  # the verifier alone passes it
+    assert not _is_b1_main_output(V.canonical_bytes(catalogue))
+
+
+def _legacy_instances(paths: list[Path]) -> set[str]:
+    """Return the paths, outside the schema tree, whose top-level ``schema_id`` is a W9 catalogue or envelope."""
+    found = set()
+    for path in paths:
+        relative = path.relative_to(REPO_ROOT).as_posix() if path.is_relative_to(REPO_ROOT) else path.as_posix()
+        if relative.startswith(".research-system/schemas/"):
+            continue
+        text = path.read_text(encoding="utf-8")
+        data = json.loads(text) if path.suffix == ".json" else yaml.safe_load(text)
+        if isinstance(data, dict) and data.get("schema_id") in LEGACY_INSTANCE_IDS:
+            found.add(relative)
+    return found
+
+
+def _tracked_legacy_candidates() -> list[Path]:
+    patterns = [arg for schema_id in sorted(LEGACY_INSTANCE_IDS) for arg in ("-e", schema_id)]
+    result = subprocess.run(
+        ["git", "grep", "-l", "-F", *patterns, "--", "*.json", "*.yaml", "*.yml"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode in (0, 1), result.stderr
+    return [REPO_ROOT / line for line in result.stdout.splitlines()]
+
+
+def test_the_only_tracked_instance_is_the_w9_catalogue() -> None:
+    # The bootstrap contract: one W9 expected catalogue, and no acceptance-envelope instance in the repository.
+    assert _legacy_instances(_tracked_legacy_candidates()) == {V.CATALOGUE_PATH}
+
+
+@pytest.mark.parametrize("schema_id", sorted(LEGACY_INSTANCE_IDS))
+def test_a_second_instance_is_found(tmp_path: Path, schema_id: str) -> None:
+    extra = tmp_path / "w9-legacy-integration-v2.json"
+    extra.write_text(json.dumps({"schema_id": schema_id}), encoding="utf-8")
+    found = _legacy_instances([*_tracked_legacy_candidates(), extra])
+    assert found == {V.CATALOGUE_PATH, extra.as_posix()}
