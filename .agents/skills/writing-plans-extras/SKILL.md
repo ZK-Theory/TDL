@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: domain
   lanes: []
   roles:
@@ -102,3 +102,29 @@ before marking an interface unverified, because the code often already
 answers the question. A cheap control is a test that replays a ledger holding
 one synthetic foreign event through every public replay entry point and
 asserts a named, intended outcome for each.
+
+## Claims About Artefacts the Plan Does Not Own
+
+Author-side counterpart of `adversarial-design-review`'s "Claims About Another
+Artefact". Before the plan states any of these, do the check and cite it:
+
+- **Precedents.** When following a precedent for shape, list which of its rows
+  or mechanisms the plan drops, and give a `path:line` for whatever takes over
+  each dropped row's job.
+- **"Handled by existing X".** Read X's preparer and record the subject or
+  precondition check it applies. If the plan's subject cannot pass it, X does not
+  handle the case.
+- **Catalogue IDs.** Before re-specifying, renaming or deferring an ID, run
+  `git grep -l <ID> -- .research-system research_system tests tools` and record
+  what is already materialized.
+- **Restated preconditions.** Point to the owning matrix as operative ("adds to,
+  never relaxes") and restate only what this plan adds.
+- **Selector contracts.** Ship a census of each governed file and a reference
+  script run on the real bytes in the same commit as the contract.
+
+## Currency Addenda
+
+An addendum that extends an inherited status table inherits its claims of
+currency. Re-derive every inherited row against current evidence, or mark each
+row "not re-checked at `<commit>`". "Table X stands; these rows are added"
+leaves stale classes on rows nobody re-checked.

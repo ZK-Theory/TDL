@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   tier: domain
   lanes: []
   roles:
@@ -139,17 +139,9 @@ inflating a Minor into a Major.
      and quote the owner entry before proposing a new identity;
    - derive every required evidence set from its owning contract and attack empty,
      partial, stale-revision, duplicate, extra, and incompatible sets. A gate passes only
-     on exact required-set closure, not merely because all supplied evidence passed;
-   - for every claim that a document reuses or extends another spec's records ("reuses
-     §7.5 unchanged", "extends the role enum"), open the materialized, accepted schema
-     files for those records and check every field, enum and `additionalProperties` the
-     claim depends on; then inspect one real instance of each source the design must
-     address. Prose that looks compatible is not evidence: the schema bytes decide;
-   - when a design adds a command or event family to a shared store, enumerate every
-     reducer that replays the whole ledger and the branch it takes for an unknown type
-     (raise, ignore, misroute), and every closed allowlist the family must join (runtime
-     bindings, grant command types, subject-kind enums, census pins). A new tenant is
-     defined as much by the readers it must not break as by the writer it adds.
+     on exact required-set closure, not merely because all supplied evidence passed.
+     For any claim that names another artefact, apply "Claims About Another Artefact"
+     below.
 4. **Currency.** If the document is a dated snapshot, check live state read-only and
    record divergences as a **proposed dated addendum** — never rewrite the snapshot. Do
    not use active or no-migration work as an experiment. When the artifact set is
@@ -165,6 +157,50 @@ inflating a Minor into a Major.
    (mechanical, implementation, claim-level, long-running, non-core-domain, qualitative).
    Look for bureaucracy that will be bypassed; recommend the smallest control that
    addresses each observed risk.
+
+## Claims About Another Artefact: Open the Artefact
+
+A design's riskiest sentences describe something it does not own: a spec it
+reuses, a precedent it copies, a path that "already handles" a case, a fix a
+reviewer prescribed. Check each one against the bytes or code that will decide
+it, never against prose that describes them.
+
+- **Reuse or extension.** Open the materialized, accepted schema files for the
+  reused records and check every field, enum and `additionalProperties` the claim
+  depends on; inspect one real instance of each source the design must address.
+- **Shared-store tenants.** For a new command or event family, enumerate every
+  reducer that replays the whole ledger and the branch it takes for an unknown
+  type (raise, ignore, misroute), and every closed allowlist the family must join
+  (runtime bindings, grant command types, subject-kind enums, census pins).
+- **Precedent fidelity.** Diff the precedent's row set, not only its field set,
+  and list what the design drops. For every "handled by existing X", read X's
+  preparer and record the subject or precondition check it applies, with
+  `path:line`.
+- **Restated rules.** When a document summarises another accepted document's
+  precondition matrix, diff every restated condition against its owning row. The
+  safe form points to the owner as operative ("adds to, never relaxes") and
+  restates only the delta.
+- **Catalogue IDs.** Before an ID is re-specified, renamed or deferred, run
+  `git grep -l <ID> -- .research-system research_system tests tools` and record
+  the materialized packages, executors, pins and ID-grammar schemas found.
+- **Selectors and parsers.** A byte-level selector contract is specified only
+  once it has run on the files it governs: require a census of each governed file
+  (heading, bullet, terminator and BOM forms, with counts) and a reference script
+  whose outputs on the real bytes are recorded. Re-run the script.
+- **"In the shape of" claims.** Run the producer's output through the consumer's
+  schema. Two artefacts that claim the same shape without a binding test drift.
+- **Verifiers.** For every expected-side read, find who names its version: if the
+  subject supplies the commit, the check is self-attested. Compare the gate's
+  pass set with the identity the owner accepts: if the owner accepts bytes,
+  mutate the unpinned fields and the encoding and confirm a refusal.
+- **Negative controls.** Delete the guarded line in memory and confirm the
+  control fails, matching the guard's own message rather than a substring a
+  sibling check shares. A control that resolves a branch-only commit breaks after
+  a squash merge: every hex literal it passes to git must be on `main`.
+- **Prescribed corrections.** Your own required corrections need the same source
+  check as your findings. Quote every identifier from its owner source with
+  `file:line`, and trace a prescribed mechanism through the code path it relies
+  on before prescribing it. A reviewer is not an owner source.
 
 ## Severity Rubric
 
@@ -242,7 +278,11 @@ verification evidence for any edits.
   `target_object_refs` minItems 1). The 06v plan mapped the Discovery command path it
   copied but not `projection/replay.py`, which raises on any event outside its closed
   predicates, so the first W9 event would have broken projection rebuild. Both surfaced
-  only when the reviewer opened the bytes and the replay code.
+  only when the reviewer opened the bytes and the replay code. The same chain then found
+  a segmentation contract whose anchor matched 114 of 167 real headings, a verifier
+  that read its expected side at the commit the subject named, and a reviewer's
+  prescribed row range (OR-109 to OR-115) that was wrong by one and was copied
+  verbatim into the next draft.
 
 ## Related Skills
 

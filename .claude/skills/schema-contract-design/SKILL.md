@@ -2,7 +2,7 @@
 name: schema-contract-design
 description: Use when adding a new math-correctness contract to contracts/ - formula, schema, invariant, or output_validation - to author it correctly against the meta-schema, wire its binding test, and manage the pending lifecycle.
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   tier: domain
   lanes:
     - output-provenance
@@ -143,5 +143,13 @@ The contract YAML + the manifest entry + a one-line note of pending status.
 - Compute repository identity from exact bytes before parsing. Enforce encoding/EOL, calculate Git blob and raw-byte SHA-256, then parse and validate those same bytes.
 - Prefer Git's own `hash-object` modes for blob portability tests; avoid general-purpose SHA-1 APIs where scanners prohibit them.
 - For large generated payloads, transport bounded chunks with a unique temporary end marker, remove it in the final chunk, then prove byte identity, parseability, schema validity, and canonical hash.
+
+## Verifier and fixture conformance
+
+- Fixture each ref-bearing field with an ID of the kind it actually names (from that kind's core ID grammar), plus one negative with a wrong-kind ID. One placeholder for every ref proves only that the schema accepts the placeholder.
+- When a document says producer X emits records of schema Y, the PR that lands the later of the two runs X on its own vectors and validates the output against Y.
+- A verifier's expected side is independent only if the verifier names its version: pin blob, SHA-256 and size as constants and require ancestry on `main`. Never read the expected side at a commit the subject supplies. Control: a subject pinned at an older owner commit is refused.
+- When an owner accepts an artefact by content address, the gate compares bytes, not parsed objects. Control: a re-encoded, pretty-printed, CRLF or re-signed copy is refused.
+- A selector or segmentation contract ships, in the same commit, a census of each governed file and a reference script whose outputs on the real bytes (hashes only) are recorded.
 
 Before delivery, verify that the contract is structurally closed, relationally enforced, ownership-compliant, acyclic in its acceptance dependencies, and byte-identical to its canonical source.
