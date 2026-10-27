@@ -4784,6 +4784,43 @@ and the owner annex (blob d8fbda41, SHA-256 36a3d1ac…36fc) at main commit 7979
 **Affected specifications:** 06v O-8 (met); WP9.1 (complete); WP9.2 (its genesis imports this identity).<br>
 **Migration consequence:** None.
 
+### P-076 - W9 implementation authorized for WP9.2, design note first
+
+**Date:** 2026-10-27<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-27). This is the later authorization that P-065 and P-066 item 2
+reserved for WP9.2.<br>
+**Authority:** Stephen, in chat, 2026-10-27, after PR #404 (O-8, P-075) merged as `eab253f6`: "merge complete,
+allons-y". Asked what that authorizes, he chose "WP9.2, note first (Recommended)". The option read: "Authorize WP9.2
+as one package. First the U-7 probe on a scratch store and a design note, reviewed independently; then the code PR.
+Tests run only on scratch stores. Not authorized: WP9.3+, live operations L-0 to L-5, real store creation or genesis,
+and legacy writes."<br>
+**Decision:**
+1. **WP9.2** (06v §5, "Legacy runtime, genesis, shared replay and CLI") is authorized as one package:
+   `research_system/legacy/` (commands, routes, runtime, replay and `accepted_w9.py`), its runtime-binding rows, the
+   shared-ledger replay edits, genesis, the Gate 6 store refusal and the CLI that 06v §5 lists.
+2. **Order.**
+   1. U-7 is resolved first: the four replay sites are read and the edit is prototyped on a scratch store. If it cannot
+      be confined to those four sites, the package stops and returns Partial (06v §8).
+   2. A WP9.2 design note records the U-7 result and the package's design. It gets an independent adversarial review
+      in a fresh session, and Stephen decides its owner points.
+   3. Then the code PR, with its own independent review, CodeRabbit, and Stephen's merge.
+3. **Scratch stores** are stores that a test or probe creates under a temporary directory and discards. No existing
+   store is written, including `C:/Users/steph/TDL-ARS-G6-Control` and the named scratch stores.
+
+**Not authorized:**
+- WP9.3 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- creating a real store, running genesis on one, issuing a grant on one, observation, adoption, transition and
+  compute;
+- any write to a legacy file.
+
+Each needs a later decision.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Runtime code under `research_system/legacy/`; the four shared-replay sites named in 06v U-7; the
+runtime-binding rows; tests; docs. Census, manifest and append-site changes go to D-4 (06v WP9.2).<br>
+**Affected specifications:** 06v WP9.2 (started); P-065 and P-066 item 2 (the reserved authorization is given).<br>
+**Migration consequence:** None until a live store runs W9 genesis, which is not authorized here.
+
 ## Decision protocol
 
 Each future decision entry must record:
