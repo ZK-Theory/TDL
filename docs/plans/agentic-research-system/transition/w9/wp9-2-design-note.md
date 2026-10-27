@@ -1,9 +1,11 @@
 # WP9.2 design note: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-27<br>
-**Status:** Revision 2. It reconciles the review `reviews/wp9-2-design-note-review-6b5aeee3-2026-10-27.md` (rework
-required, narrow) under Stephen's decisions P-077 (see `reviews/wp9-2-design-note-reconciliation-2026-10-27.md`). It
-goes to the reviewer for a narrow confirmation. Nothing in it is implemented.<br>
+**Status:** Revision 3, confirmed. Revision 2 reconciled the review
+`reviews/wp9-2-design-note-review-6b5aeee3-2026-10-27.md` (rework required, narrow) under Stephen's decisions P-077
+(see `reviews/wp9-2-design-note-reconciliation-2026-10-27.md`). The reviewer's confirmation of revision 2
+(`reviews/wp9-2-design-note-confirmation-0fa7eb09-2026-10-27.md`) passed with four Minor findings, n-1 to n-4, which
+revision 3 folds in at Stephen's request with no further round (reconciliation §5). Nothing in it is implemented.<br>
 **Package:** 06v WP9.2 ("Legacy runtime, genesis, shared replay and CLI"), in two PRs, WP9.2-1 and WP9.2-2 (P-077 item
 4).<br>
 **Authority:** P-076 (WP9.2, note first), with P-077 (owner points A to D, the D-6 exception and the boundary
@@ -147,8 +149,10 @@ U-7 resolves as the plan assumed. The package does not stop.
 command_type="ImportAcceptedW9CatalogueGenesis")`. The census grows by 1. `research_system/authority.py` gains the
 matching entries (review M-2):
 - `SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES` (`:171-207`), a set of command types: the genesis command, as W11's
-  genesis is listed (`:180`). The grant's allowed actor classes then follow the catalogue's LR-001
-  (`eligible_actor: operator`);
+  genesis is listed (`:180`). A command in that set, submitted by anyone other than the owner, needs a grant with
+  exactly one actor class (`:2721-2726`), drawn from `{"human", "agent", "service"}` (`:170`). The genesis grant's one
+  class is `human` (review confirmation n-4). The catalogue's LR-001 `eligible_actor: operator` is a W9 actor role, not
+  a class: the operator is the human who runs L-3, so the role maps to `human`;
 - `_SCOPED_COMMAND_SUBJECT_KINDS` (`:208-331`): `ImportAcceptedW9CatalogueGenesis` as `scope_definition`, as W11's
   genesis is.
 
@@ -169,8 +173,23 @@ the row, as the probe did.
 **Route classes (review m-1).** The legacy route registry partitions the 61 rows into two classes, as W11's registry
 partitions its 81 (`discovery/routes.py:344-355`):
 - **routed** (1): LR-001;
-- **deferred** (60): every other row, each tagged with the package that routes it (WP9.3, WP9.4 or WP9.6, from 06v
-  §5).
+- **deferred** (60): every other row, each tagged with what routes it.
+
+06v §5 predates the stage B command set, so it maps no row to a package (confirmation n-3). The tags follow from the
+package scopes in 06v §5, by record kind or Decision:
+
+| Tag | Rows (by record kind or Decision) | 06v §5 basis |
+|---|---|---|
+| `catalogue_revision` | LR-002, the revision import | Routed only by an accepted catalogue revision (P-071 item 4; P-072 item 5), not by a package |
+| `WP9.3` | `legacy-record-observed`; `legacy-light-inventory`; `legacy-closed-reference-acceptance`; `legacy-path-registration`; `legacy-field-family-membership`; and their review and Decision rows | "Observation reader, selectors, inventories and acceptance" |
+| `WP9.4` | `legacy-adoption-decision` (other than the eligibility Decision); `legacy-discharge-relation`; `legacy-paper-citation-status`; the ordinary `legacy-paper-root`; `legacy-source-inventory`; `legacy-transition-mapping`; `legacy-ownership-transitioned`; and their review and Decision rows | "Adoption, discharge and citation status", including the legacy-side transition refusals |
+| `WP9.6` | `legacy-record-supersession`; the recovery `legacy-paper-root` and the paper-root recovery Decision; and their review and Decision rows | "Rollback, recovery, manual mode and projection" |
+| `WP9.7` | `legacy-adoption-use-mismatch` (`RecordAdoptionUseMismatch`); the reviewer-eligibility Decision; the integration-pilot outcome Decision | "Successor-side guards and pilot support"; P-072 item 3 adds the use-mismatch row "for WP9.7's guard to request" |
+
+The per-row list of all 60 tags lives in the legacy route table, and a test pins it. WP9.7 routing
+`RecordAdoptionUseMismatch` and the two Decisions means WP9.7 adds commands, which 06v D-4's expected list ("WP9.2,
+WP9.3, WP9.4 and WP9.6") did not foresee. So WP9.7 also carries a D-4 re-acceptance. Any later move of a row between
+packages is a change to this table, made by the package that takes the row.
 
 There is no "excluded" class: in W11 an exclusion means never implemented under that catalogue, which is not the case
 here. A test pins the 1/60 partition. `replay_legacy` refuses any event of a deferred row with "W9 row not routed in
@@ -184,10 +203,34 @@ registry and a test route table that routes their rows. The production route tab
 
 | Event kind | Event type | Schema recorded | Payload | W9 row identified by |
 |---|---|---|---|---|
-| `E:` events (24 kinds, plus genesis and revision) | `catalogue_event_name(token)` (`discovery/routes.py:322-335`): `E:w9-catalogue-genesis-imported` gives `W9CatalogueGenesisImported`, `E:legacy-record-observed` gives `LegacyRecordObserved` | `ars://core/event` 1.0.0 (no producer binding exists for these types) | The record itself, validated against the row's `record_schema_id` and `record_schema_version` through the registry | The command type and the record's `payload_discriminant`, matched to exactly one catalogue row |
+| `E:` events (24 kinds, plus genesis and revision) | `catalogue_event_name(token)` (`discovery/routes.py:322-335`): `E:w9-catalogue-genesis-imported` gives `W9CatalogueGenesisImported`, `E:legacy-record-observed` gives `LegacyRecordObserved` | `ars://core/event` 1.0.0 (no producer binding exists for these types) | The record itself, validated against the row's `record_schema_id` and `record_schema_version` through the registry | The discriminant function below, applied to the command type and the record's content |
 | `W2:ReviewRequested` | `ReviewRequested` | `ars://core/event/ReviewRequested` (C2) | The closed W2 payload | `governing_refs: ["W9:LR-nnn"]` |
 | `W2:ReviewVerdictRecorded` | `ReviewVerdictRecorded` | its W2 schema (C2) | The closed W2 payload, which has no `governing_refs` | Its `review_id`, through the `ReviewRequested` it answers |
-| `W2:DecisionProposed`, `W2:DecisionResolved` | as named | their W2 schemas (C2) | The closed W2 payloads | The Decision ID, through the proposal that pre-assigned it (stage B note §2) |
+| `W2:DecisionProposed`, `W2:DecisionResolved` | as named | their W2 schemas (C2) | The closed W2 payloads | `governing_evidence_refs` holding exactly one `W9:LR-nnn` string (required by both schemas: `decision_proposed.schema.json:54-62`, `:115`) |
+
+**Why not the Decision's proposal (confirmation n-1).** Three Decision pairs write no W9 record (catalogue G5), so no
+proposal pre-assigns their `dec_`: the integration-pilot outcome (LR-021, LR-022), the reviewer-eligibility Decision
+(LR-024, LR-025) and the paper-root recovery Decision (LR-036, LR-037). The `governing_evidence_refs` string works for
+every Decision row, and a `W9:` string there is inert to Discovery: `_owner_row_id` reads only `W11:OR-` strings
+(`discovery/replay/transactions.py:186-189`).
+
+**The discriminant function.** No W9 record carries a `payload_discriminant`: it is a catalogue row field only. So
+`replay_legacy` assigns each transaction to one row as follows:
+- **A transaction with a W2 event** (the review and Decision rows, including every `ResolveW9AuthorityDecision` row
+  that also writes an `E:…-recorded` event): every event in it takes the row its W2 event names, by the rules in the
+  table. That separates rows that share a command and record kind, such as LR-054 and LR-055 (both
+  `legacy-ownership-transitioned` under `ResolveW9AuthorityDecision`, differing only by direction) and LR-024 and
+  LR-028 (`legacy-adoption-decision`).
+- **A transaction of `E:` events only** (18 rows): the discriminant is computed from the command type and the record:
+  - `ProposeLegacyRecord`: `propose-legacy-record/<record kind>`, with the kind's hyphens written as underscores, for
+    example `propose-legacy-record/legacy_path_registration` (10 rows);
+  - `CreateLegacyPaperRoot`: `recovery: null` gives `create-legacy-paper-root/ordinary` (LR-035); a non-null `recovery`
+    gives `create-legacy-paper-root/recovery` (LR-038);
+  - every other command: its kebab-case slug alone, for example `observe-legacy-record` (LR-001, LR-002, LR-014,
+    LR-015, LR-039, LR-061).
+
+`(command_type, payload_discriminant)` is unique over the 61 rows (confirmation i-1), so each rule selects one row. A
+test shows the rules together are a bijection onto the 61 rows.
 
 Only genesis is admitted in WP9.2. The W2 rows are fixed here so that WP9.3 and later packages add bindings and
 reducers, not a layout. `replay_legacy` validates every `E:` payload through the registry, and a test shows a
@@ -233,7 +276,7 @@ by field (review m-3):
 | `schema_id`, `schema_version` | `ars://legacy/import-accepted-w9-catalogue-genesis`, `1.0.0` |
 | `bootstrap_contract_identity` | The amended contract at WP9.2-1's main commit: path, commit, blob, length, SHA-256 |
 | `external_envelope_identity` | The envelope at WP9.2-1's main commit: path, commit, blob, length, SHA-256 |
-| `requested_genesis_transaction_id` | A fixed `txb_` constant in `accepted_w9.py`. The ledger mints its own transaction IDs (`store/ledger.py:447`), so this is not the ledger transaction's ID: it is the request's idempotency anchor. The receipt maps it to the ledger transaction. A retry with the same anchor and the same envelope hash returns the original result; any other payload under the same anchor is refused (W9-C11-LR-001; W11 design line 1616, "idempotent only for the same envelope hash") |
+| `requested_genesis_transaction_id` | The fixed nominal string `w9-genesis-request-v1`, which the closed schema requires (`minLength: 1`). It is not compared with the ledger's transaction, which the ledger mints itself (`store/ledger.py:447`), and it deliberately carries no `txb_` prefix, so it cannot be read as a ledger ID (confirmation n-2). Retries are handled by receipts (§7.3) |
 | `required_w11_catalogue` | The contract's value: blob `8d588185…`, `7e36b39a…0b80`, 136,229 bytes |
 | `refused_store_identities` | `[gate6_store_identity]` |
 | `verification_requirements` | The contract's `verification_rules`, as amended, verbatim |
@@ -373,8 +416,15 @@ In both refusing cases the control root is byte-identical afterwards: no lock, l
 ### 7.3 Genesis
 
 `ImportAcceptedW9CatalogueGenesis` emits `W9CatalogueGenesisImported`. Before binding, the payload must equal
-`accepted_genesis_payload()`, and the Gate 6 refusal of §7.2 runs. Under the lock, in order (review m-3 adds items 2,
-4 and 9):
+`accepted_genesis_payload()`, and the Gate 6 refusal of §7.2 runs.
+
+**Retries come first (confirmation n-2).** After its whole-ledger replay and before any preparation, `LegacyRuntime`
+answers a retry as `DiscoveryRuntime` does (`discovery/runtime.py:474-511`): it looks up the scoped receipt by
+idempotency scope, command payload hash and authority, and returns it; failing that, it looks up the receipt by
+command ID. The guards below never see a retry. W9-C11-LR-001 tests that path. Any genesis command other than the
+accepted payload is refused before binding, so no second, different genesis request can exist.
+
+Then, under the lock, in order (review m-3 adds items 2 and 4):
 1. the replayed Discovery projection holds W11's catalogue (O-5);
 2. that catalogue's identity equals the payload's `required_w11_catalogue`;
 3. no W9 genesis exists in the replayed legacy projection;
@@ -382,8 +432,7 @@ In both refusing cases the control root is byte-identical afterwards: no lock, l
 5. the catalogue stream is at version 0;
 6. the catalogue, annex, amended contract and envelope bytes re-hash to `ACCEPTED`;
 7. the catalogue's row set is LR-001 to LR-061, and its `owner_row_multiset_hash` equals the envelope's;
-8. the route registry partitions the catalogue's 61 rows into 1 routed and 60 deferred (§3);
-9. a retry under the same `requested_genesis_transaction_id` is idempotent only for the same envelope hash (§5.2).
+8. the route registry partitions the catalogue's 61 rows into 1 routed and 60 deferred, with the §3 tags.
 
 On success the projection reserves the three external IDs (§5.3). Guard 7's hash adds nothing beyond guard 6, since
 both read the same file (review i-2); the independent value comes from the WP9.2-1 reviewer, who reconstructs it.
@@ -426,10 +475,11 @@ their packages.
 | C1, C2, C3, C5 | A missing command row; a W2-typed event without its producer binding, and one recorded as `ars://core/event`; a top-level `W11:OR-` reference; a catalogue row emitting a shared event type. Each is refused, and each asserts its message |
 | `LEGACY_COMMAND_TYPES` | Equals the accepted catalogue's command set |
 | Payload validation | A schema-invalid `E:` payload is refused by `replay_legacy` (P-069 item 2) |
-| Route classes | The 1/60 partition; an event of a deferred row is refused |
-| Grant scope (O-4, G4) | A grant whose subject is not `CATALOGUE_STREAM_ID`, or has no exact subject, is refused |
-| Catalogue identities | `W9-C01-LR-001`, `W9-C03-LR-001-owner-row-mutation`, `W9-C11-LR-001` (and the LR-002 three, on the test registry) |
-| Genesis negatives | A second genesis; the wrong target stream; the wrong stream version; tampered catalogue, annex, contract or envelope bytes; a missing W11 genesis, at the preparer and at replay; a W11 catalogue other than `required_w11_catalogue`; a route partition that is not 1/60; a retry with a different envelope under the same anchor |
+| Route classes | The 1/60 partition and the per-row tags of §3; an event of a deferred row is refused |
+| Row assignment | The §4 rules are a bijection onto the 61 rows' discriminants, including LR-035/LR-038, LR-054/LR-055 and the three record-less Decision pairs |
+| Grant scope (O-4, G4) | A grant whose subject is not `CATALOGUE_STREAM_ID`, or has no exact subject, is refused; a genesis grant with an actor class other than exactly `human` is refused |
+| Catalogue identities | `W9-C01-LR-001`, `W9-C03-LR-001-owner-row-mutation`, and `W9-C11-LR-001`, which retries the accepted genesis and gets the original receipt back from the scoped-receipt path before preparation (and the LR-002 three, on the test registry) |
+| Genesis negatives | A second genesis after the first committed; the wrong target stream; the wrong stream version; tampered catalogue, annex, contract or envelope bytes; a missing W11 genesis, at the preparer and at replay; a W11 catalogue other than `required_w11_catalogue`; a route partition that is not 1/60; any payload other than `accepted_genesis_payload()`, refused before binding |
 | Reserved IDs | Genesis reserves the three; a pre-assigned `dec_` equal to the reserved one is refused; no reader dereferences them |
 | W9-T20 | The three cases of §7.2, with the control root byte-identical when refused |
 | W9-T5, W9-T21 (reducer), W9-T11 (store) | The reducer invariants of §7.4, on forged ledgers through the test registry |
@@ -468,6 +518,11 @@ WP9.2-1 changes no protected identity. It carries the envelope's review and, aft
 
 ## Change log
 
+- **Revision 3 (2026-10-27).** Folds the confirmation's n-1 to n-4 with no further round, at Stephen's request. §4's
+  row identification: W2 Decision events by `governing_evidence_refs`, and an explicit discriminant function for the
+  18 `E:`-only rows (n-1). Retries are answered from receipts before preparation; guard 9 is deleted;
+  `requested_genesis_transaction_id` is a nominal string with no `txb_` prefix (n-2). The deferred-row tags, with
+  `catalogue_revision` for LR-002 and WP9.7's D-4 consequence (n-3). The genesis grant's actor class is `human` (n-4).
 - **Revision 2 (2026-10-27).** Reconciles the review of `6b5aeee3` under P-077. Site 1 skips the lifecycle check
   (B-1). C3 restated, §4 event payloads added, P-069 item 2 carried (M-1). `authority.py` entries and the grant scope
   (M-2). All three external refs, the envelope field table, reservation, and the fixed derivation (M-3, M-4, m-12).

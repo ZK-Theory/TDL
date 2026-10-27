@@ -35,7 +35,7 @@ Verdict: rework required (narrow). 1 Blocking, 8 Major, 12 Minor, 5 Info.<br>
 | **m-5** legacy semantics never validated before a Discovery command | Recorded as an accepted asymmetry, with a test; `replay_legacy` checks for W11 genesis itself | §2.5, §7.3 |
 | **m-6** `accepted_w9.py` omits the Gate 6 identity; the O-8 pin's expected side | Fixed. The identity is added. The test keeps its literals and asserts `ACCEPTED` equals them | §5.1 |
 | **m-7** the test-blob rationale | Fixed. The envelope cites the test blobs at `7979e85a` (`5a8e1c84`, `4133b75e`), which is what O-8 rested on | §5.3 |
-| **m-8** two citations | Fixed: the stage B note §6 is the amendment pattern, and W11's contrary precedent is given; W11's multiset-hash precedent is given | §5.3, §6.1 |
+| **m-8** two citations | Fixed: the stage B note §6 is the amendment pattern, and W11's contrary precedent is given (§6.1). The inaccurate "W11 has no precedent" sentence is removed; W11's multiset-hash precedent (`design/11-portfolio-and-discovery-lifecycle.md:1612-1616`) is not cited in the note (corrected here after confirmation i-4) | §6.1 |
 | **m-9** two stop rules unchecked | Fixed: both N/A, with reasons | §11 |
 | **m-10** probe evidence weaker than stated | Fixed: §2.2 says the probe's payloads and names were not catalogue-shaped. Every negative control in §9 asserts its message | §2.2, §9 |
 | **m-11** C5 missing | Fixed: C5 added, with a test over `ordered_events` | §2.3 |
@@ -57,6 +57,26 @@ Verdict: rework required (narrow). 1 Blocking, 8 Major, 12 Minor, 5 Info.<br>
 
 ## 4. Not done
 
-- No code, no envelope and no contract amendment: those are WP9.2-1 and WP9.2-2, after the confirmation.
+- No code, no envelope and no contract amendment: those are WP9.2-1 and WP9.2-2.
 - O-3 is not decided; it follows WP9.2-1's merge.
 - Nothing is pushed.
+
+## 5. Revision 3: the confirmation's findings
+
+The confirmation of revision 2 (`reviews/wp9-2-design-note-confirmation-0fa7eb09-2026-10-27.md`, `f64d4e9c`,
+cherry-picked as `47b049ba`) passed with findings: every original finding closed, P-077 matching the note, and four new
+Minor findings. Stephen asked for them to be folded into revision 3 with no further review round.
+
+| Finding | Disposition | Note section |
+|---|---|---|
+| **n-1** §4's row identification is wrong for some rows | Fixed. W2 Decision events are identified by `governing_evidence_refs` holding one `W9:LR-nnn`. A transaction with a W2 event takes that event's row, which separates LR-054/LR-055 and LR-024/LR-028. The 18 `E:`-only rows get an explicit discriminant function, with LR-035/LR-038 split on `recovery`. A bijection test is added | §4, §9 |
+| **n-2** the retry design contradicts the guard order and the receipt path | Fixed. Retries are answered from the scoped receipt and the command-ID receipt before preparation, as `DiscoveryRuntime` does (`discovery/runtime.py:474-511`); guard 9 is deleted; W9-C11-LR-001 tests the receipt path. `requested_genesis_transaction_id` is the nominal string `w9-genesis-request-v1`, not compared with the ledger and not `txb_`-prefixed | §5.2, §7.3, §9 |
+| **n-3** the deferred-row tags | Fixed. A tag table by record kind and Decision, with `catalogue_revision` for LR-002 and `WP9.7` for the use-mismatch row and the eligibility and pilot-outcome Decisions; the per-row list lives in the route table, pinned by a test. WP9.7 therefore also carries a D-4 re-acceptance | §3 |
+| **n-4** the genesis grant's actor class | Fixed. The one class is `human`; LR-001's `operator` is a role that maps to it. The grant-scope test covers it | §3, §9 |
+| i-1 | Recorded | — |
+| i-2 | Recorded. Stephen chose the verifier run (P-077 item 2); no change | — |
+| i-3 | Recorded. The reservation is W9-scoped; it must widen if a consumer ever dereferences the refs | — |
+| i-4 | Fixed in this file's m-8 row | §2 |
+
+The `WP9.4` and `WP9.6` tags for the paper-root, source-inventory, mapping and ownership rows are the author's reading of
+06v §5's package scopes, which name no rows. The package that takes a row may move it, by changing the tag table.
