@@ -202,7 +202,16 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_observation_log_lint.py",
     "tests/tools/test_retired_imperatives.py",
     "tests/tools/test_check_pinned_commits.py",
+    # Hook controls no lane ran until the 2026-10-27 system review (Group H1); the glob test below
+    # now finds any such file instead of relying on this list.
+    "tests/tools/test_pre_push_hook.py",
+    "tests/tools/test_commit_msg_hooks.py",
+    "tests/tools/test_handoff_surface_hook.py",
+    "tests/tools/test_hook_script_lf_bytes.py",
 )
+
+# A hook-control module that deliberately does not run in admission-controls, with the reason. Empty: every one runs.
+HOOK_CONTROL_EXEMPTIONS: dict[str, str] = {}
 
 
 def test_admission_controls_run_in_a_blocking_windows_job() -> None:
@@ -214,6 +223,24 @@ def test_admission_controls_run_in_a_blocking_windows_job() -> None:
     scripts = " ".join(step.get("run", "") for step in job["steps"])
     for module in ADMISSION_CONTROL_MODULES:
         assert module in scripts, f"admission-controls does not run {module}"
+
+
+def test_every_hook_control_module_runs_in_admission_controls() -> None:
+    """Obs 2026-10-27-hook-control-tests-run-by-no-lane: four hook controls sat outside every lane.
+
+    The list above is hand-written, so a hook test nobody added to it was never missed. This derives the set from
+    the files: every ``tests/tools/test_*hook*.py`` runs in admission-controls or is exempted with a reason.
+    """
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"]["admission-controls"]
+    scripts = " ".join(step.get("run", "") for step in job["steps"])
+    modules = sorted(
+        path.relative_to(REPO_ROOT).as_posix() for path in (REPO_ROOT / "tests/tools").glob("test_*hook*.py")
+    )
+    assert modules, "no hook-control modules found; the glob or the tree moved"
+    missing = [m for m in modules if m not in scripts and m not in HOOK_CONTROL_EXEMPTIONS]
+    assert not missing, f"admission-controls does not run these hook controls: {missing}"
+    stale = [m for m in HOOK_CONTROL_EXEMPTIONS if m not in modules]
+    assert not stale, f"exemptions name files that no longer exist: {stale}"
 
 
 def test_admission_controls_check_out_full_history_for_the_pin_check() -> None:
