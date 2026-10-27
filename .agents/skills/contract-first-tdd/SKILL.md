@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   tier: core
   lanes:
     - output-provenance
@@ -150,6 +150,8 @@ internals, so they survive refactors.
 - Bind recovery markers to the complete validated command and resolved schema identity, and bind rollback to the exact object generation owned by that attempt. A different command committing the same target is a mandatory no-delete control.
 - Treat visible filesystem generations as untrusted after a failed directory flush. A retry must re-establish durability before interpreting or advancing them, including on native Windows.
 - For multi-resource cleanup, preserve the primary safety error, attempt every cleanup, and retain retryable ownership state for any close that failed. Test doubles must conform to the real lock/fence ownership record.
+- A control is evidence only if it fails when, and only when, its own guard is removed: delete the guarded line in memory and confirm, and assert the guard's own message, not a substring a sibling check also emits.
+- TDL squash-merges, so a commit on the PR branch is on no `main` ref after merge. Every hex literal a test passes to git must be an ancestor of `origin/main` or a blob reachable from it.
 
 ## Admission, evaluator and route controls
 
