@@ -2,7 +2,7 @@
 name: tda-large-workflow-supervision
 description: Use when supervising a large, multi-stage, review-heavy TDL campaign outside APM, especially when capability completion, exact-state handbacks, fresh-task rotation, or bounded context inheritance are needed.
 metadata:
-  version: "1.6.0"
+  version: "1.7.0"
   tier: optional
   lanes: []
   roles:
@@ -101,6 +101,21 @@ before the effect, not only check the script's syntax and inputs:
 
 (Obs 2026-10-17-live-step-script-assumed-a-tool-its-venv-lacks and
 2026-10-17-windows-python-crlf-broke-a-live-step-scripts-read.)
+
+## Prepared Prompt Packs and Remote Writes
+
+- **A prompt pack is a snapshot.** Before dispatching a prepared pack, re-resolve
+  each prompt against the ledger and `origin/main`; drop or amend any prompt whose
+  action already ran or whose inputs changed. Give each prompt an "Already done
+  if:" line naming the ledger event or `spec status` state that marks it complete,
+  and make checking it the prompt's first step.
+- **An error from a remote write means the reply was lost, not that the write
+  failed.** Treat the outcome as unknown. Read back after a delay of a few
+  minutes, and retry a non-idempotent call (a Jira comment, an issue transition)
+  only if the late read-back is still negative.
+
+(Obs 2026-10-21-owner-action-prompt-pack-has-no-already-done-precheck and
+2026-10-21-jira-connector-errors-still-write-late.)
 
 ## Dispatch Envelope
 
