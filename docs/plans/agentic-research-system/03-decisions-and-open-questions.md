@@ -4931,6 +4931,90 @@ materialization_status govern the ars://legacy/ schemas' runtime bindings only. 
 identity); P-077 item 4 (the O-3 step done).<br>
 **Migration consequence:** None.
 
+### P-079 - D-4: WP9.2-2's protected identities re-accepted at main commit `31f675fe`
+
+**Date:** 2026-10-28<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-28). This is the 06v D-4 re-acceptance for WP9.2-2, the first
+package to add a W9 command.<br>
+**Authority:** Stephen, in chat, 2026-10-28, after PR #408 (WP9.2-2) merged as `31f675fe`. Asked whether he re-accepts
+the merged D-4 bytes, he chose "Re-accept, record P-079 (Recommended)". The question read: "Main at 31f675fe has the
+census at 262 rows (3d6ae37a…9f06), the 06h manifest at blob adbb334f and the smoke test at blob 922ae844, all equal to
+the reviewed 4d5f72c6 tree. Do you re-accept them?"<br>
+**Evidence:**
+- PR #408 merged as `31f675fe6444f8031210fcd3f0a46c3a00f6b861`. It is a squash merge whose tree
+  (`f2c99c5ed6d6c3d32e87cb159b24ef40bb8cf7da`) equals the reviewed head `4d5f72c6`, so no rebase changed the bytes.
+- The independent adversarial review recomputed the census from the registry at its head. It gave 262 rows and
+  `3d6ae37a…9f06`, and 261 rows and the base digest with the genesis row removed, so the delta is exactly that row. Its
+  verdict was accept, carried through five revisions to `4d5f72c6`. The report is in the session notes as
+  `wp9-2-2-review.md`, §§1–13.
+- On the record branch, cut from `31f675fe`, one run of the 06h smoke test, `test_schema_registry.py` and the six W9
+  test files gave 506 passed and 1 skipped (the existing skip in `test_schema_registry.py`).
+
+**Decision:**
+1. **The WP9.2-2 protected identities are re-accepted** at main commit `31f675fe`:
+
+   | Identity | Accepted value |
+   |---|---|
+   | Runtime-binding census | 262 rows, `3d6ae37aba22f58e22d334745dfb0f66fa9f80a4a85c7a9fd633eb24963e9f06` (was 261, `f359855b…70d7`) |
+   | `tests/research_system/smoke/wp6_1_06h_current_append_manifest.yaml` | blob `adbb334f0cd08d0ca0ceaed34d43018abf2f119d`, SHA-256 `344a341d687c15ae2437eef05c4a90920774823a699e8725ea188e3fb2b7860c`, 6,343 bytes |
+   | `tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py` | blob `922ae844cf7500484f11c1fe2f736d1da4681252`, SHA-256 `25c511451fa99fe893d7b5b7ad9bf611c4159407e8bf0a371023591862e72748`, 26,480 bytes |
+   | New append site | `research_system/legacy/runtime.py`, `LegacyRuntime._submit_authorized`, `self.ledger`, classified `legacy_command_producer` |
+
+2. **Unchanged.** The command and event schema trees and the T2 validator expectations and seal do not change: WP9.2-2
+   changes no core schema, and nothing in T2 reads the census.
+3. **What acceptance fixes.** The next package that adds a W9 command rewrites the census and the 06h files. It
+   carries its own D-4 and merges alone (06v §5, command-adding packages merge one at a time).
+
+**Not decided here:**
+- O-3's second half and LR-001's owner preconditions. The review's accept verdict at `4d5f72c6` is the
+  "independently verified" half, and both are checked at L-3.
+- Any live operation L-0 to L-5, genesis on a real store, and legacy writes.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** 06v D-4 and O-6 (WP9.2 done); WP9.2-2 record (`transition/w9/wp9-2-2-record.md`, merged
+and accepted); P-076 (WP9.2 complete).<br>
+**Migration consequence:** None.
+
+### P-080 - W9 implementation authorized for WP9.3, design note first
+
+**Date:** 2026-10-28<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-28). WP9.2 is complete (PRs #406 and #408; P-078, P-079).<br>
+**Authority:** Stephen, in chat, 2026-10-28, after PR #408 merged: "PR merged, let's proceed". Asked what comes next,
+he chose "WP9.3, note first (Recommended)". The option read: "Authorize WP9.3 (the observation reader, selectors,
+inventories and acceptance), with a design note reviewed independently first, then the code. Tests on scratch stores
+only. Live operations L-0 to L-5 and legacy writes stay unauthorized. It carries the obligations from WP9.2-2 §7: N-2's
+content hash, F-4's refuse-before-bind, and F-8's G5 preparer checks."<br>
+**Decision:**
+1. **WP9.3** (06v §5, "Observation reader, selectors, inventories and acceptance") is authorized as one package, with
+   the split 06v D-6 allows if its review asks for one.
+2. **Order.**
+   1. A WP9.3 design note comes first. It gets an independent adversarial review in a fresh session, and Stephen
+      decides its owner points.
+   2. Then the code, with its own independent review, CodeRabbit, D-4 for the command rows it adds, and Stephen's
+      merge.
+3. **Carried obligations** (WP9.2-2 record §7). The design note addresses each one:
+   - the W9 record content-hash rule, stamped by the preparer and recomputed at replay (review N-2);
+   - refuse-before-bind in any mutating CLI (F-4);
+   - the two G5 preparer checks: the Decision's subject, and LR-020's ownership list (F-8);
+   - superseding a missing record at the preparer.
+4. **Scratch stores** only, as P-076 item 3 defines them. No existing store is written, including
+   `C:/Users/steph/TDL-ARS-G6-Control` and the named scratch stores.
+
+**Not authorized:**
+- WP9.4 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export and the real observations, inventories and
+  acceptances WP9.3's commands will later run;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file.
+
+Each needs a later decision.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** WP9.3's code under `research_system/legacy/`, its runtime-binding rows, tests and docs. Census, manifest
+and append-site changes go to D-4.<br>
+**Affected specifications:** 06v WP9.3 (started).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
 ## Decision protocol
 
 Each future decision entry must record:
