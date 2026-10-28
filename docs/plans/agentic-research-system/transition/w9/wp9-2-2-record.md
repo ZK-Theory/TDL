@@ -1,8 +1,9 @@
 # WP9.2-2: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 5. The independent review, its re-checks and the PR #408 bot comments are disposed in §8. Not
-merged, D-4 not accepted.<br>
+**Status:** Revision 5, merged as `31f675fe` (PR #408), with the same tree as the reviewed head `4d5f72c6`. D-4 was
+re-accepted at that commit (P-079). The independent review, its re-checks and the PR #408 bot comments are disposed in
+§8. WP9.3 is authorized, design note first (P-080), and carries the §7 obligations.<br>
 **Package:** 06v WP9.2, second of its two PRs (P-077 item 4). The design note is `transition/w9/wp9-2-design-note.md`,
 revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
 **Authority:** P-076, with P-077. The bootstrap contract was accepted at O-3 (P-078, main `69e9e059`); the catalogue
