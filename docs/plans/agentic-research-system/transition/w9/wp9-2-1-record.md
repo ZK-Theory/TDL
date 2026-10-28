@@ -1,8 +1,9 @@
 # WP9.2-1: the bootstrap contract amendment and the W9 acceptance envelope
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 2. It reconciles the review `reviews/wp9-2-1-review-7e119810-2026-10-28.md` (accept with required
-changes; §6). Not merged and not accepted.<br>
+**Status:** Accepted. Revision 2 reconciled the review `reviews/wp9-2-1-review-7e119810-2026-10-28.md` (accept with
+required changes; §6). PR #406 merged as `69e9e059`. Stephen accepted the amended contract at that main commit on
+2026-10-28 (O-3, P-078).<br>
 **Package:** 06v WP9.2, first of its two PRs (P-077 item 4). The design note is
 `transition/w9/wp9-2-design-note.md`, revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
 **Authority:** P-076, with P-077 items 4 to 6. WP9.2-1 is data and tests: no runtime code, nothing under
@@ -44,8 +45,10 @@ unchanged. No schema changes, so the catalogue's 19 schema source rows are unaff
 
 Revision 1 (`7e119810`) had blob `0579a8a5`, without the m-2 line.
 
-After merge, Stephen accepts the amended contract at its main commit (06v O-3), as its own decision. The genesis
-payload of WP9.2-2 names that commit.
+Stephen's O-3 acceptance (P-078, 2026-10-28) names the amended contract by main commit, blob and SHA-256: main commit
+`69e9e059348baad153884f43b34ee6c52df63add`, with the blob and SHA-256 in the "After" column above. Any change to the
+file is now a new contract identity and needs a new acceptance. The W9 tests pin the byte string, and the genesis
+payload of WP9.2-2 names it.
 
 ## 2. The envelope (design note §5.3)
 
@@ -123,7 +126,7 @@ the bytes this review saw, until WP9.2-2's `accepted_w9.py` pins the blob.
 ## 5. Not in this PR
 
 - The runtime, `accepted_w9.py`, genesis and the CLI (WP9.2-2).
-- O-3, which follows this PR's merge.
+- O-3, which followed this PR's merge (P-078).
 
 ## 6. Review reconciliation
 
