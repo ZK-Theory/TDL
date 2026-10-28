@@ -1451,6 +1451,8 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
 
 def _verified_ledger(
     control_root: Path,
+    *,
+    read_only: bool = False,
 ) -> tuple[
     EventLedger,
     SchemaRegistry,
@@ -1464,8 +1466,12 @@ def _verified_ledger(
     )
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
+    # A read-only query binds without creating directories, and refuses a store whose event directory is missing
+    # rather than recreating it and reporting an empty ledger.
+    if read_only and not (resolved_root / "events" / manifest["project_id"]).is_dir():
+        raise IntegrityError("store project event directory is missing")
     return (
-        EventLedger(resolved_root, manifest["project_id"], schemas),
+        EventLedger(resolved_root, manifest["project_id"], schemas, create_directories=not read_only),
         schemas,
         LedgerAuthorityGrantResolver(
             resolved_root,
@@ -1512,7 +1518,7 @@ def _legacy_projection(control_root: Path) -> tuple[dict[str, Any], int]:
     from research_system.legacy.runtime import refuse_gate6_store
 
     refuse_gate6_store(control_root, accepted_genesis_payload()["refused_store_identities"])
-    ledger, schemas, resolver = _verified_ledger(control_root)
+    ledger, schemas, resolver = _verified_ledger(control_root, read_only=True)
     events = tuple(ledger.iter_events())
     replay(events, schema_registry=schemas, authority_state_validator=resolver.validate_replayed_administration_state)
     return replay_legacy(events, schemas=schemas), sum(1 for event in events if is_legacy_projection_event(event))

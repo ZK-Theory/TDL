@@ -1,8 +1,8 @@
 # WP9.2-2: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 3: the independent review and its re-review are disposed in §8. Not merged, D-4 not
-accepted.<br>
+**Status:** Revision 4. The independent review, its re-review and the PR #408 bot comments are disposed in §8. Not
+merged, D-4 not accepted.<br>
 **Package:** 06v WP9.2, second of its two PRs (P-077 item 4). The design note is `transition/w9/wp9-2-design-note.md`,
 revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
 **Authority:** P-076, with P-077. The bootstrap contract was accepted at O-3 (P-078, main `69e9e059`); the catalogue
@@ -42,8 +42,9 @@ legacy write. Every store in this package's tests is a scratch store under `tmp_
    `submit`, before the lock, `refuse_gate6_lock_roots` checks every root the lock writes into (review F-4):
    - The ledger's control root must carry a readable manifest whose identity is not refused. A store whose manifest
      cannot be read is refused, because its identity cannot be shown not to be the Gate 6 one.
-   - The receipt root and the authority root are refused if they, or any directory above them, hold a manifest with a
-     refused identity.
+   - Every lock root, the ledger root included, is refused if any directory at or above it holds a manifest with a
+     refused identity. So a scratch manifest nested inside the Gate 6 store does not hide it. A manifest path that
+     exists but cannot be read is refused too, such as a directory or a dangling link (CodeRabbit on PR #408).
 
    It also refuses when `ledger.store_identity` is refused. Constructing the runtime writes nothing. The receipt store,
    which creates the directories the lock takes, is built in `submit` after the refusal. Binding through
@@ -159,6 +160,15 @@ was not run. D-4 is unchanged: the census and both 06h blobs are as in §4.
   deleted).
 - Ruff is clean.
 
+**Revision 4** changes `legacy/runtime.py`, `cli.py` (`_verified_ledger` gains `read_only`, and other callers are
+unchanged), the runtime test and this record. Checks:
+- One run of the three W9 legacy files, plus the files that drive `_verified_ledger` through `replay verify`, gives
+  258 passed. Those files are `test_replay.py`, `test_store_binding_cli.py`,
+  `test_scoped_authority_grant_activation.py`, `test_eval_cli.py` and `test_command_cli.py`.
+- Each of the three fixes, reverted alone, fails its new test.
+- Ruff is clean.
+- D-4 is unchanged.
+
 ## 7. Not in this PR
 
 - Commands other than genesis, their binding rows and their D-4 (WP9.3, WP9.4, WP9.6, WP9.7).
@@ -202,7 +212,8 @@ was not run. D-4 is unchanged: the census and both 06h blobs are as in §4.
   directly, and it is defence in depth.
 - **The §2.5 asymmetry test** runs the two replays over a tampered ledger. It does not append a Discovery command
   over it, which would need a raw ledger rewrite.
-- **The CLI read-only test** monkeypatches `_verified_ledger`, so the real binding path's writes are not exercised.
+- **The CLI read-only test** monkeypatches `_verified_ledger`. Revision 4 tests the read-only binding's refusal of a
+  missing event directory with its inputs stubbed. The binding against a real approved foundation is not exercised.
 - **The verify-restore replay** (`verify_restore_before_writer_lease`) goes through the generic boundary that
   W9-C01 exercises, but has no test of its own.
 
@@ -235,5 +246,16 @@ mutation probe caught 14 of 15 mutations. Revision 3 disposes its new findings:
 | Nit: the C4 negative controls match no message | Nit | Fixed: each control asserts its own message |
 | Nit: G4's wildcard case matches `"ID"` | Nit | Fixed: it matches the full `validate_id` message, and the path-only case matches exactly |
 
-The review half of LR-001's L-3 precondition was met at `4ff0d432`. Revision 3 changes only tests and this record,
-so it needs the reviewer's focused re-check before L-3 relies on it.
+The review half of LR-001's L-3 precondition was met at `4ff0d432`, and the re-check carried the accept verdict to
+`dff6f2b4` (addendum §11).
+
+**PR #408 bot comments on `4ff0d432` and `dff6f2b4`**, disposed in revision 4:
+
+| Comment | Disposition |
+|---|---|
+| CodeRabbit (Major): the ledger root's ancestors are not scanned, so a scratch ledger nested inside the Gate 6 store passes | Fixed. The ancestor scan covers the ledger root too. Tested by calling `refuse_gate6_lock_roots` directly. The harness's authority root is a sibling of the ledger root (`factories.py`), so its own ancestor scan reaches the ledger root's parents, and a test through `submit` would mask the gap |
+| CodeRabbit (Minor): a manifest path that is a directory or a dangling link is skipped by `is_file()` | Fixed: `os.path.lexists`, so the loader reads it and refuses it as unreadable. Tested with a directory; a dangling link needs symlink privileges on Windows |
+| Codex (P2): `ars legacy status` and `show` bind through `EventLedger(create_directories=True)`, so a read-only query recreates a missing event directory and reports an empty ledger | Fixed. `_verified_ledger(read_only=True)` refuses a store whose project event directory is missing and binds with `create_directories=False`, as `store/current_binding.py` does. `ars legacy` always binds read-only, which the CLI test asserts; other callers are unchanged |
+
+Each fix, reverted alone, fails its test (scratch mutation script). Revision 4 changes code, so the accept verdict
+needs the reviewer's focused re-check at the new head before L-3 relies on it.

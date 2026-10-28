@@ -31,7 +31,12 @@ from research_system.legacy.accepted_w9 import (
     accepted_genesis_payload,
 )
 from research_system.legacy.replay.driver import replay_legacy
-from research_system.legacy.runtime import GATE6_REASON_CODE, LegacyRuntime, W9Gate6StoreRefused
+from research_system.legacy.runtime import (
+    GATE6_REASON_CODE,
+    LegacyRuntime,
+    W9Gate6StoreRefused,
+    refuse_gate6_lock_roots,
+)
 from research_system.projection.replay import rebuild_projection
 from research_system.projection.replay import replay as replay_projection
 from research_system.discovery.runtime import replay_discovery
@@ -323,6 +328,30 @@ def test_constructing_the_runtime_writes_nothing(tmp_path: Path) -> None:
     assert _tree_bytes(root) == {}
 
 
+def test_w9_t20_a_scratch_ledger_nested_inside_the_gate6_store_is_refused(tmp_path: Path) -> None:
+    """CodeRabbit on PR #408: the ledger root's own scratch manifest must not hide a Gate 6 manifest above it."""
+    gate6_root = tmp_path / "gate6-control"
+    _write_manifest(gate6_root, GATE6)
+    ledger_root = gate6_root / "scratch"
+    _write_manifest(ledger_root, SCRATCH_IDENTITY)
+    receipt_root = tmp_path / "elsewhere" / "legacy"
+    receipt_root.mkdir(parents=True)
+    with pytest.raises(W9Gate6StoreRefused, match=GATE6_REASON_CODE):
+        refuse_gate6_lock_roots(ledger_root, (receipt_root,), {GATE6})
+
+
+def test_w9_t20_an_unreadable_manifest_path_above_a_lock_root_is_refused(tmp_path: Path) -> None:
+    """CodeRabbit on PR #408: a manifest path that is a directory is read and refused, not skipped."""
+    ledger_root = tmp_path / "control"
+    _write_manifest(ledger_root, SCRATCH_IDENTITY)
+    odd_root = tmp_path / "odd"
+    (odd_root / "manifests" / "store-identity.json").mkdir(parents=True)
+    receipt_root = odd_root / "legacy"
+    receipt_root.mkdir()
+    with pytest.raises(IntegrityError, match="cannot read the target store identity"):
+        refuse_gate6_lock_roots(ledger_root, (receipt_root,), {GATE6})
+
+
 @pytest.mark.parametrize("inside", [False, True], ids=["at-the-root", "below-the-root"])
 def test_w9_t20_a_receipt_root_in_the_gate6_store_is_refused(tmp_path: Path, inside: bool) -> None:
     """Review F-4: a scratch ledger cannot carry the lock into the Gate 6 store through the receipt root."""
@@ -545,9 +574,13 @@ def test_cli_legacy_status_and_show_are_read_only(tmp_path: Path, monkeypatch, c
 
     runtime, harness = _store(tmp_path)
     runtime.submit(_genesis_command(harness))
-    monkeypatch.setattr(
-        cli, "_verified_ledger", lambda root: (harness.ledger, harness.schemas, harness.authority_resolver)
-    )
+    bindings: list[dict[str, Any]] = []
+
+    def bind(root: Path, **kwargs: Any) -> Any:
+        bindings.append(kwargs)
+        return harness.ledger, harness.schemas, harness.authority_resolver
+
+    monkeypatch.setattr(cli, "_verified_ledger", bind)
     control_root = harness.ledger.control_root
     before = _tree_bytes(control_root)
     assert cli.main(["legacy", "status", "--control-root", str(control_root)]) == 0
@@ -560,6 +593,35 @@ def test_cli_legacy_status_and_show_are_read_only(tmp_path: Path, monkeypatch, c
     assert cli.main(["legacy", "show", decision, "--control-root", str(control_root)]) == 0
     assert json.loads(capsys.readouterr().out)["kind"] == "reserved_external_ref"
     assert cli.main(["legacy", "show", new_id("scope_definition"), "--control-root", str(control_root)]) == 1
+    assert _tree_bytes(control_root) == before
+    # Every binding the CLI made was read-only (Codex on PR #408).
+    assert bindings and all(kwargs == {"read_only": True} for kwargs in bindings)
+
+
+def test_cli_read_only_binding_refuses_a_missing_event_directory(tmp_path: Path, monkeypatch) -> None:
+    """Codex on PR #408: a read-only query neither recreates a missing event directory nor reports an empty ledger."""
+    from types import SimpleNamespace
+
+    from research_system import cli
+
+    control_root = tmp_path / "control"
+    (control_root / "manifests").mkdir(parents=True)
+    # The binding's inputs are stubbed: the test is about the directories, and must not read the canonical foundation.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "foundation.json")
+    monkeypatch.setattr(
+        cli.ApprovedProjectBinding,
+        "load",
+        lambda path: SimpleNamespace(origin_witness=None, origin_witness_path=None),
+    )
+    monkeypatch.setattr(
+        cli,
+        "load_store_manifest",
+        lambda root, **kwargs: {"project_id": PROJECT_ID, "store_identity": SCRATCH_IDENTITY},
+    )
+    monkeypatch.setattr(cli, "_schemas_for_store_manifest", lambda manifest: None)
+    before = _tree_bytes(control_root)
+    with pytest.raises(IntegrityError, match="store project event directory is missing"):
+        cli._verified_ledger(control_root, read_only=True)
     assert _tree_bytes(control_root) == before
 
 

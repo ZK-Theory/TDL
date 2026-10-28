@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable, Collection, Mapping
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -105,21 +106,24 @@ def refuse_gate6_lock_roots(
 ) -> None:
     """Refuse before the lock if any root the lock writes into lies in a refused store (review F-4).
 
-    The ledger's control root must carry a readable manifest with an identity that is not refused. Every other lock root
-    (the receipt root, the authority root) is refused if it, or any directory above it, holds a store manifest with a
-    refused identity, so a scratch ledger cannot carry the lock into the Gate 6 store through another root.
+    The ledger's control root must carry a readable manifest with an identity that is not refused. Every lock root (the
+    ledger root, the receipt root, the authority root) is refused if any directory at or above it holds a store manifest
+    with a refused identity, or a manifest path that cannot be read. So neither a scratch manifest nested inside the
+    Gate 6 store nor another root can carry the lock into it.
 
     Raises:
         W9Gate6StoreRefused: If a lock root lies in a refused store.
-        IntegrityError: If the ledger's manifest, or a manifest above another root, cannot be read.
+        IntegrityError: If the ledger's manifest, or a manifest path at or above any lock root, cannot be read.
     """
 
     refuse_gate6_store(ledger_root, refused_store_identities)
     checked = {ledger_root.resolve()}
-    for root in other_roots:
+    # The ledger root's own ancestors too: a scratch manifest nested inside the Gate 6 store must not hide it.
+    for root in (ledger_root, *other_roots):
         resolved = root.resolve()
         for directory in (resolved, *resolved.parents):
-            if directory not in checked and (directory / "manifests" / "store-identity.json").is_file():
+            # lexists: a manifest path that is a directory or a dangling link is read, and refused as unreadable.
+            if directory not in checked and os.path.lexists(directory / "manifests" / "store-identity.json"):
                 refuse_gate6_store(directory, refused_store_identities)
             checked.add(directory)
 
