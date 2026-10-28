@@ -263,6 +263,9 @@ _RUNTIME_BINDINGS = (
     SchemaBinding("ars://core/command", "1.0.0", command_type="RecordW11AuthorityReview"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeW11AuthorityDecision"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="AdmitResearchDossier"),
+    # W9: genesis is the only W9 command WP9.2 admits (P-077 item 1). Every other W9 command gets its row with its own
+    # package, under D-4.
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ImportAcceptedW9CatalogueGenesis"),
     SchemaBinding(
         "ars://core/event/ReviewRequested",
         "1.0.0",

@@ -49,6 +49,13 @@ APPEND_SITE_CLASSIFICATIONS = {
         "DiscoveryRuntime._submit_authorized",
         "self.ledger",
     ): "discovery_command_producer",
+    # WP9.2-2 (P-077; D-4): the W9 legacy producer, on the Discovery pattern: three-root CompositeWriterLock after the
+    # Gate 6 refusal and scoped-authority resolution, with full command provenance on every event.
+    (
+        "research_system/legacy/runtime.py",
+        "LegacyRuntime._submit_authorized",
+        "self.ledger",
+    ): "legacy_command_producer",
     (
         "research_system/store/ledger.py",
         "EventLedger._append_release_from_validated_submit",
@@ -95,9 +102,9 @@ _EXPECTED_ACCEPTED_AUTHORITIES = {
     "event_schema_tree": "058c1d5ddcb9d249916977f12b11768b6d15de0f",
 }
 _EXPECTED_RUNTIME_BINDINGS = {
-    "count": 261,
+    "count": 262,
     "canonical_row_format": "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n",
-    "sha256": "f359855bf5e760c3336dd201dd69e765d5bd0a91836dedcb5ddfecaeea0470d7",
+    "sha256": "3d6ae37aba22f58e22d334745dfb0f66fa9f80a4a85c7a9fd633eb24963e9f06",
 }
 _EXPECTED_HISTORICAL_EVIDENCE = {
     "pre_06h_freeze": _PRE_06H_FREEZE,

@@ -203,6 +203,7 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "RecordW11AuthorityReview",
         "ProposeW11AuthorityDecision",
         "AdmitResearchDossier",
+        "ImportAcceptedW9CatalogueGenesis",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {
@@ -232,6 +233,7 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "RecordW11AuthorityReview": "review",
     "ProposeW11AuthorityDecision": "decision",
     "AdmitResearchDossier": "scope_definition",
+    "ImportAcceptedW9CatalogueGenesis": "scope_definition",
     "CreateScopeDefinition": "scope_definition",
     "AmendScopeDefinition": "scope_definition",
     "SupersedeScopeDefinition": "scope_definition",

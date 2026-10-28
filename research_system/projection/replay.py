@@ -1211,6 +1211,9 @@ def _replay(
     validate_discovery_semantics: bool = True,
     projection_event_positions: frozenset[int] | None = None,
 ) -> dict[str, Any]:
+    # Lazy import keeps the W9 command-family predicate a leaf outside the Discovery import graph (U-7).
+    from research_system.legacy.commands import is_legacy_projection_event
+
     ordered_events = tuple(events)
     resolve_transaction_ids = discovery_resolve_transaction_ids(ordered_events)
     state: dict[str, Any] = {
@@ -1320,7 +1323,11 @@ def _replay(
             projection_event,
             resolve_transaction_ids=resolve_transaction_ids,
         )
-        if not discovery_projection_event:
+        # W9 events are reduced by replay_legacy alone. Like Discovery events they skip the generic lifecycle binding,
+        # which maps each W2 event schema to its generic producer and would refuse every W9 review and Decision event
+        # (U-7 site 1; WP9.2 design note review B-1). Every envelope, schema, chain and transaction check above runs.
+        legacy_projection_event = is_legacy_projection_event(projection_event)
+        if not discovery_projection_event and not legacy_projection_event:
             _validate_active_lifecycle_binding(projection_event, schema_registry)
         project_id = event.get("project_id")
         if state["project_id"] is None:
@@ -1352,7 +1359,9 @@ def _replay(
         transaction_events.append(projection_event)
         if transaction_seen == transaction_count:
             _validate_claim_dispatch_transaction(tuple(transaction_events), schema_registry)
-        if projection_event_positions is None or position in projection_event_positions:
+        if not legacy_projection_event and (
+            projection_event_positions is None or position in projection_event_positions
+        ):
             state = apply_event(
                 state,
                 projection_event,
@@ -1379,6 +1388,11 @@ def _replay(
             schemas=schema_registry,
             authority_state_validator=authority_state_validator,
         )
+    if validate_discovery_semantics and any(is_legacy_projection_event(event) for event in ordered_events):
+        # U-7 site 4: public shared-ledger replay also rejects W9 semantic tampering.
+        from research_system.legacy.replay.driver import replay_legacy
+
+        replay_legacy(ordered_events, schemas=schema_registry)
     return state
 
 
