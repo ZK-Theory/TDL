@@ -25,7 +25,7 @@ from research_system.errors import IntegrityError
 from research_system.ids import new_id
 from research_system.legacy.accepted_w9 import RESERVED_EXTERNAL_REFS
 from research_system.legacy.replay.driver import replay_legacy
-from research_system.legacy.routes import LEGACY_ROW_ROUTES, W2_EVENT_TYPES
+from research_system.legacy.routes import LEGACY_ROW_ROUTES, W2_EVENT_TYPES, verdict_row_for_request
 from research_system.projection.replay import _validate_active_lifecycle_binding, rebuild_projection
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaBinding
@@ -547,18 +547,25 @@ def _inventory_record() -> dict[str, Any]:
     }
 
 
-def _inventory_flow(events: tuple, record: dict[str, Any], *, verdict: str = "approve", subject: str | None = None):
-    """LR-011 → LR-012 → LR-013: a proposed inventory and its reproduction review."""
+def _inventory_flow(
+    events: tuple,
+    record: dict[str, Any],
+    *,
+    verdict: str = "approve",
+    subject: str | None = None,
+    request_row: str = "LR-012",
+):
+    """LR-011, then a review of the proposal: by default its reproduction review, LR-012 → LR-013."""
     review_id = record["independent_reproduction_ref"]["id"]
     ledger = _row(events, "LR-011", record)
     request = _review_request(
-        "LR-012",
+        request_row,
         new_review_id=review_id,
         subject_ids=[subject or record["record_id"]],
         subject_hashes=[record["content_hash"]],
     )
-    ledger = _row(ledger, "LR-012", request)
-    return _row(ledger, "LR-013", {"review_id": review_id, "verdict": verdict})
+    ledger = _row(ledger, request_row, request)
+    return _row(ledger, verdict_row_for_request(request_row), {"review_id": review_id, "verdict": verdict})
 
 
 def test_lr_014_records_the_proposed_inventory_once_reproduced(base) -> None:
@@ -581,8 +588,10 @@ def test_lr_014_records_the_proposed_inventory_once_reproduced(base) -> None:
         ({}, lambda record: {**record, "record_id": _obj()}, "differs from its open proposal"),
         ({"verdict": "changes_requested"}, dict, "no approved reproduction review"),
         ({"subject": "obj_01a17eb7-5ae0-7000-8000-0000000000ff"}, dict, "no approved reproduction review"),
+        # Review N-1: an approval of the right subject under another review row (LR-007 → LR-008) is no reproduction.
+        ({"request_row": "LR-007"}, dict, "no approved reproduction review"),
     ],
-    ids=["other-bytes", "unbound-fresh-id", "not-approved", "review-of-another-subject"],
+    ids=["other-bytes", "unbound-fresh-id", "not-approved", "review-of-another-subject", "not-a-reproduction-review"],
 )
 def test_lr_014_an_inventory_without_its_proposal_or_approval_is_refused(base, flow, recorded, message: str) -> None:
     events, schemas = base

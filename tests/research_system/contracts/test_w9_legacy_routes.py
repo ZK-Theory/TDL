@@ -367,23 +367,41 @@ def test_c4_check_accepts_a_safe_consumer(
 
 
 @pytest.mark.parametrize(
-    "body",
+    ("body", "message"),
     [
-        '        if shared_event_partition(e) != "legacy":\n            continue\n',
-        '        if shared_event_partition(e) != "artefact":\n            handle(e)\n',
-        '        if shared_event_partition(e) == "legacy":\n            handle(e)\n',
-        '        if shared_event_partition(e) in {"legacy", "context"}:\n            continue\n',
-        "        p = shared_event_partition(e)\n        handlers[p](e)\n",
-        '        p = shared_event_partition(e)\n        p = "artefact"\n        if p == "artefact":\n            pass\n',
-        "        if shared_event_partition(e) == k:\n            pass\n",
-        "        handle(e, shared_event_partition(e))\n",
+        ('        if shared_event_partition(e) != "legacy":\n            continue\n', "an exclusion guard that admits"),
+        ('        if shared_event_partition(e) != "artefact":\n            handle(e)\n', "not a continue guard"),
+        ('        if shared_event_partition(e) == "legacy":\n            handle(e)\n', "legacy selected for handling"),
+        (
+            '        if shared_event_partition(e) in {"legacy", "context"}:\n            continue\n',
+            "legacy selected with another partition",
+        ),
+        ("        p = shared_event_partition(e)\n        handlers[p](e)\n", "used other than as the left side"),
+        (
+            '        p = shared_event_partition(e)\n        p = "artefact"\n        if p == "artefact":\n            pass\n',
+            "is rebound",
+        ),
+        ("        if shared_event_partition(e) == k:\n            pass\n", "compared with a non-literal"),
+        ("        handle(e, shared_event_partition(e))\n", "unrecognised consumer shape"),
         # The six shapes of the review addendum on 0e0c15dd.
-        '        if not shared_event_partition(e) == "discovery":\n            handle(e)\n',
-        '        if shared_event_partition(e) == "discovery":\n            pass\n        else:\n            handle(e)\n',
-        '        ok = shared_event_partition(e) == "discovery"\n        if not ok:\n            handle(e)\n',
-        "        handle(map(shared_event_partition, events))\n",
-        '        if shared_event_partition(e) == "a":\n            pass\n'
-        '        if routes.shared_event_partition(e) != "discovery":\n            handle(e)\n',
+        (
+            '        if not shared_event_partition(e) == "discovery":\n            handle(e)\n',
+            "not the whole test of an if",
+        ),
+        (
+            '        if shared_event_partition(e) == "discovery":\n            pass\n        else:\n            handle(e)\n',
+            "a selection with an else branch",
+        ),
+        (
+            '        ok = shared_event_partition(e) == "discovery"\n        if not ok:\n            handle(e)\n',
+            "not the whole test of an if",
+        ),
+        ("        handle(map(shared_event_partition, events))\n", "referenced, not called"),
+        (
+            '        if shared_event_partition(e) == "a":\n            pass\n'
+            '        if routes.shared_event_partition(e) != "discovery":\n            handle(e)\n',
+            "not a continue guard",
+        ),
     ],
     ids=[
         "guard-admits-legacy",
@@ -401,10 +419,12 @@ def test_c4_check_accepts_a_safe_consumer(
         "attribute-call",
     ],
 )
-def test_c4_check_refuses_an_unsafe_consumer(body: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_c4_check_refuses_an_unsafe_consumer(
+    body: str, message: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Negative controls: each shape would let a consumer act on "legacy" or hide what it selects."""
 
-    with pytest.raises(AssertionError):
+    with pytest.raises(AssertionError, match=message):
         _legacy_continue_guards(_write_consumer(tmp_path, monkeypatch, body))
 
 
@@ -587,8 +607,14 @@ def test_w9_t21_reducer_half_reference_cycles_are_refused() -> None:
     ("subject_scope", "message"),
     [
         ({"project_id": PROJECT_ID, "role": "migration_operator"}, "subject_scope fields must be exact"),
-        ({"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "path": "x/"}}, "subject fields"),
-        ({"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "id": "*"}}, "ID"),
+        (
+            {"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "path": "x/"}},
+            "^subject fields must be exact$",
+        ),
+        (
+            {"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "id": "*"}},
+            "expected scope_definition ID with obj_ prefix",
+        ),
     ],
     ids=["role-only", "path-only", "wildcard"],
 )

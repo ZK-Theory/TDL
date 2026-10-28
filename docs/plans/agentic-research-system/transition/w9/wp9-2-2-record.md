@@ -1,7 +1,8 @@
 # WP9.2-2: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 2: the independent review of revision 1 is disposed in §8. Not merged, D-4 not accepted.<br>
+**Status:** Revision 3: the independent review and its re-review are disposed in §8. Not merged, D-4 not
+accepted.<br>
 **Package:** 06v WP9.2, second of its two PRs (P-077 item 4). The design note is `transition/w9/wp9-2-design-note.md`,
 revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
 **Authority:** P-076, with P-077. The bootstrap contract was accepted at O-3 (P-078, main `69e9e059`); the catalogue
@@ -120,7 +121,7 @@ The two 06h files as committed here (the merge-queue bytes are the ones to accep
 |---|---|
 | `tests/research_system/contracts/test_w9_legacy_routes.py` (store-free) | `ACCEPTED` equals the independent O-8 and O-3 pins, and the envelope identity read from Git at the O-3 main commit (review F-7); G4's exact subject at grant parsing (role-only, path-only, wildcard); the reserved IDs re-derive from their domain strings; the genesis payload validates and carries the contract's values; `LEGACY_COMMAND_TYPES` equals the catalogue's command set; only genesis is bound; the route registry is exact and refuses five catalogue mutations; the 1/60 partition and every tag; C5; C4; row assignment is a bijection onto the 61 rows (LR-035/LR-038, LR-054/LR-055 and the record-less Decision pairs included); the 18 `E:`-only discriminants; W2 refs; transaction shapes; W9-T5; W9-T11 store half; supersession acyclic; W9-T21 reducer half; W9-C25 and the reserved IDs |
 | `tests/research_system/integration/test_w9_legacy_runtime.py` | W9-C01-LR-001 and shared replay (generic, rebuild, Discovery, legacy); W9-C11-LR-001 retry; a second genesis; no W11 genesis; the wrong target; W9-C03-LR-001 mutations refused before binding with the receipt root unchanged; tampered catalogue, annex, contract and envelope bytes; a grant scoped elsewhere, with the resolver's message; the n-4 human-actor guard: a non-owner with an agent-class grant refused, and with a human-class grant accepted (review F-1); W9-T20's three cases with both roots unchanged, directories included, when refused; a receipt root at or below a Gate 6 control root refused; construction writes nothing (review F-4); an unreadable manifest; genesis guards 2, 5 and 8 (review F-6); an unbound W9 command; the §2.5 asymmetry, with its message; the LR-002 three on the test registry, and LR-002 refused in production; the CLI |
-| `tests/research_system/integration/test_w9_legacy_replay.py` | The shared replay with a W9 observation and a schema-valid W2-typed W9 event on the test registry; the predicate-removed, site-3-removed and lifecycle-restored negative controls; C1 (its message), C2 (both forms), C3; a deferred row; a schema-invalid payload; a W9 event type under a non-W9 command; replay's second-genesis, payload and no-W11-genesis refusals; the reserved IDs and that no reader dereferences them. The deferred rows' reducers on forged ledgers with every row routed (review F-2, F-3): G5 through LR-003 → LR-005, with other content, no proposal and another Decision refused; a Decision resolved under another family; W9-T5 through LR-054 and LR-055, with a stale `from_mode`, a row of another direction and a not-yet-successor closure refused; LR-020 with its acceptance and an ownership closure; LR-011 → LR-014, with other bytes, a fresh ID, a verdict other than approve, a review of another subject and a second LR-014 refused; the LR-035 → LR-038 recovery, with a recovery Decision naming its root, an unresolved Decision and an unrecorded predecessor refused; a cycle through a recovery Decision, a transition and a recovery root; supersession acyclic through LR-060 |
+| `tests/research_system/integration/test_w9_legacy_replay.py` | The shared replay with a W9 observation and a schema-valid W2-typed W9 event on the test registry; the predicate-removed, site-3-removed and lifecycle-restored negative controls; C1 (its message), C2 (both forms), C3; a deferred row; a schema-invalid payload; a W9 event type under a non-W9 command; replay's second-genesis, payload and no-W11-genesis refusals; the reserved IDs and that no reader dereferences them. The deferred rows' reducers on forged ledgers with every row routed (review F-2, F-3): G5 through LR-003 → LR-005, with other content, no proposal and another Decision refused; a Decision resolved under another family; W9-T5 through LR-054 and LR-055, with a stale `from_mode`, a row of another direction and a not-yet-successor closure refused; LR-020 with its acceptance and an ownership closure; LR-011 → LR-014, with other bytes, a fresh ID, a verdict other than approve, a review of another subject, an approval under another review row (review N-1) and a second LR-014 refused; the LR-035 → LR-038 recovery, with a recovery Decision naming its root, an unresolved Decision and an unrecorded predecessor refused; a cycle through a recovery Decision, a transition and a recovery root; supersession acyclic through LR-060 |
 
 ## 6. Verification
 
@@ -152,6 +153,12 @@ now gives 51 passed, and ruff is clean. No code under `research_system/` changed
 Discovery runtime reaches only through site 4 when a ledger holds W9 events, and its tests hold none. The full suite
 was not run. D-4 is unchanged: the census and both 06h blobs are as in §4.
 
+**Revision 3** changes tests and this record only. Checks:
+- The three W9 legacy files (routes, runtime and replay) give 132 passed.
+- The scratch mutation script catches the mutation that survived the re-review (LR-014's reproduction-row check
+  deleted).
+- Ruff is clean.
+
 ## 7. Not in this PR
 
 - Commands other than genesis, their binding rows and their D-4 (WP9.3, WP9.4, WP9.6, WP9.7).
@@ -169,6 +176,15 @@ was not run. D-4 is unchanged: the census and both 06h blobs are as in §4.
 
   Consider adding the LR-020 list check to replay when LR-020 is routed.
 - **Preparers generally.** Superseding a record that does not exist is not refused at replay.
+- **WP9.3: the W9 record content hash (review N-2).** A W9 record's `content_hash` is self-declared. G5's exact
+  content hash and LR-014's proposal hash are compared against that field, and replay never derives it from the
+  record's bytes, as Discovery replay does for its subjects. WP9.3 must:
+  - fix the W9 record content-hash rule. One candidate is the SHA-256 of the canonical record with `content_hash`
+    removed, as `command/lifecycle.py` `content_hash_matches` does for `content_sha256`;
+  - have the preparer stamp it;
+  - have replay recompute it in `reduce_proposal` and every record reducer, before any subject or G5 comparison.
+
+  This touches deferred rows only: production routes LR-001, and the genesis payload carries no `content_hash`.
 
 **For the L-3 checklist:**
 - **R-1.** Run L-3 from a checkout at or after this PR's merge commit, re-verified by bytes. Genesis guard 6
@@ -208,3 +224,16 @@ F-3 option (a) (2026-10-28).
 | F-8: G5's subject binding and LR-020's list | Minor | Deferred with dependency: preparer obligations in §7 |
 | F-9: `_add_edges` quadratic and recursive | Minor | Fixed: iterative check from the new edges' targets |
 | R-1 to R-3 | Residual | On the L-3 checklist (§7) |
+
+The re-review of `4ff0d432` (addendum §10) gave the verdict accept. It found F-1 to F-7 and F-9 closed, and its own
+mutation probe caught 14 of 15 mutations. Revision 3 disposes its new findings:
+
+| Finding | Severity | Disposition |
+|---|---|---|
+| N-1: LR-014's reproduction-row check has no test | Minor | Fixed. A review that names the inventory under LR-007 and is approved under LR-008 is refused. The surviving mutation is now caught |
+| N-2: the W9 `content_hash` is never recomputed at replay | Minor (latent) | Deferred with dependency: a WP9.3 obligation in §7 |
+| Nit: the C4 negative controls match no message | Nit | Fixed: each control asserts its own message |
+| Nit: G4's wildcard case matches `"ID"` | Nit | Fixed: it matches the full `validate_id` message, and the path-only case matches exactly |
+
+The review half of LR-001's L-3 precondition was met at `4ff0d432`. Revision 3 changes only tests and this record,
+so it needs the reviewer's focused re-check before L-3 relies on it.
