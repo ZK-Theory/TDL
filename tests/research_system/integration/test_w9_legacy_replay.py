@@ -25,10 +25,21 @@ from research_system.errors import IntegrityError
 from research_system.ids import new_id
 from research_system.legacy.accepted_w9 import RESERVED_EXTERNAL_REFS
 from research_system.legacy.replay.driver import replay_legacy
+from research_system.legacy.routes import LEGACY_ROW_ROUTES, W2_EVENT_TYPES
 from research_system.projection.replay import _validate_active_lifecycle_binding, rebuild_projection
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaBinding
-from tests.research_system.contracts.test_w9_contract_materialization import _observation, _tracked
+from tests.research_system.contracts.test_w9_contract_materialization import (
+    _acceptance,
+    _header,
+    _inventory,
+    _load_tool,
+    _observation,
+    _paper_root,
+    _registration,
+    _tracked,
+    _transition,
+)
 from tests.research_system.integration.test_w9_legacy_runtime import _genesis_command, _store
 from tests.research_system.integration.test_wp6_6_discovery_runtime import _rehash_events
 
@@ -44,6 +55,10 @@ REVIEW_PRODUCER = SchemaBinding(
     producer_command_type="RequestW9AuthorityReview",
 )
 TEST_ROUTES = frozenset({"LR-001", "LR-007", "LR-015"})
+# Every row, for the reducer tests (review F-3): production routes LR-001 only.
+ALL_ROWS = frozenset(LEGACY_ROW_ROUTES)
+# C1: the Discovery envelope validator's refusal of a W9 command with no active binding row (review F-6).
+C1_MESSAGE = "Discovery persisted schema provenance mismatch"
 
 
 def _registry(monkeypatch: pytest.MonkeyPatch, extra: tuple[SchemaBinding, ...] = ()) -> Any:
@@ -76,6 +91,40 @@ def base(tmp_path_factory: pytest.TempPathFactory) -> tuple[tuple[dict[str, Any]
     return tuple(harness.ledger.iter_events()), harness.schemas
 
 
+def _forge_transaction(
+    events: tuple[dict[str, Any], ...], command_type: str, members: list[tuple[str, dict[str, Any], str]]
+) -> tuple[dict[str, Any], ...]:
+    """Append one W9 transaction of ``(event_type, payload, schema_id)`` members and re-hash the copy."""
+    template = next(event for event in events if event["command_type"] == "ImportAcceptedW9CatalogueGenesis")
+    command_id = new_id("command")
+    transaction_id = new_id("event_batch")
+    forged = []
+    for index, (event_type, payload, schema_id) in enumerate(members, start=1):
+        event = deepcopy(template)
+        event.update(
+            {
+                "event_id": new_id("event"),
+                "global_position": len(events) + index,
+                "stream_id": new_id("scope_definition"),
+                "stream_version": 1,
+                "transaction_id": transaction_id,
+                "transaction_index": index,
+                "transaction_count": len(members),
+                "command_id": command_id,
+                "command_type": command_type,
+                "event_type": event_type,
+                "schema_id": schema_id,
+                "schema_version": "1.0.0",
+                "idempotency_key": f"w9-test:{command_id}",
+                "command_payload_hash": sha256_hex(canonical_bytes(members[0][1])),
+                "correlation_id": command_id,
+                "payload": payload,
+            }
+        )
+        forged.append(event)
+    return _rehash_events((*events, *forged))
+
+
 def _forge(
     events: tuple[dict[str, Any], ...],
     command_type: str,
@@ -84,30 +133,7 @@ def _forge(
     *,
     schema_id: str = "ars://core/event",
 ) -> tuple[dict[str, Any], ...]:
-    template = next(event for event in events if event["command_type"] == "ImportAcceptedW9CatalogueGenesis")
-    event = deepcopy(template)
-    command_id = new_id("command")
-    event.update(
-        {
-            "event_id": new_id("event"),
-            "global_position": len(events) + 1,
-            "stream_id": new_id("scope_definition"),
-            "stream_version": 1,
-            "transaction_id": new_id("event_batch"),
-            "transaction_index": 1,
-            "transaction_count": 1,
-            "command_id": command_id,
-            "command_type": command_type,
-            "event_type": event_type,
-            "schema_id": schema_id,
-            "schema_version": "1.0.0",
-            "idempotency_key": f"w9-test:{command_id}",
-            "command_payload_hash": sha256_hex(canonical_bytes(payload)),
-            "correlation_id": command_id,
-            "payload": payload,
-        }
-    )
-    return _rehash_events((*events, event))
+    return _forge_transaction(events, command_type, [(event_type, payload, schema_id)])
 
 
 def _observed(events: tuple[dict[str, Any], ...], record: dict[str, Any] | None = None) -> tuple[dict[str, Any], ...]:
@@ -203,7 +229,7 @@ def test_c1_a_w9_command_without_its_binding_row_is_refused(base, monkeypatch) -
     events, _ = base
     schemas = _registry(monkeypatch)
     _route(monkeypatch)
-    with pytest.raises(IntegrityError, match="schema provenance mismatch|command schema identity|binding"):
+    with pytest.raises(IntegrityError, match=C1_MESSAGE):
         replay_projection(_observed(events), schema_registry=schemas)
 
 
@@ -319,3 +345,339 @@ def test_replay_reserves_the_external_refs_and_no_reader_dereferences_them(base)
     )
     for ref in RESERVED_EXTERNAL_REFS.values():
         assert source.count(ref["id"]) == 1, ref["id"]  # only the accepted_w9 literal
+
+
+# --- The deferred rows' reducers through replay_legacy (design note §§7.4, 9; review F-2, F-3) -----------------------
+#
+# Every row is routed here, so each transaction reaches its reducer exactly as WP9.3 to WP9.6 will route it. The E:
+# records are schema-valid and replay_legacy validates them. The W2 payloads carry only the fields assignment and the
+# reducers read: their full W2 schemas are checked by the generic replay, which the C2 tests above exercise.
+
+_HASH = "0" * 64
+
+
+def _obj() -> str:
+    return new_id("scope_definition")
+
+
+def _ref(identity: str) -> dict[str, Any]:
+    return {"id": identity, "record_revision": 1, "content_hash": _HASH}
+
+
+def _row(ledger: tuple[dict[str, Any], ...], row_id: str, *payloads: dict[str, Any], **kwargs: Any) -> tuple:
+    """Append one transaction executing ``row_id``: its accepted events in order, one payload each.
+
+    ``event_types`` overrides the event list, for a row with a repeated slot (LR-020).
+    """
+    route = LEGACY_ROW_ROUTES[row_id]
+    event_types = kwargs.get("event_types") or [slot.event_type for slot in route.events if not slot.repeated]
+    members = [
+        (
+            event_type,
+            payload,
+            f"ars://core/event/{event_type}" if event_type in W2_EVENT_TYPES else "ars://core/event",
+        )
+        for event_type, payload in zip(event_types, payloads, strict=True)
+    ]
+    return _forge_transaction(ledger, route.command_type, members)
+
+
+def _propose_decision(ledger: tuple, row_id: str, decision_id: str, *evidence: str) -> tuple:
+    return _row(
+        ledger, row_id, {"new_decision_id": decision_id, "governing_evidence_refs": [f"W9:{row_id}", *evidence]}
+    )
+
+
+def _resolve(row_id: str, decision_id: str) -> dict[str, Any]:
+    return {"decision_id": decision_id, "governing_evidence_refs": [f"W9:{row_id}"]}
+
+
+def _replay_all(ledger: tuple, schemas: Any) -> dict[str, Any]:
+    return replay_legacy(ledger, schemas=schemas, routed_rows=ALL_ROWS)
+
+
+def _registration_record(decision_id: str) -> dict[str, Any]:
+    return {
+        **_registration("legacy_research_result", "results/x.json", "legacy_owned", ["owner_ruling"]),
+        "record_id": _obj(),
+        "registration_decision_ref": _ref(decision_id),
+    }
+
+
+def _registered(events: tuple, *evidence: str) -> tuple[tuple, dict[str, Any], str]:
+    """LR-003 → LR-004 → LR-005: one recorded legacy_owned registration under its Decision (G5)."""
+    decision_id = new_id("decision")
+    record = _registration_record(decision_id)
+    ledger = _row(events, "LR-003", record)
+    ledger = _propose_decision(ledger, "LR-004", decision_id, record["record_id"], *evidence)
+    ledger = _row(ledger, "LR-005", _resolve("LR-005", decision_id), deepcopy(record))
+    return ledger, record, decision_id
+
+
+def _transition_record(registration_id: str, decision_id: str, from_mode: str, to_mode: str) -> dict[str, Any]:
+    record = _transition(from_mode, to_mode, mapping=to_mode == "successor_owned")
+    record.update(record_id=_obj(), subject_registration_ref=_ref(registration_id), decision_ref=_ref(decision_id))
+    return record
+
+
+def _transitioned(ledger: tuple, row_id: str, record: dict[str, Any], decision_id: str) -> tuple:
+    """LR-050 → LR-053 → ``row_id``. The Decision names the transition it governs as evidence."""
+    ledger = _row(ledger, "LR-050", record)
+    ledger = _propose_decision(ledger, "LR-053", decision_id, record["record_id"])
+    return _row(ledger, row_id, _resolve(row_id, decision_id), deepcopy(record))
+
+
+def test_g5_a_resolved_record_is_bound_to_its_proposal_and_decision(base) -> None:
+    events, schemas = base
+    ledger, record, decision_id = _registered(events)
+    state = _replay_all(ledger, schemas)
+    assert state["records"]["legacy_path_registration"] == {record["record_id"]: record}
+    assert state["proposals"][record["record_id"]]["recorded"] is True
+    assert state["decisions"][decision_id]["resolve_row"] == "LR-005"
+    # A Decision that is not a recovery Decision names what it governs without adding a graph edge (W9-T21).
+    assert decision_id not in state["reference_edges"]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda record, _: record.update(created_at="2026-10-24T00:00:00Z"), "differs from its open proposal"),
+        (lambda record, _: record.update(record_id=_obj()), "differs from its open proposal"),
+        (lambda record, _: record.update(registration_decision_ref=_ref(new_id("decision"))), "names another Decision"),
+    ],
+    ids=["other-content", "no-proposal", "other-decision"],
+)
+def test_g5_a_resolved_record_other_than_its_proposal_is_refused(base, mutate: Any, message: str) -> None:
+    events, schemas = base
+    decision_id = new_id("decision")
+    record = _registration_record(decision_id)
+    ledger = _row(events, "LR-003", record)
+    ledger = _propose_decision(ledger, "LR-004", decision_id)
+    recorded = deepcopy(record)
+    mutate(recorded, decision_id)
+    ledger = _row(ledger, "LR-005", _resolve("LR-005", decision_id), recorded)
+    with pytest.raises(IntegrityError, match=message):
+        _replay_all(ledger, schemas)
+
+
+def test_a_decision_is_resolved_only_under_its_own_family(base) -> None:
+    events, schemas = base
+    decision_id = new_id("decision")
+    record = _registration_record(decision_id)
+    ledger = _row(events, "LR-003", record)
+    ledger = _propose_decision(ledger, "LR-053", decision_id)
+    ledger = _row(ledger, "LR-005", _resolve("LR-005", decision_id), record)
+    with pytest.raises(IntegrityError, match="resolved under another Decision family"):
+        _replay_all(ledger, schemas)
+
+
+def test_w9_t5_ownership_moves_legacy_to_successor_to_closed(base) -> None:
+    events, schemas = base
+    ledger, registration, _ = _registered(events)
+    registration_id = registration["record_id"]
+    to_successor = _transition_record(registration_id, (first := new_id("decision")), "legacy_owned", "successor_owned")
+    ledger = _transitioned(ledger, "LR-054", to_successor, first)
+    to_closed = _transition_record(
+        registration_id, (second := new_id("decision")), "successor_owned", "closed_reference"
+    )
+    ledger = _transitioned(ledger, "LR-055", to_closed, second)
+    state = _replay_all(ledger, schemas)
+    assert state["ownership"] == {registration_id: "closed_reference"}
+    assert state["row_counts"]["LR-054"] == state["row_counts"]["LR-055"] == 1
+
+
+@pytest.mark.parametrize(
+    ("first", "second", "message"),
+    [
+        # A from_mode other than the registration's current mode (current-mode check).
+        (("LR-054", "legacy_owned", "successor_owned"), ("LR-054", "legacy_owned", "successor_owned"), "current mode"),
+        # An allowed W9 transition under a row that admits another direction (_ROW_DIRECTIONS).
+        (None, ("LR-055", "legacy_owned", "closed_reference"), "differs from accepted LR-055"),
+        # Closing a registration that never left legacy ownership, under LR-055.
+        (None, ("LR-055", "successor_owned", "closed_reference"), "current mode"),
+    ],
+    ids=["stale-from-mode", "wrong-row-direction", "not-yet-successor"],
+)
+def test_w9_t5_an_ownership_transition_other_than_allowed_is_refused(base, first, second, message: str) -> None:
+    events, schemas = base
+    ledger, registration, _ = _registered(events)
+    for step in (first, second):
+        if step is None:
+            continue
+        row_id, from_mode, to_mode = step
+        decision_id = new_id("decision")
+        record = _transition_record(registration["record_id"], decision_id, from_mode, to_mode)
+        ledger = _transitioned(ledger, row_id, record, decision_id)
+    with pytest.raises(IntegrityError, match=message):
+        _replay_all(ledger, schemas)
+
+
+def test_lr_020_records_its_acceptance_and_its_ownership_transitions(base) -> None:
+    """LR-020's ownership events validate against the ownership schema, not the acceptance schema of their row."""
+    events, schemas = base
+    ledger, registration, _ = _registered(events)
+    decision_id = new_id("decision")
+    acceptance = {**_acceptance(), "record_id": _obj(), "decision_ref": _ref(decision_id)}
+    closure = _transition_record(registration["record_id"], decision_id, "legacy_owned", "closed_reference")
+    ledger = _row(ledger, "LR-016", acceptance)
+    ledger = _propose_decision(ledger, "LR-019", decision_id, acceptance["record_id"])
+    ledger = _row(
+        ledger,
+        "LR-020",
+        _resolve("LR-020", decision_id),
+        deepcopy(acceptance),
+        closure,
+        event_types=[
+            "DecisionResolved",
+            "LegacyClosedReferenceAcceptanceRecorded",
+            "LegacyOwnershipTransitionedRecorded",
+        ],
+    )
+    state = _replay_all(ledger, schemas)
+    assert state["ownership"] == {registration["record_id"]: "closed_reference"}
+    assert closure["record_id"] in state["records"]["legacy_ownership_transitioned"]
+
+
+def _inventory_record() -> dict[str, Any]:
+    result = _load_tool("w9_segmentation").segment(b"", "log_frontmatter")
+    return {
+        **_inventory("log_frontmatter", result),
+        "record_id": _obj(),
+        "independent_reproduction_ref": _ref(new_id("review")),
+    }
+
+
+def _inventory_flow(events: tuple, record: dict[str, Any], *, verdict: str = "approve", subject: str | None = None):
+    """LR-011 → LR-012 → LR-013: a proposed inventory and its reproduction review."""
+    review_id = record["independent_reproduction_ref"]["id"]
+    ledger = _row(events, "LR-011", record)
+    request = _review_request(
+        "LR-012",
+        new_review_id=review_id,
+        subject_ids=[subject or record["record_id"]],
+        subject_hashes=[record["content_hash"]],
+    )
+    ledger = _row(ledger, "LR-012", request)
+    return _row(ledger, "LR-013", {"review_id": review_id, "verdict": verdict})
+
+
+def test_lr_014_records_the_proposed_inventory_once_reproduced(base) -> None:
+    """Review F-2: LR-014 records the LR-011 proposal under its own ID, claiming no second identity."""
+    events, schemas = base
+    record = _inventory_record()
+    ledger = _row(_inventory_flow(events, record), "LR-014", deepcopy(record))
+    state = _replay_all(ledger, schemas)
+    assert state["records"]["legacy_light_inventory"] == {record["record_id"]: record}
+    assert state["proposals"][record["record_id"]]["recorded"] is True
+    assert state["identities"][record["record_id"]] == "proposal"
+    with pytest.raises(IntegrityError, match="differs from its open proposal"):
+        _replay_all(_row(ledger, "LR-014", deepcopy(record)), schemas)
+
+
+@pytest.mark.parametrize(
+    ("flow", "recorded", "message"),
+    [
+        ({}, lambda record: {**record, "created_at": "2026-10-24T00:00:00Z"}, "differs from its open proposal"),
+        ({}, lambda record: {**record, "record_id": _obj()}, "differs from its open proposal"),
+        ({"verdict": "changes_requested"}, dict, "no approved reproduction review"),
+        ({"subject": "obj_01a17eb7-5ae0-7000-8000-0000000000ff"}, dict, "no approved reproduction review"),
+    ],
+    ids=["other-bytes", "unbound-fresh-id", "not-approved", "review-of-another-subject"],
+)
+def test_lr_014_an_inventory_without_its_proposal_or_approval_is_refused(base, flow, recorded, message: str) -> None:
+    events, schemas = base
+    record = _inventory_record()
+    ledger = _row(_inventory_flow(events, record, **flow), "LR-014", recorded(deepcopy(record)))
+    with pytest.raises(IntegrityError, match=message):
+        _replay_all(ledger, schemas)
+
+
+def _root(predecessor_id: str | None = None, decision_id: str | None = None) -> dict[str, Any]:
+    recovery = None
+    if predecessor_id is not None:
+        recovery = {"predecessor_root_ref": _ref(predecessor_id), "recovery_decision_ref": _ref(decision_id or "")}
+    return {**_paper_root(), "record_id": _obj(), "recovery": recovery}
+
+
+def _recovery(events: tuple, *, evidence: tuple[str, ...] = (), resolve: bool = True) -> tuple[tuple, dict, str]:
+    """LR-035 → LR-036 → LR-037: an ordinary root and its resolved recovery Decision."""
+    predecessor = _root()
+    decision_id = new_id("decision")
+    ledger = _row(events, "LR-035", predecessor)
+    ledger = _propose_decision(ledger, "LR-036", decision_id, predecessor["record_id"], *evidence)
+    if resolve:
+        ledger = _row(ledger, "LR-037", _resolve("LR-037", decision_id))
+    return ledger, predecessor, decision_id
+
+
+def test_w9_t21_a_recovery_root_follows_its_resolved_recovery_decision(base) -> None:
+    events, schemas = base
+    ledger, predecessor, decision_id = _recovery(events)
+    root = _root(predecessor["record_id"], decision_id)
+    state = _replay_all(_row(ledger, "LR-038", root), schemas)
+    assert set(state["records"]["legacy_paper_root"]) == {predecessor["record_id"], root["record_id"]}
+    assert state["reference_edges"][decision_id] == [predecessor["record_id"]]
+
+
+def test_w9_t21_a_recovery_decision_naming_its_recovery_root_is_refused(base) -> None:
+    events, schemas = base
+    root_id = _obj()
+    ledger, predecessor, decision_id = _recovery(events, evidence=(root_id,))
+    root = {**_root(predecessor["record_id"], decision_id), "record_id": root_id}
+    with pytest.raises(IntegrityError, match="W9 recovery Decision names its recovery root"):
+        _replay_all(_row(ledger, "LR-038", root), schemas)
+
+
+def test_w9_t21_a_recovery_root_needs_a_resolved_decision_and_a_recorded_predecessor(base) -> None:
+    events, schemas = base
+    ledger, predecessor, decision_id = _recovery(events, resolve=False)
+    with pytest.raises(IntegrityError, match="names no resolved recovery Decision"):
+        _replay_all(_row(ledger, "LR-038", _root(predecessor["record_id"], decision_id)), schemas)
+    ledger, _, decision_id = _recovery(events)
+    with pytest.raises(IntegrityError, match="names no recorded predecessor root"):
+        _replay_all(_row(ledger, "LR-038", _root(_obj(), decision_id)), schemas)
+
+
+def test_w9_t21_a_cycle_through_a_root_a_transition_and_a_recovery_decision_is_refused(base) -> None:
+    """The recovery Decision names a transition, the transition names the recovery root, the root names the Decision."""
+    events, schemas = base
+    ledger, registration, _ = _registered(events)
+    transition_decision = new_id("decision")
+    transition = _transition_record(registration["record_id"], transition_decision, "legacy_owned", "successor_owned")
+    ledger, predecessor, recovery_decision = _recovery(ledger, evidence=(transition["record_id"],))
+    root = _root(predecessor["record_id"], recovery_decision)
+    ledger = _row(ledger, "LR-038", root)
+    transition["paper_root_ref"] = _ref(root["record_id"])
+    ledger = _transitioned(ledger, "LR-054", transition, transition_decision)
+    with pytest.raises(IntegrityError, match="W9 reference cycle"):
+        _replay_all(ledger, schemas)
+
+
+def _supersession(superseded: str, replacing: str, decision_id: str) -> dict[str, Any]:
+    return {
+        **_header("legacy-record-supersession"),
+        "record_id": _obj(),
+        "superseded_ref": _ref(superseded),
+        "replacing_ref": _ref(replacing),
+        "reason": "test supersession",
+        "reviewer_ref": _ref(new_id("review")),
+        "decision_ref": _ref(decision_id),
+    }
+
+
+def _superseded(ledger: tuple, superseded: str, replacing: str) -> tuple:
+    """LR-056 → LR-059 → LR-060."""
+    decision_id = new_id("decision")
+    record = _supersession(superseded, replacing, decision_id)
+    ledger = _row(ledger, "LR-056", record)
+    ledger = _propose_decision(ledger, "LR-059", decision_id, record["record_id"])
+    return _row(ledger, "LR-060", _resolve("LR-060", decision_id), deepcopy(record))
+
+
+def test_supersession_through_lr_060_is_acyclic(base) -> None:
+    events, schemas = base
+    first, second = _obj(), _obj()
+    ledger = _superseded(events, first, second)
+    assert _replay_all(ledger, schemas)["supersessions"] == {first: second}
+    with pytest.raises(IntegrityError, match="W9 supersession cycle"):
+        _replay_all(_superseded(ledger, second, first), schemas)

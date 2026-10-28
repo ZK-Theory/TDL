@@ -9,7 +9,10 @@ come before any lock, because taking the lock writes into the control root (desi
    reason code ``w9_gate6_store_refused`` (catalogue precondition G1; W9-T20).
 
 The runtime is handed an already bound ledger, as ``DiscoveryRuntime`` is; binding through ``load_store_manifest``
-happens where the ledger is built. The refusal reads the ledger's own control root, so it holds whoever bound it.
+happens where the ledger is built. The refusal reads the ledger's own control root, and every other root the lock
+writes into, so it holds whoever bound the ledger. Constructing the runtime writes nothing: the receipt store is built
+after the refusal. A caller that builds the ledger must still refuse before binding, as ``ars legacy`` does, because
+building an ``EventLedger`` creates its directories (review F-4).
 """
 
 from __future__ import annotations
@@ -97,6 +100,30 @@ def refuse_gate6_store(control_root: Path, refused_store_identities: Collection[
         raise W9Gate6StoreRefused(f"W9 refuses the Gate 6 store ({GATE6_REASON_CODE})")
 
 
+def refuse_gate6_lock_roots(
+    ledger_root: Path, other_roots: Collection[Path], refused_store_identities: Collection[str]
+) -> None:
+    """Refuse before the lock if any root the lock writes into lies in a refused store (review F-4).
+
+    The ledger's control root must carry a readable manifest with an identity that is not refused. Every other lock root
+    (the receipt root, the authority root) is refused if it, or any directory above it, holds a store manifest with a
+    refused identity, so a scratch ledger cannot carry the lock into the Gate 6 store through another root.
+
+    Raises:
+        W9Gate6StoreRefused: If a lock root lies in a refused store.
+        IntegrityError: If the ledger's manifest, or a manifest above another root, cannot be read.
+    """
+
+    refuse_gate6_store(ledger_root, refused_store_identities)
+    checked = {ledger_root.resolve()}
+    for root in other_roots:
+        resolved = root.resolve()
+        for directory in (resolved, *resolved.parents):
+            if directory not in checked and (directory / "manifests" / "store-identity.json").is_file():
+                refuse_gate6_store(directory, refused_store_identities)
+            checked.add(directory)
+
+
 def _git_blob(raw: bytes) -> str:
     return hashlib.sha1(b"blob %d\0" % len(raw) + raw, usedforsecurity=False).hexdigest()
 
@@ -156,8 +183,20 @@ class LegacyRuntime:
         self.clock = clock
         self.routed_rows = frozenset(routed_rows)
         self.accepted_revisions = tuple(accepted_revisions)
-        self.receipts = ReceiptStore(control_root)
+        # Built in submit, after the Gate 6 refusal: ReceiptStore creates its directories (review F-4).
+        self._receipts: ReceiptStore | None = None
         self.refused_store_identities = frozenset(accepted_genesis_payload()["refused_store_identities"])
+
+    @property
+    def receipts(self) -> ReceiptStore:
+        """The W9 receipt store, which ``submit`` creates after the Gate 6 refusal.
+
+        Raises:
+            IntegrityError: If it is used before ``submit`` has passed the refusal.
+        """
+        if self._receipts is None:
+            raise IntegrityError("W9 receipt store used before the Gate 6 refusal")
+        return self._receipts
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Authorize and atomically submit one W9 command.
@@ -185,9 +224,16 @@ class LegacyRuntime:
             raise IntegrityError(f"not a W9 command: {command_type}")
         if command_type == "ImportAcceptedW9CatalogueGenesis" and envelope["payload"] != accepted_genesis_payload():
             raise IntegrityError("W9 genesis payload differs from the accepted identity")
-        refuse_gate6_store(self.ledger.control_root, self.refused_store_identities)
+        refuse_gate6_lock_roots(
+            self.ledger.control_root,
+            (self.control_root, self.authority_resolver.control_root),
+            self.refused_store_identities,
+        )
         if getattr(self.ledger, "store_identity", None) in self.refused_store_identities:
             raise W9Gate6StoreRefused(f"W9 refuses the Gate 6 store ({GATE6_REASON_CODE})")
+        if self._receipts is None:
+            # The first write, after the refusal: the receipt store creates the directories the writer lock takes.
+            self._receipts = ReceiptStore(self.control_root)
         with CompositeWriterLock(
             (self.control_root, self.authority_resolver.control_root, self.ledger.control_root),
             {"command_id": command.command_id},

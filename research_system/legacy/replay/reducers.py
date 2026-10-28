@@ -43,6 +43,11 @@ _DECISION_FIELDS = {
 }
 RESTRICTED_SUFFIXES = (".csv", ".pkl")
 _PAPER_ROOT_RECOVERY_ROW = "LR-037"
+# W9-T21 names recovery Decisions only: other Decisions are graph targets, never sources (design note §7.4).
+_RECOVERY_DECISION_FAMILY = "legacy_paper_root_recovery"
+# LR-014 (re-review M-1): the inventory's reproduction review is answered under LR-013, and only approval is positive.
+_REPRODUCTION_VERDICT_ROW = "LR-013"
+_POSITIVE_REPRODUCTION_VERDICTS = frozenset({"approve"})
 
 
 def new_legacy_state() -> dict[str, Any]:
@@ -123,25 +128,18 @@ def _add_edges(state: dict[str, Any], source: str, targets: Sequence[str]) -> No
     edges: dict[str, list[str]] = state["reference_edges"]
     if source in targets:
         raise IntegrityError("W9 record references itself")
-    proposed = {**{key: list(value) for key, value in edges.items()}}
-    proposed[source] = sorted({*proposed.get(source, []), *targets})
-    visiting: set[str] = set()
-    done: set[str] = set()
-
-    def visit(node: str) -> None:
-        if node in done:
-            return
-        if node in visiting:
+    # The graph is acyclic before this call, so the new edges close a cycle exactly when a target reaches the source.
+    # The walk is iterative and visits each node once, so a long reference chain cannot exhaust the stack (review F-9).
+    seen: set[str] = set()
+    pending = list(targets)
+    while pending:
+        node = pending.pop()
+        if node == source:
             raise IntegrityError("W9 reference cycle among roots, mappings, transitions and Decisions")
-        visiting.add(node)
-        for target in proposed.get(node, ()):
-            visit(target)
-        visiting.discard(node)
-        done.add(node)
-
-    for node in list(proposed):
-        visit(node)
-    state["reference_edges"] = proposed
+        if node not in seen:
+            seen.add(node)
+            pending.extend(edges.get(node, ()))
+    edges[source] = sorted({*edges.get(source, []), *targets})
 
 
 def claim_identity(state: dict[str, Any], identity: Any, kind: str) -> None:
@@ -222,7 +220,12 @@ def reduce_review_request(
     payload = _single(transaction)
     review_id = payload.get("new_review_id")
     claim_identity(state, review_id, "review")
-    state["reviews"][review_id] = {"request_row": row_id, "verdict_row": None}
+    state["reviews"][review_id] = {
+        "request_row": row_id,
+        "subjects": list(zip(payload.get("subject_ids", []), payload.get("subject_hashes", []), strict=False)),
+        "verdict_row": None,
+        "verdict": None,
+    }
 
 
 def reduce_review_verdict(
@@ -230,10 +233,12 @@ def reduce_review_verdict(
 ) -> None:
     """``RecordW9AuthorityReview``: record the one verdict on an open W9 review."""
 
-    review = state["reviews"].get(_single(transaction).get("review_id"))
+    payload = _single(transaction)
+    review = state["reviews"].get(payload.get("review_id"))
     if review is None or review["verdict_row"] is not None:
         raise IntegrityError("W9 review verdict has no open W9 review")
     review["verdict_row"] = row_id
+    review["verdict"] = payload.get("verdict")
 
 
 def reduce_decision_proposal(
@@ -325,7 +330,8 @@ def reduce_decision_resolution(
     if _decision_family(decision["propose_row"]) != _decision_family(row_id):
         raise IntegrityError("W9 Decision is resolved under another Decision family")
     decision["resolve_row"] = row_id
-    _add_edges(state, decision_id, [ref for ref in decision["governing_evidence_refs"] if ref.startswith("obj_")])
+    if _decision_family(row_id) == _RECOVERY_DECISION_FAMILY:
+        _add_edges(state, decision_id, [ref for ref in decision["governing_evidence_refs"] if ref.startswith("obj_")])
     for event in transaction[1:]:
         record = event["payload"]
         record_id = _record_resolved(state, row_id, decision_id, record)
@@ -339,10 +345,44 @@ def reduce_decision_resolution(
             _add_edges(state, record_id, list(_ref_ids(record)))
 
 
+def reduce_light_inventory(
+    state: dict[str, Any], row_id: str, transaction: Sequence[Mapping[str, Any]], context: Mapping[str, Any]
+) -> None:
+    """LR-014: record a proposed light inventory once its reproduction review approved it (re-review M-1).
+
+    The record is the open LR-011 proposal's exact bytes under the proposal's pre-assigned ID, which LR-011 already
+    claimed, so no identity is claimed here. Its ``independent_reproduction_ref`` names a W9 review of that proposal, on
+    the proposal's content hash, answered with approval under LR-013.
+    """
+
+    record = _single(transaction)
+    refuse_restricted_frozen_copy(record)
+    record_id = record.get("record_id")
+    proposal = state["proposals"].get(record_id)
+    if (
+        proposal is None
+        or proposal["recorded"]
+        or proposal["kind"] != "legacy_light_inventory"
+        or proposal["record"] != record
+    ):
+        raise IntegrityError("W9 light inventory differs from its open proposal")
+    reproduction = record.get("independent_reproduction_ref")
+    review = state["reviews"].get(reproduction.get("id") if isinstance(reproduction, Mapping) else None)
+    if (
+        review is None
+        or review["verdict_row"] != _REPRODUCTION_VERDICT_ROW
+        or review["verdict"] not in _POSITIVE_REPRODUCTION_VERDICTS
+        or (record_id, record.get("content_hash")) not in review["subjects"]
+    ):
+        raise IntegrityError("W9 light inventory has no approved reproduction review of its proposal")
+    proposal["recorded"] = True
+    state["records"].setdefault("legacy_light_inventory", {})[record_id] = deepcopy(record)
+
+
 def reduce_record(
     state: dict[str, Any], row_id: str, transaction: Sequence[Mapping[str, Any]], context: Mapping[str, Any]
 ) -> None:
-    """Record-writing rows with no Decision: inventory, observation, paper root, citation status and use mismatch."""
+    """Record-writing rows with no Decision or proposal: observation, paper root, citation status and use mismatch."""
 
     record = _single(transaction)
     refuse_restricted_frozen_copy(record)
@@ -373,7 +413,7 @@ REDUCERS: dict[str, Callable[[dict[str, Any], str, Sequence[Mapping[str, Any]], 
     "RecordW9AuthorityReview": reduce_review_verdict,
     "ProposeW9AuthorityDecision": reduce_decision_proposal,
     "ResolveW9AuthorityDecision": reduce_decision_resolution,
-    "RecordLegacyLightInventory": reduce_record,
+    "RecordLegacyLightInventory": reduce_light_inventory,
     "ObserveLegacyRecord": reduce_record,
     "CreateLegacyPaperRoot": reduce_record,
     "RecordPaperCitationStatus": reduce_record,

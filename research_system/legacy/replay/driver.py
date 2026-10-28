@@ -47,6 +47,10 @@ def _refuse_w11_row(payload: Mapping[str, Any]) -> None:
             raise IntegrityError("W9 payload names a W11 owner row")
 
 
+# The one E: event whose record schema is not its row's: LR-020 writes ownership transitions beside its acceptance.
+_EVENT_RECORD_SCHEMAS = {"LegacyOwnershipTransitionedRecorded": "ars://legacy/legacy-ownership-transitioned"}
+
+
 def _validate_payload(event: Mapping[str, Any], record_schema_id: str, schemas: SchemaRegistry) -> None:
     event_type = event.get("event_type")
     if event_type in W2_EVENT_TYPES:
@@ -56,7 +60,9 @@ def _validate_payload(event: Mapping[str, Any], record_schema_id: str, schemas: 
     if (event.get("schema_id"), event.get("schema_version")) != ("ars://core/event", "1.0.0"):
         raise IntegrityError("W9 event is recorded under another schema")
     try:
-        schemas.validate(record_schema_id, event.get("payload"), schema_version="1.0.0")
+        schemas.validate(
+            _EVENT_RECORD_SCHEMAS.get(str(event_type), record_schema_id), event.get("payload"), schema_version="1.0.0"
+        )
     except SchemaError as exc:
         raise IntegrityError("W9 event payload does not validate against its record schema") from exc
 

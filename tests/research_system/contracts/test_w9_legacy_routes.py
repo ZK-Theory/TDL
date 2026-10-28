@@ -9,6 +9,7 @@ the identities are the O-8, O-3 and envelope tests' own literals, and the catalo
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import subprocess
 from copy import deepcopy
@@ -18,6 +19,7 @@ from typing import Any
 import pytest
 import yaml
 
+from research_system.authority import _scoped_authority_scope
 from research_system.discovery.routes import (
     ARTEFACT_EVENT_TYPES,
     CONTEXT_EVENT_TYPES,
@@ -32,17 +34,30 @@ from research_system.schema_registry import _RUNTIME_BINDINGS, bundled_runtime_s
 from tests.research_system.contracts.test_w9_acceptance_envelope import external_ref_id
 from tests.research_system.contracts.test_w9_contract_materialization import O3_ACCEPTED
 from tests.research_system.contracts.test_w9_expected_catalogue import O8_ACCEPTED
+from tests.research_system.factories import PROJECT_ID
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 O8_COMMIT = "7979e85a075ab6a643a7b201ac4186b0b2090d74"
-# The envelope's own pins (WP9.2-1 record §2; envelope test).
-ENVELOPE = {
-    "path": ".research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json",
-    "commit": "69e9e059348baad153884f43b34ee6c52df63add",
-    "blob": "9b28528c119ef45244b277ccd30855c68826e41f",
-    "sha256": "c26f468c9cfa0195d82812f05faa4e6e663a3ceb9737d31f8f5f1bd190465999",
-    "bytes": 11185,
-}
+ENVELOPE_PATH = ".research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json"
+
+
+def _envelope_pin() -> tuple[str, str, str, str, int]:
+    """The envelope's identity, derived from Git at the O-3 main commit it merged in (review F-7).
+
+    The commit comes from the O-3 pin, which this PR does not touch; the blob, hash and length are read from that
+    commit, so no expected value here is written in the same PR as ``ACCEPTED``.
+    """
+
+    commit = O3_ACCEPTED["main_commit"]
+    raw = subprocess.run(
+        ["git", "show", f"{commit}:{ENVELOPE_PATH}"], cwd=REPO_ROOT, capture_output=True, check=True
+    ).stdout
+    blob = subprocess.run(
+        ["git", "rev-parse", f"{commit}:{ENVELOPE_PATH}"], cwd=REPO_ROOT, capture_output=True, check=True, text=True
+    ).stdout.strip()
+    return ENVELOPE_PATH, commit, blob, hashlib.sha256(raw).hexdigest(), len(raw)
+
+
 # Design note §3, written out row by row.
 EXPECTED_TAGS = {
     "LR-002": "catalogue_revision",
@@ -110,7 +125,7 @@ def test_accepted_equals_the_independent_o8_o3_and_envelope_pins() -> None:
         accepted["envelope_blob"],
         accepted["envelope_sha256"],
         accepted["envelope_bytes"],
-    ) == tuple(ENVELOPE.values())
+    ) == _envelope_pin()
 
 
 def test_reserved_ids_derive_from_their_domain_strings() -> None:
@@ -120,7 +135,7 @@ def test_reserved_ids_derive_from_their_domain_strings() -> None:
         path, commit = located.rsplit("@", 1)
         assert (namespace, domain_kind, len(commit)) == ("w9-external", kind, 40)
         assert external_ref_id(prefixes[kind], kind, entry, path, commit) == ref["id"]
-    envelope = json.loads((REPO_ROOT / ENVELOPE["path"]).read_bytes())
+    envelope = json.loads((REPO_ROOT / ENVELOPE_PATH).read_bytes())
     assert {
         envelope["independent_observation_ref"]["id"],
         envelope["independent_review_ref"]["id"],
@@ -228,11 +243,15 @@ def _partition_comparisons(path: str) -> list[tuple[ast.Compare, dict[ast.AST, a
 
     tree = ast.parse((REPO_ROOT / path).read_text(encoding="utf-8"))
     parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
-    calls = [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _PARTITION_FUNCTIONS
-    ]
+    calls = []
+    for node in ast.walk(tree):
+        # Every reference, bare or as an attribute, must be the function of a call (review addendum: map(), x.f()).
+        if (isinstance(node, ast.Name) and node.id in _PARTITION_FUNCTIONS) or (
+            isinstance(node, ast.Attribute) and node.attr in _PARTITION_FUNCTIONS
+        ):
+            call = parents[node]
+            assert isinstance(call, ast.Call) and call.func is node, f"{path}:{node.lineno}: referenced, not called"
+            calls.append(call)
     assert calls, path
     comparisons = []
     for call in calls:
@@ -275,6 +294,19 @@ def _legacy_continue_guards(path: str) -> int:
             assert "legacy" not in named, f"{where}: an exclusion guard that admits legacy"
         else:
             assert isinstance(op, (ast.Eq, ast.In)), f"{where}: {ast.unparse(compare)}"
+            # A selection is the whole test of an if with no else, or a comprehension filter: never negated, stored or
+            # paired with an else branch that would act on every other partition.
+            parent = parents[compare]
+            if isinstance(parent, ast.If) and parent.test is compare:
+                assert not parent.orelse, f"{where}: a selection with an else branch"
+                # `== X: continue` then a default is an exclusion, so the default sees "legacy": only site 3's driver,
+                # whose default is guarded by its own "legacy" branch, may do it.
+                excludes = bool(parent.body) and isinstance(parent.body[-1], ast.Continue)
+                assert not excludes or path == C4_SITE_3, f"{where}: an equality exclusion with a fall-through default"
+            else:
+                assert isinstance(parent, ast.comprehension) and compare in parent.ifs, (
+                    f"{where}: a selection that is not the whole test of an if or a comprehension filter"
+                )
         if "legacy" in named:
             assert isinstance(op, ast.Eq) and named == {"legacy"}, f"{where}: legacy selected with another partition"
             assert _is_continue_guard(compare, parents), f"{where}: legacy selected for handling"
@@ -286,8 +318,10 @@ def test_c4_every_partition_consumer_selects_by_equality_or_membership() -> None
     """Design note §2.3 C4: each consumer acts only on partitions it names, so "legacy" falls through unhandled.
 
     A consumer either compares the call's result directly or assigns it and compares the name. Every comparison is
-    against string literals; ``==`` and ``in`` select, and ``!=`` and ``not in`` are allowed only as a bare
-    ``continue`` guard. The one comparison naming "legacy" is U-7 site 3's ``continue`` in the Discovery driver.
+    against string literals. ``==`` and ``in`` select, as the whole test of an ``if`` with no ``else`` or as a
+    comprehension filter. ``!=`` and ``not in`` are allowed only as a bare ``continue`` guard. ``== X: continue``
+    followed by a default is allowed only in the Discovery driver, whose one comparison naming "legacy" is U-7 site 3's
+    ``continue``. Any other reference to the partition function fails.
     """
 
     consumers = {
@@ -305,8 +339,7 @@ def test_c4_every_partition_consumer_selects_by_equality_or_membership() -> None
     assert is_legacy_projection_event(event)
 
 
-def _write_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> str:
-    path = "research_system/discovery/replay/driver.py"
+def _write_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str, path: str = C4_SITE_3) -> str:
     (tmp_path / path).parent.mkdir(parents=True)
     (tmp_path / path).write_text("def f(events, k):\n    for e in events:\n" + body, encoding="utf-8")
     monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
@@ -318,13 +351,14 @@ def _write_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) 
     [
         ('        if shared_event_partition(e) != "artefact":\n            continue\n', 0),
         ('        if shared_event_partition(e) in {"context", "control"}:\n            pass\n', 0),
+        ('        xs = [x for x in events if shared_event_partition(x) == "operational"]\n', 0),
         (
-            '        p = shared_event_partition(e)\n        if p == "artefact":\n            pass\n'
-            '        if p == "legacy":\n            continue\n',
+            '        p = shared_event_partition(e)\n        if p == "artefact":\n            continue\n'
+            '        if p == "legacy":\n            continue\n        handle(e)\n',
             1,
         ),
     ],
-    ids=["exclusion-guard", "membership", "site-3-shape"],
+    ids=["exclusion-guard", "membership", "comprehension-filter", "site-3-shape"],
 )
 def test_c4_check_accepts_a_safe_consumer(
     body: str, guards: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -343,6 +377,13 @@ def test_c4_check_accepts_a_safe_consumer(
         '        p = shared_event_partition(e)\n        p = "artefact"\n        if p == "artefact":\n            pass\n',
         "        if shared_event_partition(e) == k:\n            pass\n",
         "        handle(e, shared_event_partition(e))\n",
+        # The six shapes of the review addendum on 0e0c15dd.
+        '        if not shared_event_partition(e) == "discovery":\n            handle(e)\n',
+        '        if shared_event_partition(e) == "discovery":\n            pass\n        else:\n            handle(e)\n',
+        '        ok = shared_event_partition(e) == "discovery"\n        if not ok:\n            handle(e)\n',
+        "        handle(map(shared_event_partition, events))\n",
+        '        if shared_event_partition(e) == "a":\n            pass\n'
+        '        if routes.shared_event_partition(e) != "discovery":\n            handle(e)\n',
     ],
     ids=[
         "guard-admits-legacy",
@@ -353,6 +394,11 @@ def test_c4_check_accepts_a_safe_consumer(
         "rebound",
         "non-literal",
         "passed-on",
+        "negated-equality",
+        "else-branch",
+        "stored-comparison",
+        "function-reference",
+        "attribute-call",
     ],
 )
 def test_c4_check_refuses_an_unsafe_consumer(body: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -360,6 +406,17 @@ def test_c4_check_refuses_an_unsafe_consumer(body: str, tmp_path: Path, monkeypa
 
     with pytest.raises(AssertionError):
         _legacy_continue_guards(_write_consumer(tmp_path, monkeypatch, body))
+
+
+def test_c4_check_refuses_an_equality_exclusion_with_a_default_outside_the_driver(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The driver's own shape, `== X: continue` then a default, is refused in any other consumer (review addendum)."""
+
+    body = '        if shared_event_partition(e) == "operational":\n            continue\n        handle(e)\n'
+    path = _write_consumer(tmp_path, monkeypatch, body, "research_system/discovery/spec.py")
+    with pytest.raises(AssertionError, match="an equality exclusion with a fall-through default"):
+        _legacy_continue_guards(path)
 
 
 # --- Row assignment (design note §4) ---------------------------------------------------------------------------------
@@ -524,6 +581,33 @@ def test_w9_t21_reducer_half_reference_cycles_are_refused() -> None:
         reducers._add_edges(state, "dec_recovery", ["obj_mapping"])
     with pytest.raises(IntegrityError, match="references itself"):
         reducers._add_edges(state, "obj_transition", ["obj_transition"])
+
+
+@pytest.mark.parametrize(
+    ("subject_scope", "message"),
+    [
+        ({"project_id": PROJECT_ID, "role": "migration_operator"}, "subject_scope fields must be exact"),
+        ({"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "path": "x/"}}, "subject fields"),
+        ({"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "id": "*"}}, "ID"),
+    ],
+    ids=["role-only", "path-only", "wildcard"],
+)
+def test_g4_a_genesis_grant_names_one_exact_subject(subject_scope: dict[str, Any], message: str) -> None:
+    """G4 (review F-1): a role-only, path-only or wildcard scope is not a scoped grant the resolver can hold.
+
+    The runtime resolves genesis authority with subject kind ``scope_definition`` and the exact catalogue stream; a
+    grant scoped elsewhere is refused there (``test_genesis_grant_must_be_scoped_to_the_catalogue_stream``). This is the
+    parsing half: a grant scope that names no exact subject cannot be activated at all.
+    """
+
+    with pytest.raises(ValueError, match=message):
+        _scoped_authority_scope(subject_scope)
+    assert (
+        _scoped_authority_scope(
+            {"project_id": PROJECT_ID, "subject": {"kind": "scope_definition", "id": accepted_w9.CATALOGUE_STREAM_ID}}
+        ).subject_id
+        == accepted_w9.CATALOGUE_STREAM_ID
+    )
 
 
 def test_w9_c25_the_reserved_ids_are_refused_as_pre_assigned_ids() -> None:

@@ -47,6 +47,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 ACTOR_ID = ACTORS["actor-a"]
 GATE6 = ACCEPTED["gate6_store_identity"]
 SCRATCH_IDENTITY = "a" * 64
+# The resolver's refusal of a grant scoped to another subject (authority.py, resolve_lifecycle_command).
+SUBJECT_MISMATCH = "authority subject scope mismatch"
 
 
 def _write_manifest(control_root: Path, store_identity: str, *, recorded_root: Path | None = None) -> None:
@@ -66,8 +68,15 @@ def _write_manifest(control_root: Path, store_identity: str, *, recorded_root: P
     path.write_bytes(canonical_bytes(manifest))
 
 
-def _grant(harness: Any, command_type: str, subject_id: str, *, classes: tuple[str, ...] = ("human",)) -> str:
-    raw = bytearray(hashlib.sha256(f"w9:{command_type}:{subject_id}:{classes}".encode()).digest()[:16])
+def _grant(
+    harness: Any,
+    command_type: str,
+    subject_id: str,
+    *,
+    classes: tuple[str, ...] = ("human",),
+    actor_id: str = ACTOR_ID,
+) -> str:
+    raw = bytearray(hashlib.sha256(f"w9:{command_type}:{subject_id}:{classes}:{actor_id}".encode()).digest()[:16])
     raw[6] = (raw[6] & 0x0F) | 0x70
     raw[8] = (raw[8] & 0x3F) | 0x80
     grant_id = f"agr_{uuid.UUID(bytes=bytes(raw))}"
@@ -75,7 +84,7 @@ def _grant(harness: Any, command_type: str, subject_id: str, *, classes: tuple[s
         harness,
         subject_kind="scope_definition",
         subject_id=subject_id,
-        actor_id=ACTOR_ID,
+        actor_id=actor_id,
         allowed_actor_classes=classes,
         command_types=(command_type,),
         grant_id=grant_id,
@@ -120,8 +129,11 @@ def _genesis_command(harness: Any, **overrides: Any) -> dict[str, Any]:
     return command
 
 
-def _tree_bytes(root: Path) -> dict[str, bytes]:
-    return {str(path.relative_to(root)): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+def _tree_bytes(root: Path) -> dict[str, bytes | None]:
+    """Every file's bytes and every directory (as ``None``) under ``root``, so a created directory shows (review F-4)."""
+    return {
+        str(path.relative_to(root)): path.read_bytes() if path.is_file() else None for path in sorted(root.rglob("*"))
+    }
 
 
 # --- Genesis and shared replay ---------------------------------------------------------------------------------------
@@ -222,8 +234,39 @@ def test_genesis_grant_must_be_scoped_to_the_catalogue_stream(tmp_path: Path) ->
     runtime, harness = _store(tmp_path)
     command = _genesis_command(harness)
     command["authority_grant_id"] = _grant(harness, "ImportAcceptedW9CatalogueGenesis", new_id("scope_definition"))
-    with pytest.raises((ArsError, IntegrityError)):
+    with pytest.raises(ArsError, match=SUBJECT_MISMATCH):
         runtime.submit(command)
+
+
+def _non_owner_genesis(harness: Any, classes: tuple[str, ...]) -> dict[str, Any]:
+    """A genesis command from a non-owner actor whose owner-issued grant names ``classes``.
+
+    The owner's actor class is human whatever its grant says, so only a non-owner reaches the scoped actor class that
+    the genesis guard reads (review F-1).
+    """
+    actor_id = ACTORS["actor-b"]
+    return _genesis_command(
+        harness,
+        actor_id=actor_id,
+        authority_grant_id=_grant(
+            harness, "ImportAcceptedW9CatalogueGenesis", CATALOGUE_STREAM_ID, classes=classes, actor_id=actor_id
+        ),
+    )
+
+
+def test_genesis_by_a_non_owner_with_an_agent_class_grant_is_refused(tmp_path: Path) -> None:
+    """Design note §3 n-4 and §9: a genesis grant with an actor class other than exactly human is refused."""
+    runtime, harness = _store(tmp_path)
+    with pytest.raises(IntegrityError, match="W9 genesis requires a human actor"):
+        runtime.submit(_non_owner_genesis(harness, ("agent",)))
+    assert not any(
+        event["command_type"] == "ImportAcceptedW9CatalogueGenesis" for event in harness.ledger.iter_events()
+    )
+
+
+def test_genesis_by_a_non_owner_with_a_human_class_grant_is_accepted(tmp_path: Path) -> None:
+    runtime, harness = _store(tmp_path)
+    assert runtime.submit(_non_owner_genesis(harness, ("human",))).status == "accepted"
 
 
 # --- W9-T20: the Gate 6 store refusal, before any lock ---------------------------------------------------------------
@@ -264,6 +307,44 @@ def test_a_store_without_a_readable_manifest_is_refused(tmp_path: Path) -> None:
         runtime.submit(_genesis_command(harness))
 
 
+def test_constructing_the_runtime_writes_nothing(tmp_path: Path) -> None:
+    """Review F-4: the receipt store is built after the refusal, not at construction."""
+    _, harness = _store(tmp_path)
+    root = tmp_path / "receipts-root"
+    root.mkdir()
+    LegacyRuntime(
+        root,
+        harness.ledger,
+        harness.schemas,
+        repository_root=REPO_ROOT,
+        authority_resolver=harness.authority_resolver,
+        clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
+    )
+    assert _tree_bytes(root) == {}
+
+
+@pytest.mark.parametrize("inside", [False, True], ids=["at-the-root", "below-the-root"])
+def test_w9_t20_a_receipt_root_in_the_gate6_store_is_refused(tmp_path: Path, inside: bool) -> None:
+    """Review F-4: a scratch ledger cannot carry the lock into the Gate 6 store through the receipt root."""
+    _, harness = _store(tmp_path)
+    gate6_root = tmp_path / "gate6-control"
+    _write_manifest(gate6_root, GATE6)
+    receipt_root = gate6_root / "legacy" if inside else gate6_root
+    receipt_root.mkdir(exist_ok=True)
+    runtime = LegacyRuntime(
+        receipt_root,
+        harness.ledger,
+        harness.schemas,
+        repository_root=REPO_ROOT,
+        authority_resolver=harness.authority_resolver,
+        clock=lambda: datetime(2026, 8, 1, tzinfo=UTC),
+    )
+    before = _tree_bytes(gate6_root)
+    with pytest.raises(W9Gate6StoreRefused, match=GATE6_REASON_CODE):
+        runtime.submit(_genesis_command(harness))
+    assert _tree_bytes(gate6_root) == before
+
+
 # --- Unbound W9 commands ---------------------------------------------------------------------------------------------
 
 
@@ -289,9 +370,54 @@ def test_a_discovery_command_over_an_invalid_legacy_half_is_refused_at_the_next_
     tampered = _rehash_events(tuple(events))
     # Discovery's own pre-command replay never runs replay_legacy ...
     replay_discovery(tampered, schemas=harness.schemas)
-    # ... but the next generic replay refuses the store.
-    with pytest.raises(IntegrityError):
+    # ... but the next generic replay refuses the store, at site 4: the tampered genesis fails its record schema.
+    with pytest.raises(IntegrityError, match="W9 event payload does not validate against its record schema"):
         replay_projection(tampered, schema_registry=harness.schemas)
+
+
+# --- Genesis guards 2, 5 and 8 (design note §7.3; review F-6) --------------------------------------------------------
+
+
+def test_genesis_guard_2_refuses_a_w11_catalogue_other_than_the_required_one(tmp_path: Path, monkeypatch) -> None:
+    import research_system.legacy.runtime as legacy_runtime
+
+    def other_w11(events: Any, **kwargs: Any) -> dict[str, Any]:
+        state = replay_discovery(events, **kwargs)
+        state["catalogue"] = {**state["catalogue"], "catalogue_blob": "0" * 40}
+        return state
+
+    runtime, harness = _store(tmp_path)
+    monkeypatch.setattr(legacy_runtime, "replay_discovery", other_w11)
+    with pytest.raises(IntegrityError, match="is not the W9 genesis's required W11 catalogue"):
+        runtime.submit(_genesis_command(harness))
+
+
+def test_genesis_guard_5_refuses_a_stream_version_other_than_zero(tmp_path: Path) -> None:
+    """Guard 5 is defence in depth: through ``submit`` a version other than 0 meets a stream conflict or guard 3 first.
+
+    No W9 command but genesis can write the catalogue stream, so the guard is called directly with an empty legacy
+    projection and the replayed Discovery projection, which is what reaching it would take.
+    """
+    from research_system.command.models import Command
+
+    runtime, harness = _store(tmp_path)
+    discovery = replay_discovery(tuple(harness.ledger.iter_events()), schemas=harness.schemas)
+    command = Command(_genesis_command(harness, expected_stream_version=1))
+    with pytest.raises(IntegrityError, match="W9 genesis stream version mismatch"):
+        runtime._prepare_genesis(command, discovery, {"catalogue": None})
+
+
+def test_genesis_guard_8_refuses_a_route_registry_that_does_not_partition_the_catalogue(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import research_system.legacy.routes as legacy_routes
+
+    runtime, harness = _store(tmp_path)
+    deferred = dict(legacy_routes.LEGACY_DEFERRED_ROWS)
+    deferred.pop("LR-061")
+    monkeypatch.setattr(legacy_routes, "LEGACY_DEFERRED_ROWS", deferred)
+    with pytest.raises(IntegrityError, match="W9 route registry does not partition the accepted W9 catalogue"):
+        runtime.submit(_genesis_command(harness))
 
 
 # --- LR-002 on the test registry (design note §§3, 9): inert in production ------------------------------------------

@@ -1,7 +1,7 @@
 # WP9.2-2: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 1. Not reviewed, not merged, D-4 not accepted.<br>
+**Status:** Revision 2: the independent review of revision 1 is disposed in §8. Not merged, D-4 not accepted.<br>
 **Package:** 06v WP9.2, second of its two PRs (P-077 item 4). The design note is `transition/w9/wp9-2-design-note.md`,
 revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
 **Authority:** P-076, with P-077. The bootstrap contract was accepted at O-3 (P-078, main `69e9e059`); the catalogue
@@ -38,17 +38,28 @@ legacy write. Every store in this package's tests is a scratch store under `tmp_
 ## 3. Interpretations the reviewer should check
 
 1. **Where the store is bound (§7.2).** `LegacyRuntime` is handed a bound ledger, as `DiscoveryRuntime` is. On every
-   `submit`, before the lock, it reads `load_store_manifest_unbound(ledger.control_root)` and refuses a refused
-   identity; it also refuses when `ledger.store_identity` is refused. A store whose manifest cannot be read is refused,
-   because its identity cannot be shown not to be the Gate 6 one. Binding through `load_store_manifest` happens where
-   the ledger is built: the CLI runs the refusal first and only then calls `_verified_ledger`, which binds.
+   `submit`, before the lock, `refuse_gate6_lock_roots` checks every root the lock writes into (review F-4):
+   - The ledger's control root must carry a readable manifest whose identity is not refused. A store whose manifest
+     cannot be read is refused, because its identity cannot be shown not to be the Gate 6 one.
+   - The receipt root and the authority root are refused if they, or any directory above them, hold a manifest with a
+     refused identity.
+
+   It also refuses when `ledger.store_identity` is refused. Constructing the runtime writes nothing. The receipt store,
+   which creates the directories the lock takes, is built in `submit` after the refusal. Binding through
+   `load_store_manifest` happens where the ledger is built, and building an `EventLedger` creates its directories, so a
+   caller must refuse before it binds: the CLI runs `refuse_gate6_store` first and only then calls `_verified_ledger`.
 2. **G5 in replay.** A record that a Decision resolves must equal its open proposal exactly (the same pre-assigned ID
    and content) and name the resolving Decision. LR-020's ownership transitions have no proposal of their own (P-072
    item 2), so each claims its own identity. Review satisfaction, the Decision's kind and resolver, and the G3 role
-   rules are preparer checks for the packages that admit those commands; WP9.2 admits none.
+   rules are preparer checks for the packages that admit those commands; WP9.2 admits none. Two more G5 checks are
+   recorded in §7 as preparer obligations (review F-8).
 3. **W9-T21, reducer half.** Every root, mapping, transition and recovery Decision adds its ref edges to one graph, and
    a self-reference or cycle is refused. A recovery Decision whose evidence names its recovery root is refused
-   explicitly.
+   explicitly. Only a recovery Decision (LR-037) is a source of edges. Other Decisions are targets only, because
+   W9-T21 names recovery Decisions, and an ownership or registration Decision names the record it governs as evidence
+   while that record names the Decision. Revision 1 added edges for every Decision, so the ordinary LR-053 → LR-054
+   flow was refused as a cycle; the reducer tests (review F-3) found it. The cycle check walks from the new edges'
+   targets, iteratively, so a long chain cannot raise `RecursionError` (review F-9).
 4. **LR-002.** `accepted_revisions` is a runtime and replay parameter, empty in production. With no binding row the
    production runtime refuses it ("inactive W9 command binding"). The catalogue's LR-002 identities run on the test
    registry with one test revision.
@@ -58,12 +69,28 @@ legacy write. Every store in this package's tests is a scratch store under `tmp_
 6. **C2's messages.** A W2-typed event recorded under its W2 schema with no producer binding fails the shared replay
    with "inactive event schema"; recorded as `ars://core/event`, as the U-7 probe did, it fails with "unbound event
    producer". Both are asserted.
-7. **C4.** The consumer test parses the four files and follows every `shared_event_partition` call, including a result
-   assigned to a name and compared later, as in the Discovery driver. It also checks that these four are the only
-   consumers under `research_system/`. Every partition decision compares against string literals. `==` and `in` select;
-   `!=` and `not in` are accepted only as a bare `continue` guard. Any other use of the result fails. Only one decision
-   names `"legacy"`: U-7 site 3's `continue` in the driver. Accepted and refused consumer shapes are its controls
-   (CodeRabbit nitpick on PR #408: the first version checked only inline comparisons).
+7. **C4.** The consumer test parses the four files and follows every reference to `shared_event_partition`, bare or
+   as an attribute. Each reference must be called. A result may be compared directly, or assigned to a name and
+   compared later, as in the Discovery driver. The test also checks that these four are the only consumers under
+   `research_system/`. Every partition decision compares against string literals:
+   - `==` and `in` select, as the whole test of an `if` with no `else`, or as a comprehension filter;
+   - `!=` and `not in` are accepted only as a bare `continue` guard;
+   - `== X: continue` followed by a default is accepted only in the Discovery driver, whose default is guarded by its
+     own `"legacy"` branch.
+
+   Only one decision names `"legacy"`: U-7 site 3's `continue` in the driver. Accepted and refused consumer shapes are
+   its controls. They include the six shapes that the review addendum on `0e0c15dd` showed the first rework still
+   accepted. CodeRabbit's nitpick on PR #408 was the start: the first version checked only inline comparisons.
+8. **LR-014 (review F-2).** `RecordLegacyLightInventory` has its own reducer, not `reduce_record`. The record must be
+   the open LR-011 proposal's exact bytes under the proposal's ID, which LR-011 claimed, so LR-014 claims no identity.
+   Its `independent_reproduction_ref` must name a W9 review of that proposal: the request's paired `subject_ids` and
+   `subject_hashes` must name the record's ID and `content_hash`, and the verdict must be recorded under LR-013 as
+   `approve`. "A positive reproduction review" is read as `approve` only: `approve_with_conditions` is not a
+   reproduction.
+9. **LR-020's ownership events.** `replay_legacy` validates an `E:` payload against its row's record schema, but
+   LR-020's repeated `LegacyOwnershipTransitionedRecorded` events are ownership records, not acceptances. They are now
+   validated against `ars://legacy/legacy-ownership-transitioned`. Revision 1 refused every LR-020 transaction with
+   an ownership event, and the reducer tests found it.
 
 ## 4. D-4 (design note §10)
 
@@ -91,9 +118,9 @@ The two 06h files as committed here (the merge-queue bytes are the ones to accep
 
 | File | What it covers |
 |---|---|
-| `tests/research_system/contracts/test_w9_legacy_routes.py` (store-free) | `ACCEPTED` equals the independent O-8, O-3 and envelope pins; the reserved IDs re-derive from their domain strings; the genesis payload validates and carries the contract's values; `LEGACY_COMMAND_TYPES` equals the catalogue's command set; only genesis is bound; the route registry is exact and refuses five catalogue mutations; the 1/60 partition and every tag; C5; C4; row assignment is a bijection onto the 61 rows (LR-035/LR-038, LR-054/LR-055 and the record-less Decision pairs included); the 18 `E:`-only discriminants; W2 refs; transaction shapes; W9-T5; W9-T11 store half; supersession acyclic; W9-T21 reducer half; W9-C25 and the reserved IDs |
-| `tests/research_system/integration/test_w9_legacy_runtime.py` | W9-C01-LR-001 and shared replay (generic, rebuild, Discovery, legacy); W9-C11-LR-001 retry; a second genesis; no W11 genesis; the wrong target; W9-C03-LR-001 mutations refused before binding with the receipt root unchanged; tampered catalogue, annex, contract and envelope bytes; a grant scoped elsewhere; W9-T20's three cases with both roots byte-identical when refused; an unreadable manifest; an unbound W9 command; the §2.5 asymmetry; the LR-002 three on the test registry, and LR-002 refused in production; the CLI |
-| `tests/research_system/integration/test_w9_legacy_replay.py` | The shared replay with a W9 observation and a schema-valid W2-typed W9 event on the test registry; the predicate-removed, site-3-removed and lifecycle-restored negative controls; C1, C2 (both forms), C3; a deferred row; a schema-invalid payload; a W9 event type under a non-W9 command; replay's second-genesis, payload and no-W11-genesis refusals; the reserved IDs and that no reader dereferences them |
+| `tests/research_system/contracts/test_w9_legacy_routes.py` (store-free) | `ACCEPTED` equals the independent O-8 and O-3 pins, and the envelope identity read from Git at the O-3 main commit (review F-7); G4's exact subject at grant parsing (role-only, path-only, wildcard); the reserved IDs re-derive from their domain strings; the genesis payload validates and carries the contract's values; `LEGACY_COMMAND_TYPES` equals the catalogue's command set; only genesis is bound; the route registry is exact and refuses five catalogue mutations; the 1/60 partition and every tag; C5; C4; row assignment is a bijection onto the 61 rows (LR-035/LR-038, LR-054/LR-055 and the record-less Decision pairs included); the 18 `E:`-only discriminants; W2 refs; transaction shapes; W9-T5; W9-T11 store half; supersession acyclic; W9-T21 reducer half; W9-C25 and the reserved IDs |
+| `tests/research_system/integration/test_w9_legacy_runtime.py` | W9-C01-LR-001 and shared replay (generic, rebuild, Discovery, legacy); W9-C11-LR-001 retry; a second genesis; no W11 genesis; the wrong target; W9-C03-LR-001 mutations refused before binding with the receipt root unchanged; tampered catalogue, annex, contract and envelope bytes; a grant scoped elsewhere, with the resolver's message; the n-4 human-actor guard: a non-owner with an agent-class grant refused, and with a human-class grant accepted (review F-1); W9-T20's three cases with both roots unchanged, directories included, when refused; a receipt root at or below a Gate 6 control root refused; construction writes nothing (review F-4); an unreadable manifest; genesis guards 2, 5 and 8 (review F-6); an unbound W9 command; the §2.5 asymmetry, with its message; the LR-002 three on the test registry, and LR-002 refused in production; the CLI |
+| `tests/research_system/integration/test_w9_legacy_replay.py` | The shared replay with a W9 observation and a schema-valid W2-typed W9 event on the test registry; the predicate-removed, site-3-removed and lifecycle-restored negative controls; C1 (its message), C2 (both forms), C3; a deferred row; a schema-invalid payload; a W9 event type under a non-W9 command; replay's second-genesis, payload and no-W11-genesis refusals; the reserved IDs and that no reader dereferences them. The deferred rows' reducers on forged ledgers with every row routed (review F-2, F-3): G5 through LR-003 → LR-005, with other content, no proposal and another Decision refused; a Decision resolved under another family; W9-T5 through LR-054 and LR-055, with a stale `from_mode`, a row of another direction and a not-yet-successor closure refused; LR-020 with its acceptance and an ownership closure; LR-011 → LR-014, with other bytes, a fresh ID, a verdict other than approve, a review of another subject and a second LR-014 refused; the LR-035 → LR-038 recovery, with a recovery Decision naming its root, an unresolved Decision and an unrecorded predecessor refused; a cycle through a recovery Decision, a transition and a recovery root; supersession acyclic through LR-060 |
 
 ## 6. Verification
 
@@ -112,9 +139,72 @@ The full suite was not run.
 After `5f9bb8f6`, the C4 rework (§3 item 7) replaced one test in `test_w9_legacy_routes.py` with twelve. That file
 now gives 51 passed, and ruff is clean. No code under `research_system/` changed.
 
+**Revision 2**, on the working tree before commit:
+
+| Check | Result |
+|---|---|
+| The regression set above, plus `test_w9_legacy_runtime.py` and `test_w9_legacy_replay.py`, in one run | 1,004 passed, 1 skipped (the existing skip) |
+| Mutation checks (scratch script: each mutation applied alone, its test run, the file restored by bytes). The current-mode check, the `_ROW_DIRECTIONS` check, the recovery-root check, G5's content equality, the n-4 human guard, the receipt-root refusal and LR-014's approval check, each deleted or weakened | 7 of 7 caught |
+| `uv run ruff check` and `uv run ruff format --check` on the changed files | clean |
+| `verify_w9_materialization.py --require-catalogue` | 61 pinned rows, 0 problems |
+
+`test_wp6_6_discovery_runtime.py` was not re-run. Revision 2 changes only `research_system/legacy/`, which the
+Discovery runtime reaches only through site 4 when a ledger holds W9 events, and its tests hold none. The full suite
+was not run. D-4 is unchanged: the census and both 06h blobs are as in §4.
+
 ## 7. Not in this PR
 
 - Commands other than genesis, their binding rows and their D-4 (WP9.3, WP9.4, WP9.6, WP9.7).
 - Live operations, including L-3 genesis on a real store. LR-001's two owner preconditions stay L-3 gates: O-8
   current, and the bootstrap implementation independently verified against the accepted contract, which is this PR's
   independent review together with O-3.
+
+**Obligations on later packages (from the review):**
+- **WP9.3's mutating CLI (F-4).** Run `refuse_gate6_store` on the target control root before `_verified_ledger` and
+  before building any `EventLedger`, as `ars legacy` does. Building a ledger creates its directories.
+- **WP9.3 and WP9.4 preparers (F-8).** Two G5 checks that replay does not make:
+  - the resolving Decision's proposal named this record, by its pre-assigned ID and exact content hash, as its
+    subject;
+  - LR-020's ownership records equal the acceptance proposal's list, one per accepted whole-file item and no others.
+
+  Consider adding the LR-020 list check to replay when LR-020 is routed.
+- **Preparers generally.** Superseding a record that does not exist is not refused at replay.
+
+**For the L-3 checklist:**
+- **R-1.** Run L-3 from a checkout at or after this PR's merge commit, re-verified by bytes. Genesis guard 6
+  re-hashes from `repository_root`, and `C:\Users\steph\TDL` was at `779fc8bc` (before `69e9e059`) on 2026-10-28, so
+  from there genesis fails closed.
+- **R-2.** At L-0, check read-only that `load_store_manifest_unbound` parses the live Gate 6 manifest. If it cannot,
+  the refusal is the generic "cannot read the target store identity": still closed, but not the W9 reason code.
+- **R-3.** The reserved IDs and `CATALOGUE_STREAM_ID` are protected from W9 pre-assignment only. A Discovery or
+  generic command could pre-assign a reserved `dec_` or squat on the stream. A squatted stream makes genesis fail
+  closed (a stream conflict or guard 5). This is accepted by design: no reader dereferences the reserved refs.
+
+**Test gaps recorded, not closed:**
+- **Guard 5** has no reachable input through `submit`: a version other than 0 meets a stream conflict or guard 3
+  first, and no W9 command but genesis writes the catalogue stream. It is tested by calling `_prepare_genesis`
+  directly, and it is defence in depth.
+- **The §2.5 asymmetry test** runs the two replays over a tampered ledger. It does not append a Discovery command
+  over it, which would need a raw ledger rewrite.
+- **The CLI read-only test** monkeypatches `_verified_ledger`, so the real binding path's writes are not exercised.
+- **The verify-restore replay** (`verify_restore_before_writer_lease`) goes through the generic boundary that
+  W9-C01 exercises, but has no test of its own.
+
+## 8. Review dispositions
+
+The independent adversarial review of `5f9bb8f6` and its addendum on `0e0c15dd` gave the verdict accept with required
+changes. The report is in the session notes as `wp9-2-2-review.md`. Stephen chose to fix F-1 to F-7 in this PR, with
+F-3 option (a) (2026-10-28).
+
+| Finding | Severity | Disposition |
+|---|---|---|
+| F-1: the genesis human-actor guard untested | Major | Fixed. Non-owner tests: an agent-class grant is refused with the guard's message, and a human-class grant is accepted. The scoped-elsewhere test asserts the resolver's message. G4's exact subject is tested at grant parsing |
+| F-2: LR-014 refuses the accepted flow and admits an unbound record | Major (latent) | Fixed: `reduce_light_inventory` (§3 item 8) |
+| F-3: the reducers untested through `replay_legacy` | Major | Fixed, option (a): 21 forged-ledger tests with every row routed (§5). They found two more defects, both fixed: Decision edges for non-recovery Decisions (§3 item 3), and LR-020's ownership events validated against the acceptance schema (§3 item 9) |
+| F-4: the Gate 6 refusal covers one lock root; construction writes | Minor | Fixed: `refuse_gate6_lock_roots`, the receipt store built after the refusal, and `_tree_bytes` lists directories. The mutating-CLI rule is a WP9.3 obligation (§7) |
+| F-5: the C4 test cannot fail for its mutation | Minor | Fixed: `0e0c15dd`, then the addendum's six shapes (§3 item 7) |
+| F-6: genesis negatives without a test; controls without a message | Minor | Fixed: guards 2, 5 and 8; messages on the asymmetry, C1 and grant-scope tests. Guard 5's reachability and the other gaps are recorded in §7 |
+| F-7: the envelope pin written in the same PR as `ACCEPTED` | Minor | Fixed: read from Git at the O-3 main commit |
+| F-8: G5's subject binding and LR-020's list | Minor | Deferred with dependency: preparer obligations in §7 |
+| F-9: `_add_edges` quadratic and recursive | Minor | Fixed: iterative check from the new edges' targets |
+| R-1 to R-3 | Residual | On the L-3 checklist (§7) |
