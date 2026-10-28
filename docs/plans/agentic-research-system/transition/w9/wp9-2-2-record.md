@@ -58,8 +58,12 @@ legacy write. Every store in this package's tests is a scratch store under `tmp_
 6. **C2's messages.** A W2-typed event recorded under its W2 schema with no producer binding fails the shared replay
    with "inactive event schema"; recorded as `ars://core/event`, as the U-7 probe did, it fails with "unbound event
    producer". Both are asserted.
-7. **C4.** The consumer test pins the four files' `shared_event_partition` call sites statically: each compares with
-   named partitions and none names `"legacy"`.
+7. **C4.** The consumer test parses the four files and follows every `shared_event_partition` call, including a result
+   assigned to a name and compared later, as in the Discovery driver. It also checks that these four are the only
+   consumers under `research_system/`. Every partition decision compares against string literals. `==` and `in` select;
+   `!=` and `not in` are accepted only as a bare `continue` guard. Any other use of the result fails. Only one decision
+   names `"legacy"`: U-7 site 3's `continue` in the driver. Accepted and refused consumer shapes are its controls
+   (CodeRabbit nitpick on PR #408: the first version checked only inline comparisons).
 
 ## 4. D-4 (design note §10)
 
@@ -104,6 +108,9 @@ Run on the branch's working tree before commit, with `uv run pytest --no-cov -q 
 | `verify_w9_materialization.py --require-catalogue` | 61 pinned rows, 0 problems |
 
 The full suite was not run.
+
+After `5f9bb8f6`, the C4 rework (§3 item 7) replaced one test in `test_w9_legacy_routes.py` with twelve. That file
+now gives 51 passed, and ruff is clean. No code under `research_system/` changed.
 
 ## 7. Not in this PR
 

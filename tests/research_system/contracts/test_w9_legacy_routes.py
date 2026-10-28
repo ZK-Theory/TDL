@@ -8,8 +8,8 @@ the identities are the O-8, O-3 and envelope tests' own literals, and the catalo
 
 from __future__ import annotations
 
+import ast
 import json
-import re
 import subprocess
 from copy import deepcopy
 from pathlib import Path
@@ -188,25 +188,178 @@ def test_c5_no_row_emits_a_shared_event_type() -> None:
     assert not emitted & shared
 
 
+# Design note §2.3 C4: the consumers of shared_event_partition, and the one that names "legacy" (U-7 site 3).
+C4_CONSUMERS = frozenset(
+    {
+        "research_system/discovery/runtime.py",
+        "research_system/discovery/spec.py",
+        "research_system/discovery/spec_assay.py",
+        "research_system/discovery/replay/driver.py",
+    }
+)
+C4_SITE_3 = "research_system/discovery/replay/driver.py"
+_PARTITION_FUNCTIONS = frozenset({"shared_event_partition", "_shared_event_partition"})
+
+
+def _selected_partitions(comparator: ast.expr, where: str) -> set[str]:
+    """The partitions a comparison names; anything but string literals fails."""
+
+    if isinstance(comparator, ast.Constant) and isinstance(comparator.value, str):
+        return {comparator.value}
+    if isinstance(comparator, (ast.Set, ast.Tuple, ast.List)) and comparator.elts:
+        if all(isinstance(item, ast.Constant) and isinstance(item.value, str) for item in comparator.elts):
+            return {item.value for item in comparator.elts}  # type: ignore[attr-defined]
+    raise AssertionError(f"{where}: partition compared with a non-literal {ast.unparse(comparator)}")
+
+
+def _is_continue_guard(compare: ast.Compare, parents: dict[ast.AST, ast.AST]) -> bool:
+    guard = parents.get(compare)
+    return (
+        isinstance(guard, ast.If)
+        and guard.test is compare
+        and len(guard.body) == 1
+        and isinstance(guard.body[0], ast.Continue)
+        and not guard.orelse
+    )
+
+
+def _partition_comparisons(path: str) -> list[tuple[ast.Compare, dict[ast.AST, ast.AST]]]:
+    """Every comparison that decides on a partition in ``path``, following an assigned partition to its uses."""
+
+    tree = ast.parse((REPO_ROOT / path).read_text(encoding="utf-8"))
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _PARTITION_FUNCTIONS
+    ]
+    assert calls, path
+    comparisons = []
+    for call in calls:
+        where = f"{path}:{call.lineno}"
+        parent = parents[call]
+        if isinstance(parent, ast.Compare) and parent.left is call:
+            comparisons.append(parent)
+            continue
+        # An assigned partition: every use in its function must be a comparison, and it must not be rebound.
+        assert isinstance(parent, ast.Assign) and len(parent.targets) == 1, f"{where}: unrecognised consumer shape"
+        target = parent.targets[0]
+        assert isinstance(target, ast.Name), f"{where}: unrecognised consumer shape"
+        scope: ast.AST = parent
+        while not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            scope = parents[scope]
+        names = [node for node in ast.walk(scope) if isinstance(node, ast.Name) and node.id == target.id]
+        assert sum(isinstance(node.ctx, ast.Store) for node in names) == 1, f"{where}: {target.id} is rebound"
+        uses = [node for node in names if isinstance(node.ctx, ast.Load)]
+        assert uses, f"{where}: {target.id} is never compared"
+        for use in uses:
+            compare = parents[use]
+            assert isinstance(compare, ast.Compare) and compare.left is use, (
+                f"{path}:{use.lineno}: {target.id} used other than as the left side of a comparison"
+            )
+            comparisons.append(compare)
+    return [(compare, parents) for compare in comparisons]
+
+
+def _legacy_continue_guards(path: str) -> int:
+    """Check every partition decision in ``path``; return how many are a ``== "legacy": continue`` guard."""
+
+    guards = 0
+    for compare, parents in _partition_comparisons(path):
+        where = f"{path}:{compare.lineno}"
+        assert len(compare.ops) == 1, where
+        op = compare.ops[0]
+        named = _selected_partitions(compare.comparators[0], where)
+        if isinstance(op, (ast.NotEq, ast.NotIn)):
+            assert _is_continue_guard(compare, parents), f"{where}: an exclusion that is not a continue guard"
+            assert "legacy" not in named, f"{where}: an exclusion guard that admits legacy"
+        else:
+            assert isinstance(op, (ast.Eq, ast.In)), f"{where}: {ast.unparse(compare)}"
+        if "legacy" in named:
+            assert isinstance(op, ast.Eq) and named == {"legacy"}, f"{where}: legacy selected with another partition"
+            assert _is_continue_guard(compare, parents), f"{where}: legacy selected for handling"
+            guards += 1
+    return guards
+
+
 def test_c4_every_partition_consumer_selects_by_equality_or_membership() -> None:
-    """Pin the consumers design note §2.3 C4 lists: each selects named partitions, so "legacy" is excluded."""
+    """Design note §2.3 C4: each consumer acts only on partitions it names, so "legacy" falls through unhandled.
+
+    A consumer either compares the call's result directly or assigns it and compares the name. Every comparison is
+    against string literals; ``==`` and ``in`` select, and ``!=`` and ``not in`` are allowed only as a bare
+    ``continue`` guard. The one comparison naming "legacy" is U-7 site 3's ``continue`` in the Discovery driver.
+    """
 
     consumers = {
-        "research_system/discovery/runtime.py": r"_shared_event_partition\(.*\) (==|!=|in|not in) ",
-        "research_system/discovery/spec.py": r"shared_event_partition\(.*\) (==|!=|in|not in) ",
-        "research_system/discovery/spec_assay.py": r"shared_event_partition\(.*\) (==|!=|in|not in) ",
-        "research_system/discovery/replay/driver.py": r"_shared_event_partition\(.*\) (==|!=|in|not in) ",
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "research_system").rglob("*.py")
+        if "shared_event_partition" in path.read_text(encoding="utf-8")
+    } - {"research_system/discovery/routes.py"}
+    assert consumers == C4_CONSUMERS
+    assert {path: _legacy_continue_guards(path) for path in sorted(C4_CONSUMERS)} == {
+        path: int(path == C4_SITE_3) for path in sorted(C4_CONSUMERS)
     }
-    for path, pattern in consumers.items():
-        text = (REPO_ROOT / path).read_text(encoding="utf-8")
-        calls = [line for line in text.splitlines() if "shared_event_partition(" in line and "def " not in line]
-        assert calls, path
-        for line in calls:
-            if re.search(pattern, line):
-                assert '"legacy"' not in line, (path, line)
+
     event = {"command_type": "ObserveLegacyRecord", "event_type": "LegacyRecordObserved"}
     assert shared_event_partition(event) == "legacy"
     assert is_legacy_projection_event(event)
+
+
+def _write_consumer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> str:
+    path = "research_system/discovery/replay/driver.py"
+    (tmp_path / path).parent.mkdir(parents=True)
+    (tmp_path / path).write_text("def f(events, k):\n    for e in events:\n" + body, encoding="utf-8")
+    monkeypatch.setattr(f"{__name__}.REPO_ROOT", tmp_path)
+    return path
+
+
+@pytest.mark.parametrize(
+    ("body", "guards"),
+    [
+        ('        if shared_event_partition(e) != "artefact":\n            continue\n', 0),
+        ('        if shared_event_partition(e) in {"context", "control"}:\n            pass\n', 0),
+        (
+            '        p = shared_event_partition(e)\n        if p == "artefact":\n            pass\n'
+            '        if p == "legacy":\n            continue\n',
+            1,
+        ),
+    ],
+    ids=["exclusion-guard", "membership", "site-3-shape"],
+)
+def test_c4_check_accepts_a_safe_consumer(
+    body: str, guards: int, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _legacy_continue_guards(_write_consumer(tmp_path, monkeypatch, body)) == guards
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '        if shared_event_partition(e) != "legacy":\n            continue\n',
+        '        if shared_event_partition(e) != "artefact":\n            handle(e)\n',
+        '        if shared_event_partition(e) == "legacy":\n            handle(e)\n',
+        '        if shared_event_partition(e) in {"legacy", "context"}:\n            continue\n',
+        "        p = shared_event_partition(e)\n        handlers[p](e)\n",
+        '        p = shared_event_partition(e)\n        p = "artefact"\n        if p == "artefact":\n            pass\n',
+        "        if shared_event_partition(e) == k:\n            pass\n",
+        "        handle(e, shared_event_partition(e))\n",
+    ],
+    ids=[
+        "guard-admits-legacy",
+        "exclusion-without-continue",
+        "legacy-handled",
+        "legacy-in-a-set",
+        "dispatch-table",
+        "rebound",
+        "non-literal",
+        "passed-on",
+    ],
+)
+def test_c4_check_refuses_an_unsafe_consumer(body: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Negative controls: each shape would let a consumer act on "legacy" or hide what it selects."""
+
+    with pytest.raises(AssertionError):
+        _legacy_continue_guards(_write_consumer(tmp_path, monkeypatch, body))
 
 
 # --- Row assignment (design note §4) ---------------------------------------------------------------------------------
