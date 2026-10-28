@@ -385,6 +385,40 @@ def test_bootstrap_contract_validates_and_matches_owned_values() -> None:
     assert contract["forbidden"] == FORBIDDEN
 
 
+# Stephen's O-3 acceptance (P-078): the amended contract at main commit 69e9e059, by blob and SHA-256. Literals until
+# WP9.2-2's accepted_w9.py pins it, as O-8's catalogue is pinned. Any change to the file is a new contract identity and
+# needs a new acceptance.
+O3_ACCEPTED = {
+    "main_commit": "69e9e059348baad153884f43b34ee6c52df63add",
+    "path": ".research-system/contracts/w9/w9-materialization-bootstrap-contract.yaml",
+    "blob": "6bbbb14a6754b64209bab5e50aa8e552bf71b63d",
+    "sha256": "47699ed77c1934ee6764f514e6aecf3ddad3349819106d030b600020c964ddb1",
+    "bytes": 4164,
+}
+# The contract O-8 rested on (P-075), which the envelope cites. It is not the O-3 contract.
+O8_CONTRACT = ("7979e85a075ab6a643a7b201ac4186b0b2090d74", "96a63114dbf94d3efa8019e18d8208832eee833d")
+
+
+def _is_o3_accepted(data: bytes) -> bool:
+    return len(data) == O3_ACCEPTED["bytes"] and hashlib.sha256(data).hexdigest() == O3_ACCEPTED["sha256"]
+
+
+def test_committed_contract_is_the_o3_accepted_byte_string() -> None:
+    assert BOOTSTRAP_CONTRACT.relative_to(REPO_ROOT).as_posix() == O3_ACCEPTED["path"]
+    assert _is_o3_accepted(BOOTSTRAP_CONTRACT.read_bytes())
+    assert _git("rev-parse", f"HEAD:{O3_ACCEPTED['path']}") == O3_ACCEPTED["blob"]
+    assert _git("rev-parse", f"{O3_ACCEPTED['main_commit']}:{O3_ACCEPTED['path']}") == O3_ACCEPTED["blob"]
+
+
+def test_o3_pin_refuses_other_bytes() -> None:
+    data = BOOTSTRAP_CONTRACT.read_bytes()
+    assert not _is_o3_accepted(data + b"\n")
+    assert not _is_o3_accepted(data.replace(b"\n", b"\r\n"))
+    commit, blob = O8_CONTRACT
+    assert _git("rev-parse", f"{commit}:{O3_ACCEPTED['path']}") == blob
+    assert not _is_o3_accepted(_git_bytes(commit, O3_ACCEPTED["path"]))
+
+
 @pytest.mark.parametrize("field", sorted(SOURCE_TUPLES))
 def test_bootstrap_source_tuples_match_pinned_commit_and_head(field: str) -> None:
     path, commit, blob = SOURCE_TUPLES[field]

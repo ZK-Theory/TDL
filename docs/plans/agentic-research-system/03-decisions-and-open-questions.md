@@ -4882,6 +4882,55 @@ WP9.2-2.<br>
 reserved IDs); P-075 (its carried envelope citation kept); P-076 (Boundary extended, item 2.3 excepted).<br>
 **Migration consequence:** None.
 
+### P-078 - O-3: the amended W9 bootstrap contract accepted at main commit `69e9e059`
+
+**Date:** 2026-10-28<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-28). This is the contract half of 06v O-3, which P-077 item 4 placed
+after WP9.2-1's merge.<br>
+**Authority:** Stephen, in chat, 2026-10-28, after PR #406 (WP9.2-1) merged as `69e9e059`: "Accept O-3". He chose the
+option that read: "I accept O-3: the amended W9 bootstrap contract (blob 6bbbb14a, SHA-256 47699ed7…ddb1, 4,164 bytes)
+at main commit 69e9e059, with the const reading in its verification_rules: runtime_activation and
+materialization_status govern the ars://legacy/ schemas' runtime bindings only. Record the acceptance."<br>
+**Evidence:**
+- PR #406 merged as `69e9e059348baad153884f43b34ee6c52df63add`, a squash merge whose tree equals the reviewed head
+  `67f0bd0a`. Before it: an independent review (`reviews/wp9-2-1-review-7e119810-2026-10-28.md`, accept with required
+  changes), revision 2 fixing m-1 to m-3 (m-2 by Stephen's option (a)), and 20 passing checks.
+- The review recomputed all 17 envelope fields and the three reserved IDs independently; every one matched.
+- On the record branch, cut from `69e9e059`: the W9 tests pass (270), including the O-3 pin below.
+
+**Decision:**
+1. **The amended contract is accepted** at main commit `69e9e059348baad153884f43b34ee6c52df63add`:
+
+   | Field | Value |
+   |---|---|
+   | Path | `.research-system/contracts/w9/w9-materialization-bootstrap-contract.yaml` |
+   | Git blob | `6bbbb14a6754b64209bab5e50aa8e552bf71b63d` |
+   | SHA-256 | `47699ed77c1934ee6764f514e6aecf3ddad3349819106d030b600020c964ddb1` |
+   | Size | 4,164 bytes |
+   | Main commit that wrote it | `69e9e059` (WP9.2-1, PR #406) |
+
+2. **The reading of the consts** (design note review M-6). The schema consts stay `runtime_activation: forbidden` and
+   `materialization_status: inert_foundation_only`. They govern the `ars://legacy/` schemas' runtime bindings only; the
+   W9 runtime is WP9.2's (P-077 item 4). The accepted `verification_rules` state this.
+3. **What acceptance fixes.** The accepted object is this byte string, including its `verification_rules` and
+   `forbidden` lists word for word. Any change to the file is a new contract identity and needs a new acceptance. The
+   W9 test suite pins it by length, SHA-256 and blob, as literals until WP9.2-2's `accepted_w9.py` pins it. WP9.2-2's
+   genesis payload names this identity as its `bootstrap_contract_identity`.
+4. **The envelope is not part of O-3.** It stays at blob `9b28528c119ef45244b277ccd30855c68826e41f` on main and cites the
+   contract O-8 rested on (`96a63114` at `7979e85a`, P-075), not this one. WP9.2-2's `accepted_w9.py` pins both.
+
+**Not decided here:**
+- O-3's second half, "one independently verified genesis transaction". It rests on WP9.2-2's independent review
+  together with this acceptance (design note §7.3, LR-001's owner precondition), and is checked at L-3.
+- WP9.2-2's code, its review and D-4.
+- Any live operation L-0 to L-5, genesis on a real store, and legacy writes (P-076, not authorized).
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs and one test file.<br>
+**Affected specifications:** 06v O-3 (contract half met); WP9.2-2 (`accepted_w9.py` and the genesis payload pin this
+identity); P-077 item 4 (the O-3 step done).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
