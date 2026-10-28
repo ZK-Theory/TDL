@@ -406,6 +406,9 @@ def replay_discovery(
         if partition == "context":
             # Context lifecycle state is owned by the shared projection.
             continue
+        if partition == "legacy":
+            # W9 events are reduced by replay_legacy at the generic boundary (U-7 site 3).
+            continue
 
         def required_string(key: str) -> str:
             value = payload.get(key)

@@ -310,6 +310,12 @@ def shared_event_partition(
         return "operational"
     if is_discovery_projection_event(event, resolve_transaction_ids=resolve_transaction_ids):
         return "discovery"
+    # A new partition value for W9 events (U-7 site 2). Reusing an existing value would enrol them in that
+    # partition's consumers. The lazy import keeps research_system.legacy out of the Discovery import graph.
+    from research_system.legacy.commands import is_legacy_projection_event
+
+    if is_legacy_projection_event(event):
+        return "legacy"
     if event_type in ARTEFACT_EVENT_TYPES:
         return "artefact"
     if event_type in CONTEXT_EVENT_TYPES:

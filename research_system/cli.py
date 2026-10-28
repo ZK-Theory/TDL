@@ -1451,6 +1451,8 @@ def _assurance_pack_run(args: argparse.Namespace) -> int:
 
 def _verified_ledger(
     control_root: Path,
+    *,
+    read_only: bool = False,
 ) -> tuple[
     EventLedger,
     SchemaRegistry,
@@ -1464,8 +1466,12 @@ def _verified_ledger(
     )
     schemas = _schemas_for_store_manifest(manifest)
     resolved_root = control_root.resolve(strict=True)
+    # A read-only query binds without creating directories, and refuses a store whose event directory is missing
+    # rather than recreating it and reporting an empty ledger.
+    if read_only and not (resolved_root / "events" / manifest["project_id"]).is_dir():
+        raise IntegrityError("store project event directory is missing")
     return (
-        EventLedger(resolved_root, manifest["project_id"], schemas),
+        EventLedger(resolved_root, manifest["project_id"], schemas, create_directories=not read_only),
         schemas,
         LedgerAuthorityGrantResolver(
             resolved_root,
@@ -1501,6 +1507,59 @@ def _replay_verify(args: argparse.Namespace) -> int:
             authority_state_validator=resolver.validate_replayed_administration_state,
         )
     )
+    return 0
+
+
+def _legacy_projection(control_root: Path) -> tuple[dict[str, Any], int]:
+    """Rebuild the W9 legacy projection from a bound store. Read-only; the Gate 6 refusal runs before binding."""
+    from research_system.legacy.accepted_w9 import accepted_genesis_payload
+    from research_system.legacy.commands import is_legacy_projection_event
+    from research_system.legacy.replay.driver import replay_legacy
+    from research_system.legacy.runtime import refuse_gate6_store
+
+    refuse_gate6_store(control_root, accepted_genesis_payload()["refused_store_identities"])
+    ledger, schemas, resolver = _verified_ledger(control_root, read_only=True)
+    events = tuple(ledger.iter_events())
+    replay(events, schema_registry=schemas, authority_state_validator=resolver.validate_replayed_administration_state)
+    return replay_legacy(events, schemas=schemas), sum(1 for event in events if is_legacy_projection_event(event))
+
+
+def _legacy_status(args: argparse.Namespace) -> int:
+    from research_system.legacy.accepted_w9 import ACCEPTED
+
+    state, event_count = _legacy_projection(args.control_root)
+    genesis = state["catalogue"] is not None
+    _print_json(
+        {
+            "genesis_present": genesis,
+            "catalogue_identity": (
+                {key: ACCEPTED[key] for key in ("accepted_commit", "catalogue_blob", "catalogue_sha256")}
+                if genesis
+                else None
+            ),
+            "row_counts": state["row_counts"],
+            "event_count": event_count,
+            "reserved_ids": state["reserved_ids"],
+        }
+    )
+    return 0
+
+
+def _legacy_show(args: argparse.Namespace) -> int:
+    state, _ = _legacy_projection(args.control_root)
+    identity = args.id
+    if identity not in state["identities"]:
+        raise ArsError(f"no W9 identity: {identity}")
+    found: dict[str, Any] = {"id": identity, "kind": state["identities"][identity]}
+    for collection in ("proposals", "reviews", "decisions"):
+        if identity in state[collection]:
+            found[collection.rstrip("s")] = state[collection][identity]
+    for kind, records in state["records"].items():
+        if identity in records:
+            found["record"] = {"kind": kind, "value": records[identity]}
+    if identity in state["ownership"]:
+        found["ownership_mode"] = state["ownership"][identity]
+    _print_json(found)
     return 0
 
 
@@ -2404,6 +2463,17 @@ def _parser() -> argparse.ArgumentParser:
     replay_binding.add_argument("--operator-config", type=Path, help="SPEC Gate 6 operator evidence")
     verify.set_defaults(handler=_replay_verify)
 
+    # W9 (06v WP9.2; design note §8): read-only first; mutating subcommands come with their packages.
+    legacy = groups.add_parser("legacy")
+    legacy_actions = legacy.add_subparsers(dest="legacy_action", required=True)
+    legacy_status = legacy_actions.add_parser("status")
+    legacy_status.add_argument("--control-root", type=Path, required=True, help="local-store administration root")
+    legacy_status.set_defaults(handler=_legacy_status)
+    legacy_show = legacy_actions.add_parser("show")
+    legacy_show.add_argument("id", help="a W9 record, review, Decision or reserved identity")
+    legacy_show.add_argument("--control-root", type=Path, required=True, help="local-store administration root")
+    legacy_show.set_defaults(handler=_legacy_show)
+
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
     rebuild = projection_actions.add_parser("rebuild")
@@ -2454,7 +2524,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "discovery", "authority"}:
+    if args.group not in {"eval", "assurance-pack", "brief", "context-packet", "discovery", "authority", "legacy"}:
         return int(args.handler(args))
     try:
         if args.group == "eval":
