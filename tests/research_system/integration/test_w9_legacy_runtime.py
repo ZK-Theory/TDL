@@ -598,15 +598,12 @@ def test_cli_legacy_status_and_show_are_read_only(tmp_path: Path, monkeypatch, c
     assert bindings and all(kwargs == {"read_only": True} for kwargs in bindings)
 
 
-def test_cli_read_only_binding_refuses_a_missing_event_directory(tmp_path: Path, monkeypatch) -> None:
-    """Codex on PR #408: a read-only query neither recreates a missing event directory nor reports an empty ledger."""
+def _stub_binding_inputs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Stub ``_verified_ledger``'s inputs: these tests are about directories, and must not read the foundation."""
     from types import SimpleNamespace
 
     from research_system import cli
 
-    control_root = tmp_path / "control"
-    (control_root / "manifests").mkdir(parents=True)
-    # The binding's inputs are stubbed: the test is about the directories, and must not read the canonical foundation.
     monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "foundation.json")
     monkeypatch.setattr(
         cli.ApprovedProjectBinding,
@@ -619,10 +616,32 @@ def test_cli_read_only_binding_refuses_a_missing_event_directory(tmp_path: Path,
         lambda root, **kwargs: {"project_id": PROJECT_ID, "store_identity": SCRATCH_IDENTITY},
     )
     monkeypatch.setattr(cli, "_schemas_for_store_manifest", lambda manifest: None)
+    monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *args, **kwargs: SimpleNamespace())
+    return cli
+
+
+def test_cli_read_only_binding_refuses_a_missing_event_directory(tmp_path: Path, monkeypatch) -> None:
+    """Codex on PR #408: a read-only query neither recreates a missing event directory nor reports an empty ledger."""
+    cli = _stub_binding_inputs(tmp_path, monkeypatch)
+    control_root = tmp_path / "control"
+    (control_root / "manifests").mkdir(parents=True)
     before = _tree_bytes(control_root)
     with pytest.raises(IntegrityError, match="store project event directory is missing"):
         cli._verified_ledger(control_root, read_only=True)
     assert _tree_bytes(control_root) == before
+
+
+def test_cli_read_only_binding_of_an_existing_store_creates_nothing(tmp_path: Path, monkeypatch) -> None:
+    """Review N-3: binding a store read-only builds its ledger without creating ``runtime/`` or anything else."""
+    cli = _stub_binding_inputs(tmp_path, monkeypatch)
+    control_root = tmp_path / "control"
+    (control_root / "manifests").mkdir(parents=True)
+    (control_root / "events" / PROJECT_ID).mkdir(parents=True)
+    before = _tree_bytes(control_root)
+    ledger, _, _ = cli._verified_ledger(control_root, read_only=True)
+    assert ledger.events_root == control_root.resolve() / "events" / PROJECT_ID
+    assert _tree_bytes(control_root) == before
+    assert not (control_root / "runtime").exists()
 
 
 def test_cli_legacy_status_refuses_the_gate6_store_before_binding(tmp_path: Path, monkeypatch, capsys) -> None:

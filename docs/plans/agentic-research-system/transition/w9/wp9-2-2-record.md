@@ -1,7 +1,7 @@
 # WP9.2-2: the legacy runtime, genesis, shared replay and CLI
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 4. The independent review, its re-review and the PR #408 bot comments are disposed in §8. Not
+**Status:** Revision 5. The independent review, its re-checks and the PR #408 bot comments are disposed in §8. Not
 merged, D-4 not accepted.<br>
 **Package:** 06v WP9.2, second of its two PRs (P-077 item 4). The design note is `transition/w9/wp9-2-design-note.md`,
 revision 3, confirmed and merged as `779fc8bc` (PR #405).<br>
@@ -212,8 +212,9 @@ unchanged), the runtime test and this record. Checks:
   directly, and it is defence in depth.
 - **The §2.5 asymmetry test** runs the two replays over a tampered ledger. It does not append a Discovery command
   over it, which would need a raw ledger rewrite.
-- **The CLI read-only test** monkeypatches `_verified_ledger`. Revision 4 tests the read-only binding's refusal of a
-  missing event directory with its inputs stubbed. The binding against a real approved foundation is not exercised.
+- **The CLI read-only test** monkeypatches `_verified_ledger`. Revisions 4 and 5 test the read-only binding with its
+  inputs stubbed: it refuses a missing event directory, and it binds an existing store without creating anything. The
+  binding against a real approved foundation is not exercised.
 - **The verify-restore replay** (`verify_restore_before_writer_lease`) goes through the generic boundary that
   W9-C01 exercises, but has no test of its own.
 
@@ -257,5 +258,11 @@ The review half of LR-001's L-3 precondition was met at `4ff0d432`, and the re-c
 | CodeRabbit (Minor): a manifest path that is a directory or a dangling link is skipped by `is_file()` | Fixed: `os.path.lexists`, so the loader reads it and refuses it as unreadable. Tested with a directory; a dangling link needs symlink privileges on Windows |
 | Codex (P2): `ars legacy status` and `show` bind through `EventLedger(create_directories=True)`, so a read-only query recreates a missing event directory and reports an empty ledger | Fixed. `_verified_ledger(read_only=True)` refuses a store whose project event directory is missing and binds with `create_directories=False`, as `store/current_binding.py` does. `ars legacy` always binds read-only, which the CLI test asserts; other callers are unchanged |
 
-Each fix, reverted alone, fails its test (scratch mutation script). Revision 4 changes code, so the accept verdict
-needs the reviewer's focused re-check at the new head before L-3 relies on it.
+Each fix, reverted alone, fails its test (scratch mutation script). The re-check of `5ece37f9` (addendum §12) carried
+the accept verdict to it and found one Minor:
+
+| Finding | Severity | Disposition |
+|---|---|---|
+| N-3: the read-only binding's `create_directories=False` has no test, because the missing-directory test raises before the ledger is built | Minor | Fixed in revision 5. A test binds an existing store read-only with `runtime/` absent and asserts the tree is unchanged, directories included. Reverting the flag to `True` fails it |
+
+Revision 5 changes this test file and this record only.
