@@ -82,6 +82,36 @@ W11_CATALOGUE = {
 }
 # D-9's restricted suffixes (P-064 item 9), copied into the schemas under P-069 item 3.
 D9_SUFFIXES = [".csv", ".pkl"]
+# The contract's free-text lists as amended by WP9.2-1 (P-077 item 4; design note §6.2), pinned whole, as W11's test
+# pins its rules, so no edit between review and O-3 passes unnoticed (WP9.2-1 review m-3).
+VERIFICATION_RULES = [
+    "the accepted W9 and 06v raw-byte tuples are independently observed at their pinned commits and at the checked-out"
+    " HEAD",
+    "the W9 runtime cannot produce or accept its own prerequisite",
+    "restricted_suffixes is a copy of the D-9 list and changes with it under the same reviewed PR (P-069 item 3)",
+    "every W9 schema is reproduced byte for byte by tools/w9_schema_gen.py",
+    "every materialized schema is Draft 2020-12 valid, closed at the top level, and carries schema_id equal to its $id",
+    "every W9 schema id is under ars://legacy/ and none collides with ars://portfolio/ or ars://core/",
+    "ars://legacy/ schema ids remain absent from runtime bindings; the W9 runtime validates content through the registry",
+    "the accepted W11 schema tree, route partition and catalogue are unchanged",
+    "the only W9 expected catalogue instance is .research-system/evals/expected/w9-legacy-integration-v1.json, and"
+    " tools/verify_w9_materialization.py --require-catalogue verifies it",
+    "the only W9 acceptance envelope instance is .research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json",
+    "runtime_activation and materialization_status govern the ars://legacy/ schemas' runtime bindings only; the W9"
+    " runtime is WP9.2's (P-077)",
+    "the W9 genesis requires a store whose replayed Discovery projection holds the accepted W11 catalogue",
+    "the W9 genesis refuses every store identity listed in refused_store_identities, read before binding",
+]
+FORBIDDEN = [
+    "runtime_schema_registry binding for any ars://legacy/ schema",
+    "any W9 expected catalogue instance other than .research-system/evals/expected/w9-legacy-integration-v1.json",
+    "any W9 acceptance envelope instance other than .research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json",
+    "W9 genesis or any live operation L-0 to L-5 on a store other than a test-created scratch store, and any write to a"
+    " legacy file, without the owner decision that authorizes it (P-076)",
+    "any write to the Gate 6 store TDL-ARS-G6-Control",
+    "observation, adoption, transition, cutover, or retirement of any legacy item",
+    "provider, credential, Jira, PR, or merge action",
+]
 
 # Every reference field of the family and the reference kind it takes (review B-1). The walk below must find exactly
 # these keys, so a new reference field fails until it is classified here.
@@ -351,6 +381,8 @@ def test_bootstrap_contract_validates_and_matches_owned_values() -> None:
     # The schema pattern is derived from the generator's list, which must equal the contract's (re-review n-2).
     assert _load_tool("w9_schema_gen").RESTRICTED_SUFFIXES == contract["restricted_suffixes"]
     assert "the W9 runtime cannot produce or accept its own prerequisite" in contract["verification_rules"]
+    assert contract["verification_rules"] == VERIFICATION_RULES
+    assert contract["forbidden"] == FORBIDDEN
 
 
 @pytest.mark.parametrize("field", sorted(SOURCE_TUPLES))
