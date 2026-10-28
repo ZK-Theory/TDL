@@ -36,8 +36,9 @@ verification_rules:
   - every W9 schema id is under ars://legacy/ and none collides with ars://portfolio/ or ars://core/
   - ars://legacy/ schema ids remain absent from runtime bindings; the W9 runtime validates content through the registry
   - the accepted W11 schema tree, route partition and catalogue are unchanged
-  - the only W9 expected catalogue instance is .research-system/evals/expected/w9-legacy-integration-v1.json, and tools/verify_w9_materialization.py --require-catalogue verifies it; no acceptance instance is materialized in the repository
-  - no runtime production Python is changed
+  - the only W9 expected catalogue instance is .research-system/evals/expected/w9-legacy-integration-v1.json, and tools/verify_w9_materialization.py --require-catalogue verifies it
+  - the only W9 acceptance envelope instance is .research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json
+  - runtime_activation and materialization_status govern the ars://legacy/ schemas' runtime bindings only; the W9 runtime is WP9.2's (P-077)
   - the W9 genesis requires a store whose replayed Discovery projection holds the accepted W11 catalogue
   - the W9 genesis refuses every store identity listed in refused_store_identities, read before binding
 families:
@@ -64,10 +65,8 @@ families:
     - import-accepted-w9-catalogue-revision
 forbidden:
   - runtime_schema_registry binding for any ars://legacy/ schema
-  - runtime handlers, ledger append, reducers, or projectors
   - any W9 expected catalogue instance other than .research-system/evals/expected/w9-legacy-integration-v1.json
-  - catalogue acceptance envelope instance
-  - W9 genesis import
+  - any W9 acceptance envelope instance other than .research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json
   - any write to the Gate 6 store TDL-ARS-G6-Control
   - observation, adoption, transition, cutover, or retirement of any legacy item
   - provider, credential, Jira, PR, or merge action

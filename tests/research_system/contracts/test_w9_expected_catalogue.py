@@ -496,9 +496,19 @@ def _legacy_candidates(root: Path = REPO_ROOT, *, tracked: bool = True) -> list[
     return [root / line for line in result.stdout.splitlines()]
 
 
-def test_the_only_tracked_instance_is_the_w9_catalogue() -> None:
-    # The bootstrap contract: one W9 expected catalogue, and no acceptance-envelope instance in the repository.
-    assert _legacy_instances(_legacy_candidates()) == {V.CATALOGUE_PATH}
+ENVELOPE_PATH = ".research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json"
+
+
+def test_the_only_tracked_instances_are_the_w9_catalogue_and_envelope() -> None:
+    # The bootstrap contract as amended by WP9.2-1 (P-077 item 4): one W9 expected catalogue and one acceptance envelope.
+    assert _legacy_instances(_legacy_candidates()) == {V.CATALOGUE_PATH, ENVELOPE_PATH}
+    kinds = {
+        path: json.loads((REPO_ROOT / path).read_bytes())["schema_id"] for path in (V.CATALOGUE_PATH, ENVELOPE_PATH)
+    }
+    assert kinds == {
+        V.CATALOGUE_PATH: "ars://legacy/w9-schema-catalogue-content",
+        ENVELOPE_PATH: "ars://legacy/w9-catalogue-acceptance-envelope",
+    }
 
 
 @pytest.mark.parametrize("schema_id", sorted(LEGACY_INSTANCE_IDS))
