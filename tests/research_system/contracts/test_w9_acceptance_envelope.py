@@ -160,10 +160,13 @@ def _valid(instance: dict[str, Any]) -> bool:
 # --- The committed instance -----------------------------------------------------------------------------------------
 
 
+def _is_derived_envelope(data: bytes) -> bool:
+    """The one byte guard: the positive test and every negative control call it (WP9.2-1 review m-1)."""
+    return data == canonical_bytes(expected_envelope())
+
+
 def test_committed_envelope_is_the_derived_envelope() -> None:
-    data = _committed()
-    assert b"\n" not in data  # canonical JSON is one line, so encoding drift shows up as an added line ending
-    assert data == canonical_bytes(expected_envelope())
+    assert _is_derived_envelope(_committed())
 
 
 def test_committed_envelope_validates_against_its_schema() -> None:
@@ -171,13 +174,15 @@ def test_committed_envelope_validates_against_its_schema() -> None:
 
 
 def test_byte_identity_refuses_what_the_schema_admits() -> None:
-    # The schema checks shape only; the byte test is what binds the values (as m-2 did for the catalogue).
-    tampered = json.loads(_committed())
+    # The schema checks shape only; the byte guard is what binds the values (as B2 review m-2 did for the catalogue).
+    committed = _committed()
+    tampered = json.loads(committed)
     tampered["owner_row_multiset_hash"] = "0" * 64
     assert _valid(tampered)
-    assert canonical_bytes(tampered) != canonical_bytes(expected_envelope())
-    re_encoded = json.dumps(json.loads(_committed()), indent=2, sort_keys=True).encode()
-    assert re_encoded != canonical_bytes(expected_envelope())
+    assert not _is_derived_envelope(canonical_bytes(tampered))
+    assert not _is_derived_envelope(json.dumps(json.loads(committed), indent=2, sort_keys=True).encode())
+    assert not _is_derived_envelope(committed + b"\n")
+    assert not _is_derived_envelope(committed + b"\r\n")
 
 
 # --- The values against owner-accepted literals ---------------------------------------------------------------------
@@ -244,4 +249,4 @@ def test_a_changed_ref_breaks_the_envelope() -> None:
     envelope = deepcopy(expected_envelope())
     envelope["acceptance_decision_ref"]["id"] = external_ref_id("dec", "decision", "P-076", REGISTER_PATH, P075_COMMIT)
     assert _valid(envelope)
-    assert canonical_bytes(envelope) != _committed()
+    assert not _is_derived_envelope(canonical_bytes(envelope))

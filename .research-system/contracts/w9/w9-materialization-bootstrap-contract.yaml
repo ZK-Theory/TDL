@@ -67,6 +67,7 @@ forbidden:
   - runtime_schema_registry binding for any ars://legacy/ schema
   - any W9 expected catalogue instance other than .research-system/evals/expected/w9-legacy-integration-v1.json
   - any W9 acceptance envelope instance other than .research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json
+  - W9 genesis or any live operation L-0 to L-5 on a store other than a test-created scratch store, and any write to a legacy file, without the owner decision that authorizes it (P-076)
   - any write to the Gate 6 store TDL-ARS-G6-Control
   - observation, adoption, transition, cutover, or retirement of any legacy item
   - provider, credential, Jira, PR, or merge action
