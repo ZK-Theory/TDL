@@ -1,7 +1,10 @@
 # WP9.3 design note: the observation reader, selectors, inventories and acceptance
 
 **Date:** 2026-10-28<br>
-**Status:** Revision 1, for independent adversarial review. Nothing in it is implemented.<br>
+**Status:** Revision 2. It reconciles the independent review of revision 1 (`a8604641`):
+`reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, on branch `review/w9-wp9-3-note` at `0dc63404`, verdict
+accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change log says where each finding went.
+Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -12,8 +15,8 @@ read at that commit.<br>
 observations, inventories and acceptances these commands will later run; creating a real store, or running genesis or
 issuing a grant on one; any legacy write. Every store in this note is a scratch store that a test creates under
 `tmp_path`.<br>
-**Probe:** none. No prototype was run for this note. Its code claims rest on reading the code at `1f0d8281`, and §20
-lists the claims the review should probe rather than take on trust.
+**Probe:** the author ran no prototype. The review probed §20's claims with 22 asserting pytest cases on in-memory
+registries, reducers and payloads (review §2). Its results are cited where they bear on the design.
 
 ## 1. What this note settles
 
@@ -57,15 +60,17 @@ Seven command types execute those rows: `ProposeLegacyRecord`, `RequestW9Authori
 
 A runtime-binding row belongs to a command type, not to a row (`research_system/schema_registry.py:209-265`; WP9.2
 note §3). Binding `ProposeLegacyRecord` and the four authority-flow commands here therefore also binds them for the
-WP9.4, WP9.6 and WP9.7 rows that share them. A binding grants nothing by itself. The runtime assigns every prepared
-transaction to its row and refuses a deferred row before append, as replay already does
+WP9.4, WP9.6 and WP9.7 rows that share them: 37 rows in all (review i-3). A binding grants nothing by itself. The
+runtime assigns every prepared transaction to its row with `assign_row`, replacing today's `_COMMAND_ROWS` lookup
+(`legacy/runtime.py:68`, `:418-421`), and refuses a deferred row before append, as replay already does
 (`research_system/legacy/replay/driver.py:139-141`). A test submits a schema-valid `ProposeLegacyRecord` for an
 adoption decision (LR-023, `WP9.4`) and expects that refusal, with the store unchanged.
 
-**Consequence for later D-4s.** After WP9.3 only three W9 command types stay unbound: `CreateLegacyPaperRoot` and
-`RecordPaperCitationStatus` (WP9.4) and `RecordAdoptionUseMismatch` (WP9.7). WP9.6's rows use commands already bound,
-`CreateLegacyPaperRoot` included if WP9.4 merges first. So the packages that add census rows become WP9.2, WP9.3, WP9.4
-and WP9.7, and WP9.6 adds one only if it lands before WP9.4. 06v D-4 expected WP9.2, WP9.3, WP9.4 and WP9.6; the WP9.2
+**Consequence for later D-4s.** After WP9.3 four W9 command types stay unbound: `CreateLegacyPaperRoot` and
+`RecordPaperCitationStatus` (WP9.4), `RecordAdoptionUseMismatch` (WP9.7), and `ImportAcceptedW9CatalogueRevision`
+(LR-002), which only an accepted catalogue revision's package would bind, under its own D-4 (review m-1). WP9.6's rows
+use commands already bound, `CreateLegacyPaperRoot` included if WP9.4 merges first. So the packages that add census
+rows become WP9.2, WP9.3, WP9.4 and WP9.7, and WP9.6 adds one only if it lands before WP9.4. 06v D-4 expected WP9.2, WP9.3, WP9.4 and WP9.6; the WP9.2
 note added WP9.7 (confirmation n-3). This changes no accepted text: D-4 applies to whichever package adds a row.
 
 ### 2.3 The split (owner point A)
@@ -79,8 +84,8 @@ review can confirm or refuse it:
   observation; the record identity rules (§4), which close N-2; F-4 (§13); F-8's first limb; the reducer changes of
   §14; the mutating CLI.
 - **WP9.3-2: LR-016 to LR-020.** The acceptance preparers (O-25, O-32, O-33 at acceptance, O-37); the ownership list
-  and F-8's second limb (owner point E); the Computational-Log exporter and its recheck; the `.apm/bus/` and `.apm/`
-  inventories (O-19, O-36).
+  and F-8's second limb (owner point E); the Computational-Log export reader and its recheck (§12.2); the `.apm/bus/`
+  and `.apm/` inventories (O-19, O-36).
 
 The reasons:
 - WP9.3-2 adds no command type, so it changes no protected identity and carries no D-4. The package needs one
@@ -102,7 +107,7 @@ Each forward obligation that names WP9.3, or a WP9.3 row, is listed with its dis
 | 2 | P-080 item 3; record §7 (F-4) | Refuse-before-bind in any mutating CLI | **Keep, and widen** to every root known before binding (§13) |
 | 3 | P-080 item 3; record §7 (F-8, first limb) | The resolving Decision's proposal named the record by its pre-assigned ID and exact content hash | **Keep at the preparer, and add to replay.** The subject is now persisted in the Decision proposal's `governing_evidence_refs` (§5.2), so replay can check it (§6.1) |
 | 4 | P-080 item 3; record §7 (F-8, second limb) | LR-020's ownership records equal the acceptance proposal's list | **Keep, in replay too,** with the list derived rather than listed (owner point E; §10.5). The record's suggestion "consider adding the LR-020 list check to replay" is taken |
-| 5 | P-080 item 3; record §7 ("Preparers generally") | Superseding a record that does not exist | **Keep, placed.** The preparer refusal belongs to the supersession proposal (LR-056 to LR-060, WP9.6), which WP9.3 does not build, and is carried to WP9.6's brief by name. WP9.3 adds the replay refusal to `_apply_supersession` (`replay/reducers.py:304-317`) now, tested on a forged ledger, because N-2 touches every record reducer anyway |
+| 5 | P-080 item 3; record §7 ("Preparers generally") | Superseding a record that does not exist | **Keep, placed.** The preparer refusal belongs to the supersession proposal (LR-056 to LR-060, WP9.6), which WP9.3 does not build. Because WP9.6's brief does not exist yet, the decision entry for this note records the carry, as P-080 item 3 recorded the obligation (review m-10). WP9.3 adds the replay refusal to `_apply_supersession` (`replay/reducers.py:304-317`) now, tested on a forged ledger, because N-2 touches every record reducer anyway |
 | 6 | WP9.2-2 record §3 item 8 | LR-014 accepts only `approve` under LR-013, on a review whose paired subjects name the record | **Keep,** and apply the same rule to every W9 review (owner point B; §5.4). The hash is recomputed (§14) |
 | 7 | WP9.2-2 record §7, test gaps | Guard 5's reachability; the §2.5 asymmetry; the CLI read-only test; the verify-restore replay | Genesis and shared-replay gaps, not WP9.3's. Unchanged, except that WP9.3's CLI test binds a real scratch store instead of monkeypatching `_verified_ledger` (§13) |
 | 8 | Stage B note §6, "WP9.2 runtime obligations with no stage B artefact" | The record content-hash rule; `created_at` and `created_by_actor_id` taken from the proposal; the retry control W9-C11; the behavioural controls W9-C20 to W9-C25 | **Keep,** all for WP9.3's rows: §4.1, §5.1 and §17 |
@@ -112,14 +117,16 @@ Each forward obligation that names WP9.3, or a WP9.3 row, is listed with its dis
 | 12 | Stage A note §2 (re-review n-5) | The importer adds the inventory's selector kind to each row and fills the absent fields with null | **Keep** (§8.3) |
 | 13 | Stage A confirmation r-1, the alternative it offered | An observation's source matches its registration's path and root | **Keep,** in replay (§6, LR-015) |
 | 14 | Stage A confirmation i-1, i-2 | Refuse a legacy role under the projection directory; refuse an inverted line span | Row 10 |
-| 15 | Segmentation contract §6.3; 06v D-7 | WP9.3's reader re-segments the retained export copy and must reproduce every row; a mismatch voids the export | **Keep:** the exporter's recheck mode (§12.2) |
+| 15 | Segmentation contract §6.1, §6.3; 06v D-7 | The export is read by the reference implementation; WP9.3's reader re-segments the retained copy and must reproduce every row; a mismatch voids the export | **Keep.** The reference implementation produces the export at L-0b, and WP9.3's runtime segmenter rechecks it, so two implementations agree (§12.2; review M-4) |
 | 16 | Segmentation contract §7; P-068 "Not authorized here" | A session independent of the contract's author and of WP9.3's implementer re-implements the contract and reproduces every vector before any export or observation under it is accepted | **Keep.** Owner point I proposes WP9.3-1's independent reviewer as that session |
-| 17 | P-068 item 4 (confirmation C-1) | The classified entry list classifies each structural or blocker row as in the legacy region or not | **Keep:** the exporter emits a classification slot for every row (§12.2). The classification itself is L-0b's |
+| 17 | P-068 item 4 (confirmation C-1) | The classified entry list classifies each structural or blocker row as in the legacy region or not | **Keep:** the export format WP9.3 reads carries a classification slot for every row (§12.2). The classification itself is L-0b's |
 | 18 | 06v reconciliation m-9 | An anchor is an ancestor of the binding's `git_head` at the first acceptance, or an ARS event at a lower global position | **Keep the commit half;** owner point G on the event half (§10.3) |
 | 19 | 06v O-32; confirmation c-1 | The acceptance preparer reads WP9.5's change list at the binding's `git_head`, unchanged | **Keep.** WP9.3 fixes the reader-side format (owner point D; §11.1) |
 | 20 | WP9.2 note §4 | "WP9.3 and later packages add bindings and reducers, not a layout" | **Keep.** The four U-7 sites, `LEGACY_COMMAND_TYPES` and the row-assignment rules do not change (§14) |
 | 21 | WP9.2 note §2.3, C2 | A W9 command that emits a W2 event type needs a producer binding, and the event carries the W2 schema | **Keep** (§16). The runtime's fixed event schema (`legacy/runtime.py:438`) becomes per event type |
 | 22 | WP9.2 note §2.3, C3 and C5 | No W11 row in a W9 payload; no event type shared with another partition | **Keep.** The encodings of §5.2 carry no `W11:OR-` string. No WP9.3 row emits a shared event type, which the existing C5 test pins |
+| 23 | 06v WP9.3 | "The `CONVENTIONS.md` vault alias is refused" | **Keep:** a `vault_file` registration or source whose resolved target is the repository's `CONVENTIONS.md` is refused, by path and by `physical_identity` (§7.1; review m-10) |
+| 24 | Annex `catalogue_tests` W9-C20; P-073 item 1 | "A reviewer who … shares the analyst's session … is refused"; "each is refused" | **Keep, as far as the payloads allow.** The analyst's session is encoded in the request and the verdict's session must differ, both strings attested (owner point H; §5.5; review M-3) |
 
 ## 4. Record identity
 
@@ -152,9 +159,12 @@ constant placeholder (`tests/research_system/integration/test_w9_legacy_replay.p
 
 **The rule.** A pre-assigned ref has `record_revision: 1`, and its `content_hash` is the SHA-256 of `canonical_bytes`
 over `{"w9_pre_assigned": "review" or "decision", "id": <the rev_ or dec_ ID>, "record_id": <the proposal's record
-ID>}`. It depends on neither hash. It ties the ref to the record that pre-assigns it, and replay recomputes it and
-refuses any other value. This is a reading of the schemas the review should check (§20); it fixes stored bytes, so it
-belongs in this note, not in the code PR.
+ID>}`. It depends on neither hash (review §2, item 8). It ties the ref to the record that pre-assigns it, and replay
+recomputes it and refuses any other value. A ref copied into another record keeps the value computed for the record
+that pre-assigned it: LR-020's ownership records carry the acceptance's `independent_review_ref` and `decision_ref`
+(§10.6), and replay checks those copies against the acceptance's record ID, not the ownership record's (review m-3).
+The rule puts a synthetic value in a field the schemas call `content_hash`, so it is a reading of accepted schemas that
+fixes stored bytes. It is owner point M.
 
 ### 4.3 Identity claims (W9-C25)
 
@@ -198,7 +208,7 @@ W9 follows W11's pattern: the command payload is small, and the preparer builds 
 | Command | The payload carries | The preparer builds |
 |---|---|---|
 | `ProposeLegacyRecord` | the record, without the preparer-set fields | `E:<kind>-proposed`, whose payload is the completed record |
-| `RequestW9AuthorityReview` | the subject record ID, the reviewer's actor ID, the review questions | `ReviewRequested` (§5.2) |
+| `RequestW9AuthorityReview` | the subject record ID, the reviewer's actor ID, the review questions, the analyst's session | `ReviewRequested` (§5.2) |
 | `RecordW9AuthorityReview` | the verdict, findings, limitations, reviewer session and model metadata, context manifest hash | `ReviewVerdictRecorded` |
 | `ProposeW9AuthorityDecision` | the subject record ID, the question, the recommendation, the consequences | `DecisionProposed` |
 | `ResolveW9AuthorityDecision` | the Decision ID and `selected_option: accept` | `DecisionResolved`, then `E:<kind>-recorded` with the proposal's exact record, and LR-020's ownership records |
@@ -218,57 +228,101 @@ recomputes each one and refuses any difference. It never fills a proposal's read
 
 ### 5.2 W2 payload encodings
 
-The closed W2 payloads have no W9 subject field, so the subject travels in fields that exist. The encodings below are
-fixed. Replay checks every field named here; it does not check the other fields (questions, lanes, deadlines), which
-the preparer fills from the payload or from constants.
+The closed W2 payloads have no W9 subject field, so the subject travels in fields that exist. Every field each payload
+requires is listed below, with its source and whether replay checks it (review M-2). "Fixed" means a constant the
+preparer writes and replay requires. "Recorded" means the value is stored as the submitter gave it and replay checks
+only its type, because no rule constrains it. Each checked field gets a forged-ledger control (§17).
 
-**`ReviewRequested`:**
-- `review_type`: `migration`, from the W2 enum (`review_requested.schema.json:8-22`);
-- `new_review_id`: the proposal's pre-assigned `rev_`;
-- `subject_ids` exactly `[<record ID>]` and `subject_hashes` exactly `[<recomputed content hash>]`, paired. Today
-  `reduce_review_request` zips them with `strict=False` (`replay/reducers.py:225`), which admits unpaired lists of
-  the kind W11's two-to-one shape uses (`discovery/runtime.py:1090-1094`);
-- `governing_refs`: exactly `["W9:LR-nnn"]`, which assigns the row (`legacy/routes.py:594-595`);
-- `reviewer_capability`: exactly `[<the named reviewer's actor ID>]`, as W11 names its reviewer (`:1108`);
-- `allowed_verdicts`: `["approve", "changes_requested", "reject", "unable_to_verify"]`, W11's set (`:1111`), so a
-  conditional approval cannot be recorded at all (owner point B);
-- `required_independence_grade`: `independent`;
-- `satisfaction_authority`: the constant `ars://legacy/policy/w9-authority-review@1.0.0`, a name for §5.4's rule, as
-  W11's is a name (`:1112`).
+**Two derived IDs.** `context_manifest_id` (`ctx_`) and `producing_attempt_id` (`att_`) are required on a verdict. W11
+fixes them as constants (`discovery/runtime.py:1130`, `:1162-1167`). W9 derives them per review, as the WP9.2 external
+refs are derived (WP9.2 note §5.3, steps 2 to 5): from the domain strings `w9-review-context:<review ID>` and
+`w9-review-attempt:<review ID>`, with the request event's `occurred_at` in milliseconds. Replay recomputes them.
 
-**`ReviewVerdictRecorded`:**
-- `review_id`: the request's;
-- `reviewer_actor_id`: the event's actor, which must be the request's named reviewer (W9-C21);
-- `unchanged_subject_sha256`: the request's subject hash, which must still be the subject's recomputed hash (W9-C22);
-- `reviewer_session` and `reviewer_model_metadata`: recorded as given (§5.5).
+**`ReviewRequested`** (`review_requested.schema.json:129-145`):
 
-**`DecisionProposed`:**
-- `new_decision_id`: the proposal's pre-assigned `dec_`;
-- `decision_kind`: `migration_authority` (G5);
-- `governing_evidence_refs`: exactly `["W9:LR-nnn", "w9-subject:<record ID>", "w9-subject-sha256:<recomputed content
-  hash>"]`, in that order. `decision_proposed.schema.json:108-122` has no subject field, and the list's items are free
-  strings (`:54-62`). W11 puts its subject hash in the same list (`discovery/runtime.py:1210`). `w9_row_ref` accepts
-  these refs, since exactly one is a `W9:LR-` string and the others carry no `W9:` prefix (`legacy/routes.py:540-552`).
-  `_refuse_w11_row` ignores them (`replay/driver.py:37-47`). Only a recovery Decision turns bare `obj_` refs into
-  graph edges (`replay/reducers.py:333-334`), and the prefixes keep a record family's subject out of that set;
-- `options`: `["accept", "reject"]`. A resolution must select `accept`, because every WP9.3 resolution row writes its
-  record event (`legacy/routes.py:609-627`). No catalogue row records a rejection: a rejected proposal is simply not
-  resolved, and the preparer refuses a resolution after the proposal's `expires_at`. This is a known limit, noted for
-  the next catalogue revision.
+| Field | Value | Source | Replay checks |
+|---|---|---|---|
+| `review_type` | `migration`, from the W2 enum (`:8-22`) | fixed | yes |
+| `new_review_id` | the proposal's pre-assigned `rev_` | derived | yes |
+| `subject_ids`, `subject_hashes` | exactly `[<record ID>]` and `[<recomputed content hash>]`, paired. Today `reduce_review_request` zips them with `strict=False` (`replay/reducers.py:225`), which admits unpaired lists of the kind W11's two-to-one shape uses (`discovery/runtime.py:1090-1094`) | derived | yes |
+| `governing_refs` | exactly `["W9:LR-nnn"]`, which assigns the row (`legacy/routes.py:594-595`) | derived | yes |
+| `review_questions` | non-empty | payload | recorded |
+| `required_evidence_refs` | exactly `["w9-analyst-session:<the analyst's session>"]` (§5.5) | payload | yes: one entry, that prefix |
+| `required_lanes` | `["provenance"]` | fixed | yes |
+| `reviewer_capability` | exactly `[<the named reviewer's actor ID>]`, as W11 names its reviewer (`:1108`) | payload | yes |
+| `required_independence_grade` | `independent` | fixed | yes |
+| `visibility_policy` | `owner-visible`, as W11 (`:1110`) | fixed | yes |
+| `allowed_verdicts` | `["approve", "changes_requested", "reject", "unable_to_verify"]`, W11's set (`:1111`), so a conditional approval cannot be recorded (owner point B) | fixed | yes |
+| `satisfaction_authority` | `ars://legacy/policy/w9-authority-review@1.0.0`, a name for §5.4's rule, as W11's is a name (`:1112`) | fixed | yes |
+| `deadline` | the request time plus one day, as W11 (`:1040`) | derived | yes: after the request |
+| `escalation_rule` | `owner-ruling`, as W11 (`:1114`) | fixed | yes |
 
-**`DecisionResolved`:**
-- `decision_id`: the Decision's;
-- `selected_option`: `accept`;
-- `governing_evidence_refs`: equal to the proposal's;
-- `considered_review_ids`: `[<the proposal's pre-assigned rev_>]`, or `[]` for a path registration, which has no
-  review;
-- `deciding_actor_id`: the event's actor; `decision_authority_grant_id`: the grant.
+**`ReviewVerdictRecorded`** (`review_verdict_recorded.schema.json:115-132`):
+
+| Field | Value | Source | Replay checks |
+|---|---|---|---|
+| `review_id` | the request's | derived | yes |
+| `verdict` | one of the request's `allowed_verdicts` | payload | yes |
+| `findings`, `limitations` | as given | payload | recorded |
+| `conditions` | `[]` (owner point B) | fixed | yes |
+| `required_evidence_refs` | the request's | derived | yes |
+| `reviewer_actor_id` | the event's actor, which must be the request's named reviewer (W9-C21) | derived | yes |
+| `reviewer_profile` | `w9-independent-reviewer` | fixed | yes |
+| `reviewer_session` | the reviewer's session, attested | payload | yes: it differs from the request's analyst session (§5.5) |
+| `reviewer_model_metadata` | attested | payload | recorded |
+| `context_manifest_id` | derived as above | derived | yes |
+| `context_manifest_sha256` | the reviewer's context, attested | payload | recorded |
+| `unchanged_subject_sha256` | the request's subject hash, which must still be the subject's recomputed hash (W9-C22) | derived | yes |
+| `producing_attempt_id` | derived as above | derived | yes |
+| `trace_visibility_evidence_refs` | `[<the subject hash>]`, as W11 (`:1166`) | derived | yes |
+| `computed_independence_grade` | equal to the request's `required_independence_grade`, `independent`, as Discovery refuses otherwise (`discovery/runtime.py:2487`) | fixed | yes |
+
+**`DecisionProposed`** (`decision_proposed.schema.json:108-122`):
+
+| Field | Value | Source | Replay checks |
+|---|---|---|---|
+| `new_decision_id` | the proposal's pre-assigned `dec_` | derived | yes |
+| `decision_revision` | 1 | fixed | yes |
+| `decision_kind` | `migration_authority` (G5) | fixed | yes |
+| `governing_evidence_refs` | exactly `["W9:LR-nnn", "w9-subject:<record ID>", "w9-subject-sha256:<recomputed content hash>"]`, in that order. The schema has no subject field, and the list's items are free strings (`:54-62`). W11 puts its subject hash in the same list (`discovery/runtime.py:1210`). `w9_row_ref` accepts these refs, since exactly one is a `W9:LR-` string and the others carry no `W9:` prefix (`legacy/routes.py:540-552`; review i-2). `_refuse_w11_row` ignores them (`replay/driver.py:37-47`). Only a recovery Decision turns bare `obj_` refs into graph edges (`replay/reducers.py:333-334`), and the prefixes keep a record family's subject out of that set | derived | yes |
+| `question`, `recommendation`, `consequences` | as given | payload | recorded |
+| `options` | `["accept", "reject"]` | fixed | yes |
+| `affected_task_ids`, `affected_claim_ids` | `[]` | fixed | yes |
+| `required_authority` | `owner` | fixed | yes |
+| `review_date` | the proposal time | derived | yes |
+| `expires_at` | the proposal time plus a fixed term (30 days) | derived | yes |
+
+A resolution must select `accept`, because every WP9.3 resolution row writes its record event
+(`legacy/routes.py:609-627`). No catalogue row records a rejection: a rejected proposal is simply not resolved, and
+replay refuses a resolution after the proposal's `expires_at`. This is a known limit, noted for the next catalogue
+revision.
+
+**`DecisionResolved`** (`decision_resolved.schema.json:100-114`):
+
+| Field | Value | Source | Replay checks |
+|---|---|---|---|
+| `decision_id` | the Decision's | payload | yes |
+| `selected_option` | `accept` | payload | yes |
+| `effective_scope` | `w9-record:<record ID>` | derived | yes |
+| `decision_revision` | 1 | fixed | yes |
+| `deciding_actor_id` | the event's actor | derived | yes |
+| `decision_authority_grant_id` | the event's grant | derived | yes |
+| `governing_evidence_refs` | equal to the proposal's | derived | yes |
+| `considered_review_ids` | `[<the proposal's pre-assigned rev_>]`, or `[]` for a path registration, which has no review | derived | yes |
+| `effective_at` | the resolution time, not after the proposal's `expires_at` | derived | yes |
+| `permitted_commands`, `superseded_decision_ids`, `conditions`, `revisit_triggers` | `[]` each | fixed | yes |
 
 ### 5.3 Authority subjects (G4)
 
 A scoped grant names one subject kind and one exact ID (`scoped-authority-grant-v2.1.0.schema.json:88-119`). It cannot
 carry a content hash. So G4's exact subject is the ID, and the hash half of each row's `authority_subject` is a replay
 and preparer check (§6).
+
+**The proposal rows** (LR-003, LR-006, LR-011, LR-016) are the exception. Their annex subject is "pre-assigned record
+ID + exact proposed content hash", but at a proposal there is no earlier hash to compare against: the proposal creates
+it. So the proposal grant authorizes any content under its ID, and the content hash is bound later, by the review
+request and verdict and by the Decision, each on the recomputed hash (review m-10). That is a reading of the accepted
+global precondition G4, so it is owner point L.
 
 | Command | Subject kind | Subject ID |
 |---|---|---|
@@ -313,9 +367,16 @@ record kind exists for one, and a new kind would be a catalogue revision.
 **Checked by the preparer,** because the owner is known only from authority (`authority.py:2723-2731`): a resolver row
 requires the owner actor, and every other W9 row refuses it. Stephen resolves; he does not observe, review or propose.
 
+**The session limb of W9-C20.** The accepted annex defines W9-C20 as "a reviewer who produced the item, shares the
+analyst's session, or is not the eligible session is refused", and P-073 item 1 says each such control "is refused".
+LR-007, LR-012 and LR-017 bind W9-C20. The closed `ReviewRequested` payload has no session field, so the request
+carries the analyst's session as the one entry of `required_evidence_refs`, `w9-analyst-session:<session>` (§5.2). Replay
+refuses a verdict whose `reviewer_session` equals it. Both strings are attested by their submitters, so the check
+catches the honest same-session mistake W9-C20 names, but not a false session string. This is owner point H, option
+(a) (review M-3).
+
 **Recorded, not proved** (a known limit, as P-058's single-family limit is):
-- "a different session from the analyst" (W9 §8.6). The verdict records `reviewer_session`. That it differs from the
-  analyst's session is the operator's attestation;
+- that the attested session strings are true;
 - LR-012's exclusion of the segmentation contract's author;
 - G3 against a legacy item's producer. Legacy producers were APM-era sessions, not ARS actors, so the item's reviewer
   checks it. Code cannot.
@@ -324,9 +385,16 @@ requires the owner actor, and every other W9 row refuses it. Stephen resolves; h
 
 **The rule.** Replay checks everything the ledger determines. The preparer adds what only the environment can show:
 file bytes, Git, the evidence area, the store binding, authority and the clock. It then runs the prepared transaction
-through the same reducers on a copy of the projection before it appends, as Discovery's preparers do
+through replay's own per-transaction step on a copy of the projection before it appends, as Discovery's preparers do
 (`discovery/runtime.py:1069-1082`). So a preparer is never weaker than replay, and a forged or faulty append is refused
 by the next replay.
+
+**The per-transaction step** is the body of `replay_legacy`'s loop (`replay/driver.py:136-159`), factored out into one
+function: row assignment, the routed-row check, the transaction shape, C3, payload-schema validation, the genesis
+precondition and the reducer. The reducers alone are not enough, because those other checks run in the loop: a
+schema-invalid payload naming `OR-101` passes a reducer called alone (review m-6). `assign_row`'s
+`review_request_rows` is rebuilt from the projection, so the shadow run needs no second whole-ledger replay (review §2,
+item 4).
 
 ### 6.1 G5 at every resolution (LR-005, LR-010, LR-020)
 
@@ -359,11 +427,11 @@ At the preparer: the actor is the owner (P-005).
 | LR-013 | As LR-008 | — |
 | LR-014 | As WP9.2-2 built it (record §3 item 8), with the hash recomputed | The source bytes re-read unchanged |
 | LR-015 | Schema; content hash; claim. The registration is recorded, at its hash, and its kind, root and path match the observation's `source_identity` (§3 row 13), with §7.1's one exception for the Computational-Log. A restricted source carries no frozen copy. The selector by its kind (§8.2, §8.4); a `whole_file` or `inventory_item` observation carries exactly one family, named `whole_file` or `item`. The signature refs (§9.1), qualifiers (§9.3) and conflicts (§9.4). §5.5's distinctness. `observer_actor_id` is the event's actor | The read (§7). The frozen copy (§7.3). The registration appears in the registration manifest at `git_head` (§11.1). The importer identity (§7.5). A Computational-Log entry only from the accepted export, and a `CONVENTIONS.md` lock only from blob `4620c716` (§7.1) |
-| LR-016 | Schema; content hash; claims (the record, `independent_review_ref`, `decision_ref`). The batch rules of §10.1, the structural `pilot_promotion` rules of §10.2, and the derived ownership list stored with the proposal (§10.5) | The window (§7.2), the anchors (§10.3) and the change list (§10.4) |
+| LR-016 | Schema; content hash; claims (the record, `independent_review_ref`, `decision_ref`). The batch rules of §10.1. The structural `pilot_promotion` rules of §10.2, and the derived ownership list stored with the proposal (§10.5) | The window (§7.2), the anchors (§10.3) and the change list (§10.4) |
 | LR-017 | As LR-007. The reviewer observed none of the batch's items | — |
 | LR-018 | As LR-008 | — |
 | LR-019 | As LR-009 | — |
-| LR-020 | G5. The ownership records equal the stored list and the list recomputed at this position (§10.5) | The window, the anchors and the change list again, against the binding at resolution |
+| LR-020 | G5. The batch rules of §10.1 re-checked at this position: no acceptance is recorded yet, and no item's observation is in a recorded acceptance (review M-1). The ownership records equal the stored list and the list recomputed at this position (§10.5) | The window, the anchors and the change list again, against the binding at resolution |
 
 ## 7. The reader
 
@@ -375,7 +443,7 @@ At the preparer: the actor is the owner (P-005).
 | A `conventions_lock` registration (`CONVENTIONS.md`) | A Git object read of blob `4620c71607ca3a06c6df3b8e96a6bddffc783960` (commit `4b143c92`) only (W9 §7.3 item 3). Any other source for that registration is refused | None |
 | A Computational-Log entry | The accepted export's retained copy (owner point C), a committed file read from Git at its pinned commit. A read of the live vault page is refused for any registration whose role is `legacy_decision_log_entry` | None |
 | `untracked_file` | A handle-bound read, with a frozen copy (§7.3) | Yes |
-| `vault_file`, other than the Computational-Log | A handle-bound read through the real vault path, never the repository's `vault/` junction. The path form is recorded (contract §5.2), and the read must resolve to the registration's `physical_identity` `canonical_target` | Yes |
+| `vault_file`, other than the Computational-Log | A handle-bound read through the real vault path, never the repository's `vault/` junction. The path form is recorded (contract §5.2), and the read must resolve to the registration's `physical_identity` `canonical_target`. The vault's `CONVENTIONS.md` is a symlink to the repository file, so a `vault_file` registration or source whose resolved target is the repository's `CONVENTIONS.md` is refused, by path and by physical identity (06v WP9.3; review m-10) | Yes |
 | `restricted_untracked_file` | A handle-bound read: hash, size and path only | Yes |
 
 **The one source exception.** For a registration whose role is `legacy_decision_log_entry`, the light inventory's and
@@ -421,7 +489,13 @@ append site. So:
 
 This needs no core schema change: the fields exist. Replay checks the ref's shape only; the byte check needs the
 artefact store, so it is the preparer's. WP9.7's `RegisterArtefact` guard refuses restricted suffixes, which the
-frozen-copy kinds already refuse by schema. The review should probe this seam (§20).
+frozen-copy kinds already refuse by schema.
+
+Two consequences, from the review's reading of the seam (review i-5; it was not run):
+- `LegacyRuntime._replay` discards the generic projection today (`legacy/runtime.py:283`). It must return it, so that
+  the LR-015 preparer can resolve the artefact.
+- The code PR's frozen-copy test runs the seam end to end on a scratch store, with a non-owner observer. No live
+  `untracked_file` or `vault_file` observation runs before WP9.7's `RegisterArtefact` guard (O-22) lands.
 
 ### 7.4 Restricted bytes (O-22, reader half; W9-T11)
 
@@ -458,7 +532,15 @@ the two on generated inputs from a fixed seed. Where they disagree, the contract
 ### 8.2 JSON families (W9-T2, W9-T3)
 
 - **Parsing** follows template §3 rule 1: a duplicate key anywhere blocks; `NaN`, `Infinity` and `-Infinity` are
-  accepted as numbers and recorded; any other departure from RFC 8259 blocks.
+  accepted as numbers and recorded; any other departure from RFC 8259 blocks. Python's `json` does not meet the rule
+  by default (review m-5), so the reader adds these checks, each with a vector:
+  - the bytes are decoded strictly as UTF-8, and a BOM or any other encoding blocks (`json.loads` on bytes accepts a
+    BOM and UTF-16);
+  - duplicate keys are refused through an `object_pairs_hook` (`json.loads` keeps the last one silently);
+  - the three non-finite tokens are detected at token level with `parse_constant`, and recorded. A finite literal that
+    overflows to infinity, such as `1e400`, is a valid RFC 8259 number that `parse_constant` never sees, so it blocks:
+    the template does not say how to record it;
+  - a lone-surrogate escape blocks.
 - **Patterns** expand against the observed pointers (template §3 rules 2 to 5). Every observed pointer is in exactly
   one family, every table pointer is present, and containers carry shape only.
 - **At LR-015** the observed bytes must equal the bytes the table's `applies_to` names (template §3 rule 10). A table
@@ -549,16 +631,29 @@ family `unverified`.
 - Items are unique, one per observation. Each observation is recorded, is the latest for its source and selector, and
   is accepted by no earlier batch.
 - The first batch only (§2.1): no acceptance is recorded yet, and the batch holds at most 20 items.
+- **Both batch rules are checked again at LR-020** (review M-1). Without that, two batches proposed before either
+  resolved could both resolve: one item accepted twice, and the second batch admitted without the integration-pilot
+  outcome Decision the annex requires for any batch after the first. A test proposes two batches sharing an item and
+  shows the second resolution refused at replay.
+- The review also offered "one open batch at a time" at LR-016. It is not adopted. An acceptance proposal has no
+  expiry of its own (only its Decision proposal has `expires_at`), so one abandoned proposal would block every later
+  batch, and the LR-020 re-check already closes the gap.
 - §4.5's closed-reference column. The machine part: genesis, the pinned W0 signature (§9.1), and the detector controls
   (LR-003 already required them before the first registration). The rest (Gate 7 opened; G7-A, G7-B and G7-C
   accepted) are owner facts, which go on the L-4 checklist.
 
-### 10.2 `pilot_promotion` (O-37; owner point K)
+### 10.2 `pilot_promotion` (O-37; owner point K′)
 
 - Each item lists each fixture at most once (stage A §3).
-- LR-020's catalogue set is F-017 (when the item is a sensitivity or comparison file), F-018 and F-023
-  (`wp9-1-catalogue-owner-annex.yaml:729-735`). F-018 and F-023 are unconditional, so every item carries both. F-017
-  is present when the reviewer marks the item a sensitivity or comparison file, which code cannot decide.
+- LR-020's accepted set (`wp9-1-catalogue-owner-annex.yaml:729-743`, and the same seven entries in the catalogue) is:
+  - **on every item:** F-018, F-023, F-037 and S-014;
+  - **when the condition holds:** F-017 (a sensitivity or comparison file), S-005 (two results compete for one object)
+    and F-038 (the item uses the TDA pack's lanes).
+
+  The preparer and replay require the four unconditional fixtures on every item. Code cannot decide a `when`
+  condition, so the reviewer marks each conditional fixture's applicability, and Stephen's batch Decision fixes it (W9
+  §12.3). Revision 1 read the row only to line 735 and listed three fixtures; the review's B-1 corrected it, and the
+  owner point that rested on the misreading (K) is withdrawn.
 - A `waiver` ref is a `dec_` (schema). An `evidence` ref is a `rev_` or an `art_`: a review that graded the fixture,
   or an artefact holding the graded run.
 - Applicability is proposed by the reviewer and fixed by Stephen's batch Decision (W9 §12.3). In the flow the analyst
@@ -567,10 +662,11 @@ family `unverified`.
 - S-007 is listed on every review row with no condition. It is met mechanically by the W9-C22 controls, not by refs.
 - Whether a ref is sufficient evidence is the reviewer's and Stephen's question.
 
-**A gap for owner point K.** W9 §12.3 also assigns F-037 to "every result-family observation", S-005 to "items where
-two results compete for one object", and F-038 to "any item using the TDA pack's lanes". LR-020's set omits all
-three, although it holds F-018, whose §12.3 assignment is the same as F-037's. The catalogue is accepted (P-075), so
-WP9.3 does not change it.
+**S-014's timing (owner point K′).** W9 §12.3 assigns S-014 (backup, restore, machine move) as "re-run after each W9
+batch". But the batch's `pilot_promotion` refs must exist at LR-016 and LR-020, before the batch is accepted. So a
+per-item S-014 ref can name only a restore run made before the batch, or a waiver. The recommended reading: the S-014
+ref names the latest restore run before LR-020, and the post-batch re-run W9 §12.3 requires goes on the L-4 checklist
+(06v §7's "after every batch: replay and restore").
 
 ### 10.3 Thresholds and anchors (O-25, W9-T16; owner point G)
 
@@ -580,8 +676,11 @@ WP9.3 does not change it.
   §14.3's "the hash is anchored in a Git commit" requires: the commit's ancestry gives the time, and its content gives
   the binding to the hash.
 - Both are checked at LR-016, and again at LR-020 against the binding at resolution.
-- An `ars_event` anchor is refused in v1 (owner point G). No W9 event carries a threshold hash, so the anchor would
-  need a new event family to mean anything.
+- An `ars_event` anchor is refused in v1 (owner point G), for simplicity: one anchor kind and one test. Revision 1
+  said such an anchor would need a new event family. That was wrong (review m-9): an `ArtefactRegistered` event
+  carries `content_sha256` (`.research-system/schemas/core/events/artefact_registered.schema.json`), at a global
+  position, under the generic `RegisterArtefact` path §7.3 already uses. The alternative is an `ars_event` anchor
+  naming an `ArtefactRegistered` event at a lower global position whose `content_sha256` equals the anchored hash.
 - W9-T16's controls: a threshold commit that is not an ancestor of `git_head` at LR-020, and an ancestor commit that
   does not introduce the hashed bytes. Each invalidates the batch.
 
@@ -619,16 +718,28 @@ the acceptance proposal and the projection at the proposal's position:
 
 At LR-016, replay computes this list, reserves its IDs (§4.3), and stores it with the proposal. At LR-020 the emitted
 ownership records must equal the stored list exactly, and the list recomputed at LR-020's position must equal it too.
-Stephen's Decision binds the acceptance's content hash, which fixes the list. No hash depends on itself, and the list
-cannot change between proposal and resolution, which is the purpose of the re-review M-1 text. The review packet shows
-the derived list, and the builder tool prints it.
+Stephen's Decision binds the acceptance's content hash, which together with the ledger before LR-016 fixes the list.
+No hash depends on itself, and the list cannot change between proposal and resolution, which is the purpose of the
+re-review M-1 text. The review packet shows the derived list, and the builder tool prints it. The review found the
+derivation deterministic and distinct across batches (review §2, item 5).
+
+**One whole-file item per registration.** A batch could hold a `whole_file` observation and a complete-family-set
+observation of the same JSON registration, since their selectors differ. Both would derive the same ID, and the second
+transition would be refused anyway (review m-2). LR-016 therefore refuses a batch with two whole-file items of one
+registration, so that the annex's "one per accepted whole-file observation" and the derivation agree.
+
+**An alternative the review offered.** The derived records' IDs and hashes could also be listed among the LR-017
+review's subjects, so that the hashed bytes the reviewer and Stephen act on contain the list itself. That would widen
+§5.2's single-subject request for this one row. It is shown to Stephen under owner point E; the recommendation does
+not need it, because the list is a function of what the Decision already binds.
 
 ### 10.6 LR-020
 
 G5 (§6.1), the ownership list (§10.5), and the window, anchors and change list re-checked against the binding at
 resolution. Each emitted ownership record then applies through `_apply_ownership` (`replay/reducers.py:287-301`), which
 already holds LR-020 to the one direction `legacy_owned → closed_reference` (`:34-38`). The ownership record's
-`reviewer_ref` and `decision_ref` are the acceptance's refs copied exactly, pre-assigned hashes included (§4.2).
+`reviewer_ref` and `decision_ref` are the acceptance's refs copied exactly, pre-assigned hashes included, and replay
+checks them against the acceptance's record ID (§4.2).
 
 ## 11. Inputs from outside the store
 
@@ -648,7 +759,7 @@ catalogue identity.
 | The registration manifest (06v M-6) | WP9.5, per batch | LR-015: the registration is listed |
 | The detector control-output hash files (D-5, O-13) | WP9.5 | LR-003: every §4.4 detector's negative control watched to fail |
 | The shared-surface change list (O-32) | each PR that changes a shared surface | LR-016, LR-020 |
-| The Computational-Log export and its retained copy (D-7) | WP9.3's exporter, at L-0b | LR-011 and LR-015, through the pinned identity (§11.3) |
+| The Computational-Log export and its retained copy (D-7) | The reference implementation, `tools/w9_segmentation.py`, at L-0b (contract §6.1) | LR-011 and LR-015, through the pinned identity (§11.3); rechecked by WP9.3's runtime segmenter (§12.2) |
 | The `.apm/bus/` and `.apm/` inventories (O-19, O-36) | WP9.3's tools, at L-5 | Nothing in v1: no store record (P-071 item 4) |
 | The D-9 suffix list | WP9.7 | Nothing: the schemas carry the copy (P-069 item 3) |
 
@@ -686,16 +797,23 @@ Every tool reads its inputs and writes only to an output path the operator names
 - **Reproduction mode** re-segments the same bytes (the Git blob, or the frozen copy) and reports row-by-row equality.
   LR-013's reproducer uses it.
 
-### 12.2 The Computational-Log exporter (D-7; O-21)
+### 12.2 The Computational-Log export and its recheck (D-7; O-21)
 
-- **Export mode** reads a retained copy under segmentation contract §6. It emits every row the segmentation gives for
-  the legacy region (items, structural blocks and blockers), each with its hash and offsets, plus the read times, the
-  path form, the copy's SHA-256 and size, and the read's recorded limits. Each row has a classification slot for L-0b's
-  classified list (P-068 item 4).
-- **Recheck mode** re-segments the retained copy and compares it with a committed export. Any mismatch reports the
-  export void (contract §6.3).
+The export and its check must come from two implementations (review M-4). Segmentation contract §6.1 has the export
+read by the reference implementation, and §6.3 has WP9.3's reader re-segment the retained copy. If one module produced
+the export and also rechecked it, a defect in that module would certify its own wrong hashes. So:
+- **The export is produced by the reference implementation,** `tools/w9_segmentation.py` (blob `43e1454d`, P-068), at
+  L-0b, as contract §6.1 says. WP9.3 adds no export mode. The export carries every row the segmentation gives for the
+  legacy region (items, structural blocks and blockers), each with its hash and offsets; the read times, the path
+  form, the retained copy's SHA-256 and size, and the read's recorded limits; a classification slot per row for L-0b's
+  classified list (P-068 item 4); and the producing implementation's path and blob.
+- **WP9.3 fixes the export's format** (`research_system/legacy/evidence.py`, §11.1) and provides the **recheck**: the
+  runtime segmenter re-segments the retained copy and compares every row with the committed export. Any mismatch
+  reports the export void (contract §6.3). The recheck refuses an export whose recorded producer is the runtime
+  segmenter itself.
 
-The exporter is never run on the live log, because L-0b is not authorized. Its tests use synthetic logs.
+Nothing runs on the live log, because L-0b is not authorized. The tests use synthetic logs, with exports produced by
+the reference implementation.
 
 ### 12.3 The `.apm/bus/` inventory (O-19)
 
@@ -716,20 +834,29 @@ run on a synthetic `.apm/` tree.
 1. refuses with `refuse_gate6_lock_roots` (`legacy/runtime.py:104-128`) over the target control root and every other
    root the command will lock that is known before binding: the W9 receipt root, and the authority root where the
    configuration names it;
-2. only then binds, through `_verified_ledger(control_root, read_only=False)` (`cli.py:1452`);
-3. submits through `LegacyRuntime.submit`, which runs its own refusal again before the lock
+2. only then loads the binding through `load_current_binding` (`store/current_binding.py:801`), which gives the
+   `git_head` §11.2 needs, and builds the ledger from it with `create_directories=True`, inside the refused-and-cleared
+   control root only (review §2, item 6);
+3. builds `LegacyRuntime` with the store's control root as its receipt root, as Discovery does
+   (`discovery/spec.py:341-342`);
+4. submits through `LegacyRuntime.submit`, which runs its own refusal again before the lock
    (`legacy/runtime.py:231-237`).
 
 This keeps F-4 ("run `refuse_gate6_store` on the target control root before `_verified_ledger`") and widens it from
 the control root's own manifest to the ancestor scan the runtime uses. The read-only `ars legacy` binding
 (`cli.py:1513-1521`) is unchanged.
 
+**A dependency on D-1 (review m-7).** `load_current_binding` requires a clean worktree, untracked files included
+(`:852-853`); `HEAD` at the binding's `git_head` unless the binding is schema 1.2.0 (`:847-851`); and a foundation that
+names the target store (`:822-827`). Today's foundation names the Gate 6 store (`.research-system/config/foundation.yaml:4-6`),
+so no mutating W9 command can bind a non-Gate-6 store until D-1's foundation re-pin (06v §2.6). The tests stub the
+foundation, as tests that read it must.
+
 **The test binds a real scratch store,** not a monkeypatched `_verified_ledger` (§3 row 7). A Gate 6 control root, and
 a scratch control root nested inside one, are each refused with every root byte-identical afterwards, directories
 included. A valid scratch store accepts the command.
 
-The tool subcommands (`inventory build`, `inventory reproduce`, `export`, `export recheck`, `apm-inventory`) open no
-store.
+The tool subcommands (`inventory build`, `inventory reproduce`, `export recheck`, `apm-inventory`) open no store.
 
 ## 14. Reducers: kept and changed
 
@@ -745,8 +872,9 @@ store.
 | `reduce_record` (`:382-405`) | Changed for observations only: the checks of §6.2 LR-015. Paper roots, citation status and use mismatches are unchanged (other packages) |
 | `_apply_supersession` (`:304-317`) | Changed: refuses a superseded ref that names no recorded record (§3 row 5) |
 
-`replay/driver.py`, the four U-7 sites and `legacy/commands.py` do not change. `legacy/routes.py` changes only its
-routed set and tags, and the partition check of §15.
+`replay/driver.py` changes only by factoring its loop body into the per-transaction step that the preparer's shadow run
+reuses (§6; review m-6). Its checks do not change. The four U-7 sites and `legacy/commands.py` do not change.
+`legacy/routes.py` changes only its routed set and tags, and the partition check of §15.
 
 ## 15. Genesis guard 8 and the route partition (owner point F)
 
@@ -760,8 +888,9 @@ into the guard.
 
 **The consequence.** This changes the genesis code path that WP9.2-2's independent review verified, and LR-001's L-3
 precondition rests on that verification ("the bootstrap implementation independently verified against the accepted
-contract"; P-079, "Not decided here"). So WP9.3-1's independent review must re-verify the genesis path at its head,
-and the L-3 checklist must record which review verified the genesis code at the checkout L-3 runs from (with R-1).
+contract"; P-079, "Not decided here"). Both PRs change guard 8's input (review m-8). So each PR's independent review
+re-verifies the genesis path at its head, and the L-3 checklist records which review verified the genesis code at the
+checkout L-3 runs from (with R-1), whichever PR that is.
 
 ## 16. Binding rows, authority entries and D-4
 
@@ -796,7 +925,11 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 |---|---|---|
 | Whole-flow replay | A scratch store holding W11 genesis, W9 genesis, one registration, one membership table, one inventory, one observation of each selector kind and, in WP9.3-2, one accepted batch, replays through `replay`, `rebuild_projection`, `replay_discovery` and `replay_legacy` | 1, 2 |
 | W9-C01, W9-C03, W9-C11 | For each routed row: the positive flow, a mutated catalogue row detected, and a retry answered from receipts with nothing appended | 1, 2 |
-| W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger | 1, 2 |
+| W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger. W9-C20 includes a verdict whose `reviewer_session` equals the request's analyst session (§5.5) | 1, 2 |
+| The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
+| C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
+| JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
+| The `CONVENTIONS.md` vault alias | A `vault_file` registration resolving to the repository's `CONVENTIONS.md` is refused (§7.1) | 1 |
 | N-2 | A record whose `content_hash` hashes other content is refused at replay; a payload that supplies `content_hash` is refused before append | 1 |
 | Pre-assigned refs | A ref hash other than §4.2's rule; a second proposal pre-assigning a reserved ID; a request using another proposal's reservation | 1 |
 | F-8, first limb | A resolution whose Decision proposal names another record or hash, refused at replay and at the preparer | 1 |
@@ -807,14 +940,16 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | W9-T11, reader half | A `*.pkl` observed with a frozen copy is refused; a restricted observation records hash, size and path only | 1 |
 | Frozen copy | A copy whose bytes differ from the observed bytes is refused | 1 |
 | Segmenter | The contract's vectors against both implementations, and the differential test | 1 |
-| Genesis | The existing genesis tests unchanged; the generalized partition check refuses a missing, overlapping or untagged row | 1 |
+| Genesis | The existing genesis tests unchanged; the generalized partition check refuses a missing, overlapping or untagged row | 1, 2 |
+| Shadow step | The preparer's shadow run refuses what replay refuses, including a schema-invalid payload that a reducer alone admits (§6) | 1 |
 | CLI (F-4) | §13, on a real scratch store | 1 |
 | D-4 | The census, the 06h manifest and the registry count at their new values | 1 |
 | W9-T16 | §10.3's two controls, and an `ars_event` anchor refused | 2 |
 | O-32 | Fixture change lists with and without an entry affecting an item; an absent list refused | 2 |
-| O-37 | A missing F-018 or F-023, a duplicated fixture, and an evidence ref of the wrong kind, each refused | 2 |
-| Ownership list (E) | An LR-020 that omits, adds or alters an ownership record, refused at replay | 2 |
-| Exporter | Export and recheck over synthetic logs; a one-byte change in the retained copy voids the export | 2 |
+| O-37 | A missing F-018, F-023, F-037 or S-014, a duplicated fixture, and an evidence ref of the wrong kind, each refused (§10.2) | 2 |
+| Two batches (M-1) | Two acceptance proposals sharing an item: the second resolution refused at replay | 2 |
+| Ownership list (E) | An LR-020 that omits, adds or alters an ownership record, refused at replay; two whole-file items of one registration refused at LR-016; the copied refs checked against the acceptance's record ID | 2 |
+| Export recheck | Over synthetic logs, with the export produced by the reference implementation: a one-byte change in the retained copy voids the export, and an export recorded as produced by the runtime segmenter is refused (§12.2) | 2 |
 | W9-T18 | §12.4's bijection over a synthetic `.apm/` tree: a missing file, an extra file and a remaining blocker each block | 2 |
 | Tools write nothing | Each tool leaves its input tree byte-identical, and refuses an output path under `.apm/` | 1, 2 |
 
@@ -840,7 +975,11 @@ lanes are untouched.
 - family exhaustiveness and exclusivity: W9-T3;
 - the anchors: W9-T16;
 - the change list: the O-32 fixtures;
-- the structural `pilot_promotion` rules: the O-37 controls;
+- the structural `pilot_promotion` rules, including the four fixtures required on every item: the O-37 controls;
+- one acceptance per item, and the first batch only, re-checked at LR-020: the two-batch control;
+- the W2 payload fields, including the verdict's independence grade and empty conditions: the per-field controls;
+- W9-C20's session limb, as an equality check on attested strings: the W9-C20 controls;
+- the export and its recheck by different implementations: the export-recheck controls;
 - the ownership list: replay, with the E controls;
 - restricted bytes: W9-T11's reader half.
 
@@ -849,13 +988,14 @@ lanes are untouched.
   object?";
 - precedence and canonical sources (LR-018): "Is each conflict's tier right, and does each `corrected_by` name the
   canonical file?";
-- `pilot_promotion` (LR-018, then Stephen's batch Decision): "Is the fixture set right for each item, and does each ref
-  evidence its fixture?";
+- `pilot_promotion` (LR-018, then Stephen's batch Decision): "Is each conditional fixture's applicability right for
+  each item, and does each item's evidence, F-018, F-037 and S-014 included, actually evidence its fixture?";
 - the governing-record set (O-25; W9 §14.3): "Is the set the reviewer compiled from G7-A §§4–10 and the audit
   complete?";
 - membership families (LR-008): "Does each family follow its `definition_source`, not a key's name (template §3 rule
   8)?";
-- session independence (§5.5): the operator's attestation.
+- session independence (§5.5): the same-session case is a refusal test; whether the attested session strings are true
+  is the operator's attestation.
 
 ## 19. Stop rules (06v §8) checked
 
@@ -871,22 +1011,23 @@ lanes are untouched.
 - **A successor guard needs a core schema change.** Not applicable: WP9.3 has no successor guard.
 - **A W9 §13.4 criterion applies.** Not to code. They are checked at L-4.
 
-## 20. For the independent review: claims to probe
+## 20. The claims the review probed
 
-The note ran no prototype. These claims should be probed, not taken from its text:
-1. The census grows by exactly 11 rows (§16): add the 11 rows in a scratch tree and recompute the census.
-2. The frozen-copy seam (§7.3): a `RegisterArtefact` by a non-owner observer, then an observation naming it, with the
-   bytes re-read through `ControlRootArtefactContentReader`.
+Revision 1 ran no prototype and listed these claims for the review to probe. The review's results (review §2) are in
+brackets; the text above carries each correction.
+1. The census grows by exactly 11 rows (§16). [Holds: 273 active rows.]
+2. The frozen-copy seam (§7.3). [Read, not run; the code PR's end-to-end test runs it.]
 3. The §5.2 encodings pass `w9_row_ref`, `assign_row` and `_refuse_w11_row` unchanged, and the W2 schemas accept them.
-4. The shadow run of §6 can call the reducers on a copy of the projection inside `_submit_authorized` without a second
-   whole-ledger replay.
-5. The ownership derivation (§10.5) is deterministic and collision-free across batches.
+   [Holds for the fields revision 1 named; revision 2 names every required field (M-2).]
+4. The shadow run of §6 needs no second whole-ledger replay. [Holds, with the driver's step factored out (m-6).]
+5. The ownership derivation (§10.5) is deterministic and collision-free across batches. [Holds across batches; within
+   a batch, two whole-file items of one registration collided, now refused (m-2).]
 6. `_verified_ledger(read_only=False)` writes nothing outside the control root before `submit`'s refusal (§13).
-7. A bound `ProposeLegacyRecord` cannot reach any deferred row (§2.2).
-8. The pre-assigned ref rule (§4.2) is free of circularity under every family's proposal and resolution.
-9. Python's JSON parsing can meet template §3 rule 1 exactly: duplicate keys refused, the three non-finite tokens
-   accepted and recorded, every other departure refused.
-10. The line-ending claim of §7.1, at the reviewer's own checkout.
+   [Holds, by reading.]
+7. A bound `ProposeLegacyRecord` cannot reach any deferred row (§2.2). [Holds, given `assign_row` in the runtime.]
+8. The pre-assigned ref rule (§4.2) is free of circularity. [Holds; the copied refs needed a rule (m-3).]
+9. Python's JSON parsing can meet template §3 rule 1 exactly. [Only with the checks §8.2 now names (m-5).]
+10. The line-ending claim of §7.1. [Holds at both checkouts.]
 
 ## 21. Owner points
 
@@ -894,18 +1035,38 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 | # | Decision | Recommended | Alternatives |
 |---|---|---|---|
-| A | **The split** (06v D-6; P-064 item 6; P-080 item 1) | **Two PRs, if the review asks:** WP9.3-1 (LR-003 to LR-015, all seven bindings, D-4) then WP9.3-2 (LR-016 to LR-020, the exporter and the `.apm/` tools, no D-4) (§2.3). P-064 item 6 allows a WP9.3 split without fixing its shape; this shape departs from 06v's D-6 row ("reader and selectors"), which the decision records | One PR; or 06v's reader and selectors split |
+| A | **The split** (06v D-6; P-064 item 6; P-080 item 1) | **Two PRs, which the review asks for (review §4):** WP9.3-1 (LR-003 to LR-015, all seven bindings, D-4) then WP9.3-2 (LR-016 to LR-020, the export recheck and the `.apm/` tools, no D-4) (§2.3). P-064 item 6 allows a WP9.3 split without fixing its shape; this shape departs from 06v's D-6 row ("reader and selectors"), which the decision records | One PR; or 06v's reader and selectors split |
 | B | **Review satisfaction** | **`approve` only, for every W9 review,** with `approve_with_conditions` not even recordable (§5.4). The catalogue has no row to discharge a condition | Admit `approve_with_conditions` for authority reviews only, which needs a condition-discharge rule and a catalogue revision |
 | C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
-| D | **The W9 evidence area** | **`.research-system/evidence/w9/`,** with WP9.3 fixing the reader-side formats of WP9.5's files (§11.1) | `docs/plans/agentic-research-system/transition/w9/evidence/`; or WP9.5 defines the formats first, and LR-003, LR-015 and LR-016 wait for it |
-| E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the projection, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | A catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
-| F | **Genesis guard 8** (§15) | **Generalize the partition check,** have WP9.3-1's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
-| G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1;** `ars_event` refused (§10.3) | Define an event anchor now, which needs an event that carries a threshold hash |
-| H | **Roles and independence** (W9 §8.6) | **Exact-subject grants plus the distinctness rules of §5.5,** the owner refused on every non-resolver row, and session distinctness and legacy-producer exclusion recorded as a known limit | A role registry, which needs a new record kind and a catalogue revision |
-| I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched; and WP9.3-1's independent reviewer re-implements the contract and reproduces every vector, as P-068 requires before any acceptance | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
+| D | **The W9 evidence area** | **`.research-system/evidence/w9/`,** with WP9.3 fixing the reader-side formats of WP9.5's files (§11.1). The path is recorded once, in the decision entry, so that WP9.5 (D-5's run hashes) and WP9.7 (D-9's suffix list) use the same one | `docs/plans/agentic-research-system/transition/w9/evidence/`; or WP9.5 defines the formats first, and LR-003, LR-015 and LR-016 wait for it |
+| E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the ledger before it, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose; a batch may hold at most one whole-file item per registration. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | Derived, and also listed among the LR-017 review's subjects, so the reviewed bytes contain the list (the review's alternative); a catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
+| F | **Genesis guard 8** (§15) | **Generalize the partition check,** have each WP9.3 PR's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
+| G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1,** for simplicity: one anchor kind and one test (§10.3) | An `ars_event` anchor naming an `ArtefactRegistered` event, at a lower global position, whose `content_sha256` is the anchored hash |
+| H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
+| I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched. WP9.3-1's independent reviewer, shown independent of both the contract's author and WP9.3's implementer, re-implements the contract and reproduces every vector, with the results recorded in the review report where the acceptance can cite them. The export is produced by the reference tool and rechecked by the runtime segmenter (§12.2) | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
 | J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12) | Keep the tools under `tools/`, which extends the boundary further |
-| K | **LR-020's fixture set against W9 §12.3** (§10.2) | **Enforce the catalogue's set as the minimum** (F-018 and F-023 always, F-017 when the reviewer marks the item), let the reviewer propose the further §12.3 fixtures (F-037, S-005, F-038) for Stephen to fix in the batch Decision, and record the gap for the next catalogue revision | Require F-037 in code, which departs from the accepted catalogue; or enforce the catalogue's set as the maximum |
+| K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
+| K′ | **S-014's timing:** "re-run after each W9 batch" (W9 §12.3), against evidence required before the batch is accepted (§10.2) | **The S-014 ref names the latest restore run before LR-020,** and the post-batch re-run goes on the L-4 checklist | A waiver for S-014 in the pilot batch, with the re-run after it |
+| L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
+| M | **The pre-assigned ref hash** (§4.2): a synthetic value in a field the schemas call `content_hash` | **Accept the rule as written,** with copied refs checked against the record that pre-assigned them, and record it as a reading of the accepted schemas | Any other non-circular rule, fixed before the code PR, because it fixes stored bytes |
 
 ## Change log
 
-- **Revision 1 (2026-10-28).** First draft, for independent adversarial review.
+- **Revision 2 (2026-10-29).** Reconciles the review of `a8604641` (`0dc63404` on `review/w9-wp9-3-note`):
+  - **B-1:** LR-020's seven fixtures (§10.2, §17, §18); owner point K withdrawn; K′ added on S-014's timing.
+  - **M-1:** the batch rules re-checked at LR-020 (§6.2, §10.1, §17). The review's "one open batch at a time" is not
+    adopted, with the reason (§10.1).
+  - **M-2:** every required field of the four W2 payloads, with its source and replay check, and the two derived IDs
+    (§5.2, §17).
+  - **M-3:** W9-C20's session limb checked as far as the payloads allow, and owner point H rewritten with options (a)
+    and (b) (§3 row 24, §5.5, §21).
+  - **M-4:** the export comes from the reference implementation and is rechecked by the runtime segmenter (§3 row 15,
+    §11.1, §12.2, §17).
+  - **m-1:** four commands stay unbound (§2.2). **m-2:** one whole-file item per registration (§10.5). **m-3:** copied
+    refs (§4.2, §10.6). **m-4:** the C1 and C2 controls kept (§17). **m-5:** the JSON checks (§8.2). **m-6:** the
+    per-transaction step (§6, §14). **m-7:** the binding sequence and the D-1 dependency (§13). **m-8:** both PRs
+    re-verify genesis (§15). **m-9:** owner point G's rationale (§10.3, §21). **m-10:** the supersession carry (§3 row
+    5), the `CONVENTIONS.md` vault alias (§3 row 23, §7.1), and owner point L.
+  - **Info:** i-3 (§2.2), i-5 (§7.3); the review's probe results in §20. Owner point M added; D, E, F and I amended as
+    the review disposed them.
+- **Revision 1 (2026-10-28, `a8604641`).** First draft, for independent adversarial review.
