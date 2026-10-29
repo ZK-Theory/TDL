@@ -4,7 +4,7 @@
 **Status:** Revision 2. It reconciles the independent review of revision 1 (`a8604641`):
 `reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, on branch `review/w9-wp9-3-note` at `0dc63404`, verdict
 accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change log says where each finding went.
-Nothing in it is implemented.<br>
+Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4

@@ -5015,6 +5015,94 @@ and append-site changes go to D-4.<br>
 **Affected specifications:** 06v WP9.3 (started).<br>
 **Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
 
+### P-081 - WP9.3 design note owner points: two PRs, approve-only reviews, pinned identities, the evidence area, derived ownership, and the readings L and M
+
+**Date:** 2026-10-29<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-29), answering owner points A to J, K′, L and M of the WP9.3 design
+note (`transition/w9/wp9-3-design-note.md`, revision 2 `87b04f81`). Revision 2 reconciles the note's independent
+review (`reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, accept with required changes: B-1, M-1 to M-4,
+m-1 to m-10).<br>
+**Authority:** Stephen, in chat, 2026-10-29, choosing the recommended option each time:
+- A: "Two PRs (Recommended)";
+- B: "Approve only (Recommended)";
+- C: "Frozen constants (Recommended)";
+- D: ".research-system/evidence/w9/ (Recommended)";
+- E: "Derived (Recommended)";
+- F: "Generalize (Recommended)";
+- G: "git_commit only (Recommended)";
+- H: "Option (a) (Recommended)";
+- I: "New module + reviewer (Recommended)";
+- J: "authority.py + cli.py (Recommended)";
+- K′: "Prior run + checklist (Recommended)";
+- L: "Accept reading (Recommended)";
+- M: "Accept rule (Recommended)".
+
+Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (review B-1).<br>
+**Decision:**
+1. **Two PRs (A).** WP9.3 lands as two PRs. **WP9.3-1** routes LR-003 to LR-015 and adds all seven command bindings and
+   the four producer bindings, so it carries the package's whole D-4 (census 262 to 273). **WP9.3-2** routes LR-016 to
+   LR-020 and adds the export recheck and the `.apm/` tools, and changes no protected identity. This is the split P-080
+   item 1 and D-6 (P-064 item 6) allow; its shape departs from 06v's D-6 row ("reader and selectors"). WP9.3-1 merges
+   first.
+2. **Approve only (B).** A W9 review is satisfied only by `approve`, on the subject's current recomputed hash, under the
+   verdict row that answers its request row. `approve_with_conditions` is not in any W9 request's `allowed_verdicts`.
+   This extends WP9.2-2's LR-014 reading to every W9 review (note §5.4).
+3. **Pinned identities (C).** The W0-D1 signature (L-0) and the Computational-Log export with its classified list
+   (L-0b) enter the code as append-only tuples in `research_system/legacy/accepted_w9.py`, empty in WP9.3. Until a
+   reviewed PR pins each after Stephen's acceptance, with independent test literals, LR-015 refuses every observation
+   in production (note §9.1, §11.3).
+4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
+   reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
+   export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
+5. **Derived ownership (E).** LR-016's precondition "the proposal lists … every legacy-ownership-transitioned record"
+   (`wp9-1-catalogue-owner-annex.yaml:567`) is read as "the proposal determines". Replay derives the list from the
+   proposal and the ledger before it, stores it at LR-016, and requires the emitted records to equal it at LR-020. A
+   batch holds at most one whole-file item per registration (note §10.5).
+6. **Genesis guard 8 (F)** checks an exact partition, with the counts pinned per PR by the route test. Each WP9.3 PR's
+   independent review re-verifies the genesis path, and the L-3 checklist records which review verified genesis at the
+   checkout L-3 runs from (note §15).
+7. **Anchors (G).** v1 accepts `git_commit` threshold anchors only: an ancestor of the binding's `git_head` that adds a
+   file hashing to the anchored SHA-256. `ars_event` anchors are refused (note §10.3).
+8. **Roles and sessions (H), option (a).** Roles bind through Stephen's exact-subject grants and the distinctness rules
+   of note §5.5. The owner is refused on every non-resolver row. For W9-C20's session limb (P-073 item 1), each review
+   request records the analyst's session, and replay refuses a verdict whose `reviewer_session` equals it. That the
+   attested session strings are true, and the exclusion of legacy producers, are known limits.
+9. **The segmenter (I).** A new `research_system/legacy/segmentation.py` implements `w9-segmentation/1.0.0` for the
+   runtime and is differential-tested against `tools/w9_segmentation.py`, which stays untouched and non-runtime (P-067,
+   P-068). WP9.3-1's independent reviewer, shown independent of the contract's author and of WP9.3's implementer,
+   re-implements the contract and reproduces every vector, and records the results in the review report; that is the
+   independent re-implementation contract §7 and P-068 require. The D-7 export is produced by the reference tool and
+   rechecked by the runtime segmenter (note §12.2).
+10. **Boundary (J).** P-080's Boundary line is extended, by name, to `research_system/authority.py` (the seven
+    commands' entries) and `research_system/cli.py` (`ars legacy submit` and the tool subcommands). No `tools/` file is
+    added.
+11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
+    §12.3 requires goes on the L-4 checklist.
+12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
+    ID, and the content hash is bound later by the review and the Decision, each on the recomputed hash. This is a
+    reading of global precondition G4.
+13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
+    `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
+    "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
+    This is a reading of the accepted schemas (note §4.2).
+
+**Carried to WP9.6** (review m-10; P-080 item 3): the supersession proposal's preparer refuses a superseded ref that
+names no recorded record. WP9.3 adds the replay half.<br>
+**Dependencies recorded:** D-1's foundation re-pin before any `ars legacy submit` can bind a non-Gate-6 store (note §13);
+WP9.7's `RegisterArtefact` guard (O-22) before any live `untracked_file` or `vault_file` observation (note §7.3).<br>
+**Not authorized:**
+- WP9.4 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only. The code follows, under P-080 as extended by item 10.<br>
+**Affected specifications:** 06v WP9.3 (the design is settled), D-6 (WP9.3 split), D-7 (the export's producer and
+recheck); P-080 (Boundary extended); P-073 item 1 (W9-C20's session limb, read as item 8); the annex's LR-016
+precondition (read as item 5) and G4 (read as item 12).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
