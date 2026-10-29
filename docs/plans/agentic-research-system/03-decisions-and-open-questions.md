@@ -4945,8 +4945,8 @@ the reviewed 4d5f72c6 tree. Do you re-accept them?"<br>
   (`f2c99c5ed6d6c3d32e87cb159b24ef40bb8cf7da`) equals the reviewed head `4d5f72c6`, so no rebase changed the bytes.
 - The independent adversarial review recomputed the census from the registry at its head. It gave 262 rows and
   `3d6ae37a…9f06`, and 261 rows and the base digest with the genesis row removed, so the delta is exactly that row. Its
-  verdict was accept, carried through five revisions to `4d5f72c6`. The report is in the session notes as
-  `wp9-2-2-review.md`, §§1–13.
+  verdict was accept, carried through five revisions to `4d5f72c6`. The report is
+  `reviews/wp9-2-2-review-5f9bb8f6-2026-10-28.md`, §§1–13 (blob `8976870a`, SHA-256 `7bb6c923…e27f`, 56,602 bytes).
 - On the record branch, cut from `31f675fe`, one run of the 06h smoke test, `test_schema_registry.py` and the six W9
   test files gave 506 passed and 1 skipped (the existing skip in `test_schema_registry.py`).
 
@@ -4974,7 +4974,11 @@ the reviewed 4d5f72c6 tree. Do you re-accept them?"<br>
 **Boundary:** Docs only.<br>
 **Affected specifications:** 06v D-4 and O-6 (WP9.2 done); WP9.2-2 record (`transition/w9/wp9-2-2-record.md`, merged
 and accepted); P-076 (WP9.2 complete).<br>
-**Migration consequence:** None.
+**Migration consequence:** None.<br>
+**Correction (2026-10-28).** The second Evidence item ended "The report is in the session notes as
+`wp9-2-2-review.md`, §§1–13." Asked whether to commit the report under `reviews/` and point P-079 at it, Stephen
+answered in chat, 2026-10-28: "Yes, commit it". The report is committed unchanged, byte for byte from the session
+notes copy, and the item now cites it. Nothing else in P-079 changed.
 
 ### P-080 - W9 implementation authorized for WP9.3, design note first
 
