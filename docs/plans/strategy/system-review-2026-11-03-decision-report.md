@@ -455,7 +455,8 @@ Two gates no packet has named before:
    `.claude/hooks/contract_binding_check.py`).
    - Negative controls: `test_staged_runner_propagates_candidate_validator_failure` and 11 hardening tests. **No CI lane
      runs them** (Group F). CI's `test_pre_commit_hook.py` uses a stand-in validator.
-   - Positive signal: none recorded. The gate writes no receipt.
+   - Positive signal: on stdout only. This packet's own commit printed "Contract framework: all gates passed against
+     104 contract(s)", but the gate writes no receipt, so nothing durable records a pass or a block.
    - `install-git-hooks.py`: every required hook present and executable in `.githooks`; `core.hooksPath` is `.githooks`.
 2. **`.claude/hooks/results-vault-reminder.sh`** (advisory, PostToolUse on `Write`).
    - Negative control: `test_results_vault_reminder_receipt_records_advise_and_silent`, run by admission-controls.
