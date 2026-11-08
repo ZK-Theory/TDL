@@ -5062,6 +5062,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    pre-pin check to that advance (note §9.1, revision 6). Stephen also added to WP9.3-1 ("Yes, add it") an AST census
    that production code builds `LegacyRuntime` and `DiscoveryRuntime` only at two allowed sites behind
    `load_current_binding`, with negative controls (note §17).
+   **Amended again 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Drain rule
+   (Recommended)"). `load_current_binding` checks the checkout on disk, not a process's loaded modules. So before the
+   final pre-pin check, every process started from the candidate checkout has exited; the checkout is updated to the
+   pin commit only while none runs from it; and no writer starts from it until the advance. The pin's checklist
+   records the drain, and a process started outside Stephen's dispatch is a known limit (note §9.1, revision 8).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5113,6 +5118,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     domain `w9-observation:<registration ID>:<subject digest>`, where the digest covers the source identity, the
     selector and the importer tool, and the grant names that ID. Replay and the preparer recompute it, so one grant
     covers exactly one observation subject (note §5.3, revision 7).
+    **Amended again 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Registration's created_at
+    (Recommended)"). The ID's UUIDv7 timestamp is the registration record's `created_at`, not the observation's, which
+    the runtime clock sets at submit. The ID is then known from the ledger and the bytes before submission, so the
+    builder can print it for the grant; a second observation of an unchanged subject is refused as an existing
+    identity (note §5.3, revision 8).
 13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
     `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
     "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
@@ -5123,9 +5133,16 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
   so 06v's "A change aborts with no event" is read as: any change up to the final re-read aborts with no event; the
   observation's hashes and frozen copy come from that re-read's bytes; and a later change is a change after the
   observation, caught as stale by the LR-016 and LR-020 re-read (note §7.2).
+  **Amended 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Recorded-bytes reading
+  (Recommended)"). LR-020's final re-read has the same gap. The acceptance binds the observation's recorded bytes,
+  named by its hashes and kept in its frozen copy or Git blob, not the live file. A change after that re-read is a
+  change after acceptance: the next observation of the registration records the new hash and the accepted record
+  projects as stale, and what follows is WP9.4's (note §7.2, revision 8).
 - **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
-  adding one would be a fifth U-7 site. The public shared replay refuses a ledger with a non-W9 event on a W9 identity,
-  and every dispatch writer checks before append (note §4.3).
+  adding one would be a fifth U-7 site. Once the ledger holds a W9 event, the public shared replay refuses a ledger
+  with a non-W9 event on a W9 identity, and every dispatch writer checks before append (note §4.3). Before W9 genesis
+  the public shared replay runs no W9 check, so a direct append on `CATALOGUE_STREAM_ID` passes it and shows up only
+  as W9 genesis failing on that store (qualified 2026-11-08, Stephen: "Correct it (Recommended)").
 
 **Carried to WP9.6** (review m-10; P-080 item 3): the supersession proposal's preparer refuses a superseded ref that
 names no recorded record. WP9.3 adds the replay half.<br>
