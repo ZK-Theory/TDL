@@ -246,10 +246,15 @@ pretty-printed or CRLF copy that the predicate accepts. D2: the non-owner refusa
   `check_cited_decisions.py`, and no workflow runs their controls (`tests/tools/test_review_campaign_lints.py`).
   Until this review's step-1 edit, no review step ran the register lint either; the other two still have none.
 - **Their first findings were never recorded.** #400's body said two branches "need an owner ruling". No log entry,
-  packet or register entry recorded them, and there has been no ruling. The register lint still reports both today:
-  - `codex/gate6-spec01-spec02-real-run` holds 41 register lines `main` lacks. Its tip `94f8bc1f` is the head of PR
-    #258, which was closed unmerged;
+  packet or register entry recorded them, and as of this review there had been no ruling. The register lint reported
+  both on 2026-11-03:
+  - `codex/gate6-spec01-spec02-real-run` holds 41 register lines whose exact text `main` lacks. Its tip `94f8bc1f` is
+    the head of PR #258, which was closed unmerged;
   - `codex/review-missed-prs-241-243-base` (tip `ee3a0307`, on origin, no PR) holds 13.
+
+  The lint matches lines verbatim, so rewritten text counts as missing. Stephen's F3 ruling of 2026-11-08 (see the
+  owner decision at the top) found `main` already holds what each branch recorded, in revised or later form: P-049 and
+  P-050 under the same ids, and a later WP6.4 status. Both are now in the lint's `KNOWN` list (#417).
 - **Fourteen gate-control files run in no lane.** #402 derived the hook-control list from `tests/tools/test_*hook*.py`,
   so controls named after what they check are still invisible. Of the 45 files in `tests/tools/` and
   `tests/contracts/`, 15 run in no workflow, and one of those runs at pre-commit through a contract binding. The other
@@ -322,8 +327,9 @@ silent.
 - the supersession-currency contract, `2026-10-22-superseded-md-lags-reclassifying-results`;
 - widening `check_retired_imperatives.py`, `2026-10-22-gate-definition-restates-owning-matrix-narrowly`.
 
-No document in `docs/plans/` names any of them. You opened Gate 7 on 2026-10-22 (#391, P-063), and its planning passes
-are happening now without them. The observation log is their only record, and planning sessions do not read it.
+No document that Gate 7 planning reads names any of them. They appear only in the observation log and in system review
+packets under `docs/plans/strategy/`, and planning sessions read neither. You opened Gate 7 on 2026-10-22 (#391,
+P-063), and its planning passes are happening now without them.
 
 **Proposed action.** One intake list that planning sessions read, with a row per deferred limb: observation id, limb,
 decision date and owning artefact. The weekly review checks that every log entry deferring to an intake has a row.
