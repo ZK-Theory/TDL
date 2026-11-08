@@ -33,14 +33,23 @@ Checks:
   must be on a remote-tracking ref or a tag the remote has (``tools/commit_reachability.py``); a commit that
   exists only on a local branch or a local tag has not been delivered (obs 2026-10-06-owner-decided-work-stranded-on-local-branches). A hash written as
   ``was <sha>`` was carried onto a new commit and is skipped. Hashes that are not commits in REPO are
-  counted in the summary, not dropped.
+  counted in the summary, not dropped. An unpublished commit whose changed files all sit on a remote branch at the
+  bytes it gave them landed by content, through another commit, and is noted rather than reported (obs
+  2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state: four of four findings in one review were such commits).
 * **Close conditions** (``--close-conditions REPO``). An OPEN entry whose "close when #N merges" clause names
   only merged PRs is reported: six entries sat open for nine days after their PRs merged (obs
   2026-10-15-close-conditions-met-but-entries-left-open). Pull URLs and ``owner/repo#N`` are resolved in their own
   repository; a bare ``#N`` in an entry about another tree is reported as ambiguous (obs
-  2026-10-20-close-conditions-lint-blind-to-cross-repo-prs).
+  2026-10-20-close-conditions-lint-blind-to-cross-repo-prs). Only the Status, Progress, Resolution and Closed fields
+  are read, since an Issue paragraph may quote another entry's condition; a PR introduced by "after #N" is a
+  precondition, not the condition; and a PR merged into a base other than the default branch has not been delivered
+  (obs 2026-10-27-stacked-pr-merged-into-a-dead-base-reads-as-delivered).
+* **Intake rows** (``--intake FILE``). A DEFERRED entry whose status sends a limb to a gate's intake or planning pass
+  ("Gate 7+ intake", "the next Gate 7 planning pass") must have a row naming its id in FILE, the list planning
+  sessions read (obs 2026-11-03-gate7-intake-deferrals-have-no-landing-record).
 
 Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reachability REPO] [--close-conditions REPO]
+       [--intake FILE]
 """
 
 from __future__ import annotations
@@ -302,6 +311,18 @@ _PR_REF = re.compile(
 )
 # "Close when both merge", "close when that PR merges": the PRs are named earlier in the same paragraph.
 _BACK_REFERENCE = re.compile(r"(?i)\b(?:both|all|they|these|each)\b.*\bmerge|\b(?:that|the|this)\s+PRs?\b")
+# Only the fields that state where an entry stands carry its close condition. An Issue paragraph may quote another
+# entry's condition, and one did: obs 2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state.
+_STATE_FIELD = re.compile(
+    r"(?ms)^\*\*(?:Status|Progress|Resolution|Closed)\b[^*\n]*:\*\*.*?(?=\n\s*\n|\n\*\*[^*\n]+:\*\*|\Z)"
+)
+# "Close when the ruleset requires X (after #385 merges)": #385 is a precondition the condition waits on, not the
+# condition itself, so its merge does not meet the clause.
+_PRECONDITION = re.compile(r"(?i)\bafter\s+(?:PR\s+)?#(\d+)\b")
+# A PR delivers only when it merges into the default branch. A stacked PR that merged into an already-merged base
+# reached no path to main, though GitHub calls it merged (obs 2026-10-27-stacked-pr-merged-into-a-dead-base-...).
+_DEFAULT_BRANCHES = ("main", "master")
+_MERGED_ELSEWHERE = "MERGED into "
 # Trees the shared log covers besides TDL (owner decisions 2026-09-25 and 2026-10-02). A bare ``#N`` in an
 # entry about one of them cannot be resolved here.
 _OTHER_TREES = re.compile(r"(?i)zktheoryweb|mathuni|counting lives|codex_workflow")
@@ -328,11 +349,25 @@ def _label(ref: PullRef) -> str:
 
 
 def _gh_pr_state(repo: Path, number: int, slug: str | None = None) -> str | None:
-    command = ["gh", "pr", "view", str(number), "--json", "state", "--jq", ".state"]
+    """Return OPEN, CLOSED or MERGED, or ``MERGED into <base>`` for a PR merged anywhere but the default branch.
+
+    A PR merged into another base still counts as delivered when its merge commit is an ancestor of ``origin/main``
+    in ``repo``; that is checked only for this repository's PRs, since another repository's commits are not here.
+    """
+    command = ["gh", "pr", "view", str(number), "--json", "state,baseRefName,mergeCommit"]
     if slug:
         command += ["--repo", slug]
     done = subprocess.run(command, cwd=repo, capture_output=True, text=True, check=False)
-    return done.stdout.strip() if done.returncode == 0 else None
+    if done.returncode != 0:
+        return None
+    view = json.loads(done.stdout)
+    state, base = view.get("state"), view.get("baseRefName")
+    if state != "MERGED" or base in _DEFAULT_BRANCHES:
+        return state
+    merge_commit = (view.get("mergeCommit") or {}).get("oid")
+    if not slug and merge_commit and _git_out(repo, "merge-base", "--is-ancestor", merge_commit, "origin/main") == "":
+        return "MERGED"
+    return f"{_MERGED_ELSEWHERE}{base}"
 
 
 def close_conditions(
@@ -349,40 +384,61 @@ def close_conditions(
     stayed open three days after it merged, and a bare ``#N`` there would have been judged by this repository's
     PR of that number. So URLs and ``owner/repo#N`` are resolved in their own repository, and a bare ``#N`` in
     an entry whose Target or Environment names another tree is reported as ambiguous, not judged.
+
+    Obs 2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state and its twin: a quoted sentence in an Issue
+    paragraph and a precondition ("after #385 merges") were judged as conditions, and a PR merged into a dead base
+    counted as delivered. So only the state fields are read, "after #N" is skipped, and a PR merged elsewhere is
+    reported as undelivered rather than met.
     """
     problems: list[str] = []
-    checked = unnumbered = met = 0
+    checked = unnumbered = met = ambiguous = elsewhere = 0
     for ident, status, block in entries:
         if not is_open(status):
             continue
         other_tree = any(_OTHER_TREES.search(field) for field in _FIELD.findall(block))
-        for match in _CLOSE_WHEN.finditer(block):
-            # The clause runs to the end of its sentence: a full stop that ends a line or precedes a space, so the
-            # dots inside a pull URL do not cut it short.
-            end = re.search(r"\.(?=\s|$)|\n", block[match.start(1) :])
-            clause = block[match.start(1) : match.start(1) + end.start()] if end else block[match.start(1) :]
-            refs = _refs(clause)
-            if not refs and _BACK_REFERENCE.search(clause):
-                # A clause about something unbuilt ("closes when that slice merges") names no PR and stays unjudged.
-                paragraph = block[block.rfind("\n\n", 0, match.start()) + 1 : match.end()]
-                refs = _refs(paragraph)
-            if not refs:
-                unnumbered += 1
-                continue
-            bare = [ref for ref in refs if ref[0] is None]
-            if other_tree and bare:
-                problems.append(
-                    f"{ident}: close condition names {', '.join(_label(r) for r in bare)} in an entry about another "
-                    "tree; write it as owner/repo#N or a pull URL so it is checked in the right repository"
-                )
-                continue
-            checked += 1
-            if all(state_of(repo, number) == "MERGED" for repo, number in refs):
-                met += 1
-                named = ", ".join(_label(r) for r in refs)
-                problems.append(f"{ident}: close condition met ({named} merged); close it, naming the merge commit(s)")
-    ambiguous = len(problems) - met
+        for field in _STATE_FIELD.finditer(block):
+            text = field.group(0)
+            for match in _CLOSE_WHEN.finditer(text):
+                # The clause runs to the end of its sentence: a full stop that ends a line or precedes a space, so
+                # the dots inside a pull URL do not cut it short.
+                end = re.search(r"\.(?=\s|$)|\n", text[match.start(1) :])
+                clause = text[match.start(1) : match.start(1) + end.start()] if end else text[match.start(1) :]
+                waits_on = {int(n) for n in _PRECONDITION.findall(clause)}
+                refs = [ref for ref in _refs(clause) if not (ref[0] is None and ref[1] in waits_on)]
+                if not refs and not waits_on and _BACK_REFERENCE.search(clause):
+                    # A clause about something unbuilt ("closes when that slice merges") names no PR, unjudged.
+                    refs = _refs(text[: match.end()])
+                if not refs:
+                    unnumbered += 1
+                    continue
+                bare = [ref for ref in refs if ref[0] is None]
+                if other_tree and bare:
+                    ambiguous += 1
+                    problems.append(
+                        f"{ident}: close condition names {', '.join(_label(r) for r in bare)} in an entry about "
+                        "another tree; write it as owner/repo#N or a pull URL so it is checked in the right repository"
+                    )
+                    continue
+                checked += 1
+                states = {ref: state_of(*ref) for ref in refs}
+                landed_elsewhere = {r: s for r, s in states.items() if s and s.startswith(_MERGED_ELSEWHERE)}
+                if landed_elsewhere:
+                    elsewhere += 1
+                    for ref, state in landed_elsewhere.items():
+                        base = state[len(_MERGED_ELSEWHERE) :]
+                        problems.append(
+                            f"{ident}: {_label(ref)} merged into {base}, not the default branch, so its work is on no "
+                            "path to main; re-land it and name the new PR"
+                        )
+                elif all(state == "MERGED" for state in states.values()):
+                    met += 1
+                    named = ", ".join(_label(r) for r in refs)
+                    problems.append(
+                        f"{ident}: close condition met ({named} merged); close it, naming the merge commit(s)"
+                    )
     summary = f"close conditions: {checked} naming PRs checked, {met} met; {unnumbered} name no PR"
+    if elsewhere:
+        summary += f"; {elsewhere} merged into a base other than main"
     if ambiguous:
         summary += f"; {ambiguous} ambiguous"
     return problems, summary
@@ -395,8 +451,14 @@ def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[
     built and awaiting a decision existed only on never-pushed local branches for four weeks. A hash that
     is not a commit in ``repo`` (another repository's, or a content digest) cannot be checked here; it is
     counted in the summary rather than dropped silently.
+
+    Obs 2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state: four of four "stranded" findings in one review
+    were review commits on never-pushed branches whose one file another PR had carried byte for byte. A commit is
+    published when a remote ref contains it; its content is published when a remote ref holds every file it
+    changed at the bytes it gave them. Such a commit is noted as landed by content, not reported.
     """
     problems: list[str] = []
+    landed: list[str] = []
     checked = foreign = 0
     # A squash-merged PR's commits reached their reader: its head is refs/pull/<n>/head, and a commit inside it
     # is found through GitHub's commit-to-PR association (obs 2026-10-17-squash-merge-strands-the-pr-commits-...).
@@ -412,17 +474,84 @@ def reachability(entries: list[tuple[str, str, str]], repo: Path) -> tuple[list[
                 foreign += 1
                 continue
             checked += 1
-            if publication.published_by(sha) is None:
-                problems.append(
-                    f"{ident}: cites commit {sha}, which is on no remote-tracking ref or remote tag; "
-                    "push it or say where it went"
-                )
+            if publication.published_by(sha) is not None:
+                continue
+            holder = landed_by_content(repo, sha)
+            if holder:
+                landed.append(f"{ident} cites {sha}, whose files are on {holder}; write it as 'was {sha}'")
+                continue
+            problems.append(
+                f"{ident}: cites commit {sha}, which is on no remote-tracking ref or remote tag; "
+                "push it or say where it went"
+            )
     summary = f"reachability: {checked} commit hash(es) checked, {len(problems)} stranded"
+    if landed:
+        summary += f"; {len(landed)} landed by content"
     if foreign:
         summary += f"; {foreign} not a commit in this repository"
     if problems and publication.tag_note:
         summary += f"; {publication.tag_note}"
-    return problems, summary
+    return problems, "\n".join([summary, *(f"  landed by content: {note}" for note in landed)])
+
+
+# A deferral sent to a gate's intake: "goes to Gate 7+ intake", "deferred to the next Gate 7 planning pass".
+_INTAKE = re.compile(r"(?i)\bgate[ -]?\d+\+?\s+intake\b|\bgate \d+ planning pass\b")
+
+
+def intake_rows(entries: list[tuple[str, str, str]], intake_text: str) -> tuple[list[str], str]:
+    """Report every DEFERRED entry sent to a gate's intake whose id has no table row in the intake list.
+
+    Obs 2026-11-03-gate7-intake-deferrals-have-no-landing-record: four approved deferrals to "Gate 7+ intake"
+    were recorded only in the observation log, which planning sessions do not read, while Gate 7 was already open.
+    """
+    rows = [line for line in intake_text.splitlines() if line.lstrip().startswith("|")]
+    problems: list[str] = []
+    sent = 0
+    for ident, status, _ in entries:
+        if status_word(status) != "DEFERRED" or not _INTAKE.search(status):
+            continue
+        sent += 1
+        if not any(ident in row for row in rows):
+            problems.append(f"{ident}: DEFERRED to a gate's intake, but the intake list has no row naming it")
+    return problems, f"intake: {sent} deferral(s) to an intake checked, {len(problems)} without a row"
+
+
+def landed_by_content(repo: Path, sha: str) -> str | None:
+    """Return the first remote-tracking ref that holds every file ``sha`` changed, at the bytes ``sha`` gave them.
+
+    A file ``sha`` deleted must be absent from that ref. ``refs/remotes/origin/main`` is tried first. A commit that
+    changes no file, or a path git cannot pass through ``cat-file --batch-check``, never counts as landed.
+    """
+    listing = _git_out(
+        repo, "diff-tree", "-r", "-z", "--no-commit-id", "--name-only", "--root", "-m", "--first-parent", sha
+    )
+    paths = [path for path in (listing or "").split("\0") if path]
+    if not paths or any("\n" in path for path in paths):
+        return None
+    refs = [line for line in (_git_out(repo, "for-each-ref", "--format=%(refname)", "refs/remotes") or "").splitlines()]
+    refs = [ref for ref in refs if not ref.endswith("/HEAD")]
+    refs.sort(key=lambda ref: ref != "refs/remotes/origin/main")
+    queries = [f"{rev}:{path}" for rev in [sha, *refs] for path in paths]
+    done = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "--batch-check=%(objectname)"],
+        input="\n".join(queries) + "\n",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    lines = done.stdout.splitlines()
+    if done.returncode != 0 or len(lines) != len(queries):
+        return None
+    # "<query> missing" for an absent path: a deleted file matches a ref that lacks it too.
+    found = [None if line.endswith(" missing") else line for line in lines]
+    width = len(paths)
+    expected = found[:width]
+    if all(blob is None for blob in expected):
+        return None  # a commit that only deletes files would match every ref that never had them
+    for index, ref in enumerate(refs, start=1):
+        if found[index * width : (index + 1) * width] == expected:
+            return ref
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -447,8 +576,14 @@ def main(argv: list[str] | None = None) -> int:
         metavar="JSON",
         help=(
             'With --close-conditions: read PR states from {"<number>" or "<owner/repo>#<number>": '
-            '"MERGED"|"OPEN"|"CLOSED"} instead of gh.'
+            '"MERGED"|"OPEN"|"CLOSED"|"MERGED into <base>"} instead of gh.'
         ),
+    )
+    parser.add_argument(
+        "--intake",
+        type=Path,
+        metavar="FILE",
+        help="Intake list in which every DEFERRED entry sent to a gate's intake must have a table row naming its id.",
     )
     args = parser.parse_args(argv)
 
@@ -501,6 +636,11 @@ def main(argv: list[str] | None = None) -> int:
 
         met, summary = close_conditions(entries, state_of)
         problems += met
+        print(summary)
+
+    if args.intake:
+        missing_rows, summary = intake_rows(entries, args.intake.read_text(encoding="utf-8"))
+        problems += missing_rows
         print(summary)
 
     for line in problems:

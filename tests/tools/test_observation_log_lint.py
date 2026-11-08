@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TOOL = REPO_ROOT / "tools" / "observation_log_lint.py"
 
@@ -483,3 +485,130 @@ def test_a_bare_pr_number_in_an_entry_about_another_tree_is_ambiguous(tmp_path: 
     assert result.returncode == 1
     assert "a: close condition names #23 in an entry about another tree" in result.stderr
     assert "0 naming PRs checked, 0 met; 0 name no PR; 1 ambiguous" in result.stdout
+
+
+def test_a_close_condition_quoted_in_an_issue_paragraph_is_not_judged(tmp_path: Path) -> None:
+    """Obs 2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state: an Issue paragraph that quoted other entries'
+    "Close when #399 merges" was read as the entry's own condition."""
+    log = (
+        "### Observation a: title\n\n**Status:** OPEN\n**Date:** 2026-10-27\n\n"
+        '**Issue:** Twelve entries said "Close when #399 merges", and the lint read them all as met.\n\n'
+        "**Suggested improvement:** report it. Close when #400 merges.\n\n"
+    )
+    states = _states(tmp_path, {"399": "MERGED", "400": "MERGED", "401": "MERGED"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert result.returncode == 0, result.stderr
+    assert "close conditions: 0 naming PRs checked, 0 met; 0 name no PR" in result.stdout
+
+    note = "**Progress (2026-10-28):** Built in PR #401. Close when #401 merges.\n\n**Issue:**"
+    met = _run(tmp_path, log.replace("**Issue:**", note), "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert met.returncode == 1, "positive control: the same entry's Progress condition is still judged"
+    assert "a: close condition met (#401 merged)" in met.stderr
+
+
+def test_a_pr_named_as_a_precondition_is_not_the_condition(tmp_path: Path) -> None:
+    """The 2026-10-02 entry's condition is a ruleset edit "after #385 merges"; #385's merge does not meet it."""
+    log = _obs(
+        "a",
+        "OPEN",
+        "**Progress:** Close when the ruleset requires the verdict (Stephen's edit, after #385 merges and it is green).\n",
+    ) + _obs("b", "OPEN", "**Progress:** Close when #386 merges, after #385 merges.\n")
+    states = _states(tmp_path, {"385": "MERGED", "386": "MERGED"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert "a: close condition met" not in result.stderr
+    assert "b: close condition met (#386 merged)" in result.stderr, "a condition PR beside a precondition is judged"
+    assert "close conditions: 1 naming PRs checked, 1 met; 1 name no PR" in result.stdout
+
+
+def test_a_pr_merged_into_another_base_is_not_delivered(tmp_path: Path) -> None:
+    """Obs 2026-10-27-stacked-pr-merged-into-a-dead-base-reads-as-delivered: #399 merged into its already-merged base."""
+    log = _obs("a", "OPEN", "**Progress:** in PR #399. Close when #399 merges.\n")
+    elsewhere = _states(tmp_path, {"399": "MERGED into docs/system-review-2026-10-27"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", elsewhere)
+    assert result.returncode == 1
+    assert "a: #399 merged into docs/system-review-2026-10-27, not the default branch" in result.stderr
+    assert "a: close condition met" not in result.stderr
+    assert "1 merged into a base other than main" in result.stdout
+
+    on_main = _states(tmp_path, {"399": "MERGED"})
+    assert (
+        "a: close condition met (#399 merged)"
+        in _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", on_main).stderr
+    )
+
+
+def test_the_pr_state_lookup_reads_the_base_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A PR merged into another base counts as delivered only when main contains its merge commit."""
+    sys.path.insert(0, str(REPO_ROOT / "tools"))
+    import observation_log_lint as lint
+
+    def view(base: str) -> subprocess.CompletedProcess[str]:
+        payload = json.dumps({"state": "MERGED", "baseRefName": base, "mergeCommit": {"oid": "9b4232a2" + "0" * 32}})
+        return subprocess.CompletedProcess([], 0, stdout=payload, stderr="")
+
+    ancestry: dict[str, str | None] = {"answer": None}
+    monkeypatch.setattr(lint, "_git_out", lambda repo, *args: ancestry["answer"])
+    monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("main"))
+    assert lint._gh_pr_state(REPO_ROOT, 403) == "MERGED"
+    monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("docs/x"))
+    assert lint._gh_pr_state(REPO_ROOT, 399) == "MERGED into docs/x"
+    ancestry["answer"] = ""  # `git merge-base --is-ancestor` succeeded: main contains the merge commit
+    assert lint._gh_pr_state(REPO_ROOT, 399) == "MERGED"
+    assert lint._gh_pr_state(REPO_ROOT, 23, "stephendor/zktheoryweb") == "MERGED into docs/x", "no local ancestry"
+
+
+def _repo_with_a_review_commit(tmp_path: Path, landed: bytes) -> tuple[Path, str]:
+    """A clone whose local-only branch adds ``review.md``; ``main`` then adds ``landed`` there in another commit."""
+    origin, clone = tmp_path / "origin.git", tmp_path / "clone"
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(tmp_path, "init", "-q", "-b", "main", str(clone))
+    _git(clone, "remote", "add", "origin", str(origin))
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "base")
+    _git(clone, "switch", "-q", "-c", "review/local")
+    (clone / "review.md").write_bytes(b"the review\n")
+    _git(clone, "add", "review.md")
+    _git(clone, "commit", "-q", "-m", "review")
+    review = _git(clone, "rev-parse", "HEAD")
+    _git(clone, "switch", "-q", "main")
+    (clone / "review.md").write_bytes(landed)
+    _git(clone, "add", "review.md")
+    _git(clone, "commit", "-q", "-m", "carried by another PR")
+    _git(clone, "push", "-q", "origin", "main")
+    _git(clone, "fetch", "-q", "origin")
+    return clone, review
+
+
+def test_a_commit_whose_files_landed_through_another_commit_is_not_stranded(tmp_path: Path) -> None:
+    """Obs 2026-11-03-log-lint-judges-delivery-by-hash-and-pr-state: four of four "stranded" review commits had
+    reached main byte for byte through other PRs."""
+    clone, review = _repo_with_a_review_commit(tmp_path / "same", b"the review\n")
+    result = _run(tmp_path, _obs("a", f"OPEN — review committed as `{_cite(review)}`."), "--reachability", str(clone))
+    assert result.returncode == 0, result.stderr
+    assert "1 commit hash(es) checked, 0 stranded; 1 landed by content" in result.stdout
+    assert f"a cites {_cite(review)}, whose files are on refs/remotes/origin/main" in result.stdout
+
+    clone, review = _repo_with_a_review_commit(tmp_path / "differs", b"an edited review\n")
+    stranded = _run(tmp_path, _obs("a", f"OPEN — review committed as `{_cite(review)}`."), "--reachability", str(clone))
+    assert stranded.returncode == 1, "a file that differs on main has not landed"
+    assert f"a: cites commit {_cite(review)}, which is on no remote-tracking ref" in stranded.stderr
+
+
+def test_a_deferral_to_a_gate_intake_needs_a_row_in_the_intake_list(tmp_path: Path) -> None:
+    """Obs 2026-11-03-gate7-intake-deferrals-have-no-landing-record: four deferrals had no record planners read."""
+    log = (
+        _obs("sent", "DEFERRED (2026-10-27): the contract goes to Gate 7+ intake.")
+        + _obs("pass", "DEFERRED (2026-10-27): the widening waits for the next Gate 7 planning pass.")
+        + _obs("routed", "DEFERRED — owned by the 06s Gate 6 D5 process; name it in the next 06s sub-phase intake.")
+        + _obs("open", "OPEN — limb 2 goes to Gate 7+ intake.")
+    )
+    intake = tmp_path / "intake.md"
+    intake.write_text("# Intake\n\n| Observation | Limb |\n|---|---|\n| `sent` | the contract |\n", encoding="utf-8")
+    result = _run(tmp_path, log, "--intake", str(intake))
+    assert result.returncode == 1
+    assert "pass: DEFERRED to a gate's intake, but the intake list has no row naming it" in result.stderr
+    assert "sent:" not in result.stderr and "routed:" not in result.stderr and "open:" not in result.stderr
+    assert "intake: 2 deferral(s) to an intake checked, 1 without a row" in result.stdout
+
+    intake.write_text(intake.read_text(encoding="utf-8") + "| `pass` | the widening |\n", encoding="utf-8")
+    assert _run(tmp_path, log, "--intake", str(intake)).returncode == 0
