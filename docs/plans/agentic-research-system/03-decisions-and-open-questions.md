@@ -5085,6 +5085,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
 10. **Boundary (J).** P-080's Boundary line is extended, by name, to `research_system/authority.py` (the seven
     commands' entries) and `research_system/cli.py` (`ars legacy submit` and the tool subcommands). No `tools/` file is
     added.
+    **Amended 2026-11-08** (Stephen, in chat, answering CodeRabbit's and Codex's comments on PR #411: "Symmetric W11
+    check (Recommended)"). The boundary also covers `research_system/discovery/routes.py` and
+    `research_system/discovery/runtime.py`, for one change only: W11's admissible-target check also refuses a target
+    that W9 claims or reserves, before append. It reads the W9 projection through a lazy import (note §4.3, revision
+    4). The W11 catalogue, schemas, bindings and census do not change, and WP9.3-1's independent review re-verifies the
+    W11 pins.
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record

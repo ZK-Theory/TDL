@@ -5,8 +5,9 @@
 `reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, on branch `review/w9-wp9-3-note` at `0dc63404`, verdict
 accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change log says where each finding went.
 Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Revision 3 (2026-11-08) answers the
-review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Nothing in it is
-implemented.<br>
+review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Revision 4
+(2026-11-08) answers the second round, and amends P-081 item 10 to extend the boundary to W11's identity check.
+Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -185,10 +186,24 @@ fixes stored bytes. It is owner point M.
   stream versions (`legacy/runtime.py:406-415`). A W9 command that reuses a W11 aggregate's ID with that stream's
   current version would append to it. So replay refuses a W9 claim of any ID that a non-W9 event uses as its
   `stream_id`, before or after the claim. Each claiming event must also stand at version 1 of its own stream (§4.5),
-  and the preparer refuses a claiming command whose `expected_stream_version` is not 0. A W11 event written later on
-  an ID W9 has claimed makes `replay_legacy` refuse the ledger. That fails closed, and W11's preparers are outside
-  WP9.3's boundary (§14). The controls: a W9 proposal reusing a W11 aggregate's ID at that stream's current version,
-  refused at `submit` and on a forged ledger, and a forged W11 event on a reserved `rev_`, refused by replay (§17).
+  and the preparer refuses a claiming command whose `expected_stream_version` is not 0.
+- **The W11 side, before append.** W11's identity contract, `discovery_identity_exists` (`discovery/routes.py:292-298`),
+  reads only Discovery's projection. `DiscoveryRuntime._require_admissible_target` applies it
+  (`discovery/runtime.py:334-361`). A W11 command can therefore take an ID that W9 has claimed or reserved, such as a
+  pre-assigned `rev_` that is not yet a stream. The shared ledger would then fail replay only after the append. So
+  WP9.3-1 adds a symmetric check. W11's admissible-target check also refuses a target that the W9 projection claims or
+  reserves, including the reserved external refs and the pinned W0 signature refs. It reads that projection through a
+  lazy import of `research_system.legacy`, as `shared_event_partition` already does (U-7 site 2,
+  `discovery/routes.py:313-315`), so `research_system.legacy` stays out of Discovery's import graph. Replay keeps the
+  backstop: a W11 event on a W9 identity makes `replay_legacy` refuse the ledger. This extends WP9.3's boundary to
+  `discovery/routes.py` and `discovery/runtime.py` (P-081 item 10, as amended; §16). The W11 catalogue, schemas and
+  bindings do not change, and WP9.3-1's independent review re-verifies the W11 pins (§19).
+- **The controls (§17):**
+  - a W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged
+    ledger;
+  - a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before
+    any append;
+  - a forged W11 event on a reserved `rev_`, refused by `replay_legacy`.
 
 ### 4.4 References to W9 records
 
@@ -220,7 +235,7 @@ W9 follows W11's pattern: the command payload is small, and the preparer builds 
 | Command | The payload carries | The preparer builds |
 |---|---|---|
 | `ProposeLegacyRecord` | the record, without the preparer-set fields | `E:<kind>-proposed`, whose payload is the completed record |
-| `RequestW9AuthorityReview` | the subject record ID, the reviewer's actor ID, the review questions, the analyst's session | `ReviewRequested` (§5.2) |
+| `RequestW9AuthorityReview` | the subject record ID, the reviewer's actor ID, the review questions, the analyst's session and, for a membership table, the table author's session (§5.5) | `ReviewRequested` (§5.2) |
 | `RecordW9AuthorityReview` | the verdict, findings, limitations, reviewer session and model metadata, context manifest hash | `ReviewVerdictRecorded` |
 | `ProposeW9AuthorityDecision` | the subject record ID, the question, the recommendation, the consequences | `DecisionProposed` |
 | `ResolveW9AuthorityDecision` | the Decision ID and `selected_option: accept` | `DecisionResolved`, then `E:<kind>-recorded` with the proposal's exact record, and LR-020's ownership records |
@@ -259,7 +274,7 @@ refs are derived (WP9.2 note §5.3, steps 2 to 5): from the domain strings `w9-r
 | `subject_ids`, `subject_hashes` | exactly `[<record ID>]` and `[<recomputed content hash>]`, paired. Today `reduce_review_request` zips them with `strict=False` (`replay/reducers.py:225`), which admits unpaired lists of the kind W11's two-to-one shape uses (`discovery/runtime.py:1090-1094`) | derived | yes |
 | `governing_refs` | exactly `["W9:LR-nnn"]`, which assigns the row (`legacy/routes.py:594-595`) | derived | yes |
 | `review_questions` | non-empty. The schema sets no `minItems` (`review_requested.schema.json`), so replay enforces it | payload | yes: at least one entry |
-| `required_evidence_refs` | exactly `["w9-analyst-session:<the analyst's session>"]`; for the review of a membership table, exactly `["w9-analyst-session:<…>", "w9-author-session:<the table author's session>"]`, in that order (§5.5) | payload | yes: that count, those prefixes, that order |
+| `required_evidence_refs` | exactly `["w9-analyst-session:<the analyst's session>"]`; for the review of a membership table, exactly `["w9-analyst-session:<…>", "w9-author-session:<the table author's session>"]`, in that order (§5.5) | payload | yes: that count, those prefixes, that order, and a non-empty session string after each prefix |
 | `required_lanes` | `["provenance"]` | fixed | yes |
 | `reviewer_capability` | exactly `[<the named reviewer's actor ID>]`, as W11 names its reviewer (`:1108`) | payload | yes |
 | `required_independence_grade` | `independent` | fixed | yes |
@@ -616,6 +631,19 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
     already equals the derived ID, the ref is derived again from the same domain with a `#<n>` suffix, using the next
     unused `n`, and the check is repeated. The pin records the domain it used and the check's result. Running the check
     is an owner operation.
+  - **The write freeze, from the final check to release.** An old-version writer could claim the candidate ID after
+    the check and before its store's writers run the pinned code. So on each W9 store:
+    - From the final check until every writer of that store runs a commit that holds the pin, no W9 or W11 command is
+      submitted to the store. Stephen dispatches every write and issues every grant (§5.3), so the freeze is his.
+    - The check records the store's ledger head: the last global position and that event's hash. Before writes
+      resume, the head is read again on the pinned code. If it moved, writes stay frozen and the check is re-run.
+    - If a collision is found before release, the ref is re-derived in a follow-up commit, which replaces the
+      unreleased entry. No writer ran it and no record names it, so replacing it breaks no replay; the append-only rule
+      exists to protect exactly that.
+    - Code cannot refuse a writer still on old code after release. Binding validation reads Git objects at the
+      recorded commit and never compares them with the physical `HEAD` (`store/governed_code.py:551-553`). So the
+      pin's checklist records that every writer of the store runs the pinned commit. That is recorded, not proved
+      (§18).
 
   A ledger that claimed a pinned ID anyway fails closed. The controls (§17):
   - a proposal pre-assigning a pinned ID is refused;
@@ -917,7 +945,9 @@ The tool subcommands (`inventory build`, `inventory reproduce`, `export recheck`
 | `_apply_supersession` (`:304-317`) | Changed: refuses a superseded ref that names no recorded record (§3 row 5) |
 
 `replay/driver.py` changes only by factoring its loop body into the per-transaction step that the preparer's shadow run
-reuses (§6; review m-6). Its checks do not change. The four U-7 sites and `legacy/commands.py` do not change.
+reuses (§6; review m-6). Its checks do not change. The four U-7 sites and `legacy/commands.py` do not change. W11's
+admissible-target check gains §4.3's symmetric W9 identity check. That is a preparer check beside U-7 site 2 in
+`discovery/routes.py`, not a change to the site.
 `legacy/routes.py` changes only its routed set and tags, and the partition check of §15.
 
 ## 15. Genesis guard 8 and the route partition (owner point F)
@@ -946,7 +976,9 @@ checkout L-3 runs from (with R-1), whichever PR that is.
   W11's rows (`schema_registry.py:275-292`, `:444-449`). `E:` events keep the `ars://core/event` fallback;
 - `research_system/authority.py`: each of the seven commands in `SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES` (`:171-207`)
   and with its §5.3 subject kind in `_SCOPED_COMMAND_SUBJECT_KINDS` (`:209-333`). These entries are not a protected
-  identity (WP9.2 note §3).
+  identity (WP9.2 note §3);
+- `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`: the symmetric W9 identity check in
+  W11's admissible-target check (§4.3). It adds no binding row and changes no protected identity.
 
 **The D-4 delta.** The census counts command and event binding rows alike (its row format,
 `tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py:104-108`), so it grows by 11, from 262 to 273, with
@@ -971,8 +1003,8 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | W9-C01, W9-C03, W9-C11 | For each routed row: the positive flow, a mutated catalogue row detected, and a retry answered from receipts with nothing appended | 1, 2 |
 | W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger. W9-C20 includes a verdict whose `reviewer_session` equals the request's analyst session, and, for a membership table, a reviewer and author who are distinct actors on one session (§5.5) | 1, 2 |
 | The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
-| `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay | 1 |
-| Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a forged W11 event on a reserved `rev_`, refused by replay | 1 |
+| `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay; a `required_evidence_refs` entry with an empty session after its prefix, refused at `submit` and by replay | 1 |
+| Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy`. The existing W11 suites pass unchanged | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
@@ -1046,14 +1078,18 @@ lanes are untouched.
 - session independence (§5.5): the same-session case is a refusal test; whether the attested session strings are true
   is the operator's attestation;
 - S-014's freshness at LR-020 (§10.2), checked by Stephen at resolution and on the L-4 checklist: "Has any restore run
-  been made since the run each item's S-014 ref names?"
+  been made since the run each item's S-014 ref names?";
+- a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
+  to release, and does every writer of the store run the pinned commit?"
 
 ## 19. Stop rules (06v §8) checked
 
 - **An interface in §2.8 resolves differently.** None does. Two seams 06v does not list are settled here without a
   core schema change: the frozen copy (§7.3) and the evidence area (§11.1). The closed acceptance schema (§10.5) is not
   a §2.8 interface; it goes to Stephen as owner point E.
-- **A W11 pin would change.** None does.
+- **A W11 pin would change.** None does. Revision 4 changes W11 code: the admissible-target check of §4.3. It does not
+  change the W11 catalogue, schemas, bindings or census. WP9.3-1's independent review re-verifies the W11 pins at its
+  head, and the existing W11 suites must pass unchanged.
 - **The shared-replay edit cannot be confined.** The four sites do not change (§14).
 - **A test needs live legacy, vault or restricted bytes.** None does (§17).
 - **A command would write a legacy file or the Gate 6 store.** None does: the tools refuse those outputs, and the CLI
@@ -1095,7 +1131,7 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 | G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1,** for simplicity: one anchor kind and one test (§10.3) | An `ars_event` anchor naming an `ArtefactRegistered` event, at a lower global position, whose `content_sha256` is the anchored hash |
 | H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits. Amended 2026-11-08: a membership-table review also records the author's session, which the verdict must differ from (§5.5) | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
 | I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched. WP9.3-1's independent reviewer, shown independent of both the contract's author and WP9.3's implementer, re-implements the contract and reproduces every vector, with the results recorded in the review report where the acceptance can cite them. The export is produced by the reference tool and rechecked by the runtime segmenter (§12.2) | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
-| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12) | Keep the tools under `tools/`, which extends the boundary further |
+| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3) | Keep the tools under `tools/`, which extends the boundary further |
 | K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
 | K′ | **S-014's timing:** "re-run after each W9 batch" (W9 §12.3), against evidence required before the batch is accepted (§10.2) | **The S-014 ref names the latest restore run before LR-020,** and the post-batch re-run goes on the L-4 checklist | A waiver for S-014 in the pilot batch, with the re-run after it |
 | L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
@@ -1103,6 +1139,16 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 ## Change log
 
+- **Revision 4 (2026-11-08).** Answers the second round of review comments on PR #411.
+  - **W11 writes to W9 identities** (CodeRabbit and Codex): W11's admissible-target check also refuses a target that
+    W9 claims or reserves. This is checked before append, through a lazy import, and is backed by replay. The boundary
+    extends to `discovery/routes.py` and `discovery/runtime.py`. Stephen chose this on 2026-11-08, as an amendment to
+    P-081 item 10 (§4.3, §16, §17, §19).
+  - **The author's session as an input** (CodeRabbit and Codex): `RequestW9AuthorityReview` carries it for a
+    membership table (§5.1). Each session ref needs a non-empty string after its prefix (§5.2, §17).
+  - **The later-pin race** (CodeRabbit): a write freeze on each store from the final check to release, a recorded
+    ledger head, and a re-check if the head moved. That every writer runs the pinned commit is recorded, not proved
+    (§9.1, §18).
 - **Revision 3 (2026-11-08).** Answers the review comments on PR #411. No owner decision changes, except item 8's
   amendment below.
   - **CodeRabbit:** `review_questions` is replay-checked as non-empty, because the schema sets no `minItems`. A
