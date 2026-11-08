@@ -5098,15 +5098,34 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     that W9 claims or reserves, before append. It reads the W9 projection through a lazy import (note §4.3, revision
     4). The W11 catalogue, schemas, bindings and census do not change, and WP9.3-1's independent review re-verifies the
     W11 pins.
+    **Amended again 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Full symmetric check
+    (Recommended)"). The boundary also covers `research_system/command/service.py` and `research_system/command/t2.py`,
+    for the same check at the two generic append sites, `CommandService.submit` and `submit_t2`: a command whose
+    events would append to a W9 fixed identity, or to an ID W9 claims or reserves, is refused before append. No append
+    site, command type, schema, binding or census row changes (note §4.3, revision 7).
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
     ID, and the content hash is bound later by the review and the Decision, each on the recomputed hash. This is a
     reading of global precondition G4.
+    **Amended 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Derived observation ID
+    (Recommended)"). LR-015 is not read this way. An observation's `record_id` is an `obj_` UUIDv7 derived from the
+    domain `w9-observation:<registration ID>:<subject digest>`, where the digest covers the source identity, the
+    selector and the importer tool, and the grant names that ID. Replay and the preparer recompute it, so one grant
+    covers exactly one observation subject (note §5.3, revision 7).
 13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
     `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
     "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
     This is a reading of the accepted schemas (note §4.2).
+
+**Added 2026-11-08** (Stephen, in chat, answering the fourth review round on PR #411):
+- **O-33's window** ("Snapshot + acceptance (Recommended)"). The writer lock cannot cover a vault or untracked source,
+  so 06v's "A change aborts with no event" is read as: any change up to the final re-read aborts with no event; the
+  observation's hashes and frozen copy come from that re-read's bytes; and a later change is a change after the
+  observation, caught as stale by the LR-016 and LR-020 re-read (note §7.2).
+- **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
+  adding one would be a fifth U-7 site. The public shared replay refuses a ledger with a non-W9 event on a W9 identity,
+  and every dispatch writer checks before append (note §4.3).
 
 **Carried to WP9.6** (review m-10; P-080 item 3): the supersession proposal's preparer refuses a superseded ref that
 names no recorded record. WP9.3 adds the replay half.<br>
@@ -5122,7 +5141,8 @@ WP9.7's `RegisterArtefact` guard (O-22) before any live `untracked_file` or `vau
 **Boundary:** Docs only. The code follows, under P-080 as extended by item 10.<br>
 **Affected specifications:** 06v WP9.3 (the design is settled), D-6 (WP9.3 split), D-7 (the export's producer and
 recheck); P-080 (Boundary extended); P-073 item 1 (W9-C20's session limb, read as item 8); the annex's LR-016
-precondition (read as item 5) and G4 (read as item 12).<br>
+precondition (read as item 5) and G4 (read as item 12, except LR-015); 06v's O-33 line (read as the 2026-11-08
+addition).<br>
 **Migration consequence:** None.
 
 ## Decision protocol

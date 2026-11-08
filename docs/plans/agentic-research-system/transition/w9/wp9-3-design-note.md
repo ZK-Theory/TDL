@@ -8,7 +8,8 @@ Stephen decided every owner point at its recommended option (P-081, 2026-10-29).
 review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Revision 4
 (2026-11-08) answers the second round, and amends P-081 item 10 to extend the boundary to W11's identity check.
 Revision 5 (2026-11-08) answers Codex's third round, with no owner decision changed. Revision 6 (2026-11-08) makes a
-later W0 pin's release a store binding advance (issue #415, option C), and amends P-081 item 3. Nothing in it is
+later W0 pin's release a store binding advance (issue #415, option C), and amends P-081 item 3. Revision 7
+(2026-11-08) answers a fourth round, amending P-081 items 10 and 12 and adding the O-33 reading. Nothing in it is
 implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
@@ -203,6 +204,32 @@ fixes stored bytes. It is owner point M.
   backstop: a W11 event on a W9 identity makes `replay_legacy` refuse the ledger. This extends WP9.3's boundary to
   `discovery/routes.py` and `discovery/runtime.py` (P-081 item 10, as amended; §16). The W11 catalogue, schemas and
   bindings do not change, and WP9.3-1's independent review re-verifies the W11 pins (§19).
+- **The generic side, before append.** The generic `CommandService` checks only the target's stream version
+  (`command/service.py:1541-1550`), and its creation commands accept any unused target ID, as
+  `_prepare_scope_command` does for `CreateScopeDefinition` (`:6134-6175`). A generic command could therefore create a
+  stream on W9's `CATALOGUE_STREAM_ID` before W9 genesis, so that genesis can never append on that store. After genesis
+  it could create a stream on an ID W9 claims or reserves, and under the rule above `replay_legacy` would then refuse
+  the whole shared ledger, which the public replay runs (U-7 site 4). The T2 path is a second generic writer with its
+  own append site: `submit_t2` checks each write-set entry's expected version and appends directly
+  (`command/t2.py:1179-1195`), and its creations take version 0 on a new stream (`:553`). So WP9.3-1 gives both
+  generic append sites in the 06h manifest, `CommandService.submit` and `submit_t2`, the same check as W11's: after
+  the stream-version check and before any append, a command is refused if any stream its events would append to is
+  one of W9's fixed identities (read from the code constants) or an ID the W9 projection claims or reserves. Each reads
+  the projection through the same lazy-imported helper as W11's check, over the snapshot it has already materialized.
+  The third non-W9 site, the authority store's bootstrap (`authority.py`, `initialize_authority_control_store`), runs
+  once on an empty store with its own fixed IDs; a test asserts they are disjoint from W9's fixed identities. This
+  extends WP9.3's boundary to `command/service.py` and `command/t2.py` (P-081 item 10, as amended again on
+  2026-11-08; §16). No append site, generic command type, schema, binding or census row changes, and the existing
+  generic and T2 suites must pass unchanged.
+- **Discovery-only replay is not the cross-partition check (a known limit).** `replay_discovery` runs the shared
+  partitions and Discovery's own reducers, never `replay_legacy` (`discovery/replay/driver.py:35-80`). An event
+  appended outside the guarded writers, by a direct `EventLedger.append`, on a W9 identity would therefore still give a
+  Discovery projection. Adding the check there would put a fifth site beyond U-7's four, an 06v §8 stop rule, so the
+  note does not. The check stays where U-7 puts it: the public shared replay runs `replay_legacy` whenever the ledger
+  holds a W9 event (`projection/replay.py:1391-1395`) and refuses such a ledger, and every dispatch writer, W9, W11
+  and generic, checks before append. The runtime-construction census (§17) keeps the W9 and W11 runtimes behind the
+  binding. Before W9 genesis no W9 event exists, so the public replay runs no W9 check: a direct append on the
+  catalogue stream ID then shows up only as W9 genesis failing on that store. Stephen chose this on 2026-11-08.
 - **The controls (§17):**
   - a W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged
     ledger;
@@ -210,7 +237,13 @@ fixes stored bytes. It is owner point M.
     any append;
   - a W11 minting command targeting W9's `CATALOGUE_STREAM_ID`, refused before any append, both before and after W9
     genesis;
-  - a forged W11 event on a reserved `rev_`, refused by `replay_legacy`.
+  - a forged W11 event on a reserved `rev_`, refused by `replay_legacy`;
+  - a generic `CreateScopeDefinition` on W9's `CATALOGUE_STREAM_ID`, refused by `CommandService.submit` before any
+    append, both before and after W9 genesis, and a generic creation on a W9-reserved `rev_`, refused the same way;
+  - a T2 creation whose write set names a W9-reserved ID, refused by `submit_t2` before any append; and the authority
+    bootstrap's fixed IDs disjoint from W9's;
+  - the known limit's boundary: a forged ledger holding a W9 event and a W11 event on a reserved `rev_`, refused by
+    the public shared replay.
 
 ### 4.4 References to W9 records
 
@@ -384,15 +417,33 @@ global precondition G4, so it is owner point L.
 | `ProposeLegacyRecord`, `RecordLegacyLightInventory` | `scope_definition` | the record ID (the target stream) |
 | `RequestW9AuthorityReview`, `RecordW9AuthorityReview` | `review` | the review ID |
 | `ProposeW9AuthorityDecision`, `ResolveW9AuthorityDecision` | `decision` | the Decision ID |
-| `ObserveLegacyRecord` | `scope_definition` | the registration's record ID (annex LR-015: "registration + …"), read from the payload's `registration_ref`, as Discovery reads `candidate_id` (`discovery/runtime.py:241-256`). The target stream is the observation's own ID |
+| `ObserveLegacyRecord` | `scope_definition` | the observation's own record ID (the target stream), derived from LR-015's full subject, below |
 
 These are W11's kinds for the same steps (`research_system/authority.py:231-234`). `LegacyRuntime._resolve_authority`
 hard-codes `scope_definition` and the target stream today (`legacy/runtime.py:259-273`), and becomes a table. The risk
 tier stays R2 (`:268`).
 
+**The observation's ID binds LR-015's full subject.** The annex subject is "registration + physical identity + bytes or
+baseline + selector + importer tool identity" (`wp9-1-catalogue-owner-annex.yaml:515`). A grant on the registration's
+ID alone would let one grant cover a second observation of that registration with another selector or baseline. Since
+a grant names one ID, the observation's ID carries the rest:
+- the **subject digest** is the SHA-256 of `canonical_bytes` over `{"w9_observation_subject": {"registration_id":
+  <registration_ref.id>, "source_identity": <source_identity>, "selector": <selector>, "importer_tool": {"tool_id",
+  "tool_version", "tool_sha256"}}}`, the last three copied from the record's `importer`. `source_identity` carries
+  the physical identity and the bytes or baseline: the path, and for `git_tracked` the commit and blob, with the
+  SHA-256 and length;
+- `record_id` is an `obj_` UUIDv7 built as WP9.2's external refs are (WP9.2 note §5.3, steps 2 to 5), from the domain
+  string `w9-observation:<registration record ID>:<subject digest>` and the record's `created_at` in milliseconds, as
+  the ownership records are built (§10.5);
+- the preparer and replay each recompute it and refuse a record whose `record_id` differs. So a grant on that ID
+  authorizes exactly one subject, and two observations of one registration need two grants.
+
+The light-inventory builder prints the ID for an observation envelope, so that Stephen can grant it before it is
+submitted (§12.1). Stephen chose this on 2026-11-08 over recording a narrowing like owner point L.
+
 **Operator burden.** Every proposal, review and Decision needs its own grant on its own ID, which Stephen issues. A
 20-item pilot needs tens of grant activations: for the registrations, a membership table per JSON schema, an inventory
-per Markdown file, an observation grant per registration, and one batch. W9 §13.4 makes "operator
+per Markdown file, an observation grant per observation (one per registration in the pilot), and one batch. W9 §13.4 makes "operator
 burden makes routine bypass of a control likely" a stop criterion, and §14.3 measures burden. The pilot's owner log
 records the grant count. Nothing here changes it: G4 is accepted.
 
@@ -532,6 +583,22 @@ At commit, under the lock and after the shadow run of §6, the preparer re-reads
 change aborts the command with no event and no receipt. The rows that re-read are LR-005 (the physical identity),
 LR-010 (`applies_to`), LR-014 (the inventory's source), LR-015 (the read itself), LR-016 and LR-020 (every item's
 source must still equal its observation).
+
+**The gap after the final re-read.** The writer lock covers the control, authority and ledger roots
+(`legacy/runtime.py:241-245`), not the registered source, and nothing can lock a vault or untracked file against an
+outside editor. So a change after the final re-read and before the append is committed. The note reads 06v's O-33
+line ("A change aborts with no event") as follows:
+- **The observation records one real moment.** The recorded `source_identity` hashes, and the frozen copy of §7.3, are
+  taken from the bytes of the final re-read itself, not from an earlier read. Any change up to that re-read aborts with
+  no event and no receipt.
+- **A later change is a change after the observation.** It cannot be told apart from a change just after the commit,
+  and §4.2 item 3 of W9 treats it the same way: the observation becomes stale. The acceptance re-reads every item's
+  source at LR-016 and LR-020 and refuses a stale item, so no acceptance rests on bytes that changed.
+- **For `git_tracked` sources the recorded bytes cannot move,** because they are the blob at the binding's
+  `git_head` (§11.2). A working-tree edit makes the checkout dirty, which the binding refuses at the next command.
+
+Stephen chose this reading on 2026-11-08. The control injects a mutation between the final re-read and the append:
+the observation commits with the re-read's hashes, and LR-016 then refuses the item as stale (§17).
 
 **Stale observations are projected.** An open observation is stale when a later observation of the same registration
 holds a different blob (`git_tracked`) or SHA-256 (other kinds), or when its source re-reads differently at
@@ -918,6 +985,8 @@ Every tool reads its inputs and writes only to an output path the operator names
   derived ownership list when it builds a batch (§10.5).
 - **Reproduction mode** re-segments the same bytes (the Git blob, or the frozen copy) and reports row-by-row equality.
   LR-013's reproducer uses it.
+- **Observation IDs.** Given an observation envelope, it prints the derived `record_id` of §5.3, so that Stephen can
+  issue the grant on that ID before the envelope is submitted.
 
 ### 12.2 The Computational-Log export and its recheck (D-7; O-21)
 
@@ -1030,7 +1099,10 @@ checkout L-3 runs from (with R-1), whichever PR that is.
   and with its §5.3 subject kind in `_SCOPED_COMMAND_SUBJECT_KINDS` (`:209-333`). These entries are not a protected
   identity (WP9.2 note §3);
 - `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`: the symmetric W9 identity check in
-  W11's admissible-target check (§4.3). It adds no binding row and changes no protected identity.
+  W11's admissible-target check (§4.3). It adds no binding row and changes no protected identity;
+- `research_system/command/service.py` and `research_system/command/t2.py`: the same check at the two generic append
+  sites (§4.3). The 06h manifest lists append sites by path and symbol, so it does not change, and no binding row or
+  protected identity changes.
 
 **The D-4 delta.** The census counts command and event binding rows alike (its row format,
 `tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py:104-108`), so it grows by 11, from 262 to 273, with
@@ -1056,7 +1128,9 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger. W9-C20 includes a verdict whose `reviewer_session` equals the request's analyst session, and, for a membership table, a reviewer and author who are distinct actors on one session (§5.5) | 1, 2 |
 | The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
 | `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay; a `required_evidence_refs` entry with an empty session after its prefix, refused at `submit` and by replay | 1 |
-| Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy`. The existing W11 suites pass unchanged | 1 |
+| Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy` and by the public shared replay. The generic and T2 controls of §4.3: a `CreateScopeDefinition` on `CATALOGUE_STREAM_ID` before and after W9 genesis, and a generic and a T2 creation on a reserved `rev_`, each refused before any append; the bootstrap IDs disjoint from W9's. The existing W11, generic and T2 suites pass unchanged | 1 |
+| Observation ID (§5.3) | An observation whose `record_id` is not the derivation from its subject, refused at `submit` and by replay; a grant for one observation refused for a second observation of the same registration with another selector, and with another baseline | 1 |
+| The O-33 gap (§7.2) | A scratch source mutated between the final re-read and the append: the observation commits with the re-read's hashes and frozen copy, and LR-016 refuses the item as stale | 1, 2 |
 | Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
 | Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append | 1 |
@@ -1114,7 +1188,10 @@ lanes are untouched.
 - the W2 payload fields, including the verdict's independence grade and empty conditions: the per-field controls;
 - W9-C20's session limb, and the membership-table author's session, as equality checks on attested strings: the
   W9-C20 controls;
-- identity claims across the shared ledger, and the pinned W0 signature IDs: the cross-partition and pin controls;
+- identity claims across the shared ledger, at the W9, W11, generic and T2 writers, and the pinned W0 signature IDs:
+  the cross-partition and pin controls;
+- LR-015's full authority subject, through the derived observation ID: the observation-ID controls;
+- the O-33 gap after the final re-read, closed at acceptance: the O-33 gap control;
 - after a later pin's release, refusal of a writer on pre-pin code: `load_current_binding`, with the pin-release
   controls (§9.1). Whether a store has been released is a fact the store records: its current binding's `git_head`;
 - that production code builds `LegacyRuntime` and `DiscoveryRuntime` only behind `load_current_binding`: the
@@ -1140,6 +1217,9 @@ lanes are untouched.
   been made since the run each item's S-014 ref names?";
 - a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
   to its binding advance?";
+- Discovery-only replay (§4.3, a known limit): `replay_discovery` runs no W9 check, so a W11 reader would project
+  over a ledger that a direct append broke for W9. The question for each reviewer of a Discovery output is "Did the
+  public shared replay pass on this ledger?";
 - the census's reach (§17): it sees Python source in the repository, not a runtime built by code outside it or by a
   dynamic import. Local administration through `--config` is outside the dispatch path (§9.1), and the reviewer
   answers: "Does any dispatch path build a W9 or W11 runtime the census cannot see?"
@@ -1152,7 +1232,9 @@ lanes are untouched.
 - **A W11 pin would change.** None does. Revision 4 changes W11 code: the admissible-target check of §4.3. It does not
   change the W11 catalogue, schemas, bindings or census. WP9.3-1's independent review re-verifies the W11 pins at its
   head, and the existing W11 suites must pass unchanged.
-- **The shared-replay edit cannot be confined.** The four sites do not change (§14).
+- **The shared-replay edit cannot be confined.** The four sites do not change (§14). Revision 7 keeps it so: CodeRabbit's
+  case for a W9 check inside `replay_discovery` would be a fifth site, so it is recorded as a known limit instead
+  (§4.3), at Stephen's choice. The generic and T2 checks are before append, not in replay.
 - **A test needs live legacy, vault or restricted bytes.** None does (§17).
 - **A command would write a legacy file or the Gate 6 store.** None does: the tools refuse those outputs, and the CLI
   refuses before binding (§12, §13).
@@ -1193,14 +1275,27 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 | G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1,** for simplicity: one anchor kind and one test (§10.3) | An `ars_event` anchor naming an `ArtefactRegistered` event, at a lower global position, whose `content_sha256` is the anchored hash |
 | H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits. Amended 2026-11-08: a membership-table review also records the author's session, which the verdict must differ from (§5.5) | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
 | I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched. WP9.3-1's independent reviewer, shown independent of both the contract's author and WP9.3's implementer, re-implements the contract and reproduces every vector, with the results recorded in the review report where the acceptance can cite them. The export is produced by the reference tool and rechecked by the runtime segmenter (§12.2) | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
-| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3) | Keep the tools under `tools/`, which extends the boundary further |
+| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3); amended again the same day: also `research_system/command/service.py` and `research_system/command/t2.py`, for the same check at the generic append sites (§4.3) | Keep the tools under `tools/`, which extends the boundary further |
 | K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
 | K′ | **S-014's timing:** "re-run after each W9 batch" (W9 §12.3), against evidence required before the batch is accepted (§10.2) | **The S-014 ref names the latest restore run before LR-020,** and the post-batch re-run goes on the L-4 checklist | A waiver for S-014 in the pilot batch, with the re-run after it |
-| L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
+| L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision. Amended 2026-11-08: LR-015 is not read this way; its grant binds the full subject through a derived observation ID (§5.3) | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
 | M | **The pre-assigned ref hash** (§4.2): a synthetic value in a field the schemas call `content_hash` | **Accept the rule as written,** with copied refs checked against the record that pre-assigned them, and record it as a reading of the accepted schemas | Any other non-circular rule, fixed before the code PR, because it fixes stored bytes |
 
 ## Change log
 
+- **Revision 7 (2026-11-08).** Answers a fourth round on PR #411: one CodeRabbit comment and three Codex P2s. Stephen
+  chose each option in chat on 2026-11-08.
+  - **LR-015's full subject** (Codex): an observation's `record_id` is derived from its registration, source identity,
+    selector and importer tool, and the grant names that ID, so one grant covers one observation. P-081 item 12
+    amended (§5.3, §12.1, §17, §21 L).
+  - **Generic writers** (Codex): `CommandService.submit` and `submit_t2`, the two generic append sites, get W11's W9
+    identity check before append. The T2 site was found while checking the comment. P-081 item 10 amended again (§4.3,
+    §16, §17, §21 J).
+  - **Discovery-only replay** (CodeRabbit): recorded as a known limit, because a check in `replay_discovery` would be a
+    fifth U-7 site; the public shared replay refuses such a ledger, and a control shows it (§4.3, §17, §18, §19).
+  - **The O-33 gap** (Codex): the observation's hashes and frozen copy come from the final re-read's bytes, and a later
+    change is caught as stale at acceptance. Recorded as a reading of 06v's O-33 line, with a control that mutates the
+    source in the gap (§7.2, §17, §18).
 - **Revision 6 (2026-11-08).** Answers CodeRabbit's question on writer versions, tracked as issue #415. Stephen accepted
   option C of the issue's findings (posted on PR #411 as comment 6726327810), in his words "Yes, option C", as an
   amendment to P-081 item 3.
