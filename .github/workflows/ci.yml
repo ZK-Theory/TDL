@@ -134,7 +134,8 @@ jobs:
   # P-049 ruleset (decided by Stephen, 2026-09-11).
   admission-controls:
     runs-on: windows-latest
-    timeout-minutes: 15
+    # 20, not 15: the job took about 9 minutes before the 2026-11-03 review added fifteen control files (F1).
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -194,11 +195,32 @@ jobs:
           tests/tools/test_commit_msg_hooks.py
           tests/tools/test_handoff_surface_hook.py
           tests/tools/test_hook_script_lf_bytes.py
+          tests/tools/test_brief_hygiene_tools.py
+          tests/tools/test_check_lean_proof.py
+          tests/tools/test_check_skill_metadata.py
+          tests/tools/test_codex_token_telemetry.py
+          tests/tools/test_followup_skill_rules.py
+          tests/tools/test_gitattributes_binary_safety.py
+          tests/tools/test_gitattributes_lf_coverage.py
+          tests/tools/test_invoke_checked.py
+          tests/tools/test_review_campaign_lints.py
+          tests/tools/test_schema_materialization_coverage.py
+          tests/tools/test_staged_contract_gate.py
+          tests/tools/test_system_record_id.py
+          tests/tools/test_w9_segmentation.py
+          tests/contracts/test_contract_hardening_gates.py
+          tests/contracts/test_paper_table_reconciliation.py
           --junitxml=admission-controls.xml
           -o "addopts=" -p no:cacheprovider -p no:cov
 
       - name: Refuse skipped or absent controls
         run: .venv\Scripts\python.exe tools/assert_no_skips.py admission-controls.xml
+
+      # A test that passes a branch-only commit to git breaks once TDL squash-merges the branch
+      # (obs 2026-10-24-squash-merge-strands-sha-pinned-controls). Built in #400; wired here by the
+      # 2026-11-03 system review (F2). The full-history checkout above gives it origin/main and the tags.
+      - name: Check every commit a test names survives a squash merge
+        run: .venv\Scripts\python.exe tools/check_test_commit_literals.py --repo .
 
   # Watchdog of the watchdog (obs 2026-09-30-system-review-prs-stopping-rule-follow-ups, PR #302).
   # The workflow-liveness watchdog is a scheduled workflow, and a schedule that stops firing (the

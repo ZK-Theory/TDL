@@ -78,4 +78,25 @@ if [ "$SUBJECT_LEN" -gt 72 ]; then
   echo "Advisory: subject line is ${SUBJECT_LEN} characters (recommended ≤72)."
 fi
 
+# Advisory only: a results file committed under another prefix gets the vault reminder. Results are written by
+# pipeline scripts, which the editor-bound results-vault-reminder hook never sees, and prepare-commit-msg skips an
+# already-prefixed message (obs 2026-11-03-results-vault-reminder-blind-to-script-written-results). Every run
+# appends a receipt (advise or silent) to the harness receipt log, when this is a TDL checkout that has one.
+DECISION=silent
+ADDED_RESULTS=$(git diff --cached --name-only --diff-filter=A -- results/ 2>/dev/null \
+  | grep -E '\.(json|npy|npz|csv|pkl)$' || true)
+if [ -n "$ADDED_RESULTS" ] && ! echo "$FIRST_LINE" | grep -qE '^\[(RESULT|NEGATIVE|DATA)\]'; then
+  DECISION=advise
+  echo "Advisory: this commit adds results files under a prefix other than [RESULT], [NEGATIVE] or [DATA]:"
+  printf '%s\n' "$ADDED_RESULTS" | head -5 | sed 's/^/  /'
+  echo "  If it records a result, use [RESULT] and log it in 04-Methods/Computational-Log.md (/vault-sync)."
+fi
+REPO_TOP=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -n "$REPO_TOP" ] && [ -d "$REPO_TOP/.claude/hooks" ]; then
+  FIRST_RESULT=$(printf '%s\n' "$ADDED_RESULTS" | head -1 | tr -c 'A-Za-z0-9_./\n-' '?')
+  printf '%s hook=commit-msg-results decision=%s file=%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$DECISION" "${FIRST_RESULT:--}" \
+    >> "$REPO_TOP/.claude/hooks/hook-receipts.log" 2>/dev/null || true
+fi
+
 exit 0
