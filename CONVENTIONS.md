@@ -756,6 +756,20 @@ Three journal-targeted papers replacing the original four technique-first papers
   That is an instruction-level rule only, recorded here as the remaining gap.
 
   Decided by Stephen on PR #278, 2026-09-11. Locked 2026-09-11.
+- **Ordinary merges go through the merge queue; a bypass states its reason.** A
+  pull request that touches no gate file merges by entering the merge queue, so
+  the queue's run of the required checks admits it. The admin bypass is kept for
+  the gate-file edits above and for a case whose reason the PR states when the
+  bypass is taken. While bypasses stay the exception, rule insights can single
+  one out, which the bullet above relies on. The queue had no entry from
+  2026-09-11 to 2026-10-27, and every recorded update to `main` from 2026-09-30
+  on was a bypass (observation
+  `2026-10-27-merge-queue-never-entered-every-main-update-bypasses`).
+  From #397 to #410, ten of thirteen updates passed through the queue. The
+  bypass audit proposed with this choice was declined, since bypasses are rare
+  again. Requiring `suite-verdict` in ruleset 20822054 is the owner's separate
+  edit. Decided by Stephen, 2026-11-08 (system review 2026-11-03, Group A2).
+  Locked 2026-11-08.
 
 ---
 
