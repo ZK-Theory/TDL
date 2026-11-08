@@ -46,9 +46,11 @@ def _run_prepare(msg_file: Path, source: str, cwd: Path | None = None) -> subpro
     )
 
 
-def _run_commit_msg(msg_file: Path) -> subprocess.CompletedProcess[str]:
+def _run_commit_msg(msg_file: Path, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    # Run beside the message by default, never in this checkout: the hook reads the index and appends a receipt.
     return subprocess.run(
         [_git_bash(), str(COMMIT_MSG_HOOK), str(msg_file)],
+        cwd=cwd or msg_file.parent,
         capture_output=True,
         text=True,
         check=False,
@@ -144,3 +146,39 @@ def test_commit_msg_still_allows_merge_commits(tmp_path: Path) -> None:
     msg.write_text("Merge branch main\n", encoding="utf-8")
     result = _run_commit_msg(msg)
     assert result.returncode == 0
+
+
+def _repo_staging_a_result(tmp_path: Path) -> Path:
+    """A TDL-shaped repository (it has ``.claude/hooks``) with a new results file in its index."""
+    repo = tmp_path / "repo"
+    (repo / ".claude" / "hooks").mkdir(parents=True)
+    (repo / "results").mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    (repo / "results" / "w2_null_2026-11-03.json").write_text("{}\n", encoding="utf-8")
+    subprocess.run(["git", "add", "results/w2_null_2026-11-03.json"], cwd=repo, check=True)
+    return repo
+
+
+def test_commit_msg_reminds_when_a_result_is_committed_under_another_prefix(tmp_path: Path) -> None:
+    """Obs 2026-11-03-results-vault-reminder-blind-to-script-written-results: results come from scripts, which the
+    editor-bound reminder never sees, and prepare-commit-msg skips an already-prefixed message."""
+    repo = _repo_staging_a_result(tmp_path)
+    msg = tmp_path / "msg.txt"
+    msg.write_text("[PIPELINE] P01: rerun the null battery\n", encoding="utf-8")
+    result = _run_commit_msg(msg, cwd=repo)
+    assert result.returncode == 0, "advisory only: the commit is never blocked"
+    assert "adds results files under a prefix other than [RESULT]" in result.stdout
+    assert "results/w2_null_2026-11-03.json" in result.stdout
+    receipt = (repo / ".claude" / "hooks" / "hook-receipts.log").read_text(encoding="utf-8")
+    assert "hook=commit-msg-results decision=advise file=results/w2_null_2026-11-03.json" in receipt
+
+
+def test_commit_msg_is_silent_for_a_result_committed_as_a_result(tmp_path: Path) -> None:
+    repo = _repo_staging_a_result(tmp_path)
+    msg = tmp_path / "msg.txt"
+    msg.write_text("[RESULT] P01: W2 permutation p=0.002 at k=3\n", encoding="utf-8")
+    result = _run_commit_msg(msg, cwd=repo)
+    assert result.returncode == 0
+    assert "adds results files" not in result.stdout
+    receipt = (repo / ".claude" / "hooks" / "hook-receipts.log").read_text(encoding="utf-8")
+    assert "hook=commit-msg-results decision=silent" in receipt, "a silent run still leaves a positive signal"
