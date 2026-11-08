@@ -677,7 +677,8 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
       (`:213`) and in its operations. W9 writers admit through it once §13's `ars legacy submit` lands. W11 needs the
       cover too: W11 code from before the pin holds the old constants of §4.3's check.
     - Not covered: code that builds `LegacyRuntime` or `DiscoveryRuntime` directly (tests and scripts), and local
-      administration through `--config` (`cli.py:161-167`). Neither is the dispatch path.
+      administration through `--config` (`cli.py:161-167`). Neither is the dispatch path. A census test keeps
+      production constructions to the two bound sites (§17).
   - **The write freeze, from the final check to the advance.** Until the advance, only pre-pin code can write, so an
     old-version writer could still claim the candidate ID after the check. So on each W9 store:
     - From the final check until the store's binding is advanced, no W9 or W11 command is submitted to the store.
@@ -1059,6 +1060,7 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
 | Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append | 1 |
+| Runtime-construction census (§9.1) | An AST census over every Python file outside `tests/`: each import of `LegacyRuntime` or `DiscoveryRuntime`, and each call that constructs one, aliases and subclasses included, sits at an allowed site. The allowed sites are exactly two, `SpecCoordinator._discovery` (`discovery/spec.py:339-351`, the only one on `main` at `1f0d8281`) and §13's `ars legacy submit`, and each takes its binding from a `VerifiedCurrentBinding` that `load_current_binding` returned. Negative controls: a fixture module that constructs either runtime without the binding, and one that imports it under an alias, each fail the census with the file and line named | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
 | The `CONVENTIONS.md` vault alias | A `vault_file` registration resolving to the repository's `CONVENTIONS.md` is refused (§7.1) | 1 |
@@ -1115,6 +1117,8 @@ lanes are untouched.
 - identity claims across the shared ledger, and the pinned W0 signature IDs: the cross-partition and pin controls;
 - after a later pin's release, refusal of a writer on pre-pin code: `load_current_binding`, with the pin-release
   controls (§9.1). Whether a store has been released is a fact the store records: its current binding's `git_head`;
+- that production code builds `LegacyRuntime` and `DiscoveryRuntime` only behind `load_current_binding`: the
+  runtime-construction census and its negative controls (§17);
 - the export and its recheck by different implementations: the export-recheck controls;
 - the ownership list: replay, with the E controls;
 - restricted bytes: W9-T11's reader half.
@@ -1136,9 +1140,9 @@ lanes are untouched.
   been made since the run each item's S-014 ref names?";
 - a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
   to its binding advance?";
-- that writers reach a store only through its current binding (§9.1): no test yet shows that production code builds
-  `LegacyRuntime` or `DiscoveryRuntime` only behind `load_current_binding`. A census test with a negative control
-  would make this machine-checkable; it is not in WP9.3-1's scope unless Stephen adds it.
+- the census's reach (§17): it sees Python source in the repository, not a runtime built by code outside it or by a
+  dynamic import. Local administration through `--config` is outside the dispatch path (§9.1), and the reviewer
+  answers: "Does any dispatch path build a W9 or W11 runtime the census cannot see?"
 
 ## 19. Stop rules (06v §8) checked
 
@@ -1207,8 +1211,10 @@ Each needs Stephen's decision before the code. Each has a recommended option.
     compares with `HEAD`. The current-binding admission does compare it (§9.1).
   - **The freeze narrows** to the window from the final check to the advance, with the ledger head re-read just before
     the advance (§9.1). §18's writer-version item moves from human review to machine-checkable, and a pin-release
-    control through the loader itself is added (§17, §18). A census test that runtimes are built only behind the binding
-    is named as the remaining gap, not added (§18).
+    control through the loader itself is added (§17, §18).
+  - **The runtime-construction census** joins WP9.3-1 at Stephen's word ("Yes, add it", 2026-11-08): an AST census
+    that production code builds `LegacyRuntime` and `DiscoveryRuntime` only at two allowed sites, both behind
+    `load_current_binding`, with negative controls (§17). What the census cannot see is a human-review item (§18).
 - **Revision 5 (2026-11-08).** Answers Codex's third round on PR #411. No owner decision changes.
   - **W9's catalogue stream ID in the W11 guard.** W11's check reads W9's fixed identities (`CATALOGUE_STREAM_ID`,
     `RESERVED_IDS` and the pinned W0 refs) from the code constants, so they are refused before W9 genesis too.

@@ -5059,7 +5059,9 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    "Yes, option C"). A later W0 pin, made while W9 stores exist, is released on each W9 store by advancing its binding
    (`AdvanceStoreBinding`) to a `main` commit that holds the pin. `load_current_binding` then refuses a writer on
    pre-pin code, on the W11 path and, through `ars legacy submit`, on the W9 path. The write freeze runs from the final
-   pre-pin check to that advance (note §9.1, revision 6).
+   pre-pin check to that advance (note §9.1, revision 6). Stephen also added to WP9.3-1 ("Yes, add it") an AST census
+   that production code builds `LegacyRuntime` and `DiscoveryRuntime` only at two allowed sites behind
+   `load_current_binding`, with negative controls (note §17).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
