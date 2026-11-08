@@ -5055,6 +5055,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    (L-0b) enter the code as append-only tuples in `research_system/legacy/accepted_w9.py`, empty in WP9.3. Until a
    reviewed PR pins each after Stephen's acceptance, with independent test literals, LR-015 refuses every observation
    in production (note §9.1, §11.3).
+   **Amended 2026-11-08** (Stephen, answering CodeRabbit's writer-version question on PR #411, tracked as issue #415:
+   "Yes, option C"). A later W0 pin, made while W9 stores exist, is released on each W9 store by advancing its binding
+   (`AdvanceStoreBinding`) to a `main` commit that holds the pin. `load_current_binding` then refuses a writer on
+   pre-pin code, on the W11 path and, through `ars legacy submit`, on the W9 path. The write freeze runs from the final
+   pre-pin check to that advance (note §9.1, revision 6).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).

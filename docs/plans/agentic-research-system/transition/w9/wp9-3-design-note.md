@@ -7,7 +7,9 @@ accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change
 Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Revision 3 (2026-11-08) answers the
 review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Revision 4
 (2026-11-08) answers the second round, and amends P-081 item 10 to extend the boundary to W11's identity check.
-Revision 5 (2026-11-08) answers Codex's third round, with no owner decision changed. Nothing in it is implemented.<br>
+Revision 5 (2026-11-08) answers Codex's third round, with no owner decision changed. Revision 6 (2026-11-08) makes a
+later W0 pin's release a store binding advance (issue #415, option C), and amends P-081 item 3. Nothing in it is
+implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -657,19 +659,41 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
     already equals the derived ID, the ref is derived again from the same domain with a `#<n>` suffix, using the next
     unused `n`, and the check is repeated. The pin records the domain it used and the check's result. Running the check
     is an owner operation.
-  - **The write freeze, from the final check to release.** An old-version writer could claim the candidate ID after
-    the check and before its store's writers run the pinned code. So on each W9 store:
-    - From the final check until every writer of that store runs a commit that holds the pin, no W9 or W11 command is
-      submitted to the store. Stephen dispatches every write and issues every grant (§5.3), so the freeze is his.
-    - The check records the store's ledger head: the last global position and that event's hash. Before writes
-      resume, the head is read again on the pinned code. If it moved, writes stay frozen and the check is re-run.
-    - If a collision is found before release, the ref is re-derived in a follow-up commit, which replaces the
-      unreleased entry. No writer ran it and no record names it, so replacing it breaks no replay; the append-only rule
-      exists to protect exactly that.
-    - Code cannot refuse a writer still on old code after release. Binding validation reads Git objects at the
-      recorded commit and never compares them with the physical `HEAD` (`store/governed_code.py:551-553`). So the
-      pin's checklist records that every writer of the store runs the pinned commit. That is recorded, not proved
-      (§18).
+  - **Release is a binding advance (issue #415, option C).** A later pin is released on each W9 store by the existing
+    owner operation `AdvanceStoreBinding` (`advance-clean-descendant-store-binding`, `store/binding_service.py:167-232`)
+    to a `main` commit that holds the pin. Every later `main` commit holds it too, because the tuple is append-only.
+    The store's current binding then decides which code may write to it:
+    - `load_current_binding` compares the checkout's `HEAD` and tree with the binding's `git_head` and `git_tree` on
+      every operation, and requires a clean worktree, untracked files included (`store/current_binding.py:847-853`).
+      The binding names one code root, which the CLI takes from the running package's own location (`cli.py:119-134`),
+      so the `HEAD` checked belongs to the checkout the running code came from.
+    - A schema 1.2.0 binding also admits a non-exact checkout, but only a reviewed, documentation-only descendant of
+      the bound commit that equals `refs/heads/main` (`current_binding.py:913-921`; `governed_code.py:784-795`). The
+      pin commit changes `research_system/legacy/accepted_w9.py`, a governed file (`governed_code.py:75-77`). So after
+      the advance, a pre-pin checkout is refused, because it is an ancestor of the bound commit, not a descendant; and
+      before the advance, a pinned checkout is refused, because it changes governed code.
+    - W11 writers already admit through the binding: production builds `DiscoveryRuntime` only in
+      `SpecCoordinator._discovery` (`discovery/spec.py:339-351`), which revalidates the binding when it is built
+      (`:213`) and in its operations. W9 writers admit through it once §13's `ars legacy submit` lands. W11 needs the
+      cover too: W11 code from before the pin holds the old constants of §4.3's check.
+    - Not covered: code that builds `LegacyRuntime` or `DiscoveryRuntime` directly (tests and scripts), and local
+      administration through `--config` (`cli.py:161-167`). Neither is the dispatch path.
+  - **The write freeze, from the final check to the advance.** Until the advance, only pre-pin code can write, so an
+    old-version writer could still claim the candidate ID after the check. So on each W9 store:
+    - From the final check until the store's binding is advanced, no W9 or W11 command is submitted to the store.
+      Stephen dispatches every write and issues every grant (§5.3), so the freeze is his.
+    - The check records the store's ledger head: the last global position and that event's hash. Immediately before
+      the advance, the head is read again. If it moved, the store stays frozen and the check is re-run.
+    - If a collision is found before the advance, the ref is re-derived in a follow-up commit, which replaces the
+      unreleased entry. No store is bound to it, so no writer ran it and no record names it, and replacing it breaks
+      no replay; the append-only rule exists to protect exactly that.
+    - If a claim lands in the window anyway, the first replay on the pinned code refuses the ledger (the cross-pin
+      control below). The store then refuses writes rather than being silently corrupted. Recovering from that after
+      the advance needs Stephen's ruling, because the replace-before-release rule no longer applies.
+
+  Revisions 4 and 5 said code could not refuse an old writer after release, citing `validate_persisted_governed_code_manifest`
+  (`store/governed_code.py:551-553`). That function checks historical links in the binding chain
+  (`current_binding.py:908-912`), not the current admission, so the premise was too narrow (issue #415's findings).
 
   A ledger that claimed a pinned ID anyway fails closed. The controls (§17):
   - a proposal pre-assigning a pinned ID is refused;
@@ -940,7 +964,9 @@ run on a synthetic `.apm/` tree.
    (`legacy/runtime.py:231-237`).
 
 This keeps F-4 ("run `refuse_gate6_store` on the target control root before `_verified_ledger`") and widens it from
-the control root's own manifest to the ancestor scan the runtime uses. The read-only `ars legacy` binding
+the control root's own manifest to the ancestor scan the runtime uses. Step 2 also carries §9.1's release of a later
+W0 pin: because every submit admits through the store's current binding, a W9 writer on a commit the binding does not
+admit is refused before it replays or appends. The read-only `ars legacy` binding
 (`cli.py:1513-1521`) is unchanged.
 
 **A dependency on D-1 (review m-7).** `load_current_binding` requires a clean worktree, untracked files included
@@ -1032,6 +1058,7 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy`. The existing W11 suites pass unchanged | 1 |
 | Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
+| Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
 | The `CONVENTIONS.md` vault alias | A `vault_file` registration resolving to the repository's `CONVENTIONS.md` is refused (§7.1) | 1 |
@@ -1086,6 +1113,8 @@ lanes are untouched.
 - W9-C20's session limb, and the membership-table author's session, as equality checks on attested strings: the
   W9-C20 controls;
 - identity claims across the shared ledger, and the pinned W0 signature IDs: the cross-partition and pin controls;
+- after a later pin's release, refusal of a writer on pre-pin code: `load_current_binding`, with the pin-release
+  controls (§9.1). Whether a store has been released is a fact the store records: its current binding's `git_head`;
 - the export and its recheck by different implementations: the export-recheck controls;
 - the ownership list: replay, with the E controls;
 - restricted bytes: W9-T11's reader half.
@@ -1106,7 +1135,10 @@ lanes are untouched.
 - S-014's freshness at LR-020 (§10.2), checked by Stephen at resolution and on the L-4 checklist: "Has any restore run
   been made since the run each item's S-014 ref names?";
 - a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
-  to release, and does every writer of the store run the pinned commit?"
+  to its binding advance?";
+- that writers reach a store only through its current binding (§9.1): no test yet shows that production code builds
+  `LegacyRuntime` or `DiscoveryRuntime` only behind `load_current_binding`. A census test with a negative control
+  would make this machine-checkable; it is not in WP9.3-1's scope unless Stephen adds it.
 
 ## 19. Stop rules (06v §8) checked
 
@@ -1150,7 +1182,7 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 |---|---|---|---|
 | A | **The split** (06v D-6; P-064 item 6; P-080 item 1) | **Two PRs, which the review asks for (review §4):** WP9.3-1 (LR-003 to LR-015, all seven bindings, D-4) then WP9.3-2 (LR-016 to LR-020, the export recheck and the `.apm/` tools, no D-4) (§2.3). P-064 item 6 allows a WP9.3 split without fixing its shape; this shape departs from 06v's D-6 row ("reader and selectors"), which the decision records | One PR; or 06v's reader and selectors split |
 | B | **Review satisfaction** | **`approve` only, for every W9 review,** with `approve_with_conditions` not even recordable (§5.4). The catalogue has no row to discharge a condition | Admit `approve_with_conditions` for authority reviews only, which needs a condition-discharge rule and a catalogue revision |
-| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
+| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3). Amended 2026-11-08: a later W0 pin is released on each W9 store by advancing its binding to a `main` commit that holds the pin, and the write freeze runs from the final pre-pin check to that advance (§9.1; issue #415, option C) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
 | D | **The W9 evidence area** | **`.research-system/evidence/w9/`,** with WP9.3 fixing the reader-side formats of WP9.5's files (§11.1). The path is recorded once, in the decision entry, so that WP9.5 (D-5's run hashes) and WP9.7 (D-9's suffix list) use the same one | `docs/plans/agentic-research-system/transition/w9/evidence/`; or WP9.5 defines the formats first, and LR-003, LR-015 and LR-016 wait for it |
 | E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the ledger before it, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose; a batch may hold at most one whole-file item per registration. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | Derived, and also listed among the LR-017 review's subjects, so the reviewed bytes contain the list (the review's alternative); a catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
 | F | **Genesis guard 8** (§15) | **Generalize the partition check,** have each WP9.3 PR's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
@@ -1165,6 +1197,18 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 ## Change log
 
+- **Revision 6 (2026-11-08).** Answers CodeRabbit's question on writer versions, tracked as issue #415. Stephen accepted
+  option C of the issue's findings (posted on PR #411 as comment 6726327810), in his words "Yes, option C", as an
+  amendment to P-081 item 3.
+  - **Release is a binding advance.** A later pin is released on each W9 store by `AdvanceStoreBinding` to a `main`
+    commit that holds the pin. From then on `load_current_binding` refuses a writer on pre-pin code, on the W11 path
+    today and on the W9 path through §13's `ars legacy submit` (§9.1, §13).
+  - **The premise of revision 4 was too narrow.** It cited the validator for historical binding links, which never
+    compares with `HEAD`. The current-binding admission does compare it (§9.1).
+  - **The freeze narrows** to the window from the final check to the advance, with the ledger head re-read just before
+    the advance (§9.1). §18's writer-version item moves from human review to machine-checkable, and a pin-release
+    control through the loader itself is added (§17, §18). A census test that runtimes are built only behind the binding
+    is named as the remaining gap, not added (§18).
 - **Revision 5 (2026-11-08).** Answers Codex's third round on PR #411. No owner decision changes.
   - **W9's catalogue stream ID in the W11 guard.** W11's check reads W9's fixed identities (`CATALOGUE_STREAM_ID`,
     `RESERVED_IDS` and the pinned W0 refs) from the code constants, so they are refused before W9 genesis too.
