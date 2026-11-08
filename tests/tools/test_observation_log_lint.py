@@ -651,6 +651,14 @@ def test_an_intake_id_is_matched_as_a_whole_cell(tmp_path: Path) -> None:
     assert "unit-1: DEFERRED to a gate's intake, but the intake list has no row naming it" in result.stderr
 
 
+def test_a_back_reference_beside_a_precondition_is_still_judged(tmp_path: Path) -> None:
+    """Codex review on #417: "#333 and #340; Close when both merge after #385 merges" names #333 and #340."""
+    log = _obs("a", "OPEN", "**Progress:** fix in PR #333; rule in PR #340. Close when both merge after #385 merges.\n")
+    states = _states(tmp_path, {"333": "MERGED", "340": "MERGED", "385": "OPEN"})
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", states)
+    assert "a: close condition met (#333, #340 merged)" in result.stderr, "the precondition #385 is not judged"
+
+
 def test_a_mode_only_change_has_not_landed_where_the_old_mode_stands(tmp_path: Path) -> None:
     """Codex review on #417: a script made executable is a change even though its blob is unchanged."""
     origin, clone = tmp_path / "origin.git", tmp_path / "clone"

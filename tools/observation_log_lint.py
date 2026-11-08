@@ -430,9 +430,10 @@ def close_conditions(
                 clause = text[match.start(1) : match.start(1) + end.start()] if end else text[match.start(1) :]
                 waits_on = _preconditions(clause)
                 refs = [ref for ref in _refs(clause) if ref not in waits_on]
-                if not refs and not waits_on and _BACK_REFERENCE.search(clause):
+                if not refs and _BACK_REFERENCE.search(clause):
+                    # "Close when both merge": the PRs are named earlier in the field; a precondition stays out.
                     # A clause about something unbuilt ("closes when that slice merges") names no PR, unjudged.
-                    refs = _refs(text[: match.end()])
+                    refs = [ref for ref in _refs(text[: match.end()]) if ref not in waits_on]
                 if not refs:
                     unnumbered += 1
                     continue
