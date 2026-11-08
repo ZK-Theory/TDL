@@ -44,6 +44,11 @@ ACTORS = {
     "actor-a": "act_01978abc-1002-7000-8000-000000001002",
     "actor-b": "act_01978abc-1003-7000-8000-000000001003",
 }
+# The harness owner is actor-a, and for the owner the authority service fixes the actor class to "human" whatever its
+# grant names (`research_system/authority.py`, the owner branch of the scoped actor-class resolution). A guard keyed on
+# actor class or role is therefore reached only by a non-owner: test it with this actor and a grant naming the classes
+# under test (observation 2026-10-28-authority-guard-tests-ran-only-as-the-owner).
+NON_OWNER_ACTOR_ID = ACTORS["actor-b"]
 ROOT_AUTHORITY_GRANT_ID = "agr_01978abc-1004-7000-8000-000000001004"
 RELEASE_DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 

@@ -2,7 +2,7 @@
 name: contract-first-tdd
 description: Use when implementing or fixing result-bearing TDL code — a pipeline seam, a null model, a statistical calculation, new output fields, a paper-result script, or provenance hardening — before any implementation code is written.
 metadata:
-  version: "1.5.0"
+  version: "1.6.0"
   tier: core
   lanes:
     - output-provenance
@@ -152,6 +152,9 @@ internals, so they survive refactors.
 - For multi-resource cleanup, preserve the primary safety error, attempt every cleanup, and retain retryable ownership state for any close that failed. Test doubles must conform to the real lock/fence ownership record.
 - A control is evidence only if it fails when, and only when, its own guard is removed: delete the guarded line in memory and confirm, and assert the guard's own message, not a substring a sibling check also emits.
 - TDL squash-merges, so a commit on the PR branch is on no `main` ref after merge. Every hex literal a test passes to git must be an ancestor of `origin/main` or a blob reachable from it.
+- A test that pins an owner-accepted byte string calls `assert_byte_identity` (`tests/research_system/contracts/byte_identity.py`) with its guard. The helper builds the re-encodings that only a byte comparison refuses, so a guard weakened to an object comparison fails there. Controls written beside the guard, not through it, passed a deleted guard once already.
+- A guard keyed on actor class or role is tested with a non-owner actor (`NON_OWNER_ACTOR_ID` in `tests/research_system/factories.py`). The owner's class is fixed to `human` whatever its grant says, so an owner-only suite never reaches the guard.
+- A negative control that relies on something being absent (an unbound command, a missing row) asserts that absence first, then the refusal. When a later package adds the vehicle, the control then fails at the assertion, not silently at the guard.
 
 ## Admission, evaluator and route controls
 
