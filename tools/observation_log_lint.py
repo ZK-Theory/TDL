@@ -55,6 +55,7 @@ Usage: python tools/observation_log_lint.py LOG.md [--packet PACKET.md] [--reach
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import subprocess
@@ -317,10 +318,12 @@ _STATE_FIELD = re.compile(
     r"(?ms)^\*\*(?:Status|Progress|Resolution|Closed)\b[^*\n]*:\*\*.*?(?=\n\s*\n|\n\*\*[^*\n]+:\*\*|\Z)"
 )
 # "Close when the ruleset requires X (after #385 merges)": #385 is a precondition the condition waits on, not the
-# condition itself, so its merge does not meet the clause.
-_PRECONDITION = re.compile(r"(?i)\bafter\s+(?:PR\s+)?#(\d+)\b")
-# A PR delivers only when it merges into the default branch. A stacked PR that merged into an already-merged base
-# reached no path to main, though GitHub calls it merged (obs 2026-10-27-stacked-pr-merged-into-a-dead-base-...).
+# condition itself, so its merge does not meet the clause. Any reference form counts: "after owner/repo#385" and
+# "after https://github.com/owner/repo/pull/385" too.
+_AFTER = re.compile(r"(?i)\bafter\s+(?:PR\s+)?(?:https?://)?$")
+# A PR delivers only when it merges into its repository's default branch. A stacked PR that merged into an
+# already-merged base reached no path to main, though GitHub calls it merged (obs 2026-10-27-stacked-pr-...).
+# The default branch is read from GitHub; these names are the fallback when that lookup fails.
 _DEFAULT_BRANCHES = ("main", "master")
 _MERGED_ELSEWHERE = "MERGED into "
 # Trees the shared log covers besides TDL (owner decisions 2026-09-25 and 2026-10-02). A bare ``#N`` in an
@@ -348,11 +351,28 @@ def _label(ref: PullRef) -> str:
     return f"{repo}#{number}" if repo else f"#{number}"
 
 
+def _preconditions(clause: str) -> set[PullRef]:
+    """Return the PRs a clause introduces with "after", in any reference form ``_PR_REF`` reads."""
+    return {ref for m in _PR_REF.finditer(clause) if _AFTER.search(clause[: m.start()]) for ref in _refs(m.group(0))}
+
+
+@functools.lru_cache(maxsize=None)
+def _default_branch(repo: Path, slug: str | None) -> str | None:
+    """Return the default branch of ``slug`` (or of ``repo``'s own GitHub repository), or None if gh cannot say."""
+    command = ["gh", "repo", "view", *([slug] if slug else []), "--json", "defaultBranchRef"]
+    done = subprocess.run(command, cwd=repo, capture_output=True, text=True, check=False)
+    if done.returncode != 0:
+        return None
+    return (json.loads(done.stdout).get("defaultBranchRef") or {}).get("name") or None
+
+
 def _gh_pr_state(repo: Path, number: int, slug: str | None = None) -> str | None:
     """Return OPEN, CLOSED or MERGED, or ``MERGED into <base>`` for a PR merged anywhere but the default branch.
 
-    A PR merged into another base still counts as delivered when its merge commit is an ancestor of ``origin/main``
-    in ``repo``; that is checked only for this repository's PRs, since another repository's commits are not here.
+    For this repository's PRs, one merged into another base still counts as delivered when the default branch
+    contains its merge commit, or holds every file the merge changed at the same blob and mode: a later squash merge
+    carries the content under a new commit. Another repository's commits are not here, so its PRs get the base check
+    only.
     """
     command = ["gh", "pr", "view", str(number), "--json", "state,baseRefName,mergeCommit"]
     if slug:
@@ -362,11 +382,16 @@ def _gh_pr_state(repo: Path, number: int, slug: str | None = None) -> str | None
         return None
     view = json.loads(done.stdout)
     state, base = view.get("state"), view.get("baseRefName")
-    if state != "MERGED" or base in _DEFAULT_BRANCHES:
+    default = _default_branch(repo, slug)
+    if state != "MERGED" or base == default or (default is None and base in _DEFAULT_BRANCHES):
         return state
     merge_commit = (view.get("mergeCommit") or {}).get("oid")
-    if not slug and merge_commit and _git_out(repo, "merge-base", "--is-ancestor", merge_commit, "origin/main") == "":
-        return "MERGED"
+    if not slug and merge_commit:
+        main_ref = f"origin/{default or 'main'}"
+        if _git_out(repo, "merge-base", "--is-ancestor", merge_commit, main_ref) == "":
+            return "MERGED"
+        if landed_by_content(repo, merge_commit, refs=[f"refs/remotes/{main_ref}"]):
+            return "MERGED"
     return f"{_MERGED_ELSEWHERE}{base}"
 
 
@@ -403,8 +428,8 @@ def close_conditions(
                 # the dots inside a pull URL do not cut it short.
                 end = re.search(r"\.(?=\s|$)|\n", text[match.start(1) :])
                 clause = text[match.start(1) : match.start(1) + end.start()] if end else text[match.start(1) :]
-                waits_on = {int(n) for n in _PRECONDITION.findall(clause)}
-                refs = [ref for ref in _refs(clause) if not (ref[0] is None and ref[1] in waits_on)]
+                waits_on = _preconditions(clause)
+                refs = [ref for ref in _refs(clause) if ref not in waits_on]
                 if not refs and not waits_on and _BACK_REFERENCE.search(clause):
                     # A clause about something unbuilt ("closes when that slice merges") names no PR, unjudged.
                     refs = _refs(text[: match.end()])
@@ -504,23 +529,37 @@ def intake_rows(entries: list[tuple[str, str, str]], intake_text: str) -> tuple[
     Obs 2026-11-03-gate7-intake-deferrals-have-no-landing-record: four approved deferrals to "Gate 7+ intake"
     were recorded only in the observation log, which planning sessions do not read, while Gate 7 was already open.
     """
-    rows = [line for line in intake_text.splitlines() if line.lstrip().startswith("|")]
+    # Ids are compared with whole cells, so `unit-1` is not taken as named by a row that names `unit-10`.
+    cells = {
+        cell.strip().strip("`").strip()
+        for line in intake_text.splitlines()
+        if line.lstrip().startswith("|")
+        for cell in line.strip().strip("|").split("|")
+    }
     problems: list[str] = []
     sent = 0
     for ident, status, _ in entries:
         if status_word(status) != "DEFERRED" or not _INTAKE.search(status):
             continue
         sent += 1
-        if not any(ident in row for row in rows):
+        if ident not in cells:
             problems.append(f"{ident}: DEFERRED to a gate's intake, but the intake list has no row naming it")
     return problems, f"intake: {sent} deferral(s) to an intake checked, {len(problems)} without a row"
 
 
-def landed_by_content(repo: Path, sha: str) -> str | None:
-    """Return the first remote-tracking ref that holds every file ``sha`` changed, at the bytes ``sha`` gave them.
+def _modes(repo: Path, rev: str, paths: list[str]) -> list[str | None]:
+    """Return each path's tree-entry mode at ``rev`` (None where absent): a mode change is a change git records."""
+    listing = _git_out(repo, "ls-tree", "-z", "--full-tree", rev, "--", *paths) or ""
+    found = dict(reversed(entry.split("\t", 1)) for entry in listing.split("\0") if "\t" in entry)
+    return [found[path].split(" ", 1)[0] if path in found else None for path in paths]
 
-    A file ``sha`` deleted must be absent from that ref. ``refs/remotes/origin/main`` is tried first. A commit that
-    changes no file, or a path git cannot pass through ``cat-file --batch-check``, never counts as landed.
+
+def landed_by_content(repo: Path, sha: str, refs: list[str] | None = None) -> str | None:
+    """Return the first remote-tracking ref that holds every file ``sha`` changed, at the blob and mode ``sha`` gave.
+
+    A file ``sha`` deleted must be absent from that ref. ``refs/remotes/origin/main`` is tried first, and ``refs``
+    narrows the search. A commit that changes no file, or a path git cannot pass through ``cat-file --batch-check``,
+    never counts as landed.
     """
     listing = _git_out(
         repo, "diff-tree", "-r", "-z", "--no-commit-id", "--name-only", "--root", "-m", "--first-parent", sha
@@ -528,9 +567,10 @@ def landed_by_content(repo: Path, sha: str) -> str | None:
     paths = [path for path in (listing or "").split("\0") if path]
     if not paths or any("\n" in path for path in paths):
         return None
-    refs = [line for line in (_git_out(repo, "for-each-ref", "--format=%(refname)", "refs/remotes") or "").splitlines()]
-    refs = [ref for ref in refs if not ref.endswith("/HEAD")]
-    refs.sort(key=lambda ref: ref != "refs/remotes/origin/main")
+    if refs is None:
+        listed = _git_out(repo, "for-each-ref", "--format=%(refname)", "refs/remotes") or ""
+        refs = [ref for ref in listed.splitlines() if not ref.endswith("/HEAD")]
+        refs.sort(key=lambda ref: ref != "refs/remotes/origin/main")
     queries = [f"{rev}:{path}" for rev in [sha, *refs] for path in paths]
     done = subprocess.run(
         ["git", "-C", str(repo), "cat-file", "--batch-check=%(objectname)"],
@@ -548,8 +588,14 @@ def landed_by_content(repo: Path, sha: str) -> str | None:
     expected = found[:width]
     if all(blob is None for blob in expected):
         return None  # a commit that only deletes files would match every ref that never had them
+    expected_modes: list[str | None] | None = None
     for index, ref in enumerate(refs, start=1):
-        if found[index * width : (index + 1) * width] == expected:
+        if found[index * width : (index + 1) * width] != expected:
+            continue
+        # Blobs match; a mode-only change (a script made executable) still differs. Modes are read only here,
+        # for the few refs whose blobs already match, since cat-file's batch format cannot report them.
+        expected_modes = expected_modes or _modes(repo, sha, paths)
+        if _modes(repo, ref, paths) == expected_modes:
             return ref
     return None
 

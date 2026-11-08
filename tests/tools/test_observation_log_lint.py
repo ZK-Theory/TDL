@@ -520,6 +520,20 @@ def test_a_pr_named_as_a_precondition_is_not_the_condition(tmp_path: Path) -> No
     assert "close conditions: 1 naming PRs checked, 1 met; 1 name no PR" in result.stdout
 
 
+def test_a_qualified_or_url_precondition_is_not_the_condition(tmp_path: Path) -> None:
+    """Codex review on #417: "after owner/repo#385" and "after <pull URL>" are preconditions too."""
+    log = _obs(
+        "a",
+        "OPEN",
+        "**Progress:** Close when the lane is required (after stephendor/zktheoryweb#385 merges and after "
+        "https://github.com/ZK-Theory/TDL/pull/386 merges, both green).\n",
+    )
+    merged = {"stephendor/zktheoryweb#385": "MERGED", "ZK-Theory/TDL#386": "MERGED"}
+    result = _run(tmp_path, log, "--close-conditions", str(tmp_path), "--pr-states", _states(tmp_path, merged))
+    assert result.returncode == 0, result.stderr
+    assert "close conditions: 0 naming PRs checked, 0 met; 1 name no PR" in result.stdout
+
+
 def test_a_pr_merged_into_another_base_is_not_delivered(tmp_path: Path) -> None:
     """Obs 2026-10-27-stacked-pr-merged-into-a-dead-base-reads-as-delivered: #399 merged into its already-merged base."""
     log = _obs("a", "OPEN", "**Progress:** in PR #399. Close when #399 merges.\n")
@@ -538,7 +552,7 @@ def test_a_pr_merged_into_another_base_is_not_delivered(tmp_path: Path) -> None:
 
 
 def test_the_pr_state_lookup_reads_the_base_branch(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A PR merged into another base counts as delivered only when main contains its merge commit."""
+    """A PR merged into another base counts as delivered only when the default branch contains it or its content."""
     sys.path.insert(0, str(REPO_ROOT / "tools"))
     import observation_log_lint as lint
 
@@ -547,14 +561,27 @@ def test_the_pr_state_lookup_reads_the_base_branch(monkeypatch: pytest.MonkeyPat
         return subprocess.CompletedProcess([], 0, stdout=payload, stderr="")
 
     ancestry: dict[str, str | None] = {"answer": None}
+    landed: dict[str, str | None] = {"ref": None}
+    default: dict[str, str | None] = {"name": "main"}
     monkeypatch.setattr(lint, "_git_out", lambda repo, *args: ancestry["answer"])
+    monkeypatch.setattr(lint, "landed_by_content", lambda repo, sha, refs=None: landed["ref"])
+    monkeypatch.setattr(lint, "_default_branch", lambda repo, slug: default["name"])
     monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("main"))
     assert lint._gh_pr_state(REPO_ROOT, 403) == "MERGED"
     monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("docs/x"))
     assert lint._gh_pr_state(REPO_ROOT, 399) == "MERGED into docs/x"
+    landed["ref"] = "refs/remotes/origin/main"  # a later squash merge carried the content (Codex review on #417)
+    assert lint._gh_pr_state(REPO_ROOT, 399) == "MERGED"
+    landed["ref"] = None
     ancestry["answer"] = ""  # `git merge-base --is-ancestor` succeeded: main contains the merge commit
     assert lint._gh_pr_state(REPO_ROOT, 399) == "MERGED"
     assert lint._gh_pr_state(REPO_ROOT, 23, "stephendor/zktheoryweb") == "MERGED into docs/x", "no local ancestry"
+    # The repository's own default branch decides, not a fixed list (Codex review on #417).
+    default["name"] = "develop"
+    monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("develop"))
+    assert lint._gh_pr_state(REPO_ROOT, 23, "someone/elsewhere") == "MERGED"
+    monkeypatch.setattr(lint.subprocess, "run", lambda *args, **kwargs: view("main"))
+    assert lint._gh_pr_state(REPO_ROOT, 24, "someone/elsewhere") == "MERGED into main"
 
 
 def _repo_with_a_review_commit(tmp_path: Path, landed: bytes) -> tuple[Path, str]:
@@ -612,3 +639,35 @@ def test_a_deferral_to_a_gate_intake_needs_a_row_in_the_intake_list(tmp_path: Pa
 
     intake.write_text(intake.read_text(encoding="utf-8") + "| `pass` | the widening |\n", encoding="utf-8")
     assert _run(tmp_path, log, "--intake", str(intake)).returncode == 0
+
+
+def test_an_intake_id_is_matched_as_a_whole_cell(tmp_path: Path) -> None:
+    """Codex review on #417: `unit-1` must not pass because a row names `unit-10`."""
+    log = _obs("unit-1", "DEFERRED (2026-10-27): goes to Gate 7+ intake.")
+    intake = tmp_path / "intake.md"
+    intake.write_text("| Observation | Limb |\n|---|---|\n| `unit-10` | another limb |\n", encoding="utf-8")
+    result = _run(tmp_path, log, "--intake", str(intake))
+    assert result.returncode == 1
+    assert "unit-1: DEFERRED to a gate's intake, but the intake list has no row naming it" in result.stderr
+
+
+def test_a_mode_only_change_has_not_landed_where_the_old_mode_stands(tmp_path: Path) -> None:
+    """Codex review on #417: a script made executable is a change even though its blob is unchanged."""
+    origin, clone = tmp_path / "origin.git", tmp_path / "clone"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(tmp_path, "init", "-q", "-b", "main", str(clone))
+    _git(clone, "remote", "add", "origin", str(origin))
+    (clone / "run.sh").write_bytes(b"#!/bin/sh\necho run\n")
+    _git(clone, "add", "run.sh")
+    _git(clone, "commit", "-q", "-m", "script")
+    _git(clone, "push", "-q", "origin", "main")
+    _git(clone, "fetch", "-q", "origin")
+    _git(clone, "switch", "-q", "-c", "local-only")
+    _git(clone, "update-index", "--chmod=+x", "run.sh")
+    _git(clone, "commit", "-q", "-m", "make it executable")
+    executable = _git(clone, "rev-parse", "HEAD")
+    result = _run(
+        tmp_path, _obs("a", f"OPEN — made executable in `{_cite(executable)}`."), "--reachability", str(clone)
+    )
+    assert result.returncode == 1, "the same blob at mode 100644 on main is not the commit's content"
+    assert f"a: cites commit {_cite(executable)}, which is on no remote-tracking ref" in result.stderr
