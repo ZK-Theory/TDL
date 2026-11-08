@@ -210,6 +210,10 @@ Retiring an APM surface (06l Step 7) may happen inside Gate 7 but is not an exit
 remaining 06l Step 6 cutover or Step 7 retirement proceeds under 06l as P-062 amends it and under W9 §4.5, each by
 Stephen's separate decision. It does not reopen Gate 7.
 
+**Deferred intake items.** Limbs that system reviews deferred to Gate 7+ intake, and items they carried to a named W9
+package, are listed in `implementation/gate7-intake-deferrals.md`. A Gate 7 planning pass reads it and gives each row a
+disposition. The list adds no exit condition (system review 2026-11-03, Group H, approved 2026-11-08).
+
 **Capability reporting.** Lead with the lowest row in the table whose condition holds, then the exact gap and the next
 action. In an OPEN, INCOMPLETE row, a stop under W9 §13.4 is reported as "stopped under W9 §13.4: <criterion>". The
 parked compute and SPEC-01 tracks each get one extra line naming their own state.
