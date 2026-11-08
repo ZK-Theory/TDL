@@ -13,6 +13,8 @@ scope finding.
 
 **Decision owner:** Stephen
 
+**Owner decision (2026-11-08):** Stephen approved every group as recommended. On F3 he ruled both flagged branches KNOWN, since `main` already holds what each recorded. The ticks below record that. The campaign PRs are #416 (C1, D1–D3, the E2 skill line), #417 (B1–B3, the H check, F3), #418 (F1, F2, G) and #419 (A2, H). A1, adding `suite-verdict` to ruleset 20822054, is Stephen's own edit. The C3 and E1 contract tests are carried to WP9.3-2, and the 06v paths table to an addendum after #411, through the Gate 7+ intake list in #419.
+
 **Operating rule (unchanged since 2026-08-09):** approval authorizes a bounded verify-then-fix campaign on a reviewed
 branch. It does not authorize direct changes to `main`, silent gate weakening, or acceptance without the named
 controls.
@@ -66,17 +68,17 @@ mechanism with its negative control.
 
 | Group | OPEN | Recommended resolution | Decision |
 |---|---:|---|---|
-| A. Make the suite lane required | 3 | Your ruleset edit now; record queue-by-default as the practice | `[ ]` approve A1+A2 · `[ ]` A1 only · `[ ]` defer |
-| B. Observation-log lint precision | 2 | Judge delivery by base branch and by content; read close-when clauses only where they state closure | `[ ]` approve B1–B3 · `[ ]` some (name which) · `[ ]` defer |
-| C. Design-note evidence discipline | 5 | Four skill bullets, author and reviewer side; merge one duplicate | `[ ]` approve C1–C3 · `[ ]` C1 and C2 only · `[ ]` defer |
-| D. Negative-control construction | 3 | A shared byte-identity helper; a non-owner fixture; one checklist line | `[ ]` approve D1–D3 · `[ ]` some (name which) · `[ ]` defer |
-| E. Catalogue and plan interfaces | 2 | A precondition-home test with WP9.3-2; a W9 paths table after #411 | `[ ]` approve E1–E2 · `[ ]` defer |
-| F. Controls and lints no lane runs | 2 | Derive the policy from every tools/contracts test; wire the commit-literal lint; rule on two branches | `[ ]` approve F1–F3 · `[ ]` F3 only · `[ ]` defer |
-| G. Results-reminder scope | 1 | A commit-time advisory for results committed under another prefix | `[ ]` approve · `[ ]` defer |
-| H. Deferrals with no landing record | 1 | One Gate 7+ intake list that planning sessions read | `[ ]` (a) new file · `[ ]` (b) 04-plan §4 · `[ ]` defer |
-| This review's 20 closures | — | Keep them closed | `[ ]` keep · `[ ]` reopen (name which) |
-| The research-observer step-1 edit | — | Keep it | `[ ]` keep · `[ ]` revert |
-| S5. Three unregistered task directories | — | Remove them | `[ ]` approve · `[ ]` decline |
+| A. Make the suite lane required | 3 | Your ruleset edit now; record queue-by-default as the practice | `[x]` approve A1+A2 · `[ ]` A1 only · `[ ]` defer |
+| B. Observation-log lint precision | 2 | Judge delivery by base branch and by content; read close-when clauses only where they state closure | `[x]` approve B1–B3 · `[ ]` some (name which) · `[ ]` defer |
+| C. Design-note evidence discipline | 5 | Four skill bullets, author and reviewer side; merge one duplicate | `[x]` approve C1–C3 · `[ ]` C1 and C2 only · `[ ]` defer |
+| D. Negative-control construction | 3 | A shared byte-identity helper; a non-owner fixture; one checklist line | `[x]` approve D1–D3 · `[ ]` some (name which) · `[ ]` defer |
+| E. Catalogue and plan interfaces | 2 | A precondition-home test with WP9.3-2; a W9 paths table after #411 | `[x]` approve E1–E2 · `[ ]` defer |
+| F. Controls and lints no lane runs | 2 | Derive the policy from every tools/contracts test; wire the commit-literal lint; rule on two branches | `[x]` approve F1–F3 · `[ ]` F3 only · `[ ]` defer |
+| G. Results-reminder scope | 1 | A commit-time advisory for results committed under another prefix | `[x]` approve · `[ ]` defer |
+| H. Deferrals with no landing record | 1 | One Gate 7+ intake list that planning sessions read | `[x]` (a) new file · `[ ]` (b) 04-plan §4 · `[ ]` defer |
+| This review's 20 closures | — | Keep them closed | `[x]` keep · `[ ]` reopen (name which) |
+| The research-observer step-1 edit | — | Keep it | `[x]` keep · `[ ]` revert |
+| S5. Three unregistered task directories | — | Remove them | `[x]` approve · `[ ]` decline |
 
 Total: 3 + 2 + 5 + 3 + 2 + 2 + 1 + 1 = **19**.
 
@@ -118,7 +120,7 @@ check. No destructive probe: a red suite will show the refusal the first time it
 
 **Recommended decision:** approve A1 and A2.
 
-**Decision:** `[ ]` approve A1+A2 · `[ ]` A1 only · `[ ]` defer
+**Decision:** `[x]` approve A1+A2 · `[ ]` A1 only · `[ ]` defer
 
 ---
 
@@ -154,7 +156,7 @@ them.
 
 **Recommended decision:** approve B1–B3. They are one small PR to `tools/` with its tests.
 
-**Decision:** `[ ]` approve B1–B3 · `[ ]` some (name which) · `[ ]` defer
+**Decision:** `[x]` approve B1–B3 · `[ ]` some (name which) · `[ ]` defer
 
 ---
 
@@ -189,7 +191,7 @@ from 262, because the one subsection now carries nine lessons. C1 adds about 16 
 
 **Recommended decision:** approve C1–C3.
 
-**Decision:** `[ ]` approve C1–C3 · `[ ]` C1 and C2 only · `[ ]` defer
+**Decision:** `[x]` approve C1–C3 · `[ ]` C1 and C2 only · `[ ]` defer
 
 ---
 
@@ -213,7 +215,7 @@ pretty-printed or CRLF copy that the predicate accepts. D2: the non-owner refusa
 
 **Recommended decision:** approve D1–D3, in WP9.3-1's PR or a small PR of their own.
 
-**Decision:** `[ ]` approve D1–D3 · `[ ]` some (name which) · `[ ]` defer
+**Decision:** `[x]` approve D1–D3 · `[ ]` some (name which) · `[ ]` defer
 
 ---
 
@@ -229,7 +231,7 @@ pretty-printed or CRLF copy that the predicate accepts. D2: the non-owner refusa
 
 **Recommended decision:** approve E1 and E2. Both entries close when their artefacts merge.
 
-**Decision:** `[ ]` approve E1–E2 · `[ ]` defer
+**Decision:** `[x]` approve E1–E2 · `[ ]` defer
 
 ---
 
@@ -279,7 +281,7 @@ branches.
 
 **Recommended decision:** approve F1–F3.
 
-**Decision:** `[ ]` approve F1–F3 · `[ ]` F3 only · `[ ]` defer
+**Decision:** `[x]` approve F1–F3 · `[ ]` F3 only · `[ ]` defer
 
 ---
 
@@ -304,7 +306,7 @@ silent.
 
 **Recommended decision:** approve, as a small change. Waiting for compute to resume would need a reminder of its own.
 
-**Decision:** `[ ]` approve · `[ ]` defer
+**Decision:** `[x]` approve · `[ ]` defer
 
 ---
 
@@ -335,7 +337,7 @@ today's four entries.
 
 **Recommended decision:** (a).
 
-**Decision:** `[ ]` (a) new file · `[ ]` (b) 04-plan §4 · `[ ]` defer
+**Decision:** `[x]` (a) new file · `[ ]` (b) 04-plan §4 · `[ ]` defer
 
 ---
 
