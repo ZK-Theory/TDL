@@ -5071,6 +5071,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    of note §5.5. The owner is refused on every non-resolver row. For W9-C20's session limb (P-073 item 1), each review
    request records the analyst's session, and replay refuses a verdict whose `reviewer_session` equals it. That the
    attested session strings are true, and the exclusion of legacy producers, are known limits.
+   **Amended 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Extend option (a)
+   (Recommended)"). The membership-table template requires the reviewer's session to differ from the author's
+   (`w9-membership-table-template.md` §2). So a membership-table review request also records the table author's
+   session, `w9-author-session:<session>`, after the analyst's. Replay refuses a verdict whose `reviewer_session`
+   equals either one. The same known limit applies (note §5.5, revision 3).
 9. **The segmenter (I).** A new `research_system/legacy/segmentation.py` implements `w9-segmentation/1.0.0` for the
    runtime and is differential-tested against `tools/w9_segmentation.py`, which stays untouched and non-runtime (P-067,
    P-068). WP9.3-1's independent reviewer, shown independent of the contract's author and of WP9.3's implementer,

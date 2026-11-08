@@ -4,7 +4,9 @@
 **Status:** Revision 2. It reconciles the independent review of revision 1 (`a8604641`):
 `reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, on branch `review/w9-wp9-3-note` at `0dc63404`, verdict
 accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change log says where each finding went.
-Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Nothing in it is implemented.<br>
+Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Revision 3 (2026-11-08) answers the
+review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Nothing in it is
+implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -175,8 +177,18 @@ fixes stored bytes. It is owner point M.
   precondition "the new review's ID is the proposal's pre-assigned rev_ ID" of LR-007, LR-012 and LR-017, now checked
   at replay too. A reservation used by any other request, or a second proposal that pre-assigns a reserved ID, is
   refused.
-- **The reserved external refs** and `CATALOGUE_STREAM_ID` stay refused (`replay/reducers.py:145-154`).
+- **The reserved external refs** and `CATALOGUE_STREAM_ID` stay refused (`replay/reducers.py:145-154`), and so does
+  every pinned W0 signature ref, at every ledger position, from the PR that pins it (§9.1).
 - **A batch's ownership record IDs** are derived and reserved at LR-016 (§10.5).
+- **Across the shared ledger.** `replay_legacy` reads every event but reduces only W9 transactions, so its identity
+  map holds W9 claims alone (`replay/driver.py:93-160`), and the runtime compares only the supplied and observed
+  stream versions (`legacy/runtime.py:406-415`). A W9 command that reuses a W11 aggregate's ID with that stream's
+  current version would append to it. So replay refuses a W9 claim of any ID that a non-W9 event uses as its
+  `stream_id`, before or after the claim. Each claiming event must also stand at version 1 of its own stream (§4.5),
+  and the preparer refuses a claiming command whose `expected_stream_version` is not 0. A W11 event written later on
+  an ID W9 has claimed makes `replay_legacy` refuse the ledger. That fails closed, and W11's preparers are outside
+  WP9.3's boundary (§14). The controls: a W9 proposal reusing a W11 aggregate's ID at that stream's current version,
+  refused at `submit` and on a forged ledger, and a forged W11 event on a reserved `rev_`, refused by replay (§17).
 
 ### 4.4 References to W9 records
 
@@ -246,8 +258,8 @@ refs are derived (WP9.2 note §5.3, steps 2 to 5): from the domain strings `w9-r
 | `new_review_id` | the proposal's pre-assigned `rev_` | derived | yes |
 | `subject_ids`, `subject_hashes` | exactly `[<record ID>]` and `[<recomputed content hash>]`, paired. Today `reduce_review_request` zips them with `strict=False` (`replay/reducers.py:225`), which admits unpaired lists of the kind W11's two-to-one shape uses (`discovery/runtime.py:1090-1094`) | derived | yes |
 | `governing_refs` | exactly `["W9:LR-nnn"]`, which assigns the row (`legacy/routes.py:594-595`) | derived | yes |
-| `review_questions` | non-empty | payload | recorded |
-| `required_evidence_refs` | exactly `["w9-analyst-session:<the analyst's session>"]` (§5.5) | payload | yes: one entry, that prefix |
+| `review_questions` | non-empty. The schema sets no `minItems` (`review_requested.schema.json`), so replay enforces it | payload | yes: at least one entry |
+| `required_evidence_refs` | exactly `["w9-analyst-session:<the analyst's session>"]`; for the review of a membership table, exactly `["w9-analyst-session:<…>", "w9-author-session:<the table author's session>"]`, in that order (§5.5) | payload | yes: that count, those prefixes, that order |
 | `required_lanes` | `["provenance"]` | fixed | yes |
 | `reviewer_capability` | exactly `[<the named reviewer's actor ID>]`, as W11 names its reviewer (`:1108`) | payload | yes |
 | `required_independence_grade` | `independent` | fixed | yes |
@@ -268,7 +280,7 @@ refs are derived (WP9.2 note §5.3, steps 2 to 5): from the domain strings `w9-r
 | `required_evidence_refs` | the request's | derived | yes |
 | `reviewer_actor_id` | the event's actor, which must be the request's named reviewer (W9-C21) | derived | yes |
 | `reviewer_profile` | `w9-independent-reviewer` | fixed | yes |
-| `reviewer_session` | the reviewer's session, attested | payload | yes: it differs from the request's analyst session (§5.5) |
+| `reviewer_session` | the reviewer's session, attested | payload | yes: it differs from every session the request records (§5.5) |
 | `reviewer_model_metadata` | attested | payload | recorded |
 | `context_manifest_id` | derived as above | derived | yes |
 | `context_manifest_sha256` | the reviewer's context, attested | payload | recorded |
@@ -374,6 +386,14 @@ carries the analyst's session as the one entry of `required_evidence_refs`, `w9-
 refuses a verdict whose `reviewer_session` equals it. Both strings are attested by their submitters, so the check
 catches the honest same-session mistake W9-C20 names, but not a false session string. This is owner point H, option
 (a) (review M-3).
+
+**The author's session, for a membership table.** The template's reviewer must be "on a session distinct from the
+author's and from the migration analyst's" (`w9-membership-table-template.md` §2). The actor checks above do not
+reach the case of distinct actors on one session. So the review request for a membership table carries the table
+author's session as a second entry, `w9-author-session:<session>`, after the analyst's (§5.2). The reviewer checks it
+against the table file's `author.session` (template §4), which is in the bytes under review. Replay refuses a verdict
+whose `reviewer_session` equals either entry. The strings are attested, so the limit is the same as for the analyst's
+session. This applies option (a) to the template's second session (P-081 item 8, as amended).
 
 **Recorded, not proved** (a known limit, as P-058's single-family limit is):
 - that the attested session strings are true;
@@ -585,6 +605,23 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
 - The ref is derived as the WP9.2 external refs are (WP9.2 note §5.3), as a `dec_` from the register entry that records
   the signature. Genesis could not reserve it. As with R-3, no reader dereferences it as a store record, and W9-C25
   refuses it as a pre-assigned ID once it is pinned.
+- **When the ID becomes reserved.** At the pin, in code. From the PR that pins a signature, replay treats its ref ID
+  as reserved at every ledger position, as it treats `RESERVED_IDS` (§4.3). The ID can be derived as soon as the
+  register entry exists. A W9 proposal made between that entry and the pin could therefore pre-assign it, and the pin
+  would then make that ledger fail replay. Two rules close the window:
+  - **The first pin lands before W9 genesis (L-3) on any store.** No W9 proposal can exist before genesis. The L-3
+    checklist records the pin.
+  - **A later pin, made while W9 stores exist, carries a pre-pin check.** Before Stephen accepts the pin, he runs
+    `replay_legacy` read-only over each W9 store with the candidate pin added. If any W9 identity or ledger stream
+    already equals the derived ID, the ref is derived again from the same domain with a `#<n>` suffix, using the next
+    unused `n`, and the check is repeated. The pin records the domain it used and the check's result. Running the check
+    is an owner operation.
+
+  A ledger that claimed a pinned ID anyway fails closed. The controls (§17):
+  - a proposal pre-assigning a pinned ID is refused;
+  - a forged ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one
+    (the cross-pin control);
+  - a re-derived `#2` ref is accepted.
 
 Whether a family's class is the class the signed W0 record gives that object is the reviewer's question (W9 §8.1 step
 2), not code's.
@@ -667,6 +704,13 @@ batch". But the batch's `pilot_promotion` refs must exist at LR-016 and LR-020, 
 per-item S-014 ref can name only a restore run made before the batch, or a waiver. The recommended reading: the S-014
 ref names the latest restore run before LR-020, and the post-batch re-run W9 §12.3 requires goes on the L-4 checklist
 (06v §7's "after every batch: replay and restore").
+
+**S-014's freshness at LR-020.** The proposal binds the S-014 ref at LR-016. A restore run made between LR-016 and
+LR-020 makes that ref stale without changing the proposal's hash. No record kind identifies a restore run, so code
+cannot tell which `art_` or `rev_` is the latest one. The check is therefore Stephen's, at resolution, and is an L-4
+checklist line: "No restore run has been made since the run each item's S-014 ref names." If a later run exists,
+Stephen does not resolve, and the analyst re-proposes the batch with the newer ref. A change of evidence is a new
+proposal, as a change of applicability is. This is recorded, not proved (§18).
 
 ### 10.3 Thresholds and anchors (O-25, W9-T16; owner point G)
 
@@ -925,8 +969,11 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 |---|---|---|
 | Whole-flow replay | A scratch store holding W11 genesis, W9 genesis, one registration, one membership table, one inventory, one observation of each selector kind and, in WP9.3-2, one accepted batch, replays through `replay`, `rebuild_projection`, `replay_discovery` and `replay_legacy` | 1, 2 |
 | W9-C01, W9-C03, W9-C11 | For each routed row: the positive flow, a mutated catalogue row detected, and a retry answered from receipts with nothing appended | 1, 2 |
-| W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger. W9-C20 includes a verdict whose `reviewer_session` equals the request's analyst session (§5.5) | 1, 2 |
+| W9-C20 to W9-C23, W9-C25 | Each refused, through `submit` and on a forged ledger. W9-C20 includes a verdict whose `reviewer_session` equals the request's analyst session, and, for a membership table, a reviewer and author who are distinct actors on one session (§5.5) | 1, 2 |
 | The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
+| `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay | 1 |
+| Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a forged W11 event on a reserved `rev_`, refused by replay | 1 |
+| W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
 | The `CONVENTIONS.md` vault alias | A `vault_file` registration resolving to the repository's `CONVENTIONS.md` is refused (§7.1) | 1 |
@@ -978,7 +1025,9 @@ lanes are untouched.
 - the structural `pilot_promotion` rules, including the four fixtures required on every item: the O-37 controls;
 - one acceptance per item, and the first batch only, re-checked at LR-020: the two-batch control;
 - the W2 payload fields, including the verdict's independence grade and empty conditions: the per-field controls;
-- W9-C20's session limb, as an equality check on attested strings: the W9-C20 controls;
+- W9-C20's session limb, and the membership-table author's session, as equality checks on attested strings: the
+  W9-C20 controls;
+- identity claims across the shared ledger, and the pinned W0 signature IDs: the cross-partition and pin controls;
 - the export and its recheck by different implementations: the export-recheck controls;
 - the ownership list: replay, with the E controls;
 - restricted bytes: W9-T11's reader half.
@@ -995,7 +1044,9 @@ lanes are untouched.
 - membership families (LR-008): "Does each family follow its `definition_source`, not a key's name (template §3 rule
   8)?";
 - session independence (§5.5): the same-session case is a refusal test; whether the attested session strings are true
-  is the operator's attestation.
+  is the operator's attestation;
+- S-014's freshness at LR-020 (§10.2), checked by Stephen at resolution and on the L-4 checklist: "Has any restore run
+  been made since the run each item's S-014 ref names?"
 
 ## 19. Stop rules (06v §8) checked
 
@@ -1042,7 +1093,7 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 | E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the ledger before it, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose; a batch may hold at most one whole-file item per registration. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | Derived, and also listed among the LR-017 review's subjects, so the reviewed bytes contain the list (the review's alternative); a catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
 | F | **Genesis guard 8** (§15) | **Generalize the partition check,** have each WP9.3 PR's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
 | G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1,** for simplicity: one anchor kind and one test (§10.3) | An `ars_event` anchor naming an `ArtefactRegistered` event, at a lower global position, whose `content_sha256` is the anchored hash |
-| H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
+| H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits. Amended 2026-11-08: a membership-table review also records the author's session, which the verdict must differ from (§5.5) | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
 | I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched. WP9.3-1's independent reviewer, shown independent of both the contract's author and WP9.3's implementer, re-implements the contract and reproduces every vector, with the results recorded in the review report where the acceptance can cite them. The export is produced by the reference tool and rechecked by the runtime segmenter (§12.2) | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
 | J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12) | Keep the tools under `tools/`, which extends the boundary further |
 | K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
@@ -1052,6 +1103,16 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 ## Change log
 
+- **Revision 3 (2026-11-08).** Answers the review comments on PR #411. No owner decision changes, except item 8's
+  amendment below.
+  - **CodeRabbit:** `review_questions` is replay-checked as non-empty, because the schema sets no `minItems`. A
+    `ReviewRequested` cardinality control is added (§5.2, §17). S-014's freshness at LR-020 is an owner check at
+    resolution and an L-4 checklist line, because no record kind identifies a restore run (§10.2, §18). K′ is unchanged.
+  - **Codex:** a pinned W0 signature ID is reserved from the pin. The first pin lands before L-3, and a later pin
+    carries a pre-pin replay check, with re-derivation if the ID is already taken (§4.3, §9.1, §17). W9 identity claims
+    are refused against non-W9 streams across the shared ledger, and each claiming event stands at version 1 of its
+    own stream (§4.3, §17). For a membership table, the review request also carries the author's session, and replay
+    refuses a verdict from it (§5.2, §5.5, §17). Stephen chose this on 2026-11-08, as an amendment to P-081 item 8.
 - **Revision 2 (2026-10-29).** Reconciles the review of `a8604641` (`0dc63404` on `review/w9-wp9-3-note`):
   - **B-1:** LR-020's seven fixtures (§10.2, §17, §18); owner point K withdrawn; K′ added on S-014's timing.
   - **M-1:** the batch rules re-checked at LR-020 (§6.2, §10.1, §17). The review's "one open batch at a time" is not
