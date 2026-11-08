@@ -242,8 +242,9 @@ pretty-printed or CRLF copy that the predicate accepts. D2: the non-owner refusa
 
 **Defect.**
 - **The three lints from #400 run nowhere.** #400 said the CI wiring would follow with Group H; #402 wired Group H only.
-  No workflow, hook or review step runs `check_test_commit_literals.py`, `check_register_reachability.py` or
+  No workflow or hook runs `check_test_commit_literals.py`, `check_register_reachability.py` or
   `check_cited_decisions.py`, and no workflow runs their controls (`tests/tools/test_review_campaign_lints.py`).
+  Until this review's step-1 edit, no review step ran the register lint either; the other two still have none.
 - **Their first findings were never recorded.** #400's body said two branches "need an owner ruling". No log entry,
   packet or register entry recorded them, and there has been no ruling. The register lint still reports both today:
   - `codex/gate6-spec01-spec02-real-run` holds 41 register lines `main` lacks. Its tip `94f8bc1f` is the head of PR
@@ -260,8 +261,9 @@ pretty-printed or CRLF copy that the predicate accepts. D2: the non-owner refusa
 
   The full list is in the observation.
 
-Nothing is red. This review ran the contract-gate, lint and results-reminder controls locally: 24 passed. They are
-unwatched.
+Nothing is red. This review ran the contract-gate, lint and results-reminder controls locally: 24 passed. The
+contract-gate and lint controls are unwatched. The results-reminder control is not: it is in
+`test_system_review_hook_gates.py`, which admission-controls runs.
 
 **Proposed action.**
 - **F1.** Widen the policy test in `tests/tools/test_ci_platform_policy.py` to every `tests/tools/test_*.py` and
