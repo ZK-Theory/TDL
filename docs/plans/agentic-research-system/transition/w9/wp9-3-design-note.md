@@ -7,7 +7,7 @@ accept with required changes (1 Blocking, 4 Major, 10 Minor, 6 Info). The change
 Stephen decided every owner point at its recommended option (P-081, 2026-10-29). Revision 3 (2026-11-08) answers the
 review comments on PR #411, and amends P-081 item 8 to cover the membership-table author's session. Revision 4
 (2026-11-08) answers the second round, and amends P-081 item 10 to extend the boundary to W11's identity check.
-Nothing in it is implemented.<br>
+Revision 5 (2026-11-08) answers Codex's third round, with no owner decision changed. Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -192,7 +192,10 @@ fixes stored bytes. It is owner point M.
   (`discovery/runtime.py:334-361`). A W11 command can therefore take an ID that W9 has claimed or reserved, such as a
   pre-assigned `rev_` that is not yet a stream. The shared ledger would then fail replay only after the append. So
   WP9.3-1 adds a symmetric check. W11's admissible-target check also refuses a target that the W9 projection claims or
-  reserves, including the reserved external refs and the pinned W0 signature refs. It reads that projection through a
+  reserves. It also refuses W9's fixed identities, read from the code constants rather than the projection, so that
+  they are refused before W9 genesis too: W9's `CATALOGUE_STREAM_ID`, `RESERVED_IDS` and the pinned W0 signature refs.
+  The catalogue stream ID needs this, because `reduce_genesis` stores the catalogue payload but never enters that ID
+  in `identities` or `reserved_ids` (`replay/reducers.py:145-154`, `:161-180`). It reads that projection through a
   lazy import of `research_system.legacy`, as `shared_event_partition` already does (U-7 site 2,
   `discovery/routes.py:313-315`), so `research_system.legacy` stays out of Discovery's import graph. Replay keeps the
   backstop: a W11 event on a W9 identity makes `replay_legacy` refuse the ledger. This extends WP9.3's boundary to
@@ -203,6 +206,8 @@ fixes stored bytes. It is owner point M.
     ledger;
   - a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before
     any append;
+  - a W11 minting command targeting W9's `CATALOGUE_STREAM_ID`, refused before any append, both before and after W9
+    genesis;
   - a forged W11 event on a reserved `rev_`, refused by `replay_legacy`.
 
 ### 4.4 References to W9 records
@@ -224,6 +229,27 @@ The catalogue's `affected_streams` name record, review, Decision and index strea
   event list is fixed (`legacy/routes.py:609-627`);
 - `target_stream_id` is the stream of the row's first event, and the receipt reports that stream's version
   (`legacy/runtime.py:349-361`).
+
+### 4.6 Open and lapsed proposals
+
+No catalogue row records a rejection or retires a proposal (§5.2). Without a rule, a declined or abandoned proposal
+would stay open forever. That would block every later proposal its uniqueness rules exclude, such as a corrected
+registration of the same path (LR-003). So a proposal is **open** while it is unresolved and has not lapsed.
+
+- **The lapse time.** An unresolved proposal lapses at the later of two times: its own `created_at` plus 30 days (the
+  Decision term of §5.2), and, if its Decision has been proposed, that Decision's `expires_at`. The latest possible
+  lapse is therefore 60 days after the proposal. Replay judges lapse by each later event's `occurred_at`, so it
+  depends only on the ledger.
+- **A lapsed proposal stays in the projection, but:**
+  - it no longer counts as live for any uniqueness rule over open proposals (§6.2 LR-003);
+  - no review request, Decision proposal or resolution may name it. This extends §5.2's refusal of a resolution after
+    `expires_at` to every step;
+  - its record ID and pre-assigned IDs stay claimed for good (§4.3), so a corrected proposal takes new IDs.
+- **To decline a proposal,** Stephen leaves it unresolved, and it releases what it held when it lapses. A rejection row
+  would release it at once; that waits for the next catalogue revision (§5.2).
+- **The controls (§17):** a corrected LR-003 registration of the same path, refused while the first proposal is open
+  and admitted once it has lapsed; and a review request, Decision proposal and resolution, each refused on a lapsed
+  proposal.
 
 ## 5. The authority flow
 
@@ -321,8 +347,8 @@ refs are derived (WP9.2 note §5.3, steps 2 to 5): from the domain strings `w9-r
 
 A resolution must select `accept`, because every WP9.3 resolution row writes its record event
 (`legacy/routes.py:609-627`). No catalogue row records a rejection: a rejected proposal is simply not resolved, and
-replay refuses a resolution after the proposal's `expires_at`. This is a known limit, noted for the next catalogue
-revision.
+replay refuses a resolution after the proposal's `expires_at`. The proposed record lapses and releases what it held
+(§4.6). This is a known limit, noted for the next catalogue revision.
 
 **`DecisionResolved`** (`decision_resolved.schema.json:100-114`):
 
@@ -449,7 +475,7 @@ At the preparer: the actor is the owner (P-005).
 
 | Row | Replay | Preparer only |
 |---|---|---|
-| LR-003 | Schema; content hash; identity claims; pre-assigned ref hash. No recorded registration, and no open registration proposal, of the same root and normalized path or of the same `physical_identity` `canonical_target` and `stable_file_id`. No legacy role under `.research-system/projections/legacy/` (stage A i-1) | A handle-bound read shows the path resolves to the declared `physical_identity` (§7.1). Every §4.4 detector's negative control is recorded as watched to fail, in the evidence area at the binding's `git_head` (§11.1) |
+| LR-003 | Schema; content hash; identity claims; pre-assigned ref hash. No recorded registration, and no open (unlapsed, §4.6) registration proposal, of the same root and normalized path or of the same `physical_identity` `canonical_target` and `stable_file_id`. No legacy role under `.research-system/projections/legacy/` (stage A i-1) | A handle-bound read shows the path resolves to the declared `physical_identity` (§7.1). Every §4.4 detector's negative control is recorded as watched to fail, in the evidence area at the binding's `git_head` (§11.1) |
 | LR-004 | The subject is an open LR-003 proposal at its recomputed hash. `new_decision_id` is its `registration_decision_ref` ID | — |
 | LR-005 | G5, with no review | The physical identity re-read unchanged |
 | LR-006 | Schema; content hash; claims (the record, `review_ref`, `acceptance_decision_ref`). The event's actor is `author_actor_id`. Family names are unique, no pointer or pattern is in two families, and `unassigned` is disjoint from every family (W9-T3) | Each `applies_to` entry re-read: its bytes match its `sha256`, `size_bytes` and, if tracked, `git_blob`. Template §3 rule 1 parsing. The table is exhaustive in both directions over the bytes read (template §3 rule 2) |
@@ -700,9 +726,8 @@ family `unverified`.
   resolved could both resolve: one item accepted twice, and the second batch admitted without the integration-pilot
   outcome Decision the annex requires for any batch after the first. A test proposes two batches sharing an item and
   shows the second resolution refused at replay.
-- The review also offered "one open batch at a time" at LR-016. It is not adopted. An acceptance proposal has no
-  expiry of its own (only its Decision proposal has `expires_at`), so one abandoned proposal would block every later
-  batch, and the LR-020 re-check already closes the gap.
+- The review also offered "one open batch at a time" at LR-016. It is not adopted. One abandoned proposal would block
+  every later batch until it lapsed, which can take up to 60 days (§4.6), and the LR-020 re-check already closes the gap.
 - §4.5's closed-reference column. The machine part: genesis, the pinned W0 signature (§9.1), and the detector controls
   (LR-003 already required them before the first registration). The rest (Gate 7 opened; G7-A, G7-B and G7-C
   accepted) are owner facts, which go on the L-4 checklist.
@@ -1005,6 +1030,7 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
 | `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay; a `required_evidence_refs` entry with an empty session after its prefix, refused at `submit` and by replay | 1 |
 | Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy`. The existing W11 suites pass unchanged | 1 |
+| Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
@@ -1139,6 +1165,14 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 ## Change log
 
+- **Revision 5 (2026-11-08).** Answers Codex's third round on PR #411. No owner decision changes.
+  - **W9's catalogue stream ID in the W11 guard.** W11's check reads W9's fixed identities (`CATALOGUE_STREAM_ID`,
+    `RESERVED_IDS` and the pinned W0 refs) from the code constants, so they are refused before W9 genesis too.
+    `reduce_genesis` never enters the catalogue stream ID in `identities` (§4.3, §17).
+  - **Open and lapsed proposals.** A proposal is open while it is unresolved and has not lapsed. It lapses 30 days
+    after it is made, or at its Decision's `expires_at` if that is later. A lapsed proposal releases what LR-003's
+    uniqueness rule held, and it can be neither reviewed nor resolved. This replaces the note's reading of the annex's
+    "no live registration", under which a declined registration held its path forever (§4.6, §5.2, §6.2, §10.1, §17).
 - **Revision 4 (2026-11-08).** Answers the second round of review comments on PR #411.
   - **W11 writes to W9 identities** (CodeRabbit and Codex): W11's admissible-target check also refuses a target that
     W9 claims or reserves. This is checked before append, through a lazy import, and is backed by replay. The boundary
