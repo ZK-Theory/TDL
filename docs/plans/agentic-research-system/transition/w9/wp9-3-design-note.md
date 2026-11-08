@@ -10,7 +10,8 @@ review comments on PR #411, and amends P-081 item 8 to cover the membership-tabl
 Revision 5 (2026-11-08) answers Codex's third round, with no owner decision changed. Revision 6 (2026-11-08) makes a
 later W0 pin's release a store binding advance (issue #415, option C), and amends P-081 item 3. Revision 7
 (2026-11-08) answers a fourth round, amending P-081 items 10 and 12 and adding the O-33 reading. Revision 8
-(2026-11-08) answers a fifth, amending P-081 items 3 and 12 and the O-33 addition. Nothing in it is implemented.<br>
+(2026-11-08) answers a fifth, amending P-081 items 3 and 12 and the O-33 addition. Revision 9 (2026-11-08) answers
+a sixth, amending P-081 items 3 and 12 and the O-33 addition again. Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -432,22 +433,31 @@ a grant names one ID, the observation's ID carries the rest:
   "tool_version", "tool_sha256"}}}`, the last three copied from the record's `importer`. `source_identity` carries
   the physical identity and the bytes or baseline: the path, and for `git_tracked` the commit and blob, with the
   SHA-256 and length;
+- the **observation count** `n` is the number of observations of that registration already in the ledger, so the
+  first observation has `n` 0;
 - `record_id` is an `obj_` UUIDv7 built as WP9.2's external refs are (WP9.2 note §5.3, steps 2 to 5), from the domain
-  string `w9-observation:<registration record ID>:<subject digest>` and, as its timestamp, the **registration
+  string `w9-observation:<registration record ID>:<subject digest>:<n>` and, as its timestamp, the **registration
   record's** `created_at` in milliseconds. The observation's own `created_at` comes from the runtime clock at submit
   (§5.1), so it cannot be known when the grant is issued; the registration's is already in the ledger. Nothing ties an
   ID's UUIDv7 timestamp to its record's `created_at`: `validate_id` checks the version and variant only
   (`ids.py:100`);
-- the preparer and replay each recompute it and refuse a record whose `record_id` differs. So a grant on that ID
-  authorizes exactly one subject, and two observations of one registration need two grants. The ID is a function of
-  the ledger and the bytes alone, so a second observation of an unchanged subject derives the same ID and is refused
-  as an existing identity (W9-C25); the first observation stays usable, since its subject has not changed.
+- the preparer, under the writer lock, and replay each recompute it, `n` included, and refuse a record whose
+  `record_id` differs. So a grant on that ID authorizes exactly one subject at one position in the registration's
+  history, and two observations of one registration need two grants.
 
-The light-inventory builder prints the ID for an observation envelope, from the ledger and the source bytes, so that
-Stephen can grant it before it is submitted (§12.1). If the bytes change before submission, the subject digest, and
-so the ID, changes, and the grant no longer matches: the command is refused before append. Stephen chose this on
-2026-11-08 over recording a narrowing like owner point L, and chose the registration's timestamp on the same day,
-over a prepare-then-grant step that would have let a payload supply `created_at`.
+**Why the count.** Without it, the ID would be a function of the subject alone. A source observed as A, then B, then
+A again could then never be accepted: the first A observation is stale, because B came later (§7.2), and a new A
+observation would derive the first one's ID and be refused as an existing identity (W9-C25). With `n`, each
+observation gets a fresh ID, and re-observing an unchanged subject is admitted under its own grant. Only another
+observation of the same registration moves `n`; if one lands after the grant is issued, the preparer derives a
+different ID, the grant no longer matches, and the command is refused before append.
+
+The read-only `ars legacy observation-id` command prints the ID for an observation envelope, from the store's W9
+projection and the source bytes, so that Stephen can grant it before it is submitted (§13). If the bytes change
+before submission, the subject digest, and so the ID, changes, and the grant no longer matches: the command is
+refused before append. Stephen chose this on 2026-11-08 over recording a narrowing like owner point L; on the same
+day he chose the registration's timestamp, over a prepare-then-grant step that would have let a payload supply
+`created_at`, and the observation count, over un-staling an observation whose source returns.
 
 **Operator burden.** Every proposal, review and Decision needs its own grant on its own ID, which Stephen issues. A
 20-item pilot needs tens of grant activations: for the registrations, a membership table per JSON schema, an inventory
@@ -607,21 +617,31 @@ line ("A change aborts with no event") as follows:
 - **The same gap at LR-020: acceptance binds the recorded bytes.** LR-020's final re-read has the same gap before its
   append, and no catalogue row can undo an appended acceptance. So the acceptance accepts the observation's recorded
   bytes, named by its `source_identity` hashes and kept in its frozen copy (§7.3) or, for `git_tracked`, the blob, and
-  not the live file. Those bytes stay retrievable after the source changes. A change after LR-020's final re-read is
-  therefore a change after acceptance: the next observation of the registration records the new hash, and the
-  accepted record projects as stale (below). What follows from a stale accepted record (adoption suspension) is
-  WP9.4's.
+  not the live file. For those kinds the bytes stay retrievable after the source changes. A change after LR-020's
+  final re-read is therefore a change after acceptance: the next observation of the registration records the new
+  hash, and the accepted record projects as stale (below). What follows from a stale accepted record (adoption
+  suspension) is WP9.4's.
+- **A restricted source is accepted by hash only.** A `restricted_untracked_file` observation records hash, size and
+  path, and the ARS store holds no copy (§7.4; W9 §5.4). Its acceptance binds those recorded values. After a change,
+  ARS cannot return the accepted bytes; whoever holds them can still verify them against the recorded hash, and the
+  record's fixed non-inference, "no frozen copy in the ARS store", says so. The next observation makes the record
+  stale, as for the other kinds. No restricted byte enters the store.
 
 Stephen chose these readings on 2026-11-08. One control injects a mutation between LR-015's final re-read and the
 append: the observation commits with the re-read's hashes, and LR-016 then refuses the item as stale. A second
 injects one between LR-020's final re-read and the append: the acceptance commits naming the observation's recorded
 hashes, the frozen copy still hashes to them, and a following observation of the registration records the new hash
-and makes the accepted record stale (§17).
+and makes the accepted record stale. The same control runs for a restricted source, with no frozen copy to check
+(§17).
 
-**Stale observations are projected.** An observation, open or accepted, is stale when a later observation of the
-same registration holds a different blob (`git_tracked`) or SHA-256 (other kinds), or when its source re-reads
-differently at acceptance. LR-016 and LR-020 refuse a stale item. So a blob change blocks every open observation
-that binds the old blob (W9 §4.2 item 3). Adoption suspension is WP9.4's, and no WP9.3 row creates an adoption or a transition.
+**Stale observations are projected, from recorded observations only.** An observation, open or accepted, is stale
+when a later recorded observation of the same registration holds a different blob (`git_tracked`) or SHA-256 (other
+kinds). Replay projects only that. An acceptance-time re-read that finds different bytes is a preparer refusal: the
+LR-016 or LR-020 command aborts with no event and no receipt, so replay cannot see it, and the projection does not
+mark the item stale. The change becomes visible to replay when a new observation of the registration records the new
+bytes. LR-016 and LR-020 refuse an item that is stale in the projection or whose source re-reads differently. So a
+blob change blocks every open observation that binds the old blob (W9 §4.2 item 3). Adoption suspension is WP9.4's,
+and no WP9.3 row creates an adoption or a transition.
 
 ### 7.3 Frozen copies: a seam 06v does not list
 
@@ -774,13 +794,22 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
     old-version writer could still claim the candidate ID after the check. So on each W9 store:
     - From the final check until the store's binding is advanced, no W9 or W11 command is submitted to the store.
       Stephen dispatches every write and issues every grant (§5.3), so the freeze is his.
-    - **Drain before the checkout moves.** `load_current_binding` checks the checkout on disk, not the modules a
-      process has already loaded. A process started from the candidate checkout before the freeze could load pre-pin
-      code, wait, and first admit the binding after the checkout has been updated and the binding advanced; it would
-      then pass while running pre-pin code from memory. So before the final check, every process started from the
-      candidate checkout has exited; the checkout is updated to the pin commit only while no process runs from it; and
-      no writer starts from it until the advance. The pin's checklist records the drain. A process started outside
-      Stephen's dispatch is a known limit (§18).
+    - **The pin goes in a separate checkout; the bound one does not move.** `AdvanceStoreBinding` re-admits the
+      predecessor through `load_current_binding` on the predecessor's own code root
+      (`store/binding_service.py:1474-1492`), so the bound checkout must still be at its bound commit when the advance
+      runs; updated in place to the pin commit, it would be refused, and the store would stay frozen. So the pin commit is checked out in a separate,
+      durable candidate checkout, the intent's `candidate_repository_root`, which the advanced binding then names as
+      its code root (`:1605-1622`). The bound checkout stays at its commit until the advance succeeds.
+    - **The code-root check refuses the old checkout after the advance.** `load_current_binding` refuses any
+      repository root other than the one the binding names (`store/current_binding.py:842`). It checks the checkout
+      on disk, not the modules a process has loaded, but once the binding names the candidate root, a process still
+      running from the old checkout is refused on its next admission, whatever code it holds. Before the advance, the
+      same check refuses a writer from the candidate checkout.
+    - **Drain the old checkout.** Before the final check, every process started from the bound checkout has exited,
+      and none starts from it until the advance. That keeps an old-version writer from claiming the candidate ID
+      inside the freeze. The pin's checklist records the drain. A process started outside Stephen's dispatch is a
+      known limit, narrowed to the window before the advance, where the ledger-head re-read below catches any write
+      it makes (§18).
     - The check records the store's ledger head: the last global position and that event's hash. Immediately before
       the advance, the head is read again. If it moved, the store stays frozen and the check is re-run.
     - If a collision is found before the advance, the ref is re-derived in a follow-up commit, which replaces the
@@ -1016,9 +1045,8 @@ Every tool reads its inputs and writes only to an output path the operator names
   derived ownership list when it builds a batch (§10.5).
 - **Reproduction mode** re-segments the same bytes (the Git blob, or the frozen copy) and reports row-by-row equality.
   LR-013's reproducer uses it.
-- **Observation IDs.** Given an observation envelope, it reads the source bytes and the registration record from the
-  store read-only, and prints the derived `record_id` of §5.3, so that Stephen can issue the grant on that ID before
-  the envelope is submitted. It needs no value that only submission fixes.
+- It does not compute observation IDs: that needs the store's projection, which no tool opens. The read-only `ars
+  legacy observation-id` command does (§13).
 
 ### 12.2 The Computational-Log export and its recheck (D-7; O-21)
 
@@ -1069,7 +1097,7 @@ This keeps F-4 ("run `refuse_gate6_store` on the target control root before `_ve
 the control root's own manifest to the ancestor scan the runtime uses. Step 2 also carries §9.1's release of a later
 W0 pin: because every submit admits through the store's current binding, a W9 writer on a commit the binding does not
 admit is refused before it replays or appends. The read-only `ars legacy` binding
-(`cli.py:1513-1521`) is unchanged.
+(`cli.py:1513-1521`) is unchanged; `ars legacy observation-id`, below, reuses it.
 
 **A dependency on D-1 (review m-7).** `load_current_binding` requires a clean worktree, untracked files included
 (`:852-853`); `HEAD` at the binding's `git_head` unless the binding is schema 1.2.0 (`:847-851`); and a foundation that
@@ -1082,6 +1110,14 @@ a scratch control root nested inside one, are each refused with every root byte-
 included. A valid scratch store accepts the command.
 
 The tool subcommands (`inventory build`, `inventory reproduce`, `export recheck`, `apm-inventory`) open no store.
+
+**`ars legacy observation-id`** is a read-only store command, not a tool. Given an observation envelope and a control
+root, it runs through the existing read-only binding `_legacy_projection` (`cli.py:1513-1524`): `refuse_gate6_store`
+first, then `_verified_ledger(read_only=True)`, the public replay and `replay_legacy`. From that projection it takes
+the registration's `created_at` and the observation count `n`; it reads the source bytes as the preparer would; and
+it prints the derived `record_id` of §5.3. It appends nothing, takes no writer lock and writes no file. Its test
+leaves a scratch store byte-identical, refuses a Gate 6 control root before binding, and prints the ID the preparer
+then derives.
 
 ## 14. Reducers: kept and changed
 
@@ -1161,11 +1197,11 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | The W2 payload fields (§5.2) | One forged-ledger control per checked field, including a verdict whose `computed_independence_grade` is not `independent`, a verdict or resolution with non-empty `conditions`, a resolution with non-empty `permitted_commands`, and a resolution after `expires_at` | 1 |
 | `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay; a `required_evidence_refs` entry with an empty session after its prefix, refused at `submit` and by replay | 1 |
 | Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy` and by the public shared replay. The generic and T2 controls of §4.3: a `CreateScopeDefinition` on `CATALOGUE_STREAM_ID` before and after W9 genesis, and a generic and a T2 creation on a reserved `rev_`, each refused before any append; the bootstrap IDs disjoint from W9's. The existing W11, generic and T2 suites pass unchanged | 1 |
-| Observation ID (§5.3) | An observation whose `record_id` is not the derivation from its subject, refused at `submit` and by replay; a grant for one observation refused for a second observation of the same registration with another selector, and with another baseline; the ID the builder prints before submission equals the ID the preparer derives, with the runtime clock set to a different time; a second observation of an unchanged subject refused as an existing identity | 1 |
-| The O-33 gap (§7.2) | A scratch source mutated between LR-015's final re-read and the append: the observation commits with the re-read's hashes and frozen copy, and LR-016 refuses the item as stale. In WP9.3-2, a scratch source mutated between LR-020's final re-read and the append: the acceptance commits naming the recorded hashes, the frozen copy still hashes to them, and a following observation of the registration makes the accepted record stale | 1, 2 |
+| Observation ID (§5.3) | An observation whose `record_id` is not the derivation from its subject, refused at `submit` and by replay; a grant for one observation refused for a second observation of the same registration with another selector, and with another baseline; the ID `ars legacy observation-id` prints before submission equals the ID the preparer derives, with the runtime clock set to a different time; a source observed as A, then B, then A again, where the third observation gets a fresh ID, is admitted and is not stale; a grant issued before another observation of the same registration lands, refused before append because `n` moved; a forged observation with the wrong `n`, refused by replay | 1 |
+| The O-33 gap (§7.2) | A scratch source mutated between LR-015's final re-read and the append: the observation commits with the re-read's hashes and frozen copy, and LR-016 refuses the item as stale. In WP9.3-2, a scratch source mutated between LR-020's final re-read and the append: the acceptance commits naming the recorded hashes, the frozen copy still hashes to them, and a following observation of the registration makes the accepted record stale; the same for a restricted source, accepted on its recorded hash with no copy in the store. A failed acceptance-time re-read leaves the ledger and the projection unchanged | 1, 2 |
 | Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted. The pre-pin check: on a scratch W9 store whose ledger holds a W11 stream, and separately a generic stream, on the candidate's derived ID, the check reports the collision that `replay_legacy` alone misses, and the `#1` re-derivation passes | 1 |
-| Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append | 1 |
+| Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append. The separate checkout: an advance whose candidate is a second checkout at the pin commit succeeds with the bound checkout left at its commit, and one attempted after updating the bound checkout in place is refused; after the advance, an operation from the old checkout's root is refused by the code-root check, including one from a process that admitted before the advance | 1 |
 | Runtime-construction census (§9.1) | An AST census over every Python file outside `tests/` that counts constructions of `LegacyRuntime` or `DiscoveryRuntime`, not imports. Imports, re-exports and annotations are allowed anywhere: `discovery/spec.py:19` imports `DiscoveryRuntime` at module scope, `discovery/__init__.py:1` re-exports it, and `spec.py:339` names it as a return type. The census follows every name an import or assignment binds to either class, so a call through an alias, or through `functools.partial` or `getattr` on such a name, counts as a construction; a subclass of either class outside its own module fails outright. Each construction sits at an allowed site, exactly two: `SpecCoordinator._discovery` (`discovery/spec.py:339-351`, the only one on `main` at `1f0d8281`) and §13's `ars legacy submit`, each taking its binding from a `VerifiedCurrentBinding` that `load_current_binding` returned. A positive control: the census passes on the tree as it stands, imports and re-export included. Negative controls: fixture modules that construct either runtime without the binding, construct it through an alias, and subclass it, each fail the census with the file and line named | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
@@ -1225,7 +1261,11 @@ lanes are untouched.
 - LR-015's full authority subject, through the derived observation ID: the observation-ID controls;
 - the O-33 gap after the final re-read, closed at acceptance, and the same gap at LR-020, where the acceptance binds
   the recorded bytes: the O-33 gap controls;
-- that the observation ID can be computed before submission: the builder-equals-preparer control;
+- that the observation ID can be computed before submission, and that a returning source gets a fresh one: the
+  observation-ID controls, run through `ars legacy observation-id`, which leaves the store byte-identical;
+- that the bound checkout stays put until the advance, and that the old checkout is refused after it: the
+  separate-checkout controls;
+- that replay marks stale only from recorded observations: the failed-re-read control;
 - a later pin's collision check across every partition: the pre-pin check controls;
 - after a later pin's release, refusal of a writer on pre-pin code: `load_current_binding`, with the pin-release
   controls (§9.1). Whether a store has been released is a fact the store records: its current binding's `git_head`;
@@ -1252,9 +1292,12 @@ lanes are untouched.
   been made since the run each item's S-014 ref names?";
 - a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
   to its binding advance?";
-- the drain before a later pin (§9.1), on the pin's checklist: "Had every process started from the candidate checkout
-  exited before the final check, and did none start from it until the advance?" A process started outside Stephen's
-  dispatch is a known limit;
+- the drain before a later pin (§9.1), on the pin's checklist: "Was the pin in a separate, durable checkout, with the
+  bound checkout left at its commit? Had every process started from the bound checkout exited before the final check,
+  and did none start from it until the advance?" A process started outside Stephen's dispatch is a known limit before
+  the advance, covered by the ledger-head re-read; after it, the code-root check refuses it;
+- a restricted source's acceptance (§7.2): ARS holds only its hash, size and path, so "Do the custodians of each
+  accepted restricted source still hold bytes that match the recorded hash?" is answered outside ARS;
 - Discovery-only replay (§4.3, a known limit): `replay_discovery` runs no W9 check, so a W11 reader would project
   over a ledger that a direct append broke for W9. Before W9 genesis the public shared replay runs no W9 check either,
   so a direct append on the catalogue stream ID shows up only as W9 genesis failing on that store. The question for
@@ -1307,7 +1350,7 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 |---|---|---|---|
 | A | **The split** (06v D-6; P-064 item 6; P-080 item 1) | **Two PRs, which the review asks for (review §4):** WP9.3-1 (LR-003 to LR-015, all seven bindings, D-4) then WP9.3-2 (LR-016 to LR-020, the export recheck and the `.apm/` tools, no D-4) (§2.3). P-064 item 6 allows a WP9.3 split without fixing its shape; this shape departs from 06v's D-6 row ("reader and selectors"), which the decision records | One PR; or 06v's reader and selectors split |
 | B | **Review satisfaction** | **`approve` only, for every W9 review,** with `approve_with_conditions` not even recordable (§5.4). The catalogue has no row to discharge a condition | Admit `approve_with_conditions` for authority reviews only, which needs a condition-discharge rule and a catalogue revision |
-| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3). Amended 2026-11-08: a later W0 pin is released on each W9 store by advancing its binding to a `main` commit that holds the pin, and the write freeze runs from the final pre-pin check to that advance (§9.1; issue #415, option C). Amended again the same day: every process started from the candidate checkout exits before the final check, and none starts from it until the advance (§9.1) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
+| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3). Amended 2026-11-08: a later W0 pin is released on each W9 store by advancing its binding to a `main` commit that holds the pin, and the write freeze runs from the final pre-pin check to that advance (§9.1; issue #415, option C). Amended again the same day: the pin goes in a separate, durable candidate checkout while the bound checkout stays at its commit until the advance, and every process started from the bound checkout exits before the final check, none starting from it until the advance (§9.1) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
 | D | **The W9 evidence area** | **`.research-system/evidence/w9/`,** with WP9.3 fixing the reader-side formats of WP9.5's files (§11.1). The path is recorded once, in the decision entry, so that WP9.5 (D-5's run hashes) and WP9.7 (D-9's suffix list) use the same one | `docs/plans/agentic-research-system/transition/w9/evidence/`; or WP9.5 defines the formats first, and LR-003, LR-015 and LR-016 wait for it |
 | E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the ledger before it, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose; a batch may hold at most one whole-file item per registration. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | Derived, and also listed among the LR-017 review's subjects, so the reviewed bytes contain the list (the review's alternative); a catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
 | F | **Genesis guard 8** (§15) | **Generalize the partition check,** have each WP9.3 PR's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
@@ -1317,11 +1360,28 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 | J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3); amended again the same day: also `research_system/command/service.py` and `research_system/command/t2.py`, for the same check at the generic append sites (§4.3) | Keep the tools under `tools/`, which extends the boundary further |
 | K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
 | K′ | **S-014's timing:** "re-run after each W9 batch" (W9 §12.3), against evidence required before the batch is accepted (§10.2) | **The S-014 ref names the latest restore run before LR-020,** and the post-batch re-run goes on the L-4 checklist | A waiver for S-014 in the pilot batch, with the re-run after it |
-| L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision. Amended 2026-11-08: LR-015 is not read this way; its grant binds the full subject through a derived observation ID (§5.3), whose timestamp is the registration's `created_at`, so the ID is known before submission | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
+| L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision. Amended 2026-11-08: LR-015 is not read this way; its grant binds the full subject through a derived observation ID (§5.3), whose timestamp is the registration's `created_at` and whose domain includes the registration's observation count, so the ID is known before submission and a returning source gets a fresh one | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
 | M | **The pre-assigned ref hash** (§4.2): a synthetic value in a field the schemas call `content_hash` | **Accept the rule as written,** with copied refs checked against the record that pre-assigned them, and record it as a reading of the accepted schemas | Any other non-circular rule, fixed before the code PR, because it fixes stored bytes |
 
 ## Change log
 
+- **Revision 9 (2026-11-08).** Answers CodeRabbit's review of revision 8 on PR #411: one inline comment and four
+  outside the diff. Codex's review of revision 8 did not run (usage limit). Stephen chose the four options that change
+  P-081 text or code behaviour in chat on 2026-11-08; the fifth changes the note only.
+  - **The pin's checkout** (inline): the advance re-admits the predecessor on its own code root, so revision 8's
+    in-place update would have been refused. The pin now goes in a separate, durable candidate checkout, and the
+    bound checkout stays at its commit until the advance. After it, the code-root check refuses the old checkout,
+    whatever its processes have loaded. The drain is kept for the old checkout. P-081 item 3 amended again (§9.1,
+    §17, §18, §21 C).
+  - **A returning source** (outside diff): the ID domain adds `n`, the registration's observation count, so a source
+    observed as A, B, then A again gets a fresh ID for the third observation. Revision 8's refusal of a repeated
+    subject is dropped. P-081 item 12 amended again (§5.3, §17, §21 L).
+  - **Where the ID is computed** (outside diff): a read-only `ars legacy observation-id` command through the existing
+    read-only binding, so the tools still open no store (§5.3, §12.1, §13, §17).
+  - **Restricted sources** (outside diff): accepted on their recorded hash, size and path; ARS cannot return the
+    bytes after a change, and the record's non-inference says so. P-081's O-33 amendment extended (§7.2, §17, §18).
+  - **The stale projection** (outside diff, note only): replay marks stale only from recorded observations. A failed
+    acceptance-time re-read is a preparer refusal with no event, so replay cannot see it (§7.2, §17, §18).
 - **Revision 8 (2026-11-08).** Answers a fifth round on PR #411: three CodeRabbit comments and three Codex comments
   (one P1, two P2). Stephen chose the four options that change P-081 text in chat on 2026-11-08; the other two change
   the note only.

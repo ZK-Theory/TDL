@@ -5067,6 +5067,14 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    final pre-pin check, every process started from the candidate checkout has exited; the checkout is updated to the
    pin commit only while none runs from it; and no writer starts from it until the advance. The pin's checklist
    records the drain, and a process started outside Stephen's dispatch is a known limit (note §9.1, revision 8).
+   **Corrected 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Separate checkout + drain
+   (Recommended)"). `AdvanceStoreBinding` re-admits the predecessor through `load_current_binding` on its own code
+   root, so the bound checkout cannot be updated in place before the advance. The pin commit goes in a separate,
+   durable candidate checkout, which the advanced binding names as its code root, and the bound checkout stays at
+   its commit until the advance succeeds. After the advance, `load_current_binding`'s code-root check refuses the old
+   checkout, whatever its processes have loaded. The drain applies to the bound checkout: its processes exit before
+   the final check, and none starts from it until the advance. The known limit narrows to the window before the
+   advance, which the ledger-head re-read covers (note §9.1, revision 9).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5123,6 +5131,15 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     the runtime clock sets at submit. The ID is then known from the ledger and the bytes before submission, so the
     builder can print it for the grant; a second observation of an unchanged subject is refused as an existing
     identity (note §5.3, revision 8).
+    **Amended a third time 2026-11-08** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Add
+    observation count (Recommended)", "Read-only ars legacy query (Recommended)"). The ID domain becomes
+    `w9-observation:<registration ID>:<subject digest>:<n>`, where `n` is the number of observations of that
+    registration already in the ledger. So a source observed as A, then B, then A again gets a fresh ID for the third
+    observation, which revision 8's form refused. A repeated subject is then admitted under its own grant. If another
+    observation of the registration lands after the grant, `n` moves and the command is refused before append. The ID
+    is printed by a new read-only `ars legacy observation-id` command through the existing read-only binding
+    (`cli.py`, within item 10's boundary), not by a tool, so the tools still open no store (note §5.3, §13, revision
+    9).
 13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
     `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
     "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
@@ -5137,7 +5154,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
   (Recommended)"). LR-020's final re-read has the same gap. The acceptance binds the observation's recorded bytes,
   named by its hashes and kept in its frozen copy or Git blob, not the live file. A change after that re-read is a
   change after acceptance: the next observation of the registration records the new hash and the accepted record
-  projects as stale, and what follows is WP9.4's (note §7.2, revision 8).
+  projects as stale, and what follows is WP9.4's (note §7.2, revision 8). Extended the same day (Stephen: "Hash-only
+  acceptance (Recommended)"): a `restricted_untracked_file` source has no copy in the store, so its acceptance binds
+  the recorded hash, size and path. After a change ARS cannot return the accepted bytes, which the record's
+  non-inference "no frozen copy in the ARS store" already says; the next observation makes it stale. Replay marks an
+  observation stale only from recorded observations, since a failed acceptance-time re-read leaves no event (note
+  §7.2, revision 9).
 - **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
   adding one would be a fifth U-7 site. Once the ledger holds a W9 event, the public shared replay refuses a ledger
   with a non-W9 event on a W9 identity, and every dispatch writer checks before append (note §4.3). Before W9 genesis
