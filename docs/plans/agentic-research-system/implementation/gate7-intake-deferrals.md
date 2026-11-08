@@ -5,7 +5,7 @@
 | Date | 2026-11-08 |
 | Status | Running list. Created on Stephen's approval of the 2026-11-03 system review packet (PR #412, Group H, option (a)), 2026-11-08 |
 | Purpose | The one place where a Gate 7 planning pass, or the W9 package a row names, finds work that a system review deferred to it |
-| Check | `uv run python tools/observation_log_lint.py <log> --intake <this file>` reports any DEFERRED observation sent to a gate's intake that has no row here. The weekly system review runs it in step 1 |
+| Check | `uv run python tools/observation_log_lint.py <log> --intake <this file>` reports any DEFERRED observation sent to a gate's intake that has no row here. The option is added by PR #417, so the check runs once #417 is on `main`; the weekly system review runs it in step 1 from then on |
 
 Before this list existed, four approved deferrals were recorded only in the observation log, which planning sessions do
 not read, and Gate 7 opened without them (observation `2026-11-03-gate7-intake-deferrals-have-no-landing-record`).
