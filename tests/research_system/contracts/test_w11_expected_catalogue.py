@@ -15,6 +15,7 @@ from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.discovery.accepted_w11 import ACCEPTED
 from research_system.errors import SchemaError
 from research_system.schema_registry import SchemaBinding, bundled_runtime_schema_registry
+from tests.research_system.contracts.byte_identity import assert_byte_identity
 import tools.verify_w11_materialization as w11_verifier
 
 
@@ -311,12 +312,10 @@ def test_w11_byte_identity_refuses_a_re_encoding_a_line_ending_or_a_new_created_
     data = CATALOGUE_PATH.read_bytes()
     assert b"\n" not in data  # canonical JSON is one line, so encoding drift shows up as an added line ending
     catalogue = json.loads(data)
-    assert not _is_accepted_bytes(json.dumps(catalogue, indent=2, sort_keys=True).encode())
-    assert not _is_accepted_bytes(data + b"\n")
-    assert not _is_accepted_bytes(data + b"\r\n")
     catalogue["created_at"] = "2030-01-01T00:00:00Z"
     catalogue["content_hash"] = sha256_hex(
         canonical_bytes({key: value for key, value in catalogue.items() if key != "content_hash"})
     )
     w11_verifier.verify_expected_catalogue(REPO_ROOT, catalogue)  # the object comparison alone admits it
-    assert not _is_accepted_bytes(canonical_bytes(catalogue))
+    # The helper adds the pretty-printed, \n and \r\n re-encodings, which only a byte comparison refuses.
+    assert_byte_identity(_is_accepted_bytes, data, tampers=[canonical_bytes(catalogue)])

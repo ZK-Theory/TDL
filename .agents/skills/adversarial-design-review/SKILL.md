@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   tier: domain
   lanes: []
   roles:
@@ -201,6 +201,23 @@ it, never against prose that describes them.
   check as your findings. Quote every identifier from its owner source with
   `file:line`, and trace a prescribed mechanism through the code path it relies
   on before prescribing it. A reviewer is not an owner source.
+- **Probes.** When the design's chosen shape differs from the prototype its probe
+  ran, re-run the probe on the chosen shape, with one instance of every event
+  family the claim covers, before crediting the probe's result. A probe case that
+  prints instead of asserting is not evidence.
+- **Absence claims.** For every "X omits Y" or "the set lacks Y", re-derive the
+  set from the parsed artefact (a YAML or JSON load of the row), and re-read the
+  cited range past its stated end. A read that stops early turns a complete set
+  into an apparent gap.
+- **Owner points on rules.** Before a finding or owner point asks Stephen to fix
+  a rule, search the accepted texts for it (the catalogue, the annex's
+  `derivation_rules` and `global_preconditions`, the contracts, the register) and
+  cite what is there. An obligation can be open in the code and closed in the
+  record.
+- **Carried obligations.** Run `grep -n "<package>"
+  docs/plans/agentic-research-system/03-decisions-and-open-questions.md` and
+  check that the design cites every register sentence naming its package
+  ("Carried to …", "… validates …") with a keep or depart disposition.
 
 ## Severity Rubric
 

@@ -40,7 +40,7 @@ from research_system.legacy.runtime import (
 from research_system.projection.replay import rebuild_projection
 from research_system.projection.replay import replay as replay_projection
 from research_system.discovery.runtime import replay_discovery
-from tests.research_system.factories import ACTORS, PROJECT_ID, activate_lifecycle_grant
+from tests.research_system.factories import ACTORS, NON_OWNER_ACTOR_ID, PROJECT_ID, activate_lifecycle_grant
 from tests.research_system.integration.test_wp6_6_discovery_runtime import (
     _HARNESSES,
     _genesis,
@@ -249,7 +249,7 @@ def _non_owner_genesis(harness: Any, classes: tuple[str, ...]) -> dict[str, Any]
     The owner's actor class is human whatever its grant says, so only a non-owner reaches the scoped actor class that
     the genesis guard reads (review F-1).
     """
-    actor_id = ACTORS["actor-b"]
+    actor_id = NON_OWNER_ACTOR_ID
     return _genesis_command(
         harness,
         actor_id=actor_id,
