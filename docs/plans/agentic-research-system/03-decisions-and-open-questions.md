@@ -5019,6 +5019,247 @@ and append-site changes go to D-4.<br>
 **Affected specifications:** 06v WP9.3 (started).<br>
 **Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
 
+### P-081 - WP9.3 design note owner points: two PRs, approve-only reviews, pinned identities, the evidence area, derived ownership, and the readings L and M
+
+**Date:** 2026-10-29<br>
+**Status:** Accepted by Stephen (in chat, 2026-10-29), answering owner points A to J, K′, L and M of the WP9.3 design
+note (`transition/w9/wp9-3-design-note.md`, revision 2 `87b04f81`). Revision 2 reconciles the note's independent
+review (`reviews/wp9-3-design-note-review-a8604641-2026-10-28.md`, accept with required changes: B-1, M-1 to M-4,
+m-1 to m-10).<br>
+**Authority:** Stephen, in chat, 2026-10-29, choosing the recommended option each time:
+- A: "Two PRs (Recommended)";
+- B: "Approve only (Recommended)";
+- C: "Frozen constants (Recommended)";
+- D: ".research-system/evidence/w9/ (Recommended)";
+- E: "Derived (Recommended)";
+- F: "Generalize (Recommended)";
+- G: "git_commit only (Recommended)";
+- H: "Option (a) (Recommended)";
+- I: "New module + reviewer (Recommended)";
+- J: "authority.py + cli.py (Recommended)";
+- K′: "Prior run + checklist (Recommended)";
+- L: "Accept reading (Recommended)";
+- M: "Accept rule (Recommended)".
+
+Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (review B-1).<br>
+**Decision:**
+1. **Two PRs (A).** WP9.3 lands as two PRs. **WP9.3-1** routes LR-003 to LR-015 and adds all seven command bindings and
+   the four producer bindings, so it carries the package's whole D-4 (census 262 to 273). **WP9.3-2** routes LR-016 to
+   LR-020 and adds the export recheck and the `.apm/` tools, and changes no protected identity. This is the split P-080
+   item 1 and D-6 (P-064 item 6) allow; its shape departs from 06v's D-6 row ("reader and selectors"). WP9.3-1 merges
+   first.
+2. **Approve only (B).** A W9 review is satisfied only by `approve`, on the subject's current recomputed hash, under the
+   verdict row that answers its request row. `approve_with_conditions` is not in any W9 request's `allowed_verdicts`.
+   This extends WP9.2-2's LR-014 reading to every W9 review (note §5.4).
+3. **Pinned identities (C).** The W0-D1 signature (L-0) and the Computational-Log export with its classified list
+   (L-0b) enter the code as append-only tuples in `research_system/legacy/accepted_w9.py`, empty in WP9.3. Until a
+   reviewed PR pins each after Stephen's acceptance, with independent test literals, LR-015 refuses every observation
+   in production (note §9.1, §11.3).
+   **Amended 2026-11-08** (Stephen, answering CodeRabbit's writer-version question on PR #411, tracked as issue #415:
+   "Yes, option C"). A later W0 pin, made while W9 stores exist, is released on each W9 store by advancing its binding
+   (`AdvanceStoreBinding`) to a `main` commit that holds the pin. `load_current_binding` then refuses a writer on
+   pre-pin code, on the W11 path and, through `ars legacy submit`, on the W9 path. The write freeze runs from the final
+   pre-pin check to that advance (note §9.1, revision 6). Stephen also added to WP9.3-1 ("Yes, add it") an AST census
+   that production code builds `LegacyRuntime` and `DiscoveryRuntime` only at two allowed sites behind
+   `load_current_binding`, with negative controls (note §17).
+   **Amended again 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Drain rule
+   (Recommended)"). `load_current_binding` checks the checkout on disk, not a process's loaded modules. So before the
+   final pre-pin check, every process started from the candidate checkout has exited; the checkout is updated to the
+   pin commit only while none runs from it; and no writer starts from it until the advance. The pin's checklist
+   records the drain, and a process started outside Stephen's dispatch is a known limit (note §9.1, revision 8).
+   **Corrected 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Separate checkout + drain
+   (Recommended)"). `AdvanceStoreBinding` re-admits the predecessor through `load_current_binding` on its own code
+   root, so the bound checkout cannot be updated in place before the advance. The pin commit goes in a separate,
+   durable candidate checkout, which the advanced binding names as its code root, and the bound checkout stays at
+   its commit until the advance succeeds. After the advance, `load_current_binding`'s code-root check refuses the old
+   checkout, whatever its processes have loaded. The drain applies to the bound checkout: its processes exit before
+   the final check, and none starts from it until the advance. The known limit narrows to the window before the
+   advance, which the ledger-head re-read covers (note §9.1, revision 9).
+   **Amended a third time 2026-11-09** (Stephen, in chat, answering CodeRabbit's two comments on PR #411: "Fresh or
+   drained (Recommended)", "Head in the advance (Recommended)" and "Beside the intent (Recommended)"). The candidate
+   checkout is created at the pin commit; if an existing one is reused, every process started from it exits before
+   it is updated, and none starts until it is at the pin commit, so no process holding pre-pin modules is admitted
+   after the advance. The checklist records which case applies. The manual head re-read is replaced: the advance is
+   given the head the final check recorded, beside its intent, and compares it with the ledger head under its writer
+   lock before writing its marker. A moved head refuses the advance with no effect, and the check is re-run. W9 and
+   W11 writers take the same control-root lock, so no write lands between the compare and the advance's event (note
+   §9.1, revision 10).
+   **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Recheck
+   under the lock (Recommended)", "Accept own event (Recommended)"). A writer admitted before the advance could pause
+   and append after it, which the head compare cannot see, because W11 rechecks the binding only at the start of an
+   operation. So `LegacyRuntime` and `DiscoveryRuntime` each recheck the current binding inside their writer lock,
+   immediately before append, and a pre-pin process is refused by the code-root check. An advance resumed from its
+   marker accepts a head moved only by its own event, so a crash after that event's append recovers; any other moved
+   head still refuses and goes to Stephen (note §9.1, revision 11).
+   **Amended a fifth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Add
+   --expected-ledger-head (Recommended)"). `ars store advance-binding` gains `--expected-ledger-head <global
+   position>:<event hash>`, handed to the binding service beside the intent, so the checked advance runs through the
+   supported command. It is optional for other advances and required by the pin's checklist for a pin release. The
+   pre-pin check takes its public shared replay, its scan and its recorded head from one `LedgerSnapshot`, so an
+   append during the check makes the advance refuse (note §9.1, revision 12).
+   **Amended a sixth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Grant fence
+   (Recommended)"). The in-lock recheck is WP9.3-1 code, so a writer on a predecessor from before WP9.3-1 that
+   escapes the drain could still append after the advance. Every W9, W11 and governed generic writer resolves its
+   command's grant under the writer lock from a fresh replay that refuses revoked or expired grants, which
+   predecessor code already does. So before the final check every grant that admits a write on the store is revoked
+   or has expired, and none is issued until the advance; a paused predecessor operation is refused under its lock on
+   resume. WP9.3-1's control runs the predecessor commit's own code from a checkout under `tmp_path`, and a census
+   names any command type that writes without a grant, a known limit on the pin's checklist (note §9.1, revision 13).
+   **Amended a seventh time 2026-11-09** (Stephen, in chat, accepting the recommendations for CodeRabbit's comments
+   on PR #411: "Yes, all three"). Correction: of the generic writers, only the lifecycle command types resolve a
+   grant under the lock. `VerifyEvidenceDeletion` resolves none, takes the caller's target stream and is reachable
+   from production `ars submit`, so the grant fence does not stop it; and the fourth amendment's in-lock recheck
+   covered only `LegacyRuntime` and `DiscoveryRuntime`. So `CommandService._submission_lock`, which generic and T2
+   submits take, also rechecks the current binding inside the lock before it hands out its snapshot, and a census
+   fails on any `CommandService` lock site that can append without the recheck. A later pin is made only on W9
+   stores, whose bindings descend from the first pin and so hold WP9.3-1's code. The known limit is therefore a
+   grant-free command paused since before its store first bound WP9.3-1 code, caught by the first replay on the
+   pinned code and listed on the pin's checklist (note §9.1, revision 14).
+4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
+   reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
+   export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
+5. **Derived ownership (E).** LR-016's precondition "the proposal lists … every legacy-ownership-transitioned record"
+   (`wp9-1-catalogue-owner-annex.yaml:567`) is read as "the proposal determines". Replay derives the list from the
+   proposal and the ledger before it, stores it at LR-016, and requires the emitted records to equal it at LR-020. A
+   batch holds at most one whole-file item per registration (note §10.5).
+6. **Genesis guard 8 (F)** checks an exact partition, with the counts pinned per PR by the route test. Each WP9.3 PR's
+   independent review re-verifies the genesis path, and the L-3 checklist records which review verified genesis at the
+   checkout L-3 runs from (note §15).
+7. **Anchors (G).** v1 accepts `git_commit` threshold anchors only: an ancestor of the binding's `git_head` that adds a
+   file hashing to the anchored SHA-256. `ars_event` anchors are refused (note §10.3).
+8. **Roles and sessions (H), option (a).** Roles bind through Stephen's exact-subject grants and the distinctness rules
+   of note §5.5. The owner is refused on every non-resolver row. For W9-C20's session limb (P-073 item 1), each review
+   request records the analyst's session, and replay refuses a verdict whose `reviewer_session` equals it. That the
+   attested session strings are true, and the exclusion of legacy producers, are known limits.
+   **Amended 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Extend option (a)
+   (Recommended)"). The membership-table template requires the reviewer's session to differ from the author's
+   (`w9-membership-table-template.md` §2). So a membership-table review request also records the table author's
+   session, `w9-author-session:<session>`, after the analyst's. Replay refuses a verdict whose `reviewer_session`
+   equals either one. The same known limit applies (note §5.5, revision 3).
+9. **The segmenter (I).** A new `research_system/legacy/segmentation.py` implements `w9-segmentation/1.0.0` for the
+   runtime and is differential-tested against `tools/w9_segmentation.py`, which stays untouched and non-runtime (P-067,
+   P-068). WP9.3-1's independent reviewer, shown independent of the contract's author and of WP9.3's implementer,
+   re-implements the contract and reproduces every vector, and records the results in the review report; that is the
+   independent re-implementation contract §7 and P-068 require. The D-7 export is produced by the reference tool and
+   rechecked by the runtime segmenter (note §12.2).
+10. **Boundary (J).** P-080's Boundary line is extended, by name, to `research_system/authority.py` (the seven
+    commands' entries) and `research_system/cli.py` (`ars legacy submit` and the tool subcommands). No `tools/` file is
+    added.
+    **Amended 2026-11-08** (Stephen, in chat, answering CodeRabbit's and Codex's comments on PR #411: "Symmetric W11
+    check (Recommended)"). The boundary also covers `research_system/discovery/routes.py` and
+    `research_system/discovery/runtime.py`, for one change only: W11's admissible-target check also refuses a target
+    that W9 claims or reserves, before append. It reads the W9 projection through a lazy import (note §4.3, revision
+    4). The W11 catalogue, schemas, bindings and census do not change, and WP9.3-1's independent review re-verifies the
+    W11 pins.
+    **Amended again 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Full symmetric check
+    (Recommended)"). The boundary also covers `research_system/command/service.py` and `research_system/command/t2.py`,
+    for the same check at the two generic append sites, `CommandService.submit` and `submit_t2`: a command whose
+    events would append to a W9 fixed identity, or to an ID W9 claims or reserves, is refused before append. No append
+    site, command type, schema, binding or census row changes (note §4.3, revision 7).
+    **Amended a third time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Head in the
+    advance (Recommended)", then "Beside the intent (Recommended)"). The boundary also covers
+    `research_system/store/binding_service.py`, for item 3's head compare only. The checked head is a parameter of the
+    advance, not a field of its intent, so the accepted `AdvanceStoreBinding` intent and command schemas and every
+    protected identity stay unchanged (note §9.1, §16, revision 10). Amended again the same day ("Recheck under the
+    lock (Recommended)"): `research_system/discovery/runtime.py` also carries item 3's binding recheck inside the
+    writer lock, a second change to that file alongside the W9 identity check (note §9.1, §16, revision 11).
+    **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Add
+    --expected-ledger-head (Recommended)", "Check created IDs (Recommended)"). `research_system/cli.py` also covers
+    `ars store advance-binding`'s `--expected-ledger-head` (item 3). The identity check at the W11, generic and T2
+    writers, and W9 replay, compares the record IDs a non-W9 event creates in its payload as well as its `stream_id`:
+    `RecordScientificReview` appends to the artefact stream but creates a `rev_` `review_id`. The created-ID fields
+    come from one table in `research_system/legacy/`, shared with the pre-pin scan, and a test fails if an event
+    schema declares a created-ID field the table omits. Payload references to W9 records stay allowed. No schema,
+    binding, census row or protected identity changes (note §4.3, §16, revision 12).
+    **Amended a fifth time 2026-11-09** (Stephen, in chat: "Yes, all three"). `research_system/command/service.py`
+    also carries item 3's binding recheck inside `_submission_lock`, and `research_system/cli.py` hands the service
+    its binding check where `ars submit` builds it. No schema, binding, census row or protected identity changes
+    (note §9.1, §16, revision 14).
+11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
+    §12.3 requires goes on the L-4 checklist.
+12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
+    ID, and the content hash is bound later by the review and the Decision, each on the recomputed hash. This is a
+    reading of global precondition G4.
+    **Amended 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Derived observation ID
+    (Recommended)"). LR-015 is not read this way. An observation's `record_id` is an `obj_` UUIDv7 derived from the
+    domain `w9-observation:<registration ID>:<subject digest>`, where the digest covers the source identity, the
+    selector and the importer tool, and the grant names that ID. Replay and the preparer recompute it, so one grant
+    covers exactly one observation subject (note §5.3, revision 7).
+    **Amended again 2026-11-08** (Stephen, in chat, answering Codex's comment on PR #411: "Registration's created_at
+    (Recommended)"). The ID's UUIDv7 timestamp is the registration record's `created_at`, not the observation's, which
+    the runtime clock sets at submit. The ID is then known from the ledger and the bytes before submission, so the
+    builder can print it for the grant; a second observation of an unchanged subject is refused as an existing
+    identity (note §5.3, revision 8).
+    **Amended a third time 2026-11-08** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Add
+    observation count (Recommended)", "Read-only ars legacy query (Recommended)"). The ID domain becomes
+    `w9-observation:<registration ID>:<subject digest>:<n>`, where `n` is the number of observations of that
+    registration already in the ledger. So a source observed as A, then B, then A again gets a fresh ID for the third
+    observation, which revision 8's form refused. A repeated subject is then admitted under its own grant. If another
+    observation of the registration lands after the grant, `n` moves and the command is refused before append. The ID
+    is printed by a new read-only `ars legacy observation-id` command through the existing read-only binding
+    (`cli.py`, within item 10's boundary), not by a tool, so the tools still open no store (note §5.3, §13, revision
+    9).
+    **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Yes, all
+    three"). LR-015's annex subject names the physical identity, but the accepted observation schema's
+    `source_identity` holds only the path, hash and length, and admits no other field. This is read as follows: the
+    physical identity is fixed and checked at registration (LR-003, LR-005); the observation's handle-bound read
+    still refuses aliasing; and a file replaced at the registered path is the same source, since a different-bytes
+    replacement changes the ID and an identical-bytes one yields an identical observation. A `stable_file_id` match
+    with the registration is not required, because a tool that saves by writing a new file and renaming it gives the
+    file a new ID on every save (note §5.3, revision 14).
+13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
+    `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
+    "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
+    This is a reading of the accepted schemas (note §4.2).
+
+**Added 2026-11-08** (Stephen, in chat, answering the fourth review round on PR #411):
+- **O-33's window** ("Snapshot + acceptance (Recommended)"). The writer lock cannot cover a vault or untracked source,
+  so 06v's "A change aborts with no event" is read as: any change up to the final re-read aborts with no event; the
+  observation's hashes and frozen copy come from that re-read's bytes; and a later change is a change after the
+  observation, caught as stale by the LR-016 and LR-020 re-read (note §7.2).
+  **Amended 2026-11-08** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Recorded-bytes reading
+  (Recommended)"). LR-020's final re-read has the same gap. The acceptance binds the observation's recorded bytes,
+  named by its hashes and kept in its frozen copy or Git blob, not the live file. A change after that re-read is a
+  change after acceptance: the next observation of the registration records the new hash and the accepted record
+  projects as stale, and what follows is WP9.4's (note §7.2, revision 8). Extended the same day (Stephen: "Hash-only
+  acceptance (Recommended)"): a `restricted_untracked_file` source has no copy in the store, so its acceptance binds
+  the recorded hash, size and path. After a change ARS cannot return the accepted bytes, which the record's
+  non-inference "no frozen copy in the ARS store" already says; the next observation makes it stale. Replay marks an
+  observation stale only from recorded observations, since a failed acceptance-time re-read leaves no event (note
+  §7.2, revision 9). Extended again 2026-11-09 (Stephen, in chat, answering CodeRabbit's comment on PR #411:
+  "Re-check + known limit (Recommended)"): at LR-020's final re-read the preparer also re-reads each item's frozen
+  copy and requires the recorded hash and size, so a missing or altered copy aborts with no event. After acceptance,
+  ARS cannot stop a copy in the control root being deleted or altered from outside; every later use re-hashes it, so
+  a loss is detected, not prevented. Retention is a known limit, and recovery is an owner operation (note §7.2,
+  revision 10). Corrected the same day ("Apply both (Recommended)"): the copy re-check covers `untracked_file` and
+  `vault_file` items only, the kinds with a frozen copy, so restricted sources keep hash-only acceptance. The writer
+  lock does not stop a deletion from outside ARS, so the re-check shows the copy held the recorded bytes at that
+  moment, and the known limit runs from the re-check onward, the moment before the append included (note §7.2,
+  revision 11).
+- **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
+  adding one would be a fifth U-7 site. Once the ledger holds a W9 event, the public shared replay refuses a ledger
+  with a non-W9 event on a W9 identity, and every dispatch writer checks before append (note §4.3). Before W9 genesis
+  the public shared replay runs no W9 check, so a direct append on `CATALOGUE_STREAM_ID` passes it and shows up only
+  as W9 genesis failing on that store (qualified 2026-11-08, Stephen: "Correct it (Recommended)").
+
+**Carried to WP9.6** (review m-10; P-080 item 3): the supersession proposal's preparer refuses a superseded ref that
+names no recorded record. WP9.3 adds the replay half.<br>
+**Dependencies recorded:** D-1's foundation re-pin before any `ars legacy submit` can bind a non-Gate-6 store (note §13);
+WP9.7's `RegisterArtefact` guard (O-22) before any live `untracked_file` or `vault_file` observation (note §7.3).<br>
+**Not authorized:**
+- WP9.4 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only. The code follows, under P-080 as extended by item 10.<br>
+**Affected specifications:** 06v WP9.3 (the design is settled), D-6 (WP9.3 split), D-7 (the export's producer and
+recheck); P-080 (Boundary extended); P-073 item 1 (W9-C20's session limb, read as item 8); the annex's LR-016
+precondition (read as item 5) and G4 (read as item 12, except LR-015); 06v's O-33 line (read as the 2026-11-08
+addition).<br>
+**Migration consequence:** None.
+
 ## Decision protocol
 
 Each future decision entry must record:
