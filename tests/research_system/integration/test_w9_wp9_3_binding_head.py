@@ -186,3 +186,152 @@ def test_the_command_refuses_a_malformed_head_before_the_service_runs(tmp_path, 
     monkeypatch.setattr(cli, "read_advance_intent", never)
     with pytest.raises(ConfigurationError, match="--expected-ledger-head must be"):
         cli.main(["store", "advance-binding", "--intent", str(tmp_path / "x.json"), "--expected-ledger-head", value])
+
+
+# --- Pin release by a binding advance, through load_current_binding itself (§9.1, §17) ----------------------------------
+
+PIN_LINE = "# A later W0 pin lands here (a test stand-in for an ACCEPTED_W0_SIGNATURES entry).\n"
+
+
+def _pin_intent(tmp_path: Path):
+    """The v1.2 advance fixture, whose reviewed change is a later pin: it changes ``accepted_w9.py``, governed code."""
+    import shutil
+
+    from research_system.store.binding_service import AdvanceStoreBinding
+    from research_system.store.current_binding import load_current_binding
+    from research_system.store.governed_code import build_governed_code_manifest
+    from tests.research_system.factories import PROJECT_ID
+    from tests.research_system.integration.test_store_binding_service import (
+        _admitted_legacy_predecessor,
+        _git,
+        _git_text,
+    )
+
+    service, repair, predecessor_root, predecessor_sha256 = _admitted_legacy_predecessor(tmp_path)
+    pinned = tmp_path / "pinned"
+    shutil.copytree(predecessor_root, pinned)
+    _git(pinned, "config", "user.email", "gate6@example.invalid")
+    _git(pinned, "config", "user.name", "Gate 6")
+    accepted = pinned / "research_system" / "legacy" / "accepted_w9.py"
+    accepted.write_bytes(accepted.read_bytes() + PIN_LINE.encode())
+    _git(pinned, "add", ".")
+    _git(pinned, "commit", "-m", "a later W0 pin")
+    pinned = pinned.resolve()
+    head = _git_text(pinned, "rev-parse", "HEAD")
+    predecessor = load_current_binding(
+        foundation_path=predecessor_root / ".research-system" / "config" / "foundation.yaml",
+        repository_root=predecessor_root,
+        expected_control_root=service.control_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=service.store_identity,
+        expected_binding_sha256=predecessor_sha256,
+    )
+    intent = AdvanceStoreBinding(
+        service.control_root,
+        pinned,
+        PROJECT_ID,
+        service.store_identity,
+        repair.expected_origin_authority_root,
+        repair.expected_origin_witness_sha256,
+        pinned / ".research-system" / "schemas",
+        "2026-08-24T11:00:00Z",
+        "2026-08-24T13:00:00Z",
+        repair.owner_actor_id,
+        "advance-reviewed-divergence-store-binding",
+        "w9-pin-release",
+        "release a later W0 pin by a binding advance (WP9.3 note §9.1)",
+        predecessor_sha256,
+        head,
+        head,
+        "refs/heads/main",
+        {
+            "predecessor_binding_sha256": predecessor_sha256,
+            "predecessor_git_head": predecessor.binding["git_head"],
+            "candidate_git_head": head,
+            "integration_ref": "refs/heads/main",
+            "protected_route_sha256": predecessor.binding["route"]["sha256"],
+            "protected_sources_sha256": sha256_hex(canonical_bytes(predecessor.binding["sources"])),
+            "governed_code_manifest_sha256": build_governed_code_manifest(pinned).manifest_sha256,
+        },
+    )
+    return service, intent, predecessor_root, pinned, predecessor
+
+
+def _admit(service: StoreBindingService, root: Path):
+    from research_system.store.current_binding import load_current_binding
+    from tests.research_system.factories import PROJECT_ID
+
+    return load_current_binding(
+        foundation_path=root / ".research-system" / "config" / "foundation.yaml",
+        repository_root=root,
+        expected_control_root=service.control_root,
+        expected_project_id=PROJECT_ID,
+        expected_store_identity=service.store_identity,
+    )
+
+
+def test_a_later_pin_is_released_by_a_binding_advance_and_pre_pin_code_is_refused(tmp_path, monkeypatch, capsys):
+    from research_system.errors import ArsError
+    from tests.research_system.integration.test_store_binding_service import _git
+
+    service, intent, predecessor_root, pinned, predecessor = _pin_intent(tmp_path)
+    # Before the advance, the pinned checkout changes governed code, so the binding refuses it.
+    with pytest.raises(ArsError):
+        _admit(service, pinned)
+    result = service.advance(intent)
+    assert result["status"] == "advanced"
+    # After it: the pinned checkout is admitted; the old checkout is refused by the code-root check, and a process
+    # that admitted before the advance is refused on its next admission (its revalidate).
+    assert _admit(service, pinned).binding_sha256 == result["binding_sha256"]
+    with pytest.raises(ArsError):
+        _admit(service, predecessor_root)
+    with pytest.raises(ArsError):
+        predecessor.revalidate()
+    # The binding names one code root, so the ancestry checks run in the bound checkout itself. A checkout at the
+    # pin's parent is refused: with refs/heads/main left at the bound commit, and with it rewound to the parent.
+    from tests.research_system.integration.test_store_binding_service import _git_text
+
+    bound = _git_text(pinned, "rev-parse", "HEAD")
+    _git(pinned, "checkout", "--detach", "HEAD~1")
+    with pytest.raises(ArsError):
+        _admit(service, pinned)
+    _git(pinned, "checkout", "main")
+    _git(pinned, "reset", "--hard", "HEAD~1")
+    with pytest.raises(ArsError):
+        _admit(service, pinned)
+    _git(pinned, "reset", "--hard", bound)
+    assert _admit(service, pinned).binding_sha256 == result["binding_sha256"]
+    # A documentation-only descendant of the pin on main is admitted.
+    (pinned / "docs").mkdir(exist_ok=True)
+    (pinned / "docs" / "pin-note.md").write_text("documentation only\n", encoding="utf-8")
+    _git(pinned, "add", ".")
+    _git(pinned, "commit", "-m", "documentation only")
+    assert _admit(service, pinned).binding_sha256 == result["binding_sha256"]
+    # ars legacy submit from the pre-pin checkout is refused before it replays or appends.
+    events_before = tuple(service.ledger.iter_events())
+    monkeypatch.setattr(
+        cli, "canonical_foundation_path", lambda: predecessor_root / ".research-system" / "config" / "foundation.yaml"
+    )
+    envelope = tmp_path / "envelope.json"
+    envelope.write_text(json.dumps({"command_type": "ProposeLegacyRecord"}), encoding="utf-8")
+    assert cli.main(["legacy", "submit", str(envelope), "--control-root", str(service.control_root)]) == 1
+    assert "error:" in capsys.readouterr().err
+    assert tuple(service.ledger.iter_events()) == events_before
+
+
+def test_a_pin_committed_in_place_in_the_bound_checkout_cannot_be_advanced(tmp_path: Path) -> None:
+    """The pin goes in a separate checkout; updated in place, the predecessor's re-admission refuses the advance."""
+    from dataclasses import replace
+
+    from research_system.errors import ArsError
+    from tests.research_system.integration.test_store_binding_service import _git
+
+    service, intent, predecessor_root, _, _ = _pin_intent(tmp_path)
+    accepted = predecessor_root / "research_system" / "legacy" / "accepted_w9.py"
+    accepted.write_bytes(accepted.read_bytes() + PIN_LINE.encode())
+    _git(predecessor_root, "add", ".")
+    _git(predecessor_root, "commit", "-m", "the pin, in place")
+    pointer = (service.control_root / "manifests" / "binding-repair-current.json").read_bytes()
+    with pytest.raises(ArsError):
+        service.advance(replace(intent, candidate_repository_root=predecessor_root))
+    assert (service.control_root / "manifests" / "binding-repair-current.json").read_bytes() == pointer
