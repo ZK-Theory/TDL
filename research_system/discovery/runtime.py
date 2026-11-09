@@ -28,6 +28,7 @@ from research_system.discovery.routes import (
     DISCOVERY_MINT_ROWS as _DISCOVERY_MINT_ROWS,
     discovery_identity_exists as _discovery_identity_exists,
     discovery_route as _discovery_route,
+    refuse_w9_identity as _refuse_w9_identity,
     shared_event_partition as _shared_event_partition,
     validate_discovery_route_registry as _validate_discovery_route_registry,
 )
@@ -121,6 +122,7 @@ class DiscoveryRuntime:
         repository_root: Path,
         root_tokens: Mapping[str, Path],
         operational_ledger: EventLedger,
+        binding_check: Callable[[], Any] | None = None,
     ) -> None:
         """Bind the governed runtime to exact repository and root configuration.
 
@@ -134,6 +136,8 @@ class DiscoveryRuntime:
             repository_root: Repository root containing the accepted catalogue and authority files.
             root_tokens: Accepted dossier path tokens and their configured physical roots.
             operational_ledger: Canonical same-project Attempt and Lease ledger.
+            binding_check: Rechecks the store's current binding; called inside the writer lock immediately before
+                append (WP9.3 note §9.1). ``SpecCoordinator`` passes its binding's ``revalidate``.
 
         Raises:
             IntegrityError: If configured paths, project identity, or runtime bindings are inconsistent.
@@ -168,6 +172,7 @@ class DiscoveryRuntime:
             raise TypeError("DiscoveryRuntime requires LedgerAuthorityGrantResolver")
         self.authority_resolver = authority_resolver
         self.clock = clock
+        self.binding_check = binding_check
 
     def submit(self, envelope: dict[str, Any]) -> Receipt:
         """Authorize and atomically submit one public Discovery command.
@@ -546,6 +551,11 @@ class DiscoveryRuntime:
             return persist(receipt)
 
         self._require_admissible_target(command, projection)
+        # WP9.3 note §4.3: W11's admissible-target check also refuses a W9 identity, read from W9's constants and its
+        # projection over this snapshot, before W9 genesis too.
+        _refuse_w9_identity(
+            [{"event_type": None, "stream_id": command.target_stream_id, "payload": {}}], snapshot.events, self.schemas
+        )
         self._require_candidate_target(command, projection)
         row_id, route = _discovery_route(command)
         if route.family == "genesis":
@@ -576,6 +586,15 @@ class DiscoveryRuntime:
         else:
             raise IntegrityError(f"unsupported Discovery route family: {route.family}")
         validate_prepared_transaction_contract(row_id, command.payload_hash, prepared)
+        # WP9.3 note §4.3: no stream the events append to, and no record ID they create, may be a W9 identity.
+        _refuse_w9_identity(
+            [
+                {"event_type": event_type, "stream_id": stream_id, "payload": payload}
+                for event_type, stream_id, payload in prepared
+            ],
+            snapshot.events,
+            self.schemas,
+        )
         command_binding = self.schemas.command_binding(envelope["command_type"])
         if command_binding is None:
             raise IntegrityError(f"inactive Discovery command binding: {envelope['command_type']}")
@@ -642,6 +661,9 @@ class DiscoveryRuntime:
                     "payload": persisted_payload,
                 }
             )
+        # WP9.3 note §9.1: the store's current binding is rechecked inside the writer lock, immediately before append.
+        if self.binding_check is not None:
+            self.binding_check()
         result = self.ledger.append(event_records, snapshot=snapshot)
         receipt = Receipt(
             status="accepted",

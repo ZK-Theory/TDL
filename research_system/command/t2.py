@@ -1192,6 +1192,11 @@ def submit_t2(service: Any, raw_envelope: dict[str, Any]) -> T2Receipt:
             service.schemas.validate("ars://core/receipt/v2", rejected.to_record())
             return service.receipts.write_t2(rejected)
         proposed = _events_for(envelope, state, command_schema)
+        # WP9.3 note §4.3: the T2 append site's W9 identity check, before append. The lazy import keeps
+        # research_system.legacy out of the T2 import graph.
+        from research_system.legacy.identities import refuse_w9_identity_collision
+
+        refuse_w9_identity_collision(proposed, snapshot.events, schemas=service.schemas)
         ledger_result = service.ledger.append(proposed, snapshot=snapshot)
         service._retire_moved_restore_preflight()
         updated = service.ledger.snapshot()

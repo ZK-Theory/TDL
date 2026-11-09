@@ -879,8 +879,44 @@ def _command_submit_runtime_authority_provider(
     return provider
 
 
+def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | None:
+    """The in-lock binding recheck for ``ars submit`` (WP9.3 note §9.1; Stephen, 2026-11-09).
+
+    When the canonical foundation names the configured store, its current binding is loaded and its ``revalidate`` is
+    returned; a store the foundation names whose binding does not admit is refused here, before the service is built.
+    A store the foundation does not name is local administration through ``--config``, outside the dispatch path, and
+    gets no recheck: the recorded known limit.
+    """
+    import yaml
+
+    from research_system.store.current_binding import load_current_binding
+
+    foundation_path = canonical_foundation_path()
+    try:
+        foundation = yaml.safe_load(foundation_path.read_text(encoding="utf-8"))
+        named = (
+            isinstance(foundation, dict)
+            and foundation.get("project_id") == binding.project_id
+            and foundation.get("store_identity") == binding.store_identity
+            and Path(str(foundation.get("control_root"))).resolve() == binding.control_root.resolve()
+        )
+    except (OSError, UnicodeError, yaml.YAMLError):
+        named = False
+    if not named:
+        return None
+    current = load_current_binding(
+        foundation_path=foundation_path,
+        repository_root=foundation_path.parents[2].resolve(strict=True),
+        expected_control_root=binding.control_root,
+        expected_project_id=binding.project_id,
+        expected_store_identity=binding.store_identity,
+    )
+    return current.revalidate
+
+
 def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
+    binding_check = _foundation_binding_check(binding)
     trusted_runtime_authority_provider = _command_submit_runtime_authority_provider(
         binding,
         args.host_identity,
@@ -905,6 +941,7 @@ def _command_submit(args: argparse.Namespace) -> int:
         ),
         clock=_authority_clock,
         trusted_runtime_authority_provider=trusted_runtime_authority_provider,
+        binding_check=binding_check,
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
