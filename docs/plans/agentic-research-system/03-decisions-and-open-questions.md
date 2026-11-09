@@ -5091,6 +5091,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    immediately before append, and a pre-pin process is refused by the code-root check. An advance resumed from its
    marker accepts a head moved only by its own event, so a crash after that event's append recovers; any other moved
    head still refuses and goes to Stephen (note §9.1, revision 11).
+   **Amended a fifth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Add
+   --expected-ledger-head (Recommended)"). `ars store advance-binding` gains `--expected-ledger-head <global
+   position>:<event hash>`, handed to the binding service beside the intent, so the checked advance runs through the
+   supported command. It is optional for other advances and required by the pin's checklist for a pin release. The
+   pre-pin check takes its public shared replay, its scan and its recorded head from one `LedgerSnapshot`, so an
+   append during the check makes the advance refuse (note §9.1, revision 12).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5139,6 +5145,14 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     protected identity stay unchanged (note §9.1, §16, revision 10). Amended again the same day ("Recheck under the
     lock (Recommended)"): `research_system/discovery/runtime.py` also carries item 3's binding recheck inside the
     writer lock, a second change to that file alongside the W9 identity check (note §9.1, §16, revision 11).
+    **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Add
+    --expected-ledger-head (Recommended)", "Check created IDs (Recommended)"). `research_system/cli.py` also covers
+    `ars store advance-binding`'s `--expected-ledger-head` (item 3). The identity check at the W11, generic and T2
+    writers, and W9 replay, compares the record IDs a non-W9 event creates in its payload as well as its `stream_id`:
+    `RecordScientificReview` appends to the artefact stream but creates a `rev_` `review_id`. The created-ID fields
+    come from one table in `research_system/legacy/`, shared with the pre-pin scan, and a test fails if an event
+    schema declares a created-ID field the table omits. Payload references to W9 records stay allowed. No schema,
+    binding, census row or protected identity changes (note §4.3, §16, revision 12).
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
