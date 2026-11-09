@@ -5084,6 +5084,13 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    lock before writing its marker. A moved head refuses the advance with no effect, and the check is re-run. W9 and
    W11 writers take the same control-root lock, so no write lands between the compare and the advance's event (note
    §9.1, revision 10).
+   **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comments on PR #411: "Recheck
+   under the lock (Recommended)", "Accept own event (Recommended)"). A writer admitted before the advance could pause
+   and append after it, which the head compare cannot see, because W11 rechecks the binding only at the start of an
+   operation. So `LegacyRuntime` and `DiscoveryRuntime` each recheck the current binding inside their writer lock,
+   immediately before append, and a pre-pin process is refused by the code-root check. An advance resumed from its
+   marker accepts a head moved only by its own event, so a crash after that event's append recovers; any other moved
+   head still refuses and goes to Stephen (note §9.1, revision 11).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5129,7 +5136,9 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     advance (Recommended)", then "Beside the intent (Recommended)"). The boundary also covers
     `research_system/store/binding_service.py`, for item 3's head compare only. The checked head is a parameter of the
     advance, not a field of its intent, so the accepted `AdvanceStoreBinding` intent and command schemas and every
-    protected identity stay unchanged (note §9.1, §16, revision 10).
+    protected identity stay unchanged (note §9.1, §16, revision 10). Amended again the same day ("Recheck under the
+    lock (Recommended)"): `research_system/discovery/runtime.py` also carries item 3's binding recheck inside the
+    writer lock, a second change to that file alongside the W9 identity check (note §9.1, §16, revision 11).
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
@@ -5178,7 +5187,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
   copy and requires the recorded hash and size, so a missing or altered copy aborts with no event. After acceptance,
   ARS cannot stop a copy in the control root being deleted or altered from outside; every later use re-hashes it, so
   a loss is detected, not prevented. Retention is a known limit, and recovery is an owner operation (note §7.2,
-  revision 10).
+  revision 10). Corrected the same day ("Apply both (Recommended)"): the copy re-check covers `untracked_file` and
+  `vault_file` items only, the kinds with a frozen copy, so restricted sources keep hash-only acceptance. The writer
+  lock does not stop a deletion from outside ARS, so the re-check shows the copy held the recorded bytes at that
+  moment, and the known limit runs from the re-check onward, the moment before the append included (note §7.2,
+  revision 11).
 - **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
   adding one would be a fifth U-7 site. Once the ledger holds a W9 event, the public shared replay refuses a ledger
   with a non-W9 event on a W9 identity, and every dispatch writer checks before append (note §4.3). Before W9 genesis
