@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   tier: domain
   lanes: []
   roles:
@@ -36,6 +36,11 @@ Before defining tasks:
    the governing master gate checklist with its source cited. A precondition
    that remains only in child prose has no forcing function for the acceptance
    runner.
+7. Run `grep -n "<package>" docs/plans/agentic-research-system/03-decisions-and-open-questions.md`
+   and enter every register sentence that names the package ("Carried to
+   <package>", "<package> validates …") in the obligation register, each with a
+   keep or depart disposition. A forward obligation in the owner register is part
+   of the next package's specification.
 
 ## Plan Integration
 
@@ -121,6 +126,19 @@ Artefact". Before the plan states any of these, do the check and cite it:
   never relaxes") and restate only what this plan adds.
 - **Selector contracts.** Ship a census of each governed file and a reference
   script run on the real bytes in the same commit as the contract.
+- **Probes.** If the chosen shape differs from the prototype a probe ran, re-run
+  the probe on the chosen shape before stating its result as evidence. Every probe
+  case asserts its message.
+- **Absence claims.** A claim that an accepted set omits, lacks or includes an
+  item is checked against the parsed artefact, and the parsed list goes in the
+  note. A cited line range runs to the end of the enclosing item.
+- **Rules the owner may already have fixed.** Before an owner point asks Stephen
+  to decide a rule, search the accepted artefacts (the catalogue, the annex's
+  `derivation_rules` and `global_preconditions`, the contracts, the register) for
+  it and cite what you find.
+- **Shared locations.** A location that several packages read or write gets its
+  path at its first mention, or a row in the plan's table of paths. An unnamed
+  shared location is an interface each package will name differently.
 
 ## Currency Addenda
 

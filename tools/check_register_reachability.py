@@ -38,7 +38,19 @@ THRESHOLD = 0.9
 MIN_LINE = 25
 
 # Branches whose register text is deliberately not landing. Each needs the owner's reason.
-KNOWN: dict[str, str] = {}
+_SPEC_RUN = (
+    "PR #258 closed unmerged. Its 2026-08-16 drafts of P-049 and P-050 are on main in revised form under the same "
+    "ids. Ruled by Stephen, 2026-11-08 (system review 2026-11-03, F3)."
+)
+_REVIEW_BASE = (
+    "Review base for PRs 241-243 (2026-08-11), never a PR. Its interim WP6.4 status text was later replaced on main, "
+    "which records WP6.4 as integrated. Ruled by Stephen, 2026-11-08 (system review 2026-11-03, F3)."
+)
+KNOWN: dict[str, str] = {
+    "codex/gate6-spec01-spec02-real-run": _SPEC_RUN,
+    "codex/review-missed-prs-241-243-base": _REVIEW_BASE,
+    "origin/codex/review-missed-prs-241-243-base": _REVIEW_BASE,
+}
 
 
 def _git(repo: Path, *args: str) -> str:

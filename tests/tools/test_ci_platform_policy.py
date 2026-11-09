@@ -208,10 +208,31 @@ ADMISSION_CONTROL_MODULES = (
     "tests/tools/test_commit_msg_hooks.py",
     "tests/tools/test_handoff_surface_hook.py",
     "tests/tools/test_hook_script_lf_bytes.py",
+    # Gate and tool controls outside the hook glob that no lane ran until the 2026-11-03 system review (F1): the
+    # pre-commit contract gate's own controls, the review-campaign lints, the W9 segmentation reference tool and
+    # the rest of tests/tools and tests/contracts. The derived test below finds any further such file.
+    "tests/tools/test_brief_hygiene_tools.py",
+    "tests/tools/test_check_lean_proof.py",
+    "tests/tools/test_check_skill_metadata.py",
+    "tests/tools/test_codex_token_telemetry.py",
+    "tests/tools/test_followup_skill_rules.py",
+    "tests/tools/test_gitattributes_binary_safety.py",
+    "tests/tools/test_gitattributes_lf_coverage.py",
+    "tests/tools/test_invoke_checked.py",
+    "tests/tools/test_review_campaign_lints.py",
+    "tests/tools/test_schema_materialization_coverage.py",
+    "tests/tools/test_staged_contract_gate.py",
+    "tests/tools/test_system_record_id.py",
+    "tests/tools/test_w9_segmentation.py",
+    "tests/contracts/test_contract_hardening_gates.py",
+    "tests/contracts/test_paper_table_reconciliation.py",
 )
 
 # A hook-control module that deliberately does not run in admission-controls, with the reason. Empty: every one runs.
 HOOK_CONTROL_EXEMPTIONS: dict[str, str] = {}
+
+# A tools or contracts test module that deliberately runs in no workflow, with the reason. Empty: every one runs.
+CONTROL_EXEMPTIONS: dict[str, str] = {}
 
 
 def test_admission_controls_run_in_a_blocking_windows_job() -> None:
@@ -241,6 +262,57 @@ def test_every_hook_control_module_runs_in_admission_controls() -> None:
     assert not missing, f"admission-controls does not run these hook controls: {missing}"
     stale = [m for m in HOOK_CONTROL_EXEMPTIONS if m not in modules]
     assert not stale, f"exemptions name files that no longer exist: {stale}"
+
+
+def _control_modules() -> list[str]:
+    roots = (REPO_ROOT / "tests" / "tools", REPO_ROOT / "tests" / "contracts")
+    return sorted(path.relative_to(REPO_ROOT).as_posix() for root in roots for path in root.glob("test_*.py"))
+
+
+def _workflow_runs() -> str:
+    return " ".join(
+        step.get("run", "")
+        for path in WORKFLOWS
+        for job in _load(path)["jobs"].values()
+        for step in job.get("steps", [])
+        if isinstance(step, dict)
+    )
+
+
+def _unrun(modules: list[str], runs: str, exemptions: dict[str, str]) -> list[str]:
+    return [module for module in modules if module not in runs and module not in exemptions]
+
+
+def test_every_tools_and_contracts_test_runs_in_a_workflow() -> None:
+    """Obs 2026-11-03-gate-controls-outside-the-hook-glob-run-in-no-lane: the hook glob above missed 14 control files.
+
+    The pre-commit contract gate's own controls were among them, and CI's pre-commit test replaces that gate's
+    validator with a stand-in, so nothing ran the real one. A derived set is only as wide as its glob: this one
+    takes every test module under tests/tools and tests/contracts, and each must run in some workflow or be
+    exempted with a reason.
+    """
+    modules = _control_modules()
+    assert len(modules) >= 40, f"only {len(modules)} modules found; the globs or the tree moved"
+    runs = _workflow_runs()
+    unrun = _unrun(modules, runs, CONTROL_EXEMPTIONS)
+    assert not unrun, f"no workflow runs these tools/contracts test modules: {unrun}"
+    stale = [m for m in CONTROL_EXEMPTIONS if m not in modules]
+    assert not stale, f"exemptions name files that no longer exist: {stale}"
+    added = "tests/tools/test_a_new_gate_nobody_wired.py"
+    assert _unrun([*modules, added], runs, CONTROL_EXEMPTIONS) == [added], "negative control: a new file is reported"
+
+
+def test_admission_controls_run_the_commit_literal_lint() -> None:
+    """Obs 2026-11-03-review-lints-built-but-run-by-no-lane: #400 built the lint and nothing ran it for a week."""
+    job = _load(WORKFLOW_DIR / "ci.yml")["jobs"]["admission-controls"]
+
+    def runs_lint(steps: list[dict[str, Any]]) -> bool:
+        return any("tools/check_test_commit_literals.py --repo ." in step.get("run", "") for step in steps)
+
+    assert runs_lint(job["steps"])
+    assert _checks_out_full_history(job), "the lint reads origin/main and the remote's tags"
+    without = [step for step in job["steps"] if "check_test_commit_literals" not in step.get("run", "")]
+    assert not runs_lint(without), "negative control: the job without the step must fail"
 
 
 def test_admission_controls_check_out_full_history_for_the_pin_check() -> None:

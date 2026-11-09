@@ -30,6 +30,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from research_system.canonical import canonical_bytes
+from tests.research_system.contracts.byte_identity import assert_byte_identity
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 ENVELOPE_PATH = ".research-system/evals/expected/w9-catalogue-acceptance-envelope-v1.json"
@@ -179,10 +180,8 @@ def test_byte_identity_refuses_what_the_schema_admits() -> None:
     tampered = json.loads(committed)
     tampered["owner_row_multiset_hash"] = "0" * 64
     assert _valid(tampered)
-    assert not _is_derived_envelope(canonical_bytes(tampered))
-    assert not _is_derived_envelope(json.dumps(json.loads(committed), indent=2, sort_keys=True).encode())
-    assert not _is_derived_envelope(committed + b"\n")
-    assert not _is_derived_envelope(committed + b"\r\n")
+    # The helper adds the pretty-printed, \n and \r\n re-encodings, which only a byte comparison refuses.
+    assert_byte_identity(_is_derived_envelope, committed, tampers=[canonical_bytes(tampered)])
 
 
 # --- The values against owner-accepted literals ---------------------------------------------------------------------
