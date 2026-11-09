@@ -579,6 +579,24 @@ def _decode_hex(value: object, *, label: str) -> bytes:
         raise IntegrityError(f"binding advance marker {label} is invalid") from exc
 
 
+def _validated_ledger_head(value: Any) -> tuple[int, str] | None:
+    """A checked ledger head is ``(global position >= 0, lowercase SHA-256)``, or absent (WP9.3 note §9.1)."""
+
+    if value is None:
+        return None
+    if (
+        not isinstance(value, tuple)
+        or len(value) != 2
+        or type(value[0]) is not int
+        or value[0] < 0
+        or not isinstance(value[1], str)
+        or len(value[1]) != 64
+        or any(char not in "0123456789abcdef" for char in value[1])
+    ):
+        raise ConfigurationError("expected ledger head must be a global position and a lowercase SHA-256")
+    return value
+
+
 def _read_existing_marker(locked: LockedRoot) -> tuple[dict[str, Any], bytes] | None:
     try:
         raw = locked.read_exact_file(_MARKER_PATH)
@@ -634,8 +652,24 @@ class StoreBindingService:
         self.phase_hook = phase_hook
         self.ledger: EventLedger
         self.receipts = ReceiptStore(self.control_root)
+        self._expected_ledger_head: tuple[int, str] | None = None
 
-    def advance(self, intent: AdvanceStoreBinding) -> dict[str, Any]:
+    def advance(
+        self, intent: AdvanceStoreBinding, *, expected_ledger_head: tuple[int, str] | None = None
+    ) -> dict[str, Any]:
+        """Advance the store binding to the intent's candidate.
+
+        Args:
+            intent: The accepted ``AdvanceStoreBinding`` intent, unchanged.
+            expected_ledger_head: The ledger head a later W0 pin's pre-pin check recorded, as ``(global position,
+                event hash)``, passed beside the intent and not inside it (WP9.3 note §9.1; P-081 item 3). Under its
+                writer lock, before its transaction marker, the advance refuses with no effect if the head moved. A
+                resumed advance also accepts a head moved only by its own event.
+
+        Returns:
+            The advance result.
+        """
+        self._expected_ledger_head = _validated_ledger_head(expected_ledger_head)
         candidate = _candidate_evidence(intent)
         self.ledger = EventLedger(
             self.control_root,
@@ -1343,6 +1377,8 @@ class StoreBindingService:
         lock_identity = {"writer_id": f"store-binding-advance:{payload_hash}", "command_type": "AdvanceStoreBinding"}
         with CompositeWriterLock((self.control_root,), lock_identity) as writer_lock:
             locked = writer_lock.locked_root(self.control_root)
+            # WP9.3 note §9.1: under this writer lock, before any marker or effect, the checked head is compared.
+            self._require_checked_head(payload_hash)
             marker = _read_existing_marker(locked)
             if marker is not None:
                 plan = self._advance_plan(intent, candidate, payload_hash, locked, marker)
@@ -1357,6 +1393,35 @@ class StoreBindingService:
             except _DocumentationOnly as documentation:
                 return {"status": "documentation-only-noop", "binding": dict(documentation.predecessor)}
             return self._publish_advance(plan, intent, locked, append_binding)
+
+    def _require_checked_head(self, payload_hash: str) -> None:
+        """Refuse an advance whose checked ledger head moved (WP9.3 note §9.1; P-081 item 3).
+
+        The head passes if it is the checked head, or the checked head followed by exactly one event that is this
+        advance's own ``StoreBindingAdvanced`` (``binding-advance-<payload hash>``), so a crash after that event's
+        append recovers. Any other moved head refuses with no effect, and a resumed advance goes to Stephen's ruling.
+
+        Raises:
+            ConflictError: If the head moved.
+        """
+
+        if self._expected_ledger_head is None:
+            return
+        position, event_hash = self._expected_ledger_head
+        snapshot = self.ledger.snapshot()
+        if (snapshot.global_position, snapshot.event_hash) == (position, event_hash):
+            return
+        events = snapshot.events
+        if snapshot.global_position == position + 1:
+            checked_hash = events[position - 1]["event_hash"] if position > 0 else "0" * 64
+            own = events[-1]
+            if (
+                checked_hash == event_hash
+                and own.get("event_type") == "StoreBindingAdvanced"
+                and own.get("command_id") == f"binding-advance-{payload_hash}"
+            ):
+                return
+        raise ConflictError("binding advance refused: the ledger head moved since the checked head")
 
     def _completed_advance(
         self,
