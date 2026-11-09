@@ -5097,6 +5097,14 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    supported command. It is optional for other advances and required by the pin's checklist for a pin release. The
    pre-pin check takes its public shared replay, its scan and its recorded head from one `LedgerSnapshot`, so an
    append during the check makes the advance refuse (note §9.1, revision 12).
+   **Amended a sixth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Grant fence
+   (Recommended)"). The in-lock recheck is WP9.3-1 code, so a writer on a predecessor from before WP9.3-1 that
+   escapes the drain could still append after the advance. Every W9, W11 and governed generic writer resolves its
+   command's grant under the writer lock from a fresh replay that refuses revoked or expired grants, which
+   predecessor code already does. So before the final check every grant that admits a write on the store is revoked
+   or has expired, and none is issued until the advance; a paused predecessor operation is refused under its lock on
+   resume. WP9.3-1's control runs the predecessor commit's own code from a checkout under `tmp_path`, and a census
+   names any command type that writes without a grant, a known limit on the pin's checklist (note §9.1, revision 13).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
