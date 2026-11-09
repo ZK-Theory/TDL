@@ -11,7 +11,8 @@ Revision 5 (2026-11-08) answers Codex's third round, with no owner decision chan
 later W0 pin's release a store binding advance (issue #415, option C), and amends P-081 item 3. Revision 7
 (2026-11-08) answers a fourth round, amending P-081 items 10 and 12 and adding the O-33 reading. Revision 8
 (2026-11-08) answers a fifth, amending P-081 items 3 and 12 and the O-33 addition. Revision 9 (2026-11-08) answers
-a sixth, amending P-081 items 3 and 12 and the O-33 addition again. Nothing in it is implemented.<br>
+a sixth, amending P-081 items 3 and 12 and the O-33 addition again. Revision 10 (2026-11-09) answers a seventh,
+amending P-081 items 3 and 10 and the O-33 addition. Nothing in it is implemented.<br>
 **Package:** 06v WP9.3 ("Observation reader, selectors, inventories and acceptance"), proposed as two PRs, WP9.3-1
 and WP9.3-2 (owner point A).<br>
 **Authority:** P-080 (WP9.3, note first). WP9.2 is complete: PRs #406 and #408, O-3 accepted (P-078), D-4
@@ -611,16 +612,24 @@ line ("A change aborts with no event") as follows:
   no event and no receipt.
 - **A later change is a change after the observation.** It cannot be told apart from a change just after the commit,
   and §4.2 item 3 of W9 treats it the same way: the observation becomes stale. The acceptance re-reads every item's
-  source at LR-016 and LR-020 and refuses a stale item, so no acceptance rests on bytes that changed.
+  source at LR-016 and LR-020 and refuses an item whose source re-reads differently, or that is stale in the
+  projection, so no acceptance rests on bytes that changed before its final re-read.
 - **For `git_tracked` sources the recorded bytes cannot move,** because they are the blob at the binding's
   `git_head` (§11.2). A working-tree edit makes the checkout dirty, which the binding refuses at the next command.
 - **The same gap at LR-020: acceptance binds the recorded bytes.** LR-020's final re-read has the same gap before its
   append, and no catalogue row can undo an appended acceptance. So the acceptance accepts the observation's recorded
   bytes, named by its `source_identity` hashes and kept in its frozen copy (§7.3) or, for `git_tracked`, the blob, and
-  not the live file. For those kinds the bytes stay retrievable after the source changes. A change after LR-020's
-  final re-read is therefore a change after acceptance: the next observation of the registration records the new
-  hash, and the accepted record projects as stale (below). What follows from a stale accepted record (adoption
-  suspension) is WP9.4's.
+  not the live file. A change after LR-020's final re-read is therefore a change after acceptance: the next
+  observation of the registration records the new hash, and the accepted record projects as stale (below). What
+  follows from a stale accepted record (adoption suspension) is WP9.4's.
+- **LR-020 re-checks the frozen copy, and its retention is a known limit.** At LR-020's final re-read, the preparer
+  also reads each item's frozen copy through `ControlRootArtefactContentReader`, as LR-015 does (§7.3), and requires
+  the observation's `sha256` and `byte_length`. A missing or altered copy aborts the command with no event and no
+  receipt. So at acceptance the recorded bytes are retrievable: from the frozen copy, or for `git_tracked` from the
+  blob. Afterwards ARS keeps the copy in the control root but cannot stop it being deleted or altered from outside,
+  and no ARS mechanism retains a second copy. Every later use of the artefact re-hashes it
+  (`artefacts/use_resolver.py:317`), so a lost or altered copy is detected, not prevented. Recovering one, from a
+  backup or from the source if it still matches, is an owner operation. This is a known limit (§18).
 - **A restricted source is accepted by hash only.** A `restricted_untracked_file` observation records hash, size and
   path, and the ARS store holds no copy (§7.4; W9 §5.4). Its acceptance binds those recorded values. After a change,
   ARS cannot return the accepted bytes; whoever holds them can still verify them against the recorded hash, and the
@@ -631,8 +640,9 @@ Stephen chose these readings on 2026-11-08. One control injects a mutation betwe
 append: the observation commits with the re-read's hashes, and LR-016 then refuses the item as stale. A second
 injects one between LR-020's final re-read and the append: the acceptance commits naming the observation's recorded
 hashes, the frozen copy still hashes to them, and a following observation of the registration records the new hash
-and makes the accepted record stale. The same control runs for a restricted source, with no frozen copy to check
-(§17).
+and makes the accepted record stale. The same control runs for a restricted source, with no frozen copy to check.
+A third deletes, and separately alters, an item's frozen copy before LR-020: the command aborts with no event and no
+receipt (§17).
 
 **Stale observations are projected, from recorded observations only.** An observation, open or accepted, is stale
 when a later recorded observation of the same registration holds a different blob (`git_tracked`) or SHA-256 (other
@@ -797,9 +807,15 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
     - **The pin goes in a separate checkout; the bound one does not move.** `AdvanceStoreBinding` re-admits the
       predecessor through `load_current_binding` on the predecessor's own code root
       (`store/binding_service.py:1474-1492`), so the bound checkout must still be at its bound commit when the advance
-      runs; updated in place to the pin commit, it would be refused, and the store would stay frozen. So the pin commit is checked out in a separate,
-      durable candidate checkout, the intent's `candidate_repository_root`, which the advanced binding then names as
-      its code root (`:1605-1622`). The bound checkout stays at its commit until the advance succeeds.
+      runs; updated in place to the pin commit, it would be refused, and the store would stay frozen. So the pin
+      commit is checked out in a separate, durable candidate checkout, the intent's `candidate_repository_root`, which
+      the advanced binding then names as its code root (`:1605-1622`). The bound checkout stays at its commit until
+      the advance succeeds.
+    - **The candidate checkout is fresh, or drained before it moves.** The candidate checkout is created at the pin
+      commit. If an existing checkout is reused instead, every process started from it exits before it is updated to
+      the pin commit, and none starts from it until it is there. Otherwise a process that loaded pre-pin modules from
+      the reused checkout would be admitted after the advance, because the binding then names that root and its
+      `HEAD` matches. The pin's checklist records which case applies.
     - **The code-root check refuses the old checkout after the advance.** `load_current_binding` refuses any
       repository root other than the one the binding names (`store/current_binding.py:842`). It checks the checkout
       on disk, not the modules a process has loaded, but once the binding names the candidate root, a process still
@@ -807,17 +823,27 @@ Each observed family carries a `w0_class` with a `signed_w0_revision_ref` (a `so
       same check refuses a writer from the candidate checkout.
     - **Drain the old checkout.** Before the final check, every process started from the bound checkout has exited,
       and none starts from it until the advance. That keeps an old-version writer from claiming the candidate ID
-      inside the freeze. The pin's checklist records the drain. A process started outside Stephen's dispatch is a
-      known limit, narrowed to the window before the advance, where the ledger-head re-read below catches any write
-      it makes (§18).
-    - The check records the store's ledger head: the last global position and that event's hash. Immediately before
-      the advance, the head is read again. If it moved, the store stays frozen and the check is re-run.
+      inside the freeze. The pin's checklist records the drain. A process started outside Stephen's dispatch is not
+      drained, but any write it makes before the advance moves the ledger head, which the advance refuses (below).
+    - **The advance compares the checked head under its lock.** The check records the store's ledger head: the last
+      global position and that event's hash. Today the advance compares only the project stream's version, between
+      its own plan and its append (`store/binding_service.py:1648-1649`, `:1721-1722`), not the head the check saw,
+      so a write between a manual re-read and the advance would go unseen. WP9.3-1 passes the checked head to the
+      advance as a parameter of the binding service, beside the intent and not inside it, so the accepted
+      `AdvanceStoreBinding` intent and command schemas do not change. The advance compares it with the ledger's head
+      under its writer lock, before it writes its transaction marker. If the head moved, the advance refuses with no
+      effect: the store stays frozen at its old binding, and the check is re-run for a new advance. W9 and W11
+      writers take the same control-root lock (`legacy/runtime.py:241-245`, `discovery/runtime.py:194-198`), so no
+      write lands between the compare and the advance's event, whose global position is then the checked head's plus
+      one; the pin's record shows both. An advance resumed from its marker after a crash compares again. If the head
+      moved, it refuses, and Stephen rules on the marker, because the advance had already begun.
     - If a collision is found before the advance, the ref is re-derived in a follow-up commit, which replaces the
       unreleased entry. No store is bound to it, so no writer ran it and no record names it, and replacing it breaks
       no replay; the append-only rule exists to protect exactly that.
-    - If a claim lands in the window anyway, the first replay on the pinned code refuses the ledger (the cross-pin
-      control below). The store then refuses writes rather than being silently corrupted. Recovering from that after
-      the advance needs Stephen's ruling, because the replace-before-release rule no longer applies.
+    - If a claim lands anyway, through a path the binding does not cover (above), the first replay on the pinned code
+      refuses the ledger (the cross-pin control below). The store then refuses writes rather than being silently
+      corrupted. Recovering from that after the advance needs Stephen's ruling, because the replace-before-release
+      rule no longer applies.
 
   Revisions 4 and 5 said code could not refuse an old writer after release, citing `validate_persisted_governed_code_manifest`
   (`store/governed_code.py:551-553`). That function checks historical links in the binding chain
@@ -1170,7 +1196,10 @@ checkout L-3 runs from (with R-1), whichever PR that is.
   W11's admissible-target check (§4.3). It adds no binding row and changes no protected identity;
 - `research_system/command/service.py` and `research_system/command/t2.py`: the same check at the two generic append
   sites (§4.3). The 06h manifest lists append sites by path and symbol, so it does not change, and no binding row or
-  protected identity changes.
+  protected identity changes;
+- `research_system/store/binding_service.py`: the checked ledger head, passed to `AdvanceStoreBinding` beside its
+  intent and compared under the writer lock before the marker (§9.1). The intent's exact field set and the accepted
+  `wp6-6/gate6-binding-repair` intent and command schemas do not change, so no protected identity changes.
 
 **The D-4 delta.** The census counts command and event binding rows alike (its row format,
 `tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py:104-108`), so it grows by 11, from 262 to 273, with
@@ -1198,10 +1227,10 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | `ReviewRequested` cardinality | A forged request with empty `review_questions`, or with a `reviewer_capability` of zero or two entries, refused by replay; a `required_evidence_refs` entry with an empty session after its prefix, refused at `submit` and by replay | 1 |
 | Cross-partition identity (§4.3) | A W9 proposal reusing a W11 aggregate's ID at that stream's current version, refused at `submit` and on a forged ledger; a valid W11 request whose `new_review_id` is a W9-reserved `rev_`, refused by `DiscoveryRuntime.submit` before any append; a forged W11 event on a reserved `rev_`, refused by `replay_legacy` and by the public shared replay. The generic and T2 controls of §4.3: a `CreateScopeDefinition` on `CATALOGUE_STREAM_ID` before and after W9 genesis, and a generic and a T2 creation on a reserved `rev_`, each refused before any append; the bootstrap IDs disjoint from W9's. The existing W11, generic and T2 suites pass unchanged | 1 |
 | Observation ID (§5.3) | An observation whose `record_id` is not the derivation from its subject, refused at `submit` and by replay; a grant for one observation refused for a second observation of the same registration with another selector, and with another baseline; the ID `ars legacy observation-id` prints before submission equals the ID the preparer derives, with the runtime clock set to a different time; a source observed as A, then B, then A again, where the third observation gets a fresh ID, is admitted and is not stale; a grant issued before another observation of the same registration lands, refused before append because `n` moved; a forged observation with the wrong `n`, refused by replay | 1 |
-| The O-33 gap (§7.2) | A scratch source mutated between LR-015's final re-read and the append: the observation commits with the re-read's hashes and frozen copy, and LR-016 refuses the item as stale. In WP9.3-2, a scratch source mutated between LR-020's final re-read and the append: the acceptance commits naming the recorded hashes, the frozen copy still hashes to them, and a following observation of the registration makes the accepted record stale; the same for a restricted source, accepted on its recorded hash with no copy in the store. A failed acceptance-time re-read leaves the ledger and the projection unchanged | 1, 2 |
+| The O-33 gap (§7.2) | A scratch source mutated between LR-015's final re-read and the append: the observation commits with the re-read's hashes and frozen copy, and LR-016 refuses the item as stale. In WP9.3-2, a scratch source mutated between LR-020's final re-read and the append: the acceptance commits naming the recorded hashes, the frozen copy still hashes to them, and a following observation of the registration makes the accepted record stale; the same for a restricted source, accepted on its recorded hash with no copy in the store. A failed acceptance-time re-read leaves the ledger and the projection unchanged. In WP9.3-2, an item's frozen copy deleted, and separately altered, before LR-020: the command aborts with no event and no receipt | 1, 2 |
 | Proposal lapse (§4.6) | A corrected LR-003 registration of the same path, refused while the first proposal is open and admitted once it has lapsed; a review request, Decision proposal and resolution, each refused on a lapsed proposal; the lapse time computed from both `created_at` and a later Decision's `expires_at` | 1 |
 | W0 signature pin (§9.1) | A proposal pre-assigning a pinned ID refused; a ledger that claimed the ID before the pin replays under the earlier pin set and fails under the new one; a re-derived `#2` ref accepted. The pre-pin check: on a scratch W9 store whose ledger holds a W11 stream, and separately a generic stream, on the candidate's derived ID, the check reports the collision that `replay_legacy` alone misses, and the `#1` re-derivation passes | 1 |
-| Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append. The separate checkout: an advance whose candidate is a second checkout at the pin commit succeeds with the bound checkout left at its commit, and one attempted after updating the bound checkout in place is refused; after the advance, an operation from the old checkout's root is refused by the code-root check, including one from a process that admitted before the advance | 1 |
+| Pin release by binding advance (§9.1) | On a scratch store and Git repository under `tmp_path`, through `load_current_binding` itself rather than the validators alone: a schema 1.2.0 binding advanced to a commit that changes `accepted_w9.py` refuses a checkout at its parent, with `refs/heads/main` at the bound commit and rewound to the parent; the binding before the advance refuses the pinned checkout; a documentation-only descendant on `main` is admitted; and `ars legacy submit` from a pre-pin checkout is refused before any append. The separate checkout: an advance whose candidate is a second checkout at the pin commit succeeds with the bound checkout left at its commit, and one attempted after updating the bound checkout in place is refused; after the advance, an operation from the old checkout's root is refused by the code-root check, including one from a process that admitted before the advance. The head compare: an advance given the checked head, with one event appended after the check, refuses before writing its marker and leaves the binding, the manifest and the config byte-identical; with no event appended, it succeeds and its event's global position is the checked head's plus one; an advance resumed from its marker after an append refuses. The existing binding-advance suites pass unchanged | 1 |
 | Runtime-construction census (§9.1) | An AST census over every Python file outside `tests/` that counts constructions of `LegacyRuntime` or `DiscoveryRuntime`, not imports. Imports, re-exports and annotations are allowed anywhere: `discovery/spec.py:19` imports `DiscoveryRuntime` at module scope, `discovery/__init__.py:1` re-exports it, and `spec.py:339` names it as a return type. The census follows every name an import or assignment binds to either class, so a call through an alias, or through `functools.partial` or `getattr` on such a name, counts as a construction; a subclass of either class outside its own module fails outright. Each construction sits at an allowed site, exactly two: `SpecCoordinator._discovery` (`discovery/spec.py:339-351`, the only one on `main` at `1f0d8281`) and §13's `ars legacy submit`, each taking its binding from a `VerifiedCurrentBinding` that `load_current_binding` returned. A positive control: the census passes on the tree as it stands, imports and re-export included. Negative controls: fixture modules that construct either runtime without the binding, construct it through an alias, and subclass it, each fail the census with the file and line named | 1 |
 | C1 and C2 controls kept | `test_c1_a_w9_command_without_its_binding_row_is_refused` and `test_c2_a_w2_typed_event_without_its_producer_binding_is_refused` (`test_w9_legacy_replay.py:228`, `:245`) rely on rows WP9.3-1 adds. Each removes the row by monkeypatch inside the test, so it keeps refusing whatever is bound (review m-4) | 1 |
 | JSON parsing | Vectors for a BOM, UTF-16 input, a duplicate key, each non-finite token, `1e400` and a lone surrogate (§8.2) | 1 |
@@ -1212,7 +1241,7 @@ guard is tested with a non-owner actor holding a grant, because the owner short-
 | Deferred row through a bound command | A `ProposeLegacyRecord` for LR-023 refused before any write | 1 |
 | Supersession of a missing record | Refused at replay, on a forged ledger with WP9.6's rows routed on a test registry (§3 row 5) | 1 |
 | W9-T1, W9-T2, W9-T3, W9-T4, W9-T13, W9-T22 | §9.2, §8.2, §8.2, §9.4, §9.3, §8.4 | 1 |
-| W9-T6 (with O-33) | The source changed between observation and commit, and between observation and acceptance: no event, and the observation stale | 1, 2 |
+| W9-T6 (with O-33) | The source changed between observation and commit, and between observation and acceptance: the command refused with no event and no receipt, and the projection unchanged. The observation is stale in the projection only once a later observation of the same registration records the changed bytes (§7.2) | 1, 2 |
 | W9-T11, reader half | A `*.pkl` observed with a frozen copy is refused; a restricted observation records hash, size and path only | 1 |
 | Frozen copy | A copy whose bytes differ from the observed bytes is refused | 1 |
 | Segmenter | The contract's vectors against both implementations, and the differential test | 1 |
@@ -1265,6 +1294,10 @@ lanes are untouched.
   observation-ID controls, run through `ars legacy observation-id`, which leaves the store byte-identical;
 - that the bound checkout stays put until the advance, and that the old checkout is refused after it: the
   separate-checkout controls;
+- that no write lands between a later pin's check and its binding advance: the advance's head compare under its
+  writer lock, with the head-compare controls;
+- that LR-020's frozen copies still hold the recorded bytes at acceptance: the preparer's copy re-check, with the
+  deleted-copy and altered-copy controls;
 - that replay marks stale only from recorded observations: the failed-re-read control;
 - a later pin's collision check across every partition: the pre-pin check controls;
 - after a later pin's release, refusal of a writer on pre-pin code: `load_current_binding`, with the pin-release
@@ -1290,12 +1323,18 @@ lanes are untouched.
   is the operator's attestation;
 - S-014's freshness at LR-020 (§10.2), checked by Stephen at resolution and on the L-4 checklist: "Has any restore run
   been made since the run each item's S-014 ref names?";
-- a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's head unchanged from the final check
-  to its binding advance?";
+- a later W0 pin's write freeze (§9.1), on the pin's checklist: "Was each store's advance given the head its final
+  check recorded, and is the advance's event at that head's position plus one?";
 - the drain before a later pin (§9.1), on the pin's checklist: "Was the pin in a separate, durable checkout, with the
-  bound checkout left at its commit? Had every process started from the bound checkout exited before the final check,
-  and did none start from it until the advance?" A process started outside Stephen's dispatch is a known limit before
-  the advance, covered by the ledger-head re-read; after it, the code-root check refuses it;
+  bound checkout left at its commit? Was the candidate checkout created at the pin commit, or, if reused, had every
+  process started from it exited before it was updated, with none starting from it until it was at the pin commit?
+  Had every process started from the bound checkout exited before the final check, and did none start from it until
+  the advance?" A write from a process started outside Stephen's dispatch moves the head, which the advance refuses;
+  after the advance, the code-root check refuses the old checkout. A process from a reused candidate checkout that
+  loaded pre-pin modules is not visible to code, so the candidate question is the check;
+- the retention of accepted frozen copies (§7.2, a known limit): ARS detects a deleted or altered copy on its next
+  use but cannot prevent it, so the question for each reviewer who relies on an accepted untracked or vault record is
+  "Does its frozen copy still hash to the recorded `sha256`?";
 - a restricted source's acceptance (§7.2): ARS holds only its hash, size and path, so "Do the custodians of each
   accepted restricted source still hold bytes that match the recorded hash?" is answered outside ARS;
 - Discovery-only replay (§4.3, a known limit): `replay_discovery` runs no W9 check, so a W11 reader would project
@@ -1350,14 +1389,14 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 |---|---|---|---|
 | A | **The split** (06v D-6; P-064 item 6; P-080 item 1) | **Two PRs, which the review asks for (review §4):** WP9.3-1 (LR-003 to LR-015, all seven bindings, D-4) then WP9.3-2 (LR-016 to LR-020, the export recheck and the `.apm/` tools, no D-4) (§2.3). P-064 item 6 allows a WP9.3 split without fixing its shape; this shape departs from 06v's D-6 row ("reader and selectors"), which the decision records | One PR; or 06v's reader and selectors split |
 | B | **Review satisfaction** | **`approve` only, for every W9 review,** with `approve_with_conditions` not even recordable (§5.4). The catalogue has no row to discharge a condition | Admit `approve_with_conditions` for authority reviews only, which needs a condition-discharge rule and a catalogue revision |
-| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3). Amended 2026-11-08: a later W0 pin is released on each W9 store by advancing its binding to a `main` commit that holds the pin, and the write freeze runs from the final pre-pin check to that advance (§9.1; issue #415, option C). Amended again the same day: the pin goes in a separate, durable candidate checkout while the bound checkout stays at its commit until the advance, and every process started from the bound checkout exits before the final check, none starting from it until the advance (§9.1) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
+| C | **Accepted identities from outside the store** (O-27; D-7) | **Frozen constants in `accepted_w9.py`,** empty in WP9.3, so LR-015 refuses in production until a reviewed PR pins each after Stephen's acceptance: the W0-D1 signature (§9.1) and the export with its classified list (§11.3). Amended 2026-11-08: a later W0 pin is released on each W9 store by advancing its binding to a `main` commit that holds the pin, and the write freeze runs from the final pre-pin check to that advance (§9.1; issue #415, option C). Amended again the same day: the pin goes in a separate, durable candidate checkout while the bound checkout stays at its commit until the advance, and every process started from the bound checkout exits before the final check, none starting from it until the advance (§9.1). Amended a third time (2026-11-09): the candidate checkout is created at the pin commit, or drained before a reused one moves; and the advance is given the checked ledger head beside its intent and compares it under its writer lock, refusing with no effect if it moved (§9.1) | Read them from committed evidence files at `git_head`, which leaves Stephen's acceptance unchecked by code |
 | D | **The W9 evidence area** | **`.research-system/evidence/w9/`,** with WP9.3 fixing the reader-side formats of WP9.5's files (§11.1). The path is recorded once, in the decision entry, so that WP9.5 (D-5's run hashes) and WP9.7 (D-9's suffix list) use the same one | `docs/plans/agentic-research-system/transition/w9/evidence/`; or WP9.5 defines the formats first, and LR-003, LR-015 and LR-016 wait for it |
 | E | **LR-016's ownership list**, which the closed acceptance schema cannot hold (§10.5) | **Derived, not listed:** the list is a deterministic function of the proposal and the ledger before it, stored at LR-016 and required exactly at LR-020, read as meeting the annex text's purpose; a batch may hold at most one whole-file item per registration. Recorded as a reading of `wp9-1-catalogue-owner-annex.yaml:567` | Derived, and also listed among the LR-017 review's subjects, so the reviewed bytes contain the list (the review's alternative); a catalogue revision adding the field (a new schema identity, a new O-8 acceptance and LR-002's revision path); or the list in the command payload only, which replay cannot check |
 | F | **Genesis guard 8** (§15) | **Generalize the partition check,** have each WP9.3 PR's review re-verify the genesis path, and add the verifying review to the L-3 checklist | Keep the 1/60 literals and edit them in each PR, with the same review consequence |
 | G | **Anchor kinds** (O-25; W9-T16) | **`git_commit` only in v1,** for simplicity: one anchor kind and one test (§10.3) | An `ars_event` anchor naming an `ArtefactRegistered` event, at a lower global position, whose `content_sha256` is the anchored hash |
 | H | **Roles and independence** (W9 §8.6; W9-C20; P-073 item 1) | **Option (a):** exact-subject grants plus the distinctness rules of §5.5, the owner refused on every non-resolver row, and W9-C20's session limb checked as far as the payloads allow: the request encodes the analyst's session, and replay refuses a verdict from the same session. That both session strings are true, and the legacy-producer exclusion, are recorded as known limits. Amended 2026-11-08: a membership-table review also records the author's session, which the verdict must differ from (§5.5) | **Option (b):** record the session limb as a known limit, which narrows the accepted W9-C20, as P-058 did for model families; or a role registry, which needs a new record kind and a catalogue revision |
 | I | **The runtime segmenter and its independent re-implementation** (contract §7; P-067; P-068) | **A new `research_system/legacy/segmentation.py`,** differential-tested against the reference tool, which stays untouched. WP9.3-1's independent reviewer, shown independent of both the contract's author and WP9.3's implementer, re-implements the contract and reproduces every vector, with the results recorded in the review report where the acceptance can cite them. The export is produced by the reference tool and rechecked by the runtime segmenter (§12.2) | Promote `tools/w9_segmentation.py` into the runtime, which moves an accepted blob; or a separate session for the re-implementation |
-| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3); amended again the same day: also `research_system/command/service.py` and `research_system/command/t2.py`, for the same check at the generic append sites (§4.3) | Keep the tools under `tools/`, which extends the boundary further |
+| J | **Boundary extension** (P-080's Boundary line) | **Extend it by name** to `research_system/authority.py` (§16) and `research_system/cli.py` (§13), as P-077 item 5 did for WP9.2. No `tools/` file is added (§12). Amended 2026-11-08: also `research_system/discovery/routes.py` and `research_system/discovery/runtime.py`, for W11's symmetric identity check (§4.3); amended again the same day: also `research_system/command/service.py` and `research_system/command/t2.py`, for the same check at the generic append sites (§4.3). Amended 2026-11-09: also `research_system/store/binding_service.py`, for the advance's head compare (§9.1, §16) | Keep the tools under `tools/`, which extends the boundary further |
 | K | Withdrawn in revision 2. It rested on reading LR-020's fixture set as three fixtures, not seven (review B-1; §10.2) | — | — |
 | K′ | **S-014's timing:** "re-run after each W9 batch" (W9 §12.3), against evidence required before the batch is accepted (§10.2) | **The S-014 ref names the latest restore run before LR-020,** and the post-batch re-run goes on the L-4 checklist | A waiver for S-014 in the pilot batch, with the re-run after it |
 | L | **G4 at the four proposal rows** (§5.3): the grant binds the ID, and the hash half has nothing to compare against until the review | **Record it as a reading:** the proposal grant is ID-exact, and the content hash is bound by the review and the Decision. Amended 2026-11-08: LR-015 is not read this way; its grant binds the full subject through a derived observation ID (§5.3), whose timestamp is the registration's `created_at` and whose domain includes the registration's observation count, so the ID is known before submission and a returning source gets a fresh one | Pre-register the hash in a separate step before the proposal, which no catalogue row provides |
@@ -1365,6 +1404,23 @@ Each needs Stephen's decision before the code. Each has a recommended option.
 
 ## Change log
 
+- **Revision 10 (2026-11-09).** Answers CodeRabbit's review of revision 9 on PR #411: two inline comments and two
+  outside the diff. Stephen chose the three options that change P-081 text or code behaviour in chat on 2026-11-09;
+  the fourth changes the note only.
+  - **The head check bound to the advance** (inline, Major): the advance compared only the project stream's version
+    within its own lock, so a write between the manual head re-read and the advance went unseen. WP9.3-1 passes the
+    checked head to the advance beside its intent and compares it under the writer lock before the marker; a moved
+    head refuses with no effect. Stephen chose to keep it out of the intent, so the accepted Gate 6 schemas do not
+    change. P-081 items 3 and 10 amended (§9.1, §16, §17, §18, §21 C and J).
+  - **The candidate checkout's drain** (inline): a reused candidate checkout could hold processes with pre-pin
+    modules that the advance would then admit. The candidate checkout is created at the pin commit, or drained before
+    a reused one moves. P-081 item 3 amended (§9.1, §18, §21 C).
+  - **Frozen copies at LR-020** (outside diff): LR-020's preparer re-checks each item's frozen copy against the
+    recorded hash and size, and a missing or altered copy aborts with no event. Retention after acceptance is a known
+    limit: ARS detects a lost copy on its next use but cannot prevent it. P-081's O-33 amendment extended (§7.2, §17,
+    §18).
+  - **W9-T6** (outside diff, note only): the row now matches §7.2. A changed source at commit or acceptance is a
+    refusal with no event, and the projection marks stale only after a later recorded observation (§7.2, §17).
 - **Revision 9 (2026-11-08).** Answers CodeRabbit's review of revision 8 on PR #411: one inline comment and four
   outside the diff. Codex's review of revision 8 did not run (usage limit). Stephen chose the four options that change
   P-081 text or code behaviour in chat on 2026-11-08; the fifth changes the note only.

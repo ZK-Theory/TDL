@@ -5075,6 +5075,15 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    checkout, whatever its processes have loaded. The drain applies to the bound checkout: its processes exit before
    the final check, and none starts from it until the advance. The known limit narrows to the window before the
    advance, which the ledger-head re-read covers (note §9.1, revision 9).
+   **Amended a third time 2026-11-09** (Stephen, in chat, answering CodeRabbit's two comments on PR #411: "Fresh or
+   drained (Recommended)", "Head in the advance (Recommended)" and "Beside the intent (Recommended)"). The candidate
+   checkout is created at the pin commit; if an existing one is reused, every process started from it exits before
+   it is updated, and none starts until it is at the pin commit, so no process holding pre-pin modules is admitted
+   after the advance. The checklist records which case applies. The manual head re-read is replaced: the advance is
+   given the head the final check recorded, beside its intent, and compares it with the ledger head under its writer
+   lock before writing its marker. A moved head refuses the advance with no effect, and the check is re-run. W9 and
+   W11 writers take the same control-root lock, so no write lands between the compare and the advance's event (note
+   §9.1, revision 10).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5116,6 +5125,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     for the same check at the two generic append sites, `CommandService.submit` and `submit_t2`: a command whose
     events would append to a W9 fixed identity, or to an ID W9 claims or reserves, is refused before append. No append
     site, command type, schema, binding or census row changes (note §4.3, revision 7).
+    **Amended a third time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Head in the
+    advance (Recommended)", then "Beside the intent (Recommended)"). The boundary also covers
+    `research_system/store/binding_service.py`, for item 3's head compare only. The checked head is a parameter of the
+    advance, not a field of its intent, so the accepted `AdvanceStoreBinding` intent and command schemas and every
+    protected identity stay unchanged (note §9.1, §16, revision 10).
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
@@ -5159,7 +5173,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
   the recorded hash, size and path. After a change ARS cannot return the accepted bytes, which the record's
   non-inference "no frozen copy in the ARS store" already says; the next observation makes it stale. Replay marks an
   observation stale only from recorded observations, since a failed acceptance-time re-read leaves no event (note
-  §7.2, revision 9).
+  §7.2, revision 9). Extended again 2026-11-09 (Stephen, in chat, answering CodeRabbit's comment on PR #411:
+  "Re-check + known limit (Recommended)"): at LR-020's final re-read the preparer also re-reads each item's frozen
+  copy and requires the recorded hash and size, so a missing or altered copy aborts with no event. After acceptance,
+  ARS cannot stop a copy in the control root being deleted or altered from outside; every later use re-hashes it, so
+  a loss is detected, not prevented. Retention is a known limit, and recovery is an owner operation (note §7.2,
+  revision 10).
 - **Discovery-only replay** ("Record a known limit (Recommended)"). `replay_discovery` runs no W9 identity check, and
   adding one would be a fifth U-7 site. Once the ledger holds a W9 event, the public shared replay refuses a ledger
   with a non-W9 event on a W9 identity, and every dispatch writer checks before append (note §4.3). Before W9 genesis
