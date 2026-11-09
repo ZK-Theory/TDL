@@ -5105,6 +5105,16 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    or has expired, and none is issued until the advance; a paused predecessor operation is refused under its lock on
    resume. WP9.3-1's control runs the predecessor commit's own code from a checkout under `tmp_path`, and a census
    names any command type that writes without a grant, a known limit on the pin's checklist (note §9.1, revision 13).
+   **Amended a seventh time 2026-11-09** (Stephen, in chat, accepting the recommendations for CodeRabbit's comments
+   on PR #411: "Yes, all three"). Correction: of the generic writers, only the lifecycle command types resolve a
+   grant under the lock. `VerifyEvidenceDeletion` resolves none, takes the caller's target stream and is reachable
+   from production `ars submit`, so the grant fence does not stop it; and the fourth amendment's in-lock recheck
+   covered only `LegacyRuntime` and `DiscoveryRuntime`. So `CommandService._submission_lock`, which generic and T2
+   submits take, also rechecks the current binding inside the lock before it hands out its snapshot, and a census
+   fails on any `CommandService` lock site that can append without the recheck. A later pin is made only on W9
+   stores, whose bindings descend from the first pin and so hold WP9.3-1's code. The known limit is therefore a
+   grant-free command paused since before its store first bound WP9.3-1 code, caught by the first replay on the
+   pinned code and listed on the pin's checklist (note §9.1, revision 14).
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5161,6 +5171,10 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     come from one table in `research_system/legacy/`, shared with the pre-pin scan, and a test fails if an event
     schema declares a created-ID field the table omits. Payload references to W9 records stay allowed. No schema,
     binding, census row or protected identity changes (note §4.3, §16, revision 12).
+    **Amended a fifth time 2026-11-09** (Stephen, in chat: "Yes, all three"). `research_system/command/service.py`
+    also carries item 3's binding recheck inside `_submission_lock`, and `research_system/cli.py` hands the service
+    its binding check where `ars submit` builds it. No schema, binding, census row or protected identity changes
+    (note §9.1, §16, revision 14).
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
@@ -5185,6 +5199,14 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     is printed by a new read-only `ars legacy observation-id` command through the existing read-only binding
     (`cli.py`, within item 10's boundary), not by a tool, so the tools still open no store (note §5.3, §13, revision
     9).
+    **Amended a fourth time 2026-11-09** (Stephen, in chat, answering CodeRabbit's comment on PR #411: "Yes, all
+    three"). LR-015's annex subject names the physical identity, but the accepted observation schema's
+    `source_identity` holds only the path, hash and length, and admits no other field. This is read as follows: the
+    physical identity is fixed and checked at registration (LR-003, LR-005); the observation's handle-bound read
+    still refuses aliasing; and a file replaced at the registered path is the same source, since a different-bytes
+    replacement changes the ID and an identical-bytes one yields an identical observation. A `stable_file_id` match
+    with the registration is not required, because a tool that saves by writing a new file and renaming it gives the
+    file a new ID on every save (note §5.3, revision 14).
 13. **The pre-assigned ref hash (M).** A proposal's pre-assigned review or Decision ref has `record_revision` 1 and a
     `content_hash` equal to the SHA-256 of `canonical_bytes` over `{"w9_pre_assigned": <kind>, "id": <id>,
     "record_id": <the pre-assigning record's ID>}`. A copied ref is checked against the record that pre-assigned it.
