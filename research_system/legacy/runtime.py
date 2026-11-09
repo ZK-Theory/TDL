@@ -38,11 +38,15 @@ from research_system.legacy.accepted_w9 import (
     ROW_IDS,
     accepted_genesis_payload,
 )
+from research_system.legacy import accepted_w9, preparers
 from research_system.legacy.commands import LEGACY_COMMAND_TYPES
-from research_system.legacy.replay.driver import replay_legacy
+from research_system.legacy.identities import current_pins
+from research_system.legacy.reader import LegacyReader
+from research_system.legacy.replay.driver import apply_transaction, foreign_identities, replay_legacy
 from research_system.legacy.routes import (
     LEGACY_DEFERRED_ROWS,
     LEGACY_ROUTED_ROWS,
+    W2_EVENT_TYPES,
     validate_legacy_route_registry,
     validate_transaction_shape,
 )
@@ -64,8 +68,32 @@ _COMMAND_FIELDS = {
     "payload",
 }
 GATE6_REASON_CODE = "w9_gate6_store_refused"
-# The row each admissible command executes. Only commands whose row is routed can reach preparation.
+# The row each catalogue command executes. Only commands whose row is routed can reach preparation.
 _COMMAND_ROWS = {"ImportAcceptedW9CatalogueGenesis": "LR-001", "ImportAcceptedW9CatalogueRevision": "LR-002"}
+# WP9.3-1's seven commands (WP9.3 note §2.2). Their prepared transactions are assigned a row by ``assign_row`` in the
+# shadow step, which refuses a deferred row before any write.
+_WP9_3_PREPARERS: dict[str, Callable[..., preparers.Prepared]] = {
+    "ProposeLegacyRecord": preparers.prepare_proposal,
+    "RequestW9AuthorityReview": preparers.prepare_review_request,
+    "RecordW9AuthorityReview": preparers.prepare_review_verdict,
+    "ProposeW9AuthorityDecision": preparers.prepare_decision_proposal,
+    "ResolveW9AuthorityDecision": preparers.prepare_resolution,
+    "RecordLegacyLightInventory": preparers.prepare_light_inventory,
+    "ObserveLegacyRecord": preparers.prepare_observation,
+}
+_EXPECTED_VERSIONS = preparers.EXPECTED_VERSIONS
+# WP9.3 note §5.3: each grant names one exact subject, of these kinds, on the command's target stream.
+_SUBJECT_KINDS = {
+    "ImportAcceptedW9CatalogueGenesis": "scope_definition",
+    "ImportAcceptedW9CatalogueRevision": "scope_definition",
+    "ProposeLegacyRecord": "scope_definition",
+    "RecordLegacyLightInventory": "scope_definition",
+    "ObserveLegacyRecord": "scope_definition",
+    "RequestW9AuthorityReview": "review",
+    "RecordW9AuthorityReview": "review",
+    "ProposeW9AuthorityDecision": "decision",
+    "ResolveW9AuthorityDecision": "decision",
+}
 
 
 class W9Gate6StoreRefused(IntegrityError):
@@ -157,6 +185,11 @@ class LegacyRuntime:
         clock: Callable[[], datetime],
         routed_rows: Collection[str] = LEGACY_ROUTED_ROWS,
         accepted_revisions: Collection[Mapping[str, Any]] = ACCEPTED_REVISIONS,
+        reader: LegacyReader | None = None,
+        vault_root: Path | None = None,
+        binding_check: Callable[[], Any] | None = None,
+        pinned_signatures: Collection[Mapping[str, Any]] | None = None,
+        accepted_cl_export: Collection[Mapping[str, Any]] | None = None,
     ) -> None:
         """Bind the runtime to its receipt root, bound ledger and repository.
 
@@ -167,8 +200,14 @@ class LegacyRuntime:
             repository_root: Repository root holding the accepted catalogue, annex, contract and envelope.
             authority_resolver: Canonical current-grant resolver.
             clock: Trusted timezone-aware runtime clock.
-            routed_rows: Rows this runtime may execute. Production routes LR-001 only.
+            routed_rows: Rows this runtime may execute: LR-001 and LR-003 to LR-015 (WP9.3 note §15).
             accepted_revisions: Accepted catalogue revisions LR-002 may import. None exists in v1.
+            reader: The observation reader, bound to the binding's ``git_head`` (WP9.3 note §7, §11.2).
+            vault_root: The real vault path for ``vault_file`` sources (WP9.3 note §7.1).
+            binding_check: Rechecks the store's current binding; called inside the writer lock immediately before
+                append (WP9.3 note §9.1). ``ars legacy submit`` passes the binding's ``revalidate``.
+            pinned_signatures: The pinned W0 signatures; the code's ``ACCEPTED_W0_SIGNATURES`` when omitted.
+            accepted_cl_export: The pinned Computational-Log export; the code's ``ACCEPTED_CL_EXPORT`` when omitted.
 
         Raises:
             IntegrityError: If the repository root is unavailable.
@@ -187,6 +226,11 @@ class LegacyRuntime:
         self.clock = clock
         self.routed_rows = frozenset(routed_rows)
         self.accepted_revisions = tuple(accepted_revisions)
+        self.reader = reader
+        self.vault_root = vault_root
+        self.binding_check = binding_check
+        self._pinned_signatures = None if pinned_signatures is None else tuple(pinned_signatures)
+        self._accepted_cl_export = None if accepted_cl_export is None else tuple(accepted_cl_export)
         # Built in submit, after the Gate 6 refusal: ReceiptStore creates its directories (review F-4).
         self._receipts: ReceiptStore | None = None
         self.refused_store_identities = frozenset(accepted_genesis_payload()["refused_store_identities"])
@@ -246,8 +290,18 @@ class LegacyRuntime:
             authority_evidence = self._resolve_authority(command)
             return self._submit_authorized(command, authority_evidence)
 
+    @property
+    def pinned_signatures(self) -> tuple[Mapping[str, Any], ...]:
+        """The pinned W0 signatures, read at call time when none was injected (WP9.3 note §9.1)."""
+        return current_pins(self._pinned_signatures)
+
+    @property
+    def accepted_cl_export(self) -> tuple[Mapping[str, Any], ...]:
+        """The pinned Computational-Log export, read at call time when none was injected (WP9.3 note §11.3)."""
+        return tuple(accepted_w9.ACCEPTED_CL_EXPORT if self._accepted_cl_export is None else self._accepted_cl_export)
+
     def _resolve_authority(self, command: Command) -> Any:
-        """Resolve current scoped authority: subject ``scope_definition``, the exact target stream (O-4; G4)."""
+        """Resolve current scoped authority on the exact target stream, with the command's subject kind (G4; §5.3)."""
         command_type = command.envelope["command_type"]
         binding = self.schemas.command_binding(command_type)
         if binding is None:
@@ -267,7 +321,7 @@ class LegacyRuntime:
             ),
             "R2",
             self.ledger.project_id,
-            "scope_definition",
+            _SUBJECT_KINDS.get(command_type, "scope_definition"),
             command.target_stream_id,
             now.astimezone(UTC),
         )
@@ -276,21 +330,27 @@ class LegacyRuntime:
             raise IntegrityError("W9 genesis requires a human actor")
         return evidence
 
-    def _replay(self, events: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Replay the whole ledger (generic, Discovery and legacy) and return the Discovery and legacy projections."""
+    def _replay(self, events: tuple[dict[str, Any], ...]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        """Replay the whole ledger and return the generic, Discovery and legacy projections.
+
+        The generic projection is returned, not discarded, so the LR-015 preparer can resolve a frozen copy's
+        artefact (WP9.3 note §7.3).
+        """
         validator = self.authority_resolver.validate_replayed_administration_state
         try:
-            replay_shared(events, schema_registry=self.schemas, authority_state_validator=validator)
+            generic = replay_shared(events, schema_registry=self.schemas, authority_state_validator=validator)
             discovery = replay_discovery(events, schemas=self.schemas, authority_state_validator=validator)
             legacy = replay_legacy(
                 events,
                 schemas=self.schemas,
                 routed_rows=self.routed_rows,
                 accepted_revisions=self.accepted_revisions,
+                pinned_signatures=self.pinned_signatures,
+                accepted_cl_export=self.accepted_cl_export,
             )
         except (IntegrityError, TypeError, ValueError) as exc:
             raise LegacyLedgerReplayError("persisted ledger failed replay before W9 command preparation") from exc
-        return discovery, legacy
+        return generic, discovery, legacy
 
     def _submit_authorized(self, command: Command, authority_evidence: Any) -> Receipt:
         """Answer a retry from receipts, else prepare, append and receipt one authorized command."""
@@ -371,7 +431,7 @@ class LegacyRuntime:
             )
 
         snapshot = self.ledger.snapshot()
-        discovery, legacy = self._replay(tuple(snapshot.events))
+        generic, discovery, legacy = self._replay(tuple(snapshot.events))
         # Retries come first (confirmation n-2): the guards below never see a retry.
         scoped = self.receipts.load_scoped(
             idempotency_scope,
@@ -415,28 +475,52 @@ class LegacyRuntime:
                     reason_code="stream_version_conflict",
                 )
             )
-        row_id = _COMMAND_ROWS.get(envelope["command_type"])
-        if row_id is None or row_id not in self.routed_rows:
-            tag = LEGACY_DEFERRED_ROWS.get(row_id or "", "unrouted")
-            raise IntegrityError(f"W9 row not routed in this version: {row_id or envelope['command_type']} ({tag})")
-        if row_id == "LR-001":
-            prepared = [
-                ("W9CatalogueGenesisImported", CATALOGUE_STREAM_ID, self._prepare_genesis(command, discovery, legacy))
-            ]
-        else:
-            prepared = [("W9CatalogueRevisionImported", CATALOGUE_STREAM_ID, self._prepare_revision(command, legacy))]
-        validate_transaction_shape(row_id, [event_type for event_type, _, _ in prepared])
-        binding = self.schemas.resolve_identity(*self._command_schema(envelope["command_type"]))
         occurred_at = self.clock()
         if not isinstance(occurred_at, datetime) or occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
             raise IntegrityError("W9 runtime clock must return an aware datetime")
         occurred_at_value = occurred_at.astimezone(UTC).isoformat().replace("+00:00", "Z")
+        rereads: list[Callable[[], None]] = []
+        if envelope["command_type"] in _WP9_3_PREPARERS:
+            # WP9.3-1 (note §6): prepare, then assign the row and run replay's own step on a copy before append.
+            if command.expected_stream_version != _EXPECTED_VERSIONS[envelope["command_type"]]:
+                raise IntegrityError("W9 command expects another stream version than its step takes")
+            preparation = self._prepare_wp9_3(command, occurred_at, generic, legacy, authority_evidence)
+            prepared = preparation.events
+            rereads = preparation.rereads
+            if prepared[0][1] != command.target_stream_id:
+                raise IntegrityError("W9 command target is not the stream its row's first event takes")
+            row_id = self._shadow(command, prepared, snapshot, legacy, occurred_at_value)
+            self._require_role(command, row_id, authority_evidence)
+        else:
+            row_id = _COMMAND_ROWS.get(envelope["command_type"])
+            if row_id is None or row_id not in self.routed_rows:
+                tag = LEGACY_DEFERRED_ROWS.get(row_id or "", "unrouted")
+                raise IntegrityError(f"W9 row not routed in this version: {row_id or envelope['command_type']} ({tag})")
+            if row_id == "LR-001":
+                prepared = [
+                    (
+                        "W9CatalogueGenesisImported",
+                        CATALOGUE_STREAM_ID,
+                        self._prepare_genesis(command, discovery, legacy),
+                    )
+                ]
+            else:
+                prepared = [
+                    ("W9CatalogueRevisionImported", CATALOGUE_STREAM_ID, self._prepare_revision(command, legacy))
+                ]
+            validate_transaction_shape(row_id, [event_type for event_type, _, _ in prepared])
+        binding = self.schemas.resolve_identity(*self._command_schema(envelope["command_type"]))
+        # The window (note §7.2): every source the row binds is re-read at commit, under the lock, after the shadow
+        # run. Any change aborts the command with no event and no receipt.
+        for reread in rereads:
+            reread()
+        # Note §9.1: the store's current binding is rechecked inside the writer lock, immediately before append.
+        if self.binding_check is not None:
+            self.binding_check()
         event_records = [
             {
                 "event_type": event_type,
-                # E: events have no producer binding and fall back to ars://core/event (design note §4).
-                "schema_id": "ars://core/event",
-                "schema_version": "1.0.0",
+                **dict(zip(("schema_id", "schema_version"), self._event_schema(event_type, envelope["command_type"]))),
                 "stream_id": stream_id,
                 "command_id": command.command_id,
                 "command_type": envelope["command_type"],
@@ -465,6 +549,96 @@ class LegacyRuntime:
                 reason_code=None,
             )
         )
+
+    def _event_schema(self, event_type: str, command_type: str) -> tuple[str, str]:
+        """A W2 event is recorded under its producer binding's schema (C2); an ``E:`` event under ``ars://core/event``."""
+        if event_type in W2_EVENT_TYPES:
+            event_binding = self.schemas.event_binding(event_type, command_type)
+            if event_binding is None:
+                raise IntegrityError(f"inactive W9 event producer binding: {event_type}/{command_type}")
+            return event_binding.schema_id, event_binding.schema_version
+        return "ars://core/event", "1.0.0"
+
+    def _prepare_wp9_3(
+        self,
+        command: Command,
+        now: datetime,
+        generic: Mapping[str, Any],
+        legacy: Mapping[str, Any],
+        authority_evidence: Any,
+    ) -> preparers.Prepared:
+        """Dispatch one WP9.3-1 command to its preparer (WP9.3 note §5.1)."""
+        if legacy.get("catalogue") is None:
+            raise IntegrityError("W9 genesis is required before any WP9.3 row")
+        environment = preparers.Environment(
+            reader=self.reader,
+            generic=generic,
+            control_root=self.ledger.control_root,
+            vault_root=self.vault_root,
+        )
+        envelope = command.envelope
+        kwargs: dict[str, Any] = {
+            "actor": command.actor_id,
+            "now": now.astimezone(UTC),
+            "legacy": legacy,
+            "environment": environment,
+        }
+        if envelope["command_type"] == "ResolveW9AuthorityDecision":
+            kwargs["grant_id"] = envelope["authority_grant_id"]
+        return _WP9_3_PREPARERS[envelope["command_type"]](envelope["payload"], **kwargs)
+
+    def _shadow(
+        self,
+        command: Command,
+        prepared: list[tuple[str, str, dict[str, Any]]],
+        snapshot: Any,
+        legacy: Mapping[str, Any],
+        occurred_at: str,
+    ) -> str:
+        """Run the prepared transaction through replay's per-transaction step on a copy (WP9.3 note §6).
+
+        Returns:
+            The row ``assign_row`` assigns the transaction, which also refuses a deferred row before any write (§2.2).
+        """
+        counts: dict[str, int] = {}
+        shadow = []
+        for event_type, stream_id, payload in prepared:
+            counts[stream_id] = counts.get(stream_id, snapshot.stream_versions.get(stream_id, 0)) + 1
+            schema_id, schema_version = self._event_schema(event_type, command.envelope["command_type"])
+            shadow.append(
+                {
+                    "event_type": event_type,
+                    "schema_id": schema_id,
+                    "schema_version": schema_version,
+                    "stream_id": stream_id,
+                    "stream_version": counts[stream_id],
+                    "project_id": self.ledger.project_id,
+                    "command_type": command.envelope["command_type"],
+                    "actor_id": command.actor_id,
+                    "authority_grant_id": command.envelope["authority_grant_id"],
+                    "occurred_at": occurred_at,
+                    "payload": deepcopy(payload),
+                }
+            )
+        context = {
+            "w11_genesis_seen": True,
+            "accepted_revisions": self.accepted_revisions,
+            "pinned_signatures": self.pinned_signatures,
+            "accepted_cl_export": self.accepted_cl_export,
+            "foreign_ids": foreign_identities(snapshot.events),
+        }
+        return apply_transaction(
+            deepcopy(dict(legacy)), shadow, schemas=self.schemas, routed_rows=self.routed_rows, context=context
+        )
+
+    @staticmethod
+    def _require_role(command: Command, row_id: str, authority_evidence: Any) -> None:
+        """Note §5.5: a resolver row requires the owner, and every other WP9.3 row refuses the owner."""
+        owner = authority_evidence.administration_context.owner_actor_id
+        if row_id in preparers.RESOLVER_ROWS and command.actor_id != owner:
+            raise IntegrityError(f"W9 {row_id} is resolved by the owner only")
+        if row_id not in preparers.RESOLVER_ROWS and command.actor_id == owner:
+            raise IntegrityError(f"W9 {row_id} refuses the owner, who resolves and does not observe, review or propose")
 
     def _command_schema(self, command_type: str) -> tuple[str, str]:
         binding = self.schemas.command_binding(command_type)
