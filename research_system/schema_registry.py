@@ -266,6 +266,40 @@ _RUNTIME_BINDINGS = (
     # W9: genesis is the only W9 command WP9.2 admits (P-077 item 1). Every other W9 command gets its row with its own
     # package, under D-4.
     SchemaBinding("ars://core/command", "1.0.0", command_type="ImportAcceptedW9CatalogueGenesis"),
+    # WP9.3-1 binds the seven commands that execute LR-003 to LR-015 (WP9.3 note §16; P-081 item 1). A binding grants
+    # nothing by itself: the runtime assigns every prepared transaction to its row and refuses a deferred one.
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeLegacyRecord"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RequestW9AuthorityReview"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordW9AuthorityReview"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ProposeW9AuthorityDecision"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ResolveW9AuthorityDecision"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordLegacyLightInventory"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="ObserveLegacyRecord"),
+    # C2 (WP9.2 note §2.3): a W9 command that emits a W2 event type carries its producer binding.
+    SchemaBinding(
+        "ars://core/event/ReviewRequested",
+        "1.0.0",
+        event_type="ReviewRequested",
+        producer_command_type="RequestW9AuthorityReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/ReviewVerdictRecorded",
+        "1.0.0",
+        event_type="ReviewVerdictRecorded",
+        producer_command_type="RecordW9AuthorityReview",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionProposed",
+        "1.0.0",
+        event_type="DecisionProposed",
+        producer_command_type="ProposeW9AuthorityDecision",
+    ),
+    SchemaBinding(
+        "ars://core/event/DecisionResolved",
+        "1.0.0",
+        event_type="DecisionResolved",
+        producer_command_type="ResolveW9AuthorityDecision",
+    ),
     SchemaBinding(
         "ars://core/event/ReviewRequested",
         "1.0.0",

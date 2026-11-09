@@ -15,12 +15,14 @@ every command. It owns the W9 semantics the generic replay does not check:
 
 from __future__ import annotations
 
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from typing import Any
 
 from research_system.errors import IntegrityError, SchemaError
+from research_system.legacy import accepted_w9
 from research_system.legacy.accepted_w9 import ACCEPTED_REVISIONS
 from research_system.legacy.commands import LEGACY_COMMAND_TYPES, is_legacy_projection_event
+from research_system.legacy.identities import created_ids, current_pins, w9_fixed_identities
 from research_system.legacy.replay.reducers import REDUCERS, new_legacy_state
 from research_system.legacy.routes import (
     LEGACY_DEFERRED_ROWS,
@@ -90,21 +92,77 @@ def _transactions(ordered: tuple[Mapping[str, Any], ...]) -> list[tuple[Mapping[
     return transactions
 
 
+def foreign_identities(events: Iterable[Mapping[str, Any]]) -> frozenset[str]:
+    """Every ID a non-W9 event takes: its stream and the record IDs it creates (WP9.3 note §4.3)."""
+
+    taken: set[str] = set()
+    for event in events:
+        if not is_legacy_projection_event(event):
+            taken |= created_ids(event)
+    return frozenset(taken)
+
+
+def apply_transaction(
+    state: dict[str, Any],
+    transaction: Sequence[Mapping[str, Any]],
+    *,
+    schemas: SchemaRegistry,
+    routed_rows: Collection[str],
+    context: Mapping[str, Any],
+) -> str:
+    """Apply one W9 transaction to the projection: the per-transaction step of replay (WP9.3 note §6).
+
+    Row assignment, the routed-row check, the transaction shape, C3, payload-schema validation, the genesis
+    precondition and the reducer. The preparer's shadow run calls this on a copy of the projection, so a preparer is
+    never weaker than replay. Row assignment's ``review_request_rows`` is rebuilt from the projection.
+
+    Returns:
+        The row the transaction executes.
+
+    Raises:
+        IntegrityError: If the transaction is malformed or any check refuses it.
+    """
+
+    command_type = transaction[0].get("command_type")
+    review_request_rows = {review_id: review["request_row"] for review_id, review in state["reviews"].items()}
+    row_id = assign_row(transaction, review_request_rows)
+    if row_id not in routed_rows:
+        tag = LEGACY_DEFERRED_ROWS.get(row_id, "unrouted")
+        raise IntegrityError(f"W9 row not routed in this version: {row_id} ({tag})")
+    route = LEGACY_ROW_ROUTES[row_id]
+    validate_transaction_shape(row_id, [str(event.get("event_type")) for event in transaction])
+    for event in transaction:
+        payload = event.get("payload")
+        if not isinstance(payload, Mapping):
+            raise IntegrityError("W9 event payload must be an object")
+        _refuse_w11_row(payload)
+        _validate_payload(event, route.record_schema_id, schemas)
+    if command_type != "ImportAcceptedW9CatalogueGenesis" and state["catalogue"] is None:
+        raise IntegrityError(f"W9 genesis is required before {row_id}")
+    REDUCERS[str(command_type)](state, row_id, transaction, context)
+    state["row_counts"][row_id] = state["row_counts"].get(row_id, 0) + 1
+    return row_id
+
+
 def replay_legacy(
     events: Iterable[Mapping[str, Any]],
     *,
     schemas: SchemaRegistry | None = None,
     routed_rows: Collection[str] = LEGACY_ROUTED_ROWS,
     accepted_revisions: Collection[Mapping[str, Any]] = ACCEPTED_REVISIONS,
+    pinned_signatures: Collection[Mapping[str, Any]] | None = None,
+    accepted_cl_export: Collection[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Rebuild the W9 legacy projection while rejecting malformed W9 transitions.
 
     Args:
         events: The ordered persisted events of the whole shared ledger.
         schemas: The schema registry for payload validation; the bundled registry when omitted.
-        routed_rows: The rows this code routes. Production routes LR-001 only (design note §3); tests pass a wider set
-            to exercise the deferred rows' reducers.
+        routed_rows: The rows this code routes: LR-001 and WP9.3-1's LR-003 to LR-015 (WP9.3 note §15); tests pass a
+            wider set to exercise the deferred rows' reducers.
         accepted_revisions: The accepted catalogue revisions LR-002 may import. None exists in v1.
+        pinned_signatures: The pinned W0 signatures (WP9.3 note §9.1). Their ref IDs are reserved at every position.
+        accepted_cl_export: The accepted Computational-Log export (WP9.3 note §11.3).
 
     Returns:
         The legacy projection.
@@ -130,31 +188,20 @@ def replay_legacy(
         ),
         None,
     )
+    pins = current_pins(pinned_signatures)
+    exports = tuple(accepted_w9.ACCEPTED_CL_EXPORT if accepted_cl_export is None else accepted_cl_export)
+    foreign = foreign_identities(ordered)
+    if any(is_legacy_projection_event(event) for event in ordered) and foreign & w9_fixed_identities(pins):
+        raise IntegrityError("a non-W9 event takes a W9 fixed identity")
     position_of = {id(event): index for index, event in enumerate(ordered)}
     state = new_legacy_state()
-    review_request_rows: dict[str, str] = {}
     for transaction in _transactions(ordered):
-        command_type = transaction[0].get("command_type")
-        row_id = assign_row(transaction, review_request_rows)
-        if row_id not in routed_rows:
-            tag = LEGACY_DEFERRED_ROWS.get(row_id, "unrouted")
-            raise IntegrityError(f"W9 row not routed in this version: {row_id} ({tag})")
-        route = LEGACY_ROW_ROUTES[row_id]
-        validate_transaction_shape(row_id, [str(event.get("event_type")) for event in transaction])
-        for event in transaction:
-            payload = event.get("payload")
-            if not isinstance(payload, Mapping):
-                raise IntegrityError("W9 event payload must be an object")
-            _refuse_w11_row(payload)
-            _validate_payload(event, route.record_schema_id, schemas)
-        if command_type != "ImportAcceptedW9CatalogueGenesis" and state["catalogue"] is None:
-            raise IntegrityError(f"W9 genesis is required before {row_id}")
         context = {
             "w11_genesis_seen": first_w11_genesis is not None and first_w11_genesis < position_of[id(transaction[0])],
             "accepted_revisions": accepted_revisions,
+            "pinned_signatures": pins,
+            "accepted_cl_export": exports,
+            "foreign_ids": foreign,
         }
-        REDUCERS[str(command_type)](state, row_id, transaction, context)
-        if command_type == "RequestW9AuthorityReview":
-            review_request_rows[transaction[0]["payload"]["new_review_id"]] = row_id
-        state["row_counts"][row_id] = state["row_counts"].get(row_id, 0) + 1
+        apply_transaction(state, transaction, schemas=schemas, routed_rows=routed_rows, context=context)
     return state
