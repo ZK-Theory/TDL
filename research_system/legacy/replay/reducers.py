@@ -474,8 +474,8 @@ def _check_inventory(state: Mapping[str, Any], record: Mapping[str, Any], event:
     rows = record.get("rows", [])
     if [row.get("row_ordinal") for row in rows] != list(range(1, len(rows) + 1)):
         raise IntegrityError("W9 inventory row ordinals do not run 1 to n")
-    if any(row.get("selector_kind") != record.get("selector_kind") for row in rows):
-        raise IntegrityError("W9 inventory row does not repeat the inventory's selector kind")
+    # Every row repeating the inventory's selector kind is the record schema's rule (its allOf), checked by the same
+    # replay step before this reducer runs.
     if _time(record.get("read_ended_at")) < _time(record.get("read_started_at")):
         raise IntegrityError("W9 inventory read ends before it starts")
 
@@ -493,6 +493,8 @@ def reduce_proposal(
     record_id = record.get("record_id")
     at = _time(event.get("occurred_at"))
     if row_id in WP9_3_1_ROWS:
+        if isinstance(record_id, str):
+            _refuse_foreign(record_id, context)
         _require_stream(event, record_id, 1, "proposal")
         _created_fields(record, event)
         _check_pre_assigned(record, kind)
@@ -865,7 +867,9 @@ def _check_resolution(
         "decision_revision": 1,
         "deciding_actor_id": event.get("actor_id"),
         "decision_authority_grant_id": event.get("authority_grant_id"),
-        "governing_evidence_refs": decision["governing_evidence_refs"],
+        # The proposal's subject refs with its row ref replaced by the resolution row, so that row assignment, which
+        # assigns a DecisionResolved by its one W9: ref, finds this row (Stephen, 2026-11-09, option A).
+        "governing_evidence_refs": [f"W9:{row_id}", *decision["governing_evidence_refs"][1:]],
         "considered_review_ids": considered,
         "effective_at": event.get("occurred_at"),
         "permitted_commands": [],

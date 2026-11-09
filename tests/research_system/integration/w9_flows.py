@@ -459,7 +459,14 @@ def decision_proposal(row_id: str, record: dict[str, Any], decision_id: str, whe
 
 
 def resolution(
-    proposal: dict[str, Any], record: dict[str, Any], actor: str, grant: str, when: str, reviews: list[str], **overrides
+    row_id: str,
+    proposal: dict[str, Any],
+    record: dict[str, Any],
+    actor: str,
+    grant: str,
+    when: str,
+    reviews: list[str],
+    **overrides: Any,
 ) -> dict[str, Any]:
     payload = {
         "decision_id": proposal["new_decision_id"],
@@ -468,7 +475,8 @@ def resolution(
         "decision_revision": 1,
         "deciding_actor_id": actor,
         "decision_authority_grant_id": grant,
-        "governing_evidence_refs": list(proposal["governing_evidence_refs"]),
+        # The proposal's subject refs with the resolution row in place of the proposal row (Stephen, option A).
+        "governing_evidence_refs": [f"W9:{row_id}", *proposal["governing_evidence_refs"][1:]],
         "considered_review_ids": reviews,
         "effective_at": when,
         "permitted_commands": [],
@@ -491,7 +499,7 @@ def registered(forger: Forger, actors: Actors, *, start: float = 0, **kwargs: An
     proposal = decision_proposal("LR-004", record, decision_id, at(start + 1))
     forger = forger.row("LR-004", decision_id, proposal, actor=actors.analyst, when=at(start + 1))
     grant = new_id("authority_grant")
-    resolved = resolution(proposal, record, actors.owner, grant, at(start + 2), [])
+    resolved = resolution("LR-005", proposal, record, actors.owner, grant, at(start + 2), [])
     forger = forger.append(
         "ResolveW9AuthorityDecision",
         [
@@ -505,33 +513,77 @@ def registered(forger: Forger, actors: Actors, *, start: float = 0, **kwargs: An
     return forger, record
 
 
+@dataclass
+class Tweak:
+    """One step's change for a negative control: payload field overrides, another actor, another time (minutes)."""
+
+    payload: dict[str, Any] = field(default_factory=dict)
+    actor: str | None = None
+    minutes: float | None = None
+
+
 def membership_recorded(
-    forger: Forger, actors: Actors, *, sha256: str, size: int, start: float = 10, **kwargs: Any
+    forger: Forger,
+    actors: Actors,
+    *,
+    sha256: str,
+    size: int,
+    start: float = 10,
+    tweaks: dict[str, Tweak] | None = None,
+    stop_after: str | None = None,
+    **kwargs: Any,
 ) -> tuple[Forger, dict[str, Any]]:
-    """LR-006 → LR-007 → LR-008 → LR-009 → LR-010: one recorded membership table."""
+    """LR-006 → LR-007 → LR-008 → LR-009 → LR-010: one recorded membership table.
+
+    ``tweaks`` changes one step by row; ``stop_after`` ends the flow after that row.
+    """
+    tweaks = tweaks or {}
+
+    def step(row: str, default_actor: str, offset: float) -> tuple[str, str, dict[str, Any]]:
+        tweak = tweaks.get(row, Tweak())
+        return (
+            tweak.actor or default_actor,
+            at(start + (offset if tweak.minutes is None else tweak.minutes)),
+            tweak.payload,
+        )
+
     record = membership(forger.project_id, actors.author, at(start), sha256=sha256, size=size, **kwargs)
     forger = forger.row("LR-006", record["record_id"], record, actor=actors.author, when=at(start))
+    if stop_after == "LR-006":
+        return forger, record
     review_id = record["review_ref"]["id"]
+    actor, when, changes = step("LR-007", actors.analyst, 1)
     request = review_request(
-        "LR-007", record, review_id, actors.reviewer, at(start + 1), sessions=("session-analyst", "session-author")
+        "LR-007", record, review_id, actors.reviewer, when, sessions=("session-analyst", "session-author")
     )
-    forger = forger.row("LR-007", review_id, request, actor=actors.analyst, when=at(start + 1))
+    request.update(changes)
+    forger = forger.row("LR-007", review_id, request, actor=actor, when=when)
+    if stop_after == "LR-007":
+        return forger, record
+    requested_at = when
+    actor, when, changes = step("LR-008", actors.reviewer, 2)
     forger = forger.row(
-        "LR-008", review_id, verdict(request, at(start + 1), actors.reviewer), actor=actors.reviewer, when=at(start + 2)
+        "LR-008", review_id, {**verdict(request, requested_at, actors.reviewer), **changes}, actor=actor, when=when
     )
+    if stop_after == "LR-008":
+        return forger, record
     decision_id = record["acceptance_decision_ref"]["id"]
-    proposal = decision_proposal("LR-009", record, decision_id, at(start + 3))
-    forger = forger.row("LR-009", decision_id, proposal, actor=actors.analyst, when=at(start + 3))
+    actor, when, changes = step("LR-009", actors.analyst, 3)
+    proposal = {**decision_proposal("LR-009", record, decision_id, when), **changes}
+    forger = forger.row("LR-009", decision_id, proposal, actor=actor, when=when)
+    if stop_after == "LR-009":
+        return forger, record
     grant = new_id("authority_grant")
-    resolved = resolution(proposal, record, actors.owner, grant, at(start + 4), [review_id])
+    actor, when, changes = step("LR-010", actors.owner, 4)
+    resolved = {**resolution("LR-010", proposal, record, actor, grant, when, [review_id]), **changes}
     forger = forger.append(
         "ResolveW9AuthorityDecision",
         [
             ("DecisionResolved", decision_id, resolved),
             ("LegacyFieldFamilyMembershipRecorded", record["record_id"], deepcopy(record)),
         ],
-        actor=actors.owner,
-        when=at(start + 4),
+        actor=actor,
+        when=when,
         grant=grant,
     )
     return forger, record
