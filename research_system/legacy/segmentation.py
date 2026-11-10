@@ -521,13 +521,17 @@ def resolve_first_anchor_after(
 
     Raises:
         SegmentationError: For a selector with a fixed region, ``heading_section`` without a level, an ``after_line``
-            or a structural range outside the file, or no anchor after ``after_line``.
+            that is not an integer (``bool`` included), an ``after_line`` or a structural range outside the file, or no
+            anchor after ``after_line``.
     """
 
     if selector_kind not in ("heading_section", "computational_log_entry"):
         raise SegmentationError(f"{selector_kind} takes no declared region")
     if not isinstance(data, bytes):
         raise SegmentationError("segmentation reads bytes")
+    # PR #428 review: every caller gets this refusal, so ``True`` is never read as line 1.
+    if not isinstance(after_line, int) or isinstance(after_line, bool):
+        raise SegmentationError("after_line is not a line number")
     lines = _lines(data)
     if not 1 <= after_line <= len(lines):
         raise SegmentationError(f"after_line {after_line} is outside the file")

@@ -284,8 +284,7 @@ def check_resegmentation(raw: bytes, record: Mapping[str, Any]) -> dict[str, Any
         if region.get("after_line_sha256") != after_line_sha256(raw, after):
             raise IntegrityError("W9 inventory region declaration differs from its anchor-line hashes")
         # P-082 item 5 (review M-2): the declared range must be the resolution the bytes give, so no row drops out.
-        if not isinstance(after, int) or isinstance(after, bool):
-            raise IntegrityError("W9 inventory region cannot be resolved: after_line is not a line number")
+        # The resolver refuses a non-integer after_line itself, for every caller.
         try:
             resolved = resolve_first_anchor_after(
                 raw, str(record["selector_kind"]), after, **_resolution_kwargs(record)

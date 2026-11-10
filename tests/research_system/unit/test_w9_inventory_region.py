@@ -96,6 +96,13 @@ def test_no_anchor_after_the_line_is_refused() -> None:
         check_resegmentation(SOURCE, record)
 
 
+@pytest.mark.parametrize("after_line", [True, False, "1", 1.0, None])
+def test_the_resolver_refuses_an_after_line_that_is_not_an_integer(after_line: Any) -> None:
+    """PR #428 review: the shared resolver itself refuses, so ``True`` is never read as line 1 by any caller."""
+    with pytest.raises(SegmentationError, match="after_line is not a line number"):
+        resolve_first_anchor_after(SOURCE, "heading_section", after_line, level=2)
+
+
 def test_an_after_line_outside_the_file_is_refused() -> None:
     with pytest.raises(SegmentationError, match="after_line 11 is outside the file"):
         resolve_first_anchor_after(SOURCE, "heading_section", 11, level=2)

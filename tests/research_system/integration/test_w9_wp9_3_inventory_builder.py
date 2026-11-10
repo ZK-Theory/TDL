@@ -155,6 +155,11 @@ def test_reproduction_reports_equality_differences_and_a_wrong_resolution(store:
     wrong["covered_region"]["resolved_first_line"] = 6
     report = reproduce_light_inventory(wrong, SECTIONS)
     assert report["reproduced"] is False and report["region"]["resolution_equal"] is False
+    # PR #428 review: a boolean after_line with a null hash would have hashed "equal" and resolved as line 1.
+    boolean = deepcopy(record)
+    boolean["covered_region"].update(after_line=True, after_line_sha256=None)
+    report = reproduce_light_inventory(boolean, SECTIONS)
+    assert report["reproduced"] is False and report["region"]["resolution_equal"] is False
     with pytest.raises(IntegrityError, match="W9 reproduction bytes are not the inventory's source"):
         reproduce_light_inventory(record, SECTIONS + b"x")
 

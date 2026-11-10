@@ -199,4 +199,12 @@ store is a scratch store under `tmp_path`.
 
 ## 9. Review dispositions
 
-None yet.
+**CodeRabbit's review of `1f6651d1` (5847783527): one inline comment and one nitpick, both checked against the code,
+found valid and fixed.** Codex did not review: it hit its usage limit.
+
+| Comment | Finding | Disposition |
+|---|---|---|
+| 4529307789 | The shared resolver read `after_line: true` as line 1. `reproduce_light_inventory` had no guard of its own, so a record LR-011 refuses could be reported `reproduced: true` | Fixed: `resolve_first_anchor_after` refuses any `after_line` that is not an integer, `bool` included, with "after_line is not a line number". `check_resegmentation`'s own guard is removed, and it now wraps the resolver's refusal with the same message as before. New tests: the resolver refuses `True`, `False`, `"1"`, `1.0` and `None`, and reproduction reports a boolean `after_line` as not reproduced |
+| Nitpick (review summary) | The "reordered" `non_inferences` control used a `git_tracked` source, which has one fixed string, so the value was wrong for another reason | Fixed: the reorder control moves to its own test on an `untracked_file` registration and source, whose two fixed strings make the order meaningful. The correct order does not trip the check, and the reversed order is refused |
+
+The `merge-admission` failure on `1f6651d1` was the unresolved inline thread.

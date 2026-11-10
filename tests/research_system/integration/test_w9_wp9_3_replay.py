@@ -593,13 +593,8 @@ def test_an_observation_whose_record_id_is_not_derived_is_refused(base, actors) 
             ["no authority from file presence (W0 §4)", "no Git identity"],
             "W9 observation non_inferences are not the fixed strings for its source kind",
         ),
-        (
-            "non_inferences",
-            ["no Git identity", "no authority from file presence (W0 §4)"],
-            "W9 observation non_inferences are not the fixed strings for its source kind",
-        ),
     ],
-    ids=["observed-at", "other-words", "another-kinds", "reordered"],
+    ids=["observed-at", "other-words", "another-kinds"],
 )
 def test_an_observations_preparer_set_time_and_fixed_non_inferences_are_checked(
     base, actors, field: str, value: Any, message: str
@@ -612,6 +607,30 @@ def test_an_observations_preparer_set_time_and_fixed_non_inferences_are_checked(
     flows.stamp(record)
     forged = forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5))
     _refused(forged, schemas, message)
+
+
+def test_an_observations_non_inferences_are_checked_in_their_fixed_order(base, actors) -> None:
+    """PR #428 review: on an ``untracked_file`` source, whose two fixed strings make reordering meaningful (§7.4)."""
+    forger, schemas = base
+    forger, registration = flows.registered(forger, actors, path="notes/u.md", kind="untracked_file")
+    source = {
+        "identity_kind": "untracked_file",
+        "path": "notes/u.md",
+        "sha256": "a" * 64,
+        "byte_length": 1,
+        "frozen_copy_ref": {"id": new_id("artefact"), "record_revision": 1, "content_hash": "c" * 64},
+    }
+    record = flows.observation(forger.project_id, actors.observer, at(5), registration, PIN, source=source)
+    assert record["non_inferences"] == ["no authority from file presence (W0 §4)", "no Git identity"]
+    # The fixed order is not refused by this check: anything that refuses it is a later check.
+    try:
+        _replay(forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5)), schemas)
+    except IntegrityError as exc:
+        assert "non_inferences" not in str(exc)
+    record["non_inferences"] = list(reversed(record["non_inferences"]))
+    flows.stamp(record)
+    forged = forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5))
+    _refused(forged, schemas, "W9 observation non_inferences are not the fixed strings for its source kind")
 
 
 def test_an_observation_with_the_wrong_count_is_refused(base, actors) -> None:
