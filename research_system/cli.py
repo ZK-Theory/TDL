@@ -1664,6 +1664,7 @@ def _legacy_submit(args: argparse.Namespace) -> int:
 
 
 def _line_pair(value: str) -> tuple[int, int]:
+    """Parse ``<first line>:<last line>`` for the inventory tools' line ranges (ASCII digits only)."""
     first, separator, last = value.partition(":")
     if not separator or not (first.isascii() and first.isdigit() and last.isascii() and last.isdigit()):
         raise argparse.ArgumentTypeError("expected <first line>:<last line>")
@@ -1725,7 +1726,11 @@ def _legacy_inventory_reproduce(args: argparse.Namespace) -> int:
         source = record.get("source_identity", {})
         if source.get("identity_kind") != "git_tracked":
             raise IntegrityError("W9 reproduction from Git needs a git_tracked source; give its frozen copy")
-        raw = _git(args.repository_root, "cat-file", "blob", str(source.get("git_blob")), text=False)
+        # PR #428 review: the inventory may come from another actor, so its blob ID never reaches Git as an option.
+        blob = str(source.get("git_blob"))
+        if len(blob) not in (40, 64) or any(char not in "0123456789abcdef" for char in blob):
+            raise IntegrityError("W9 reproduction needs the inventory's git_blob as a lowercase hex object ID")
+        raw = _git(args.repository_root, "cat-file", "blob", blob, text=False)
     else:
         raw = args.frozen_copy.read_bytes()
     report = reproduce_light_inventory(record, raw)

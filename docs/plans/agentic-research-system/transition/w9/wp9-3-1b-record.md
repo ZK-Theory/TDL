@@ -208,3 +208,16 @@ found valid and fixed.** Codex did not review: it hit its usage limit.
 | Nitpick (review summary) | The "reordered" `non_inferences` control used a `git_tracked` source, which has one fixed string, so the value was wrong for another reason | Fixed: the reorder control moves to its own test on an `untracked_file` registration and source, whose two fixed strings make the order meaningful. The correct order does not trip the check, and the reversed order is refused |
 
 The `merge-admission` failure on `1f6651d1` was the unresolved inline thread.
+
+**CodeRabbit's review of `73b2e466` (5848603500): four nitpicks, with no inline thread. All four were checked against the
+code, found valid and fixed.**
+
+| Finding | Disposition |
+|---|---|
+| The census compiles each schema `pattern` with Python `re`, which can reject valid ECMA-262 syntax and would raise a bare `re.error` | Fixed, by the stricter of the two suggestions: an uncompilable pattern fails the census with an assertion that names the field (`_admits_w9_id`). Treating it as "no match" would let a field escape a coverage census. New fixture test with `\p{L}` |
+| The reorder control's positive half accepted any `IntegrityError` that did not mention `non_inferences` | Fixed: the correct-order `untracked_file` observation was checked to replay clean, so the control now calls `_replay` directly and must succeed |
+| `legacy/inventory.py` lacked the research-context header | Fixed: the two header lines precede the docstring |
+| `ars legacy inventory reproduce` passed the inventory's `git_blob` to `git cat-file` unchecked, so a value starting with `-` would reach Git as an option | Fixed: the blob must be a 40- or 64-character lowercase hex object ID, or the command refuses before running Git. New test with five bad values, under a `_git` that fails if called |
+
+CodeRabbit's "Docstring Coverage" pre-merge note is answered for the two new private helpers that had no docstring
+(`cli._line_pair`, `inventory._level_and_structure`). Test functions follow the repository's existing style.

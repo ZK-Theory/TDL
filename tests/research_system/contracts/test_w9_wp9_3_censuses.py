@@ -316,6 +316,18 @@ EVENT_SCHEMA_DIRECTORIES = (
 )
 
 
+def _admits_w9_id(pattern: str, path: list[str]) -> bool:
+    """Whether a schema pattern accepts one of W9's own IDs (review i-4).
+
+    A JSON Schema pattern is ECMA-262, so Python's ``re`` may reject a valid one. That fails the census loudly, naming the
+    field, rather than reading as "no match" and letting a field escape it (PR #428 review).
+    """
+    try:
+        return any(re.search(pattern, sample) for sample in _W9_SAMPLE_IDS)
+    except re.error as exc:
+        raise AssertionError(f"schema pattern at {'/'.join(path)} cannot be checked by Python re: {exc}") from exc
+
+
 def _id_fields(node, root, path, found, seen) -> None:
     if isinstance(node, dict):
         ref = node.get("$ref")
@@ -328,9 +340,7 @@ def _id_fields(node, root, path, found, seen) -> None:
         pattern = node.get("pattern")
         # Review i-4: a field counts when its pattern starts with a W9 kind, or when the compiled pattern accepts one
         # of W9's own IDs, so a broader pattern (``^[a-z]+_<uuid7>$``) is caught too.
-        if isinstance(pattern, str) and (
-            _ID_PATTERN.match(pattern) or any(re.search(pattern, sample) for sample in _W9_SAMPLE_IDS)
-        ):
+        if isinstance(pattern, str) and (_ID_PATTERN.match(pattern) or _admits_w9_id(pattern, path)):
             found.add("/".join(path))
         for name, child in node.get("properties", {}).items():
             _id_fields(child, root, [*path, name], found, seen)
@@ -395,6 +405,15 @@ def test_the_coverage_test_fails_on_a_fixture_field_whose_broad_pattern_admits_a
         },
     }
     assert _unclassified([fixture]) == ["FixtureCreated: any_record_id"]
+
+
+def test_a_schema_pattern_python_cannot_compile_fails_the_census_naming_its_field() -> None:
+    fixture = {
+        "$id": "ars://core/event/FixtureCreated",
+        "properties": {"payload": {"properties": {"odd_id": {"type": "string", "pattern": "^\\p{L}+$"}}}},
+    }
+    with pytest.raises(AssertionError, match="schema pattern at payload/odd_id cannot be checked by Python re"):
+        _unclassified([fixture])
 
 
 def test_the_created_id_table_names_every_event_discoverys_reducers_handle() -> None:

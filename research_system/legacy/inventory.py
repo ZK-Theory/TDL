@@ -1,3 +1,5 @@
+# Research context: docs/plans/agentic-research-system/03-decisions-and-open-questions.md (P-082 item 5; review M-3)
+# Purpose: the light-inventory builder and its reproduction mode for LR-011 and LR-013 (WP9.3 note §8.3, §12.1).
 """The light-inventory builder and its reproduction mode (WP9.3 note §8.3, §12.1; P-082 item 5, review M-3).
 
 **Build mode** produces an LR-011 proposal's content from the bytes of a registered source. It reads through the
@@ -280,6 +282,7 @@ def write_tool_output(resolved: Path, value: Any) -> None:
 
 
 def _level_and_structure(record: Mapping[str, Any]) -> dict[str, Any]:
+    """The level and structural ranges a record declares, without its region, as the resolution takes them."""
     kwargs = segment_kwargs(record)
     kwargs.pop("region", None)
     return kwargs

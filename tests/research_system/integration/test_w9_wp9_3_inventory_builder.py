@@ -232,6 +232,26 @@ def test_reproduce_exits_1_when_the_report_shows_a_difference(store: W9Store, tm
     assert json.loads(report.read_text(encoding="utf-8"))["region"]["resolution_equal"] is False
 
 
+@pytest.mark.parametrize("blob", ["--output=x", "-p", "abc", "G" * 40, None])
+def test_reproduce_refuses_a_git_blob_that_is_not_a_hex_object_id(
+    store: W9Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, blob: Any
+) -> None:
+    """PR #428 review: the inventory's ``git_blob`` never reaches ``git cat-file`` as an option or a stray word."""
+    import research_system.legacy.reader as reader_module
+
+    def no_git(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("git ran on an unchecked blob ID")
+
+    monkeypatch.setattr(reader_module, "_git", no_git)
+    inventory = _write_json(
+        tmp_path / "inventory.json", {"source_identity": {"identity_kind": "git_tracked", "git_blob": blob}}
+    )
+    args = ["legacy", "inventory", "reproduce", "--inventory", str(inventory), "--repository-root", str(store.repo)]
+    assert cli.main([*args, "--output", str(tmp_path / "report.json")]) == 1
+    assert "W9 reproduction needs the inventory's git_blob as a lowercase hex object ID" in capsys.readouterr().err
+    assert not (tmp_path / "report.json").exists()
+
+
 @pytest.mark.parametrize(
     ("where", "message"),
     [

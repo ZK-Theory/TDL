@@ -622,11 +622,8 @@ def test_an_observations_non_inferences_are_checked_in_their_fixed_order(base, a
     }
     record = flows.observation(forger.project_id, actors.observer, at(5), registration, PIN, source=source)
     assert record["non_inferences"] == ["no authority from file presence (W0 §4)", "no Git identity"]
-    # The fixed order is not refused by this check: anything that refuses it is a later check.
-    try:
-        _replay(forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5)), schemas)
-    except IntegrityError as exc:
-        assert "non_inferences" not in str(exc)
+    # Positive control (PR #428 review): the fixed order replays clean, so the refusal below is this check's alone.
+    _replay(forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5)), schemas)
     record["non_inferences"] = list(reversed(record["non_inferences"]))
     flows.stamp(record)
     forged = forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5))
