@@ -41,6 +41,8 @@ FIXTURE_PATHS = {
 }
 T0 = datetime(2026, 9, 1, tzinfo=UTC)
 TRACKER = b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.1 | a |\n| 1.2 | b |\n"
+# A heading_section source for the builder (WP9.3-1b): three level-2 sections after a title, at lines 3, 6 and 9.
+SECTIONS = b"# Title\n\n## a\nlegacy text a\n\n## b\nlegacy text b\n\n## c\nlegacy text c\n"
 RESULT = b'{"headline": 1.0, "other": [1, 2]}\n'
 RESULT_FAMILIES = [
     {"name": "meta", "definition_source": "w9 test fixture", "pointers": ["", "/other"]},
@@ -367,6 +369,7 @@ def scratch_repository(tmp_path: Path) -> tuple[Path, str]:
     (repo / "results").mkdir(parents=True)
     (repo / "results" / "x.json").write_bytes(RESULT)
     (repo / "tracker.md").write_bytes(TRACKER)
+    (repo / "sections.md").write_bytes(SECTIONS)
     for name, path in FIXTURE_PATHS.items():
         (repo / path).parent.mkdir(parents=True, exist_ok=True)
         (repo / path).write_bytes((FIXTURES / name).read_bytes())
@@ -384,7 +387,14 @@ def scratch_repository(tmp_path: Path) -> tuple[Path, str]:
         "format": evidence.REGISTRATION_MANIFEST_FORMAT,
         "registrations": [
             {"root_kind": "repository_root", "root_id": "repository", "normalized_path": path}
-            for path in (*FIXTURE_PATHS.values(), "results/x.json", "tracker.md", "notes/untracked.md", "data/rows.pkl")
+            for path in (
+                *FIXTURE_PATHS.values(),
+                "results/x.json",
+                "tracker.md",
+                "sections.md",
+                "notes/untracked.md",
+                "data/rows.pkl",
+            )
         ],
     }
     (repo / evidence.DETECTOR_CONTROLS).parent.mkdir(parents=True)

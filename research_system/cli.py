@@ -1663,6 +1663,77 @@ def _legacy_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _line_pair(value: str) -> tuple[int, int]:
+    first, separator, last = value.partition(":")
+    if not separator or not (first.isascii() and first.isdigit() and last.isascii() and last.isdigit()):
+        raise argparse.ArgumentTypeError("expected <first line>:<last line>")
+    return int(first), int(last)
+
+
+def _legacy_inventory_build(args: argparse.Namespace) -> int:
+    """``ars legacy inventory build``: an LR-011 proposal's content from a registered source (note §12.1, §13).
+
+    A tool: it opens no store and writes only the output file. The reader reads at the ``--git-head`` the operator
+    names, because no tool reads a binding. LR-011's preparer re-reads at the binding's ``git_head``, so a proposal built
+    at another head is refused there.
+    """
+    from research_system.legacy import accepted_w9
+    from research_system.legacy.inventory import build_light_inventory, refuse_tool_output, write_tool_output
+    from research_system.legacy.reader import LegacyReader
+
+    output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    region: tuple[Any, ...] | None = None
+    if args.line_range is not None:
+        region = ("line_range", *args.line_range)
+    elif args.after_line is not None:
+        region = ("first_anchor_after", args.after_line)
+    reader = LegacyReader(
+        repository_root=args.repository_root,
+        git_head=args.git_head,
+        vault_root=args.vault_root,
+        accepted_cl_export=accepted_w9.ACCEPTED_CL_EXPORT,
+    )
+    record = build_light_inventory(
+        _read_json(args.registration),
+        reader=reader,
+        selector_kind=args.selector_kind,
+        observer_actor_id=args.observer,
+        project_id=args.project_id,
+        heading_level=args.heading_level,
+        region=region,
+        structural_ranges=args.structural or (),
+        frozen_copy_ref=_read_json(args.frozen_copy_ref) if args.frozen_copy_ref else None,
+    )
+    write_tool_output(output, record)
+    _print_json({"output": str(output), "record_id": record["record_id"], "rows": len(record["rows"])})
+    return 0
+
+
+def _legacy_inventory_reproduce(args: argparse.Namespace) -> int:
+    """``ars legacy inventory reproduce``: re-segment the source bytes against an inventory (note §12.1, §13; LR-013).
+
+    The bytes come from the Git blob the inventory names (``--repository-root``; the working tree is never read) or
+    from a frozen copy file. Exit 0 when every check reproduces, 1 when the report shows a difference.
+    """
+    from research_system.legacy.inventory import refuse_tool_output, reproduce_light_inventory, write_tool_output
+    from research_system.legacy.reader import _git
+
+    input_root = args.repository_root if args.repository_root is not None else args.frozen_copy.resolve().parent
+    output = refuse_tool_output(args.output, repository_root=input_root, vault_root=None)
+    record = _read_json(args.inventory)
+    if args.repository_root is not None:
+        source = record.get("source_identity", {})
+        if source.get("identity_kind") != "git_tracked":
+            raise IntegrityError("W9 reproduction from Git needs a git_tracked source; give its frozen copy")
+        raw = _git(args.repository_root, "cat-file", "blob", str(source.get("git_blob")), text=False)
+    else:
+        raw = args.frozen_copy.read_bytes()
+    report = reproduce_light_inventory(record, raw)
+    write_tool_output(output, report)
+    _print_json({"output": str(output), "reproduced": report["reproduced"]})
+    return 0 if report["reproduced"] else 1
+
+
 def _legacy_observation_id(args: argparse.Namespace) -> int:
     """Print the derived ``record_id`` of an observation envelope before it is granted or submitted (§5.3, §13).
 
@@ -2664,6 +2735,33 @@ def _parser() -> argparse.ArgumentParser:
     )
     legacy_observation_id.add_argument("--vault-root", type=Path, help="the real vault path, for vault_file sources")
     legacy_observation_id.set_defaults(handler=_legacy_observation_id)
+    legacy_inventory = legacy_actions.add_parser("inventory", help="light-inventory tools; they open no store")
+    inventory_actions = legacy_inventory.add_subparsers(dest="inventory_action", required=True)
+    inventory_build = inventory_actions.add_parser("build", help="build an LR-011 proposal's content (note §12.1)")
+    inventory_build.add_argument("--registration", type=Path, required=True, help="the recorded registration (JSON)")
+    inventory_build.add_argument("--selector-kind", required=True, help="the contract's selector kind")
+    inventory_build.add_argument("--heading-level", type=int, help="the heading level k, for heading_section")
+    inventory_region = inventory_build.add_mutually_exclusive_group()
+    inventory_region.add_argument("--line-range", type=_line_pair, help="a declared region, <first>:<last>")
+    inventory_region.add_argument("--after-line", type=int, help="'from the first anchor after' this line")
+    inventory_build.add_argument(
+        "--structural", type=_line_pair, action="append", help="a declared structural range, <first>:<last>"
+    )
+    inventory_build.add_argument("--repository-root", type=Path, required=True, help="the source repository")
+    inventory_build.add_argument("--git-head", required=True, help="the commit the binding admits")
+    inventory_build.add_argument("--vault-root", type=Path, help="the real vault path, for vault_file sources")
+    inventory_build.add_argument("--frozen-copy-ref", type=Path, help="the frozen copy's artefact ref (JSON)")
+    inventory_build.add_argument("--observer", required=True, help="the observer's actor ID")
+    inventory_build.add_argument("--project-id", required=True, help="the store's project ID")
+    inventory_build.add_argument("--output", type=Path, required=True, help="where to write the proposal content")
+    inventory_build.set_defaults(handler=_legacy_inventory_build)
+    inventory_reproduce = inventory_actions.add_parser("reproduce", help="re-segment against an inventory (LR-013)")
+    inventory_reproduce.add_argument("--inventory", type=Path, required=True, help="the inventory record (JSON)")
+    inventory_bytes = inventory_reproduce.add_mutually_exclusive_group(required=True)
+    inventory_bytes.add_argument("--repository-root", type=Path, help="read the inventory's Git blob from here")
+    inventory_bytes.add_argument("--frozen-copy", type=Path, help="the frozen copy's bytes")
+    inventory_reproduce.add_argument("--output", type=Path, required=True, help="where to write the report")
+    inventory_reproduce.set_defaults(handler=_legacy_inventory_reproduce)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
