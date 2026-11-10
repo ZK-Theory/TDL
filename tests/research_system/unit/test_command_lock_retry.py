@@ -24,6 +24,8 @@ def _recovery_service(tmp_path) -> CommandService:
 def _submission_service(tmp_path) -> CommandService:
     service = object.__new__(CommandService)
     service.control_root = tmp_path
+    # CommandService.__init__ default (#420): _submission_lock's _recheck_binding reads it under the writer lock.
+    service.binding_check = None
     service._restore_admission_sequence_lock = threading.Lock()
     service._prepare_moved_restore = lambda _command: None
     service._canonical_authority_resolver = lambda: None

@@ -1569,7 +1569,9 @@ def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
     service.release_lock_timeout_seconds = 1.0
     service._monotonic = lambda: 0.0
     service._lock_wait = lambda _seconds: None
-    # Mirror every moved-restore default CommandService.__init__ sets (#208 added the last four).
+    # Mirror every default CommandService.__init__ sets that _submission_lock reads (#208 added the four
+    # restore defaults; #420 added binding_check, which _recheck_binding reads under the writer lock).
+    service.binding_check = None
     service._restore_source_root = None
     service._restore_approved_witness = None
     service._restore_approved_witness_path = None
