@@ -12,6 +12,19 @@ five appears in the log, so there is no scope finding.
 
 **Decision owner:** Stephen
 
+**Owner decision (2026-11-10):** Stephen approved A1 in session, then asked for every group to be resolved, which this
+campaign reads as the recommended option in each. The campaign PRs are:
+- #422: A1, merged through the queue as `0e54de75` after CodeRabbit's review;
+- #423: D1–D3 and E (b);
+- #424: C2, D4 and this record;
+- #425: A2, A3, B3 and F.
+
+C1 and S7 are applied outside git: two entries are DEFERRED to their intake rows, and the task prompt points at the
+skill's step 1. Three items remain:
+- B1, the ruleset edit, is Stephen's own;
+- B2's triage is measured but not classified: 96 local runs all passed, so a reproduction needs CI-shard load;
+- S6, the shared claims checklist, is offered as a separate task.
+
 **Operating rule (unchanged since 2026-08-09):** approval authorizes a bounded verify-then-fix campaign on a reviewed
 branch. It does not authorize direct changes to `main`, silent gate weakening, or acceptance without the named
 controls.
