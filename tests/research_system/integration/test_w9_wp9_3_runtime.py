@@ -295,7 +295,7 @@ def test_an_untracked_observation_runs_the_frozen_copy_seam_end_to_end(store: W9
 def test_a_frozen_copy_whose_bytes_differ_is_refused(store: W9Store) -> None:
     _, payload, _ = _untracked(store)
     payload["frozen_copy_ref"] = store.frozen_copy(b"other bytes\n", "other.md")
-    with pytest.raises(IntegrityError, match="W9 frozen copy ref differs from its registered artefact|bytes differ"):
+    with pytest.raises(IntegrityError, match="W9 frozen copy bytes differ from the observed bytes"):
         store.observe(payload)
 
 
