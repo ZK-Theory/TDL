@@ -215,6 +215,33 @@ store is a scratch store under `tmp_path`.
 - **Shard weights:** `tools/research_system_durations.json` gains measured weights for the two new test files, and
   the writers file rises from 20 to 120 s for its new slow control, so `ci-tools`' coverage bar holds.
 
+**After the independent review's fixes** (`6a907e49`, on 2026-11-10):
+- **Regression:** 27 files, one process, 744 passed, 1 skipped and 5 failed, in 2,320.8 s (38 min 41 s). The files
+  were:
+  - every file that drives the six newly checked writers: `test_authority_activate_grant_cli`,
+    `test_brief_round_trip`, `test_context_packet_eval_transitive_boundary`, `test_gate5_release_tranche`,
+    `test_release_event_publication`, `test_store_binding_cli`, `test_wp64_create_backup`,
+    `test_wp64_session_exchange{,_authority}`, `test_artefact_runtime`, `test_retention` and
+    `test_release_publication_candidate_registration`;
+  - the W9 writers, builder, replay, runtime, binding-head and route files, and the censuses;
+  - the CLI-submit files, the 06h and registry pins, the foundation sentinel and `ci-tools`.
+
+  The five failures were two `test_wp64_create_backup.py` tests, one of them parametrized. They fake
+  `ControlBinding.load` with a bare object, and `ars store backup` now reads the foundation. They pin an unnamed
+  foundation now, as `suite (2)`'s did, and pass.
+- **Mutation script, round 3** (scratch): **15 of 15** caught. The mutations covered:
+  - the lock-time pointer read, the lock-time load, and "always a check";
+  - each of the six writers' `binding_check=` removed, each failing the census;
+  - the census's `None` rule;
+  - the required vault root and the vault guard;
+  - the `--git-head` check;
+  - both schema-rule checks.
+
+  The worktree was restored after each. Round 1's M-1 fragments no longer exist in `cli.py`, so round 1 stands at
+  `1f6651d1`, and round 3 covers the rewritten check.
+- **No D-4:** the protected-path diff (§5, plus `command/`, `store/`, `discovery/` and `projection/`) against
+  `0ea4e489` is still empty.
+
 **Runtime evidence for the open escalation** (WP9.3-1 record §7; not this PR's decision):
 - The one new slow test is the M-1 control on the v1.2 advance fixture, at 87.5 s. That matches the review's 85 s for
   the same fixture. The writers file's other new tests take seconds.
