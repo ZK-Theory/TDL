@@ -107,6 +107,73 @@ def test_generic_creations_on_w9_identities_are_refused_after_w9_genesis(store: 
     assert store.harness.service.submit(_scope(new_id("scope_definition"))).status == "accepted"
 
 
+FIXED_REPLAY = "a non-W9 event takes a W9 fixed identity"
+
+
+def _forge_a_generic_scope_on_a_w9_reserved_id(monkeypatch, service: Any) -> str:
+    """A shared-replay-valid foreign event on a W9 fixed identity: the real generic writer, with its W9 guard off.
+
+    The reserved ``obj_`` is one of W9's fixed identities (``RESERVED_IDS``) that no stream holds, so the generic
+    ``CreateScopeDefinition`` on it is valid under the shared replay's own rules. Only W9's partition check can refuse
+    it. A generic or W11 creation of a reserved ``rev_`` needs a full artefact or candidate lifecycle (record i-6), so
+    this control uses the reserved ``obj_``: the same fixed-identity check.
+    """
+    import research_system.command.service as service_module
+
+    reserved = next(identity for identity in sorted(RESERVED_IDS) if identity.startswith("obj_"))
+    monkeypatch.setattr(service_module, "_refuse_w9_identity", lambda *args, **kwargs: None)
+    try:
+        service.submit(_scope(reserved))
+    except IntegrityError as exc:
+        # With a W9 event in the ledger, the receipt step's own public replay refuses, after the append: the event is
+        # in the ledger either way, which is the forged ledger this control needs.
+        assert str(exc) == FIXED_REPLAY
+    assert any(event.get("stream_id") == reserved for event in service.ledger.iter_events())
+    return reserved
+
+
+def test_the_public_shared_replay_refuses_a_forged_cross_partition_ledger(
+    store: W9Store, monkeypatch, tmp_path: Path
+) -> None:
+    """Review m-4; note §17's cross-partition row: refused by ``replay_legacy`` and by the public shared replay."""
+    from research_system.legacy.replay.driver import replay_legacy
+    from research_system.projection.replay import rebuild_projection, replay
+
+    _forge_a_generic_scope_on_a_w9_reserved_id(monkeypatch, store.harness.service)
+    events = store.events()
+    shared = {
+        "schema_registry": store.harness.schemas,
+        "authority_state_validator": store.harness.authority_resolver.validate_replayed_administration_state,
+    }
+    with pytest.raises(IntegrityError, match=FIXED_REPLAY):
+        replay(events, **shared)
+    with pytest.raises(IntegrityError, match=FIXED_REPLAY):
+        rebuild_projection(events, tmp_path / "projection", **shared)
+    with pytest.raises(IntegrityError, match=FIXED_REPLAY):
+        replay_legacy(events, schemas=store.harness.schemas, pinned_signatures=(store.pin,))
+
+
+def test_without_a_w9_event_the_shared_replay_admits_the_same_forgery_the_writer_refuses(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The known-limit boundary (note §4.3): replay reaches W9's check only once the ledger holds a W9 event.
+
+    Before W9 genesis, the writer guards are what refuse a W9 fixed identity (the tests above). Once the guard is off,
+    a ledger with no W9 event replays clean. This pins where the limit lies rather than leaving it to a reading.
+    """
+    from research_system.projection.replay import replay
+
+    _runtime(tmp_path)  # builds the scratch harness, with no W9 genesis
+    harness = _HARNESSES[tmp_path]
+    reserved = _forge_a_generic_scope_on_a_w9_reserved_id(monkeypatch, harness.service)
+    state = replay(
+        tuple(harness.ledger.iter_events()),
+        schema_registry=harness.schemas,
+        authority_state_validator=harness.authority_resolver.validate_replayed_administration_state,
+    )
+    assert reserved in state["streams"]
+
+
 def test_a_t2_creation_on_a_w9_reserved_id_is_refused_before_append(tmp_path: Path, monkeypatch) -> None:
     import research_system.command.t2 as t2
     from tests.research_system.unit.test_wp6_2_t2_runtime import _service, issue_command

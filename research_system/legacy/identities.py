@@ -65,6 +65,11 @@ NON_W9_ID_FIELDS: Mapping[str, Mapping[str, FieldClass]] = {
     "TaskAmended": {"replacement_definition/aliases/[]/scope_id": _R},
     "TaskCreated": {"definition/aliases/[]/scope_id": _R},
     "TaskRejected": {"review_verdict_id": _R},
+    # T2 events whose ID pattern is any `<kind>_<uuid7>`, so it admits a W9 kind (WP9.3-1b, review i-4). Each names
+    # an existing record: the rate evidence, and the zero-cost authority subject (`command/t2.py:269-280`, `:815-828`).
+    "CostGrantIssued": {"rate_evidence_id": _R},
+    "CostGrantReconciled": {"rate_evidence_id": _R, "zero_cost_authority/subject_id": _R},
+    "CostGrantReserved": {"rate_evidence_id": _R, "zero_cost_authority/subject_id": _R},
     # W11 E: events (discovery/replay/registry.py). The fields each reducer keys a new aggregate by.
     "AssayCancellationReviewRequested": {},
     "AssayCancellationReviewed": {},

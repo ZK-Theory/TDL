@@ -481,7 +481,11 @@ def test_a_lapsed_proposal_cannot_be_reviewed_or_decided(base, actors, row: str)
 
 
 def test_a_lapsed_proposal_cannot_be_resolved(base, actors) -> None:
-    """Resolved exactly at the Decision's expiry: not after it, so only the lapse refuses."""
+    """Resolved exactly at the Decision's expiry: not after it, so only the lapse refuses.
+
+    Review i-1 (WP9.3-1b record §4): at the instant ``expires_at == lapse_at``, §5.2's "not after ``expires_at``" admits
+    and §4.6's "open while before the lapse" refuses. The stricter test governs, and this test pins that instant.
+    """
     forger, schemas = base
     forged, _ = flows.membership_recorded(
         forger, actors, sha256=SOURCE_SHA, size=1, tweaks={"LR-010": flows.Tweak(minutes=3 + 30 * DAY)}
@@ -573,6 +577,41 @@ def test_an_observation_whose_record_id_is_not_derived_is_refused(base, actors) 
     flows.stamp(record)
     forged = forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5))
     _refused(forged, schemas, "W9 observation record_id is not derived from its subject")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("observed_at", "2026-01-01T00:00:00.000000Z", "W9 observation observed_at is not the event's time"),
+        (
+            "non_inferences",
+            ["an observer's own words"],
+            "W9 observation non_inferences are not the fixed strings for its source kind",
+        ),
+        (
+            "non_inferences",
+            ["no authority from file presence (W0 §4)", "no Git identity"],
+            "W9 observation non_inferences are not the fixed strings for its source kind",
+        ),
+        (
+            "non_inferences",
+            ["no Git identity", "no authority from file presence (W0 §4)"],
+            "W9 observation non_inferences are not the fixed strings for its source kind",
+        ),
+    ],
+    ids=["observed-at", "other-words", "another-kinds", "reordered"],
+)
+def test_an_observations_preparer_set_time_and_fixed_non_inferences_are_checked(
+    base, actors, field: str, value: Any, message: str
+) -> None:
+    """Review i-2: ``observed_at`` is the event's time (§5.1) and ``non_inferences`` are §7.4's strings for the kind."""
+    forger, schemas = base
+    forger, registration = flows.registered(forger, actors)
+    record = flows.observation(forger.project_id, actors.observer, at(5), registration, PIN)
+    record[field] = value
+    flows.stamp(record)
+    forged = forger.row("LR-015", record["record_id"], record, actor=actors.observer, when=at(5))
+    _refused(forged, schemas, message)
 
 
 def test_an_observation_with_the_wrong_count_is_refused(base, actors) -> None:
