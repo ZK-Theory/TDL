@@ -42,7 +42,7 @@ from research_system.config import (
     disposable_checkout_reason,
     load_foundation_origin_pins,
 )
-from research_system.errors import ArsError, ConfigurationError, IntegrityError, SchemaError
+from research_system.errors import ArsError, ConfigurationError, ConflictError, IntegrityError
 from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
@@ -905,15 +905,20 @@ def _command_submit_runtime_authority_provider(
 def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | None:
     """The in-lock binding recheck for ``ars submit`` (WP9.3 note §9.1; Stephen, 2026-11-09).
 
-    The accepted option: ``ars submit`` *tries* ``load_current_binding`` for the configured store. When the canonical
-    foundation names the store and its current binding loads, that binding's ``revalidate`` is returned. Otherwise there
-    is no recheck, and today's uses keep working. That covers a store the foundation does not name (local
-    administration through ``--config``) and a named store whose current binding does not load (for example, one never
-    bound): the recorded known limit. A binding that changes while it loads (``ConflictError``) still refuses.
+    P-082 item 4 (review M-1), amending P-081 item 3. The recheck is skipped only for a store that the canonical
+    foundation does not name (local administration through ``--config``, the recorded known limit), or that has no
+    current binding: no pointer at ``CURRENT_BINDING_RELATIVE_PATH``, read from the control root and never inferred
+    from a load failure. When the foundation names the store and its pointer exists, the binding must load from this
+    checkout, and its ``revalidate`` is returned. If it does not load, as the old checkout's does not after an advance,
+    ``ars submit`` refuses before it builds the ledger or the service. A binding that changes while it loads
+    (``ConflictError``) refuses as itself.
+
+    Raises:
+        ConfigurationError: If the named store has a current binding this checkout cannot load.
     """
     import yaml
 
-    from research_system.store.current_binding import load_current_binding
+    from research_system.store.current_binding import CURRENT_BINDING_RELATIVE_PATH, load_current_binding
 
     foundation_path = canonical_foundation_path()
     try:
@@ -928,6 +933,9 @@ def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | No
         named = False
     if not named:
         return None
+    # lexists: a pointer that is a directory or a dangling link is present, and its load refuses below.
+    if not os.path.lexists(binding.control_root / CURRENT_BINDING_RELATIVE_PATH):
+        return None
     try:
         current = load_current_binding(
             foundation_path=foundation_path,
@@ -936,8 +944,12 @@ def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | No
             expected_project_id=binding.project_id,
             expected_store_identity=binding.store_identity,
         )
-    except (ConfigurationError, IntegrityError, SchemaError, OSError):
-        return None
+    except ConflictError:
+        raise
+    except (ArsError, OSError) as exc:
+        raise ConfigurationError(
+            f"ars submit refused: the store has a current binding this checkout cannot load: {exc}"
+        ) from exc
     return current.revalidate
 
 

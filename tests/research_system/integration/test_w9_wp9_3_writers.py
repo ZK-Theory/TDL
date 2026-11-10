@@ -13,7 +13,7 @@ import pytest
 
 import research_system.legacy.identities as identities
 from research_system import cli
-from research_system.errors import ConflictError, IntegrityError
+from research_system.errors import ConfigurationError, ConflictError, IntegrityError, SchemaError
 from research_system.ids import new_id
 from research_system.legacy.accepted_w9 import ACCEPTED, CATALOGUE_STREAM_ID, RESERVED_IDS
 from research_system.legacy.records import w0_signature_ref_id
@@ -282,44 +282,151 @@ def _pin_foundation_path(monkeypatch, root: Path) -> None:
     monkeypatch.setattr(cli, "canonical_foundation_path", lambda: path)
 
 
-def test_ars_submit_rechecks_only_a_foundation_named_store_whose_binding_loads(tmp_path: Path, monkeypatch) -> None:
-    """Stephen's "Recheck if foundation-named" (2026-11-09): ``ars submit`` *tries* the current binding (§9.1)."""
+UNLOADABLE = "ars submit refused: the store has a current binding this checkout cannot load"
+
+
+def _named_store(tmp_path: Path, monkeypatch) -> tuple[SimpleNamespace, Path]:
+    """A scratch control root, and a pinned foundation that names it."""
+    import yaml
+
+    control_root = tmp_path / "control"
+    control_root.mkdir(parents=True)
+    binding = SimpleNamespace(project_id="tdl", store_identity="a" * 64, control_root=control_root)
+    _pin_foundation_path(monkeypatch, tmp_path)
+    cli.canonical_foundation_path().write_text(
+        yaml.safe_dump({"project_id": "tdl", "store_identity": "a" * 64, "control_root": str(control_root)}),
+        encoding="utf-8",
+    )
+    return binding, control_root
+
+
+def _bound(control_root: Path) -> None:
+    """Give the store a current-binding pointer: only its presence matters to the check (P-082 item 4)."""
+    from research_system.store.current_binding import CURRENT_BINDING_RELATIVE_PATH
+
+    pointer = control_root / CURRENT_BINDING_RELATIVE_PATH
+    pointer.parent.mkdir(parents=True, exist_ok=True)
+    pointer.write_text("{}", encoding="utf-8")
+
+
+def test_ars_submit_skips_the_recheck_only_for_an_unnamed_or_never_bound_store(tmp_path: Path, monkeypatch) -> None:
+    """P-082 item 4: no recheck for a store the foundation does not name, or that has no current binding."""
     import yaml
 
     import research_system.store.current_binding as current_binding
 
-    control_root = tmp_path / "control"
-    control_root.mkdir()
-    binding = SimpleNamespace(project_id="tdl", store_identity="a" * 64, control_root=control_root)
-    _pin_foundation_path(monkeypatch, tmp_path)
-    foundation = cli.canonical_foundation_path()
+    calls: list[int] = []
 
     def load_ok(**kwargs: Any) -> SimpleNamespace:
+        calls.append(1)
         return SimpleNamespace(revalidate="the binding's revalidate")
 
-    def load_refused(**kwargs: Any) -> None:
-        raise IntegrityError("current store binding is unavailable")
-
-    def load_moved(**kwargs: Any) -> None:
-        raise ConflictError("current store binding changed during the operation")
-
     monkeypatch.setattr(current_binding, "load_current_binding", load_ok)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    foundation = cli.canonical_foundation_path()
+    foundation.unlink()
     assert cli._foundation_binding_check(binding) is None  # no foundation file: not named
     foundation.write_text(
         yaml.safe_dump({"project_id": "tdl", "store_identity": "b" * 64, "control_root": str(control_root)}),
         encoding="utf-8",
     )
     assert cli._foundation_binding_check(binding) is None  # another store named
-    foundation.write_text(
-        yaml.safe_dump({"project_id": "tdl", "store_identity": "a" * 64, "control_root": str(control_root)}),
-        encoding="utf-8",
-    )
+    binding, control_root = _named_store(tmp_path / "named", monkeypatch)
+    assert cli._foundation_binding_check(binding) is None  # named, never bound: no pointer
+    assert calls == []  # absence is read from the pointer, never inferred from a load failure
+    _bound(control_root)
     assert cli._foundation_binding_check(binding) == "the binding's revalidate"
+    assert calls == [1]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        IntegrityError("current store binding identity is invalid"),  # a code-root mismatch after an advance
+        IntegrityError("current store binding Git subject changed"),
+        IntegrityError("current store binding is invalid"),  # a pointer that cannot be read
+        ConfigurationError("SPEC operator identity differs from the repository foundation"),
+        SchemaError("binding event command schema family mismatch"),
+    ],
+    ids=["code-roots", "git-subject", "pointer", "foundation", "schema"],
+)
+def test_ars_submit_refuses_a_named_store_whose_current_binding_this_checkout_cannot_load(
+    tmp_path: Path, monkeypatch, error: Exception
+) -> None:
+    """P-082 item 4 (review M-1): an unadmitted checkout of a bound store is refused, never left unchecked."""
+    import research_system.store.current_binding as current_binding
+
+    def load_refused(**kwargs: Any) -> None:
+        raise error
+
     monkeypatch.setattr(current_binding, "load_current_binding", load_refused)
-    assert cli._foundation_binding_check(binding) is None  # named, never bound: today's use keeps working
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    with pytest.raises(ConfigurationError, match=UNLOADABLE) as refused:
+        cli._foundation_binding_check(binding)
+    assert refused.value.__cause__ is error
+
+
+def test_ars_submit_still_refuses_a_binding_that_changes_while_it_loads(tmp_path: Path, monkeypatch) -> None:
+    import research_system.store.current_binding as current_binding
+
+    def load_moved(**kwargs: Any) -> None:
+        raise ConflictError("current store binding changed during the operation")
+
     monkeypatch.setattr(current_binding, "load_current_binding", load_moved)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
     with pytest.raises(ConflictError, match="changed during the operation"):
         cli._foundation_binding_check(binding)
+
+
+def test_ars_submit_refuses_an_unloadable_binding_before_it_builds_the_service(tmp_path: Path, monkeypatch) -> None:
+    """Refused before binding (P-082 item 4): no ledger and no ``CommandService`` is built."""
+    import research_system.store.current_binding as current_binding
+
+    def load_refused(**kwargs: Any) -> None:
+        raise IntegrityError("current store binding identity is invalid")
+
+    def never(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("the service must not be built")
+
+    monkeypatch.setattr(current_binding, "load_current_binding", load_refused)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    monkeypatch.setattr(cli, "CommandService", never)
+    monkeypatch.setattr(cli, "EventLedger", never)
+    command = tmp_path / "command.json"
+    command.write_text("{}", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match=UNLOADABLE):
+        cli.main(["command", "submit", "--config", str(tmp_path / "x.yaml"), "--command", str(command)])
+
+
+@pytest.mark.slow
+def test_ars_submit_from_the_old_checkout_after_a_pin_advance_is_refused(tmp_path: Path, monkeypatch) -> None:
+    """The review's M-1 probe as a negative control, on the v1.2 advance fixture (P-082 item 4; note §9.1, §18).
+
+    Before the advance the bound checkout gets the recheck. After it, the old checkout's load is refused, and
+    ``ars submit`` from it refuses too, where WP9.3-1 passed no recheck.
+    """
+    from tests.research_system.factories import PROJECT_ID
+    from tests.research_system.integration.test_w9_wp9_3_binding_head import _admit, _pin_intent
+
+    service, intent, predecessor_root, _, _ = _pin_intent(tmp_path)
+    monkeypatch.setattr(
+        cli, "canonical_foundation_path", lambda: predecessor_root / ".research-system" / "config" / "foundation.yaml"
+    )
+    binding = SimpleNamespace(
+        project_id=PROJECT_ID, store_identity=service.store_identity, control_root=service.control_root
+    )
+    assert callable(cli._foundation_binding_check(binding))
+    assert service.advance(intent)["status"] == "advanced"
+    with pytest.raises(IntegrityError):
+        _admit(service, predecessor_root)
+    before = _tree_bytes(service.control_root)
+    with pytest.raises(ConfigurationError, match=UNLOADABLE):
+        cli._foundation_binding_check(binding)
+    assert _tree_bytes(service.control_root) == before
 
 
 def _bind_cli_to(store: W9Store, monkeypatch) -> None:
