@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   tier: domain
   lanes: []
   roles:
@@ -165,68 +165,14 @@ reuses, a precedent it copies, a path that "already handles" a case, a fix a
 reviewer prescribed. Check each one against the bytes or code that will decide
 it, never against prose that describes them.
 
-- **Reuse or extension.** Open the materialized, accepted schema files for the
-  reused records and check every field, enum and `additionalProperties` the claim
-  depends on; inspect one real instance of each source the design must address.
-- **Shared-store tenants.** For a new command or event family, enumerate every
-  reducer that replays the whole ledger and the branch it takes for an unknown
-  type (raise, ignore, misroute), and every closed allowlist the family must join
-  (runtime bindings, grant command types, subject-kind enums, census pins).
-- **Precedent fidelity.** Diff the precedent's row set, not only its field set,
-  and list what the design drops. For every "handled by existing X", read X's
-  preparer and record the subject or precondition check it applies, with
-  `path:line`.
-- **Restated rules.** When a document summarises another accepted document's
-  precondition matrix, diff every restated condition against its owning row. The
-  safe form points to the owner as operative ("adds to, never relaxes") and
-  restates only the delta.
-- **Catalogue IDs.** Before an ID is re-specified, renamed or deferred, run
-  `git grep -l <ID> -- .research-system research_system tests tools` and record
-  the materialized packages, executors, pins and ID-grammar schemas found.
-- **Selectors and parsers.** A byte-level selector contract is specified only
-  once it has run on the files it governs: require a census of each governed file
-  (heading, bullet, terminator and BOM forms, with counts) and a reference script
-  whose outputs on the real bytes are recorded. Re-run the script.
-- **"In the shape of" claims.** Run the producer's output through the consumer's
-  schema. Two artefacts that claim the same shape without a binding test drift.
-- **Verifiers.** For every expected-side read, find who names its version: if the
-  subject supplies the commit, the check is self-attested. Compare the gate's
-  pass set with the identity the owner accepts: if the owner accepts bytes,
-  mutate the unpinned fields and the encoding and confirm a refusal.
-- **Negative controls.** Delete the guarded line in memory and confirm the
-  control fails, matching the guard's own message rather than a substring a
-  sibling check shares. A control that resolves a branch-only commit breaks after
-  a squash merge: every hex literal it passes to git must be on `main`.
-- **Prescribed corrections.** Your own required corrections need the same source
-  check as your findings. Quote every identifier from its owner source with
-  `file:line`, and trace a prescribed mechanism through the code path it relies
-  on before prescribing it. A reviewer is not an owner source.
-- **Probes.** When the design's chosen shape differs from the prototype its probe
-  ran, re-run the probe on the chosen shape, with one instance of every event
-  family the claim covers, before crediting the probe's result. A probe case that
-  prints instead of asserting is not evidence. A probe result covers the revision
-  it ran on: when a later revision adds or changes an encoded field, run the
-  final revision's payloads through the seam again.
-- **Absence claims.** For every "X omits Y" or "the set lacks Y", re-derive the
-  set from the parsed artefact (a YAML or JSON load of the row), and re-read the
-  cited range past its stated end. A read that stops early turns a complete set
-  into an apparent gap. A claim that code cannot enforce X, or that X is recorded
-  rather than proved, is an absence claim about code paths. Require a census of
-  every path that reaches the seam (each production constructor and the admission
-  it goes through), not one function's docstring.
-- **Wiring claims.** For every "X passes Y to Z", find where production builds Z,
-  confirm the builder holds Y, and check that the package boundary lists that
-  file. A seam is wired where its object is built, not where its class is
-  defined.
-- **Owner points on rules.** Before a finding or owner point asks Stephen to fix
-  a rule, search the accepted texts for it (the catalogue, the annex's
-  `derivation_rules` and `global_preconditions`, the contracts, the register) and
-  cite what is there. An obligation can be open in the code and closed in the
-  record.
-- **Carried obligations.** Run `grep -n "<package>"
-  docs/plans/agentic-research-system/03-decisions-and-open-questions.md` and
-  check that the design cites every register sentence naming its package
-  ("Carried to …", "… validates …") with a keep or depart disposition.
+Work through `references/claims-checklist.md`. It has one entry per claim type
+(reuse, shared-store tenants, precedents, restated rules, catalogue IDs,
+selectors, "in the shape of", verifiers, negative controls, prescribed
+corrections, probes, absence, enforcement and wiring claims, owner points on
+rules, carried obligations, shared locations). Apply each entry's **Reviewer**
+line to every claim of that type, and record a finding with `path:line` where
+the check fails. `writing-plans-extras` uses the same file's **Author** lines,
+so a new lesson of this kind goes there, once, not into either skill.
 
 ## Severity Rubric
 
