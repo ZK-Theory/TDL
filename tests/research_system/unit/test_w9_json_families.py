@@ -90,7 +90,7 @@ def test_deep_nesting_is_walked_without_a_recursion_error() -> None:
         value = [value]
     pointers = observed_pointers(value)
     assert len(pointers) == depth + 1 and pointers[-1] == "/0" * depth
-    data = b"[" * depth + b"]" * depth
+    data = b"[" * (depth + 1) + b"]" * (depth + 1)  # the same depth + 1 nested lists as ``value``
     try:
         parsed = parse_strict(data)
     except JsonBlocked:
