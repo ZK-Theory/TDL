@@ -10,6 +10,7 @@ paths:
 - **Docstrings:** Google-style on all public functions/classes.
 - **Imports:** standard → third-party → local; no wildcard imports.
 - **Pre-commit:** ruff lint/format + the contract validator run on every commit; never skip hooks. **Hooks live in `.githooks/` (tracked), because the repo sets `core.hooksPath=.githooks` — anything placed in `.git/hooks/` is IGNORED by git and silently never runs.** That is not hypothetical: the contract validator sat in `.git/hooks/pre-commit` from 2026-05-27 and never executed once, because the redirect had been in force since 2026-04-10. Never install a hook to `.git/hooks`. Verify the gate is live with `uv run python .claude/hooks/install-git-hooks.py`.
+- **Format the files you changed, never a directory.** About 250 of the repository's files are not `ruff format`-clean (measured 2026-11-10, ruff 0.14.9). Some are bound by contracts or accepted packs, so a mass reformat is out of scope. Run `ruff format <your files>`, and check `git diff --stat` before committing for files you did not mean to touch. The pre-commit hook reformats each staged file, so the drift shrinks as files are edited (obs 2026-11-09-main-holds-files-ruff-format-would-change).
 - **Research context comment** at the top of every new script:
 
   ```python
