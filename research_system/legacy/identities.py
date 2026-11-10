@@ -275,6 +275,10 @@ def check_w0_pin_candidate(
 
     Returns:
         The check, with each collision found and the snapshot's head.
+
+    Raises:
+        IntegrityError: If the ledger already fails the public shared replay. That replay does not use the candidate,
+            so its failure is the ledger's, not a collision; reporting it as one would hide it behind every candidate.
     """
 
     from research_system.legacy.replay.driver import replay_legacy
@@ -286,6 +290,9 @@ def check_w0_pin_candidate(
     candidate_pin = {"ref": {"id": candidate_id}}
     try:
         replay_shared(events, schema_registry=schemas, authority_state_validator=authority_state_validator)
+    except (IntegrityError, TypeError, ValueError) as exc:
+        raise IntegrityError(f"pre-pin check refused: the ledger fails the public shared replay: {exc}") from exc
+    try:
         if _has_w9_event(events):
             replay_legacy(events, schemas=schemas, pinned_signatures=(*current_pins(pinned_signatures), candidate_pin))
     except (IntegrityError, TypeError, ValueError) as exc:

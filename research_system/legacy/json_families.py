@@ -76,13 +76,15 @@ def escape(segment: str) -> str:
 
 
 def _walk(value: Any, pointer: str = "") -> Iterator[tuple[str, Any]]:
-    yield pointer, value
-    if isinstance(value, dict):
-        for key, child in value.items():
-            yield from _walk(child, f"{pointer}/{escape(key)}")
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            yield from _walk(child, f"{pointer}/{index}")
+    """Every node with its pointer, in document pre-order; iterative, so nesting depth costs no Python frames."""
+    stack: list[tuple[str, Any]] = [(pointer, value)]
+    while stack:
+        pointer, node = stack.pop()
+        yield pointer, node
+        if isinstance(node, dict):
+            stack.extend(reversed([(f"{pointer}/{escape(key)}", child) for key, child in node.items()]))
+        elif isinstance(node, list):
+            stack.extend(reversed([(f"{pointer}/{index}", child) for index, child in enumerate(node)]))
 
 
 def _has_lone_surrogate(text: str) -> bool:

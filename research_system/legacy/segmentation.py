@@ -449,13 +449,17 @@ def segment(
         ``suppressed_anchors``.
 
     Raises:
-        SegmentationError: For an unknown selector, a ``heading_section`` without a level, a structural range outside
-            the file, or a missing ``## Task Tracking`` or ``## Working Notes`` section.
+        SegmentationError: For an unknown selector, a ``heading_section`` without a level, a covered region or a
+            structural range outside the file, or a missing ``## Task Tracking`` or ``## Working Notes`` section.
     """
     if not isinstance(data, bytes):
         raise SegmentationError("segmentation reads bytes")
     lines = _lines(data)
     whole = (1, len(lines))
+    if selector_kind in ("heading_section", "computational_log_entry") and region is not None:
+        # The reference tool indexes past the file here; the runtime refuses instead (PR #420 review).
+        if not 1 <= region[0] <= region[1] <= len(lines):
+            raise SegmentationError(f"covered region {region[0]}:{region[1]} is outside the file")
     suppressed: list[dict[str, Any]] = []
     if selector_kind == "heading_section":
         if level is None:

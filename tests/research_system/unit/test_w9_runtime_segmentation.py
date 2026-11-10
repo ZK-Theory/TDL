@@ -201,6 +201,14 @@ def test_the_runtime_segmenter_refuses_with_its_own_error() -> None:
             call()
 
 
+@pytest.mark.parametrize("selector", ["heading_section", "computational_log_entry"])
+@pytest.mark.parametrize("region", [(1, 4), (0, 2), (3, 2)])
+def test_a_covered_region_outside_the_file_is_refused_not_indexed(selector: str, region: tuple[int, int]) -> None:
+    """PR #420 review: a declared region past the file refuses cleanly; the reference tool would index past it."""
+    with pytest.raises(runtime.SegmentationError, match=rf"covered region {region[0]}:{region[1]} is outside the file"):
+        runtime.segment(b"## a\nb\nc\n", selector, level=2, region=region)
+
+
 def test_the_reference_tool_is_untouched_and_not_imported_by_the_runtime() -> None:
     """Owner point I: the reference stays non-runtime, accepted at blob 43e1454d (P-067 item 2, P-068)."""
     import subprocess

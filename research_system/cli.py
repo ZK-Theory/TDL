@@ -42,7 +42,7 @@ from research_system.config import (
     disposable_checkout_reason,
     load_foundation_origin_pins,
 )
-from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError, SchemaError
 from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
@@ -840,6 +840,7 @@ def _expected_ledger_head(value: str | None) -> tuple[int, str] | None:
     position, separator, event_hash = value.partition(":")
     if (
         not separator
+        or not position.isascii()
         or not position.isdigit()
         or str(int(position)) != position
         or len(event_hash) != 64
@@ -904,10 +905,11 @@ def _command_submit_runtime_authority_provider(
 def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | None:
     """The in-lock binding recheck for ``ars submit`` (WP9.3 note §9.1; Stephen, 2026-11-09).
 
-    When the canonical foundation names the configured store, its current binding is loaded and its ``revalidate`` is
-    returned; a store the foundation names whose binding does not admit is refused here, before the service is built.
-    A store the foundation does not name is local administration through ``--config``, outside the dispatch path, and
-    gets no recheck: the recorded known limit.
+    The accepted option: ``ars submit`` *tries* ``load_current_binding`` for the configured store. When the canonical
+    foundation names the store and its current binding loads, that binding's ``revalidate`` is returned. Otherwise there
+    is no recheck, and today's uses keep working. That covers a store the foundation does not name (local
+    administration through ``--config``) and a named store whose current binding does not load (for example, one never
+    bound): the recorded known limit. A binding that changes while it loads (``ConflictError``) still refuses.
     """
     import yaml
 
@@ -926,13 +928,16 @@ def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | No
         named = False
     if not named:
         return None
-    current = load_current_binding(
-        foundation_path=foundation_path,
-        repository_root=foundation_path.parents[2].resolve(strict=True),
-        expected_control_root=binding.control_root,
-        expected_project_id=binding.project_id,
-        expected_store_identity=binding.store_identity,
-    )
+    try:
+        current = load_current_binding(
+            foundation_path=foundation_path,
+            repository_root=foundation_path.parents[2].resolve(strict=True),
+            expected_control_root=binding.control_root,
+            expected_project_id=binding.project_id,
+            expected_store_identity=binding.store_identity,
+        )
+    except (ConfigurationError, IntegrityError, SchemaError, OSError):
+        return None
     return current.revalidate
 
 
@@ -1610,6 +1615,7 @@ def _legacy_current_binding(control_root: Path) -> Any:
 
 def _legacy_submit(args: argparse.Namespace) -> int:
     """Submit one W9 command: refuse before binding, admit through the current binding, then submit (§13)."""
+    from research_system.legacy import accepted_w9
     from research_system.legacy.reader import LegacyReader
     from research_system.legacy.runtime import LegacyRuntime
 
@@ -1636,6 +1642,7 @@ def _legacy_submit(args: argparse.Namespace) -> int:
             repository_root=binding.repository_root,
             git_head=binding.binding["git_head"],
             vault_root=args.vault_root,
+            accepted_cl_export=accepted_w9.ACCEPTED_CL_EXPORT,
         ),
         vault_root=args.vault_root,
         binding_check=binding.revalidate,
@@ -1651,6 +1658,7 @@ def _legacy_observation_id(args: argparse.Namespace) -> int:
     the public replay and ``replay_legacy``), reads the source bytes as the preparer would, appends nothing, takes no
     writer lock and writes no file.
     """
+    from research_system.legacy import accepted_w9
     from research_system.legacy.preparers import Environment, observation_id
     from research_system.legacy.reader import LegacyReader
 
@@ -1663,6 +1671,7 @@ def _legacy_observation_id(args: argparse.Namespace) -> int:
         repository_root=binding.repository_root,
         git_head=binding.binding["git_head"],
         vault_root=args.vault_root,
+        accepted_cl_export=accepted_w9.ACCEPTED_CL_EXPORT,
     )
     environment = Environment(reader, {}, binding.control_root, args.vault_root)
     _print_json(

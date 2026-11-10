@@ -82,6 +82,22 @@ def test_observed_pointers_list_every_leaf_and_container_with_the_root() -> None
     )
 
 
+def test_deep_nesting_is_walked_without_a_recursion_error() -> None:
+    """PR #420 review: the walk is iterative, so nesting past Python's frame limit cannot escape as RecursionError."""
+    depth = 5000
+    value: list = []
+    for _ in range(depth):
+        value = [value]
+    pointers = observed_pointers(value)
+    assert len(pointers) == depth + 1 and pointers[-1] == "/0" * depth
+    data = b"[" * depth + b"]" * depth
+    try:
+        parsed = parse_strict(data)
+    except JsonBlocked:
+        return  # the C scanner's own depth limit is a clean refusal too
+    assert len(observed_pointers(parsed.value)) == depth + 1
+
+
 def test_patterns_expand_against_the_observed_value() -> None:
     assert expand("/cells/[*]/x", VALUE) == ("/cells/0/x", "/cells/1/x")
     assert expand("/empty/[*]", VALUE) == ()

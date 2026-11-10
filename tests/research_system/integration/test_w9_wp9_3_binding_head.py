@@ -177,7 +177,9 @@ def test_the_command_refuses_on_a_moved_head_and_advances_on_a_matching_one(tmp_
     assert json.loads(capsys.readouterr().out)["status"] == "advanced"
 
 
-@pytest.mark.parametrize("value", ["12", "x:" + "0" * 64, "1:" + "0" * 63, "01:" + "0" * 64, "1:" + "G" * 64])
+@pytest.mark.parametrize(
+    "value", ["12", "x:" + "0" * 64, "1:" + "0" * 63, "01:" + "0" * 64, "1:" + "G" * 64, "²:" + "0" * 64]
+)
 def test_the_command_refuses_a_malformed_head_before_the_service_runs(tmp_path, monkeypatch, value: str) -> None:
     def never(*args, **kwargs):
         raise AssertionError("the service must not run")

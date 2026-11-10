@@ -399,8 +399,9 @@ def test_fixture_copies_re_derive_their_source_blobs() -> None:
         else:
             import subprocess
 
+            repo_root = Path(__file__).resolve().parents[3]
             source = subprocess.run(
-                ["git", "cat-file", "blob", entry["source_blob"]], check=True, capture_output=True
+                ["git", "-C", str(repo_root), "cat-file", "blob", entry["source_blob"]], check=True, capture_output=True
             ).stdout
             span = entry["line_span"]
             lines = source.split(b"\n")

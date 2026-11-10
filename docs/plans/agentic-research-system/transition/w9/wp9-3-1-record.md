@@ -63,9 +63,12 @@ Each was a departure the code needed, brought to Stephen first.
    constructor arguments, in `_discovery` and `_command_service`, and nothing else in that file.
 3. **`ars submit`'s recheck.** Note §9.1 has the CLI pass `CommandService` a binding check where `ars submit` builds it,
    but `ars submit` binds through `ControlBinding.load(--config)`, which has no current binding. Stephen chose "Recheck
-   if foundation-named (Recommended)": when the canonical foundation names the configured store, `ars submit` loads its
-   current binding (refusing one that does not admit) and passes `revalidate`; a store the foundation does not name is
-   local administration and gets none, the recorded `--config` known limit.
+   if foundation-named (Recommended)": `ars submit` tries `load_current_binding` for the configured store. If the
+   canonical foundation names the store and its current binding loads, `ars submit` passes `revalidate`. If not, it
+   passes none, which is the recorded `--config` known limit, and today's uses keep working. A named store whose current
+   binding does not load (for example, one never bound) also gets none. The first push refused that case, which departed
+   from the accepted option and broke `test_authority_activate_grant_cli.py`. The fix follows the option's "tries". A
+   binding that changes during the load still refuses.
 
 These amend P-081 items 3 and 10 in substance; the merge-queue entry should record them.
 
@@ -185,4 +188,26 @@ Run on the operator machine (Windows, Python 3.13) on the tree of the commit tha
 
 ## 9. Review dispositions
 
-None yet.
+**CodeRabbit's first review of `e13bf197` (5838422744): six inline comments, all checked against the code and found
+valid, all fixed.** Codex did not review: it hit its usage limit.
+
+| Comment | Finding | Disposition |
+|---|---|---|
+| 4522365804 | `--expected-ledger-head` lets a non-ASCII digit (`²`) reach `int()`, which raises a bare `ValueError` | Fixed: the position must be ASCII. The malformed-head test adds `²` |
+| 4522365845 | `ars legacy submit` and `observation-id` build `LegacyReader` without the pinned CL export, while replay uses it | Fixed: both pass `accepted_w9.ACCEPTED_CL_EXPORT`, read at call time as the runtime reads it |
+| 4522365855 | A ledger that fails the shared replay is recorded as a collision for every candidate, after up to 101 tries | Fixed: the shared replay runs first and its failure refuses the check as itself. New test |
+| 4522365864 | `_walk` recursion can raise `RecursionError` past the JSON parser's own limit | Fixed: the walk is iterative and keeps pre-order, which the existing pointer-order test pins. New depth test |
+| 4522365873 | A declared covered region past the file raises `IndexError` in the segmenter | Fixed in the runtime segmenter: the region must lie in the file, else `SegmentationError`. The reference tool is untouched (owner point I). The differential test generates only in-file regions, so its comparison is unchanged. New test for both selectors |
+| 4522365883 | The fixture test runs `git cat-file` in pytest's working directory | Fixed: `git -C <repository root>`. The suite lane checks out at full depth (`fetch-depth: 0`), so the historical blob is present |
+
+**CI on `e13bf197`:**
+- `ci-tools`: the shard-weight file covered 149 of 174 files, below its 90% bar. Fixed with measured weights for the ten
+  new W9 files.
+- `suite (2)`: eight CLI tests that replace `ControlBinding.load` now reached the canonical foundation through
+  `ars submit`'s recheck, and the foundation sentinel refused them. Each now pins an unnamed foundation. A search of
+  every CLI `submit` caller found one more file of the same shape (`test_wp6_1_c2_operating_lifecycle.py`, two tests),
+  which is fixed the same way. One more case
+  was a departure: `test_authority_activate_grant_cli.py` showed that the first push refused a foundation-named store
+  whose current binding does not load. The accepted option says `ars submit` *tries* the binding, so the fix returns no
+  recheck there (§3 item 3). A new test covers the recheck's four outcomes.
+- `merge-admission`: the six unresolved threads above; each now has a recorded reply.

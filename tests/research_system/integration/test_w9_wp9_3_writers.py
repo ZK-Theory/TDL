@@ -221,6 +221,29 @@ def test_the_pre_pin_check_finds_a_non_w9_stream_on_the_candidate_and_re_derives
     assert selected.passed and selected.candidate_id == obj_candidate(DOMAIN, ACCEPTED_AT, 1)
 
 
+def test_a_ledger_failing_the_shared_replay_refuses_the_pre_pin_check_not_each_candidate(
+    store: W9Store, monkeypatch
+) -> None:
+    """PR #420 review: the shared replay does not use the candidate, so its failure is raised once, as itself."""
+    import research_system.projection.replay as shared
+
+    calls: list[int] = []
+
+    def broken(*args: Any, **kwargs: Any) -> None:
+        calls.append(1)
+        raise IntegrityError("a forged ledger break")
+
+    monkeypatch.setattr(shared, "replay", broken)
+    ledger = store.harness.ledger
+    with pytest.raises(IntegrityError, match="the ledger fails the public shared replay: a forged ledger break"):
+        identities.check_w0_pin_candidate(
+            ledger, w0_signature_ref_id(DOMAIN, ACCEPTED_AT), schemas=store.harness.schemas
+        )
+    with pytest.raises(IntegrityError, match="the ledger fails the public shared replay: a forged ledger break"):
+        identities.select_w0_signature_ref(ledger, DOMAIN, ACCEPTED_AT, schemas=store.harness.schemas)
+    assert len(calls) == 2
+
+
 def test_the_pre_pin_check_records_the_head_of_the_one_snapshot_it_scanned(store: W9Store, monkeypatch) -> None:
     candidate = w0_signature_ref_id(DOMAIN, ACCEPTED_AT)
     ledger = store.harness.ledger
@@ -257,6 +280,46 @@ def _pin_foundation_path(monkeypatch, root: Path) -> None:
     path = root / "repository" / ".research-system" / "config" / "foundation.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(cli, "canonical_foundation_path", lambda: path)
+
+
+def test_ars_submit_rechecks_only_a_foundation_named_store_whose_binding_loads(tmp_path: Path, monkeypatch) -> None:
+    """Stephen's "Recheck if foundation-named" (2026-11-09): ``ars submit`` *tries* the current binding (§9.1)."""
+    import yaml
+
+    import research_system.store.current_binding as current_binding
+
+    control_root = tmp_path / "control"
+    control_root.mkdir()
+    binding = SimpleNamespace(project_id="tdl", store_identity="a" * 64, control_root=control_root)
+    _pin_foundation_path(monkeypatch, tmp_path)
+    foundation = cli.canonical_foundation_path()
+
+    def load_ok(**kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(revalidate="the binding's revalidate")
+
+    def load_refused(**kwargs: Any) -> None:
+        raise IntegrityError("current store binding is unavailable")
+
+    def load_moved(**kwargs: Any) -> None:
+        raise ConflictError("current store binding changed during the operation")
+
+    monkeypatch.setattr(current_binding, "load_current_binding", load_ok)
+    assert cli._foundation_binding_check(binding) is None  # no foundation file: not named
+    foundation.write_text(
+        yaml.safe_dump({"project_id": "tdl", "store_identity": "b" * 64, "control_root": str(control_root)}),
+        encoding="utf-8",
+    )
+    assert cli._foundation_binding_check(binding) is None  # another store named
+    foundation.write_text(
+        yaml.safe_dump({"project_id": "tdl", "store_identity": "a" * 64, "control_root": str(control_root)}),
+        encoding="utf-8",
+    )
+    assert cli._foundation_binding_check(binding) == "the binding's revalidate"
+    monkeypatch.setattr(current_binding, "load_current_binding", load_refused)
+    assert cli._foundation_binding_check(binding) is None  # named, never bound: today's use keeps working
+    monkeypatch.setattr(current_binding, "load_current_binding", load_moved)
+    with pytest.raises(ConflictError, match="changed during the operation"):
+        cli._foundation_binding_check(binding)
 
 
 def _bind_cli_to(store: W9Store, monkeypatch) -> None:
