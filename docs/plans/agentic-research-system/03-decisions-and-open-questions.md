@@ -5048,6 +5048,9 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    LR-020 and adds the export recheck and the `.apm/` tools, and changes no protected identity. This is the split P-080
    item 1 and D-6 (P-064 item 6) allow; its shape departs from 06v's D-6 row ("reader and selectors"). WP9.3-1 merges
    first.
+   **Amended 2026-11-10** (P-082 item 5). A follow-up PR, WP9.3-1b, adds what WP9.3-1 left out: the light-inventory
+   builder and its reproduction mode, LR-011's resolution check, and the `ars submit` fix. It carries no D-4.
+   WP9.3-2 is cut from WP9.3-1b's merge commit.
 2. **Approve only (B).** A W9 review is satisfied only by `approve`, on the subject's current recomputed hash, under the
    verdict row that answers its request row. `approve_with_conditions` is not in any W9 request's `allowed_verdicts`.
    This extends WP9.2-2's LR-014 reading to every W9 review (note §5.4).
@@ -5115,6 +5118,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    stores, whose bindings descend from the first pin and so hold WP9.3-1's code. The known limit is therefore a
    grant-free command paused since before its store first bound WP9.3-1 code, caught by the first replay on the
    pinned code and listed on the pin's checklist (note §9.1, revision 14).
+   **Amended an eighth time 2026-11-10** (P-082 items 3 and 4; Stephen, in chat: "Yes, as recommended"). `ars
+   submit` passes `CommandService` its binding check when the canonical foundation names the configured store. It
+   skips the recheck only for a store that the foundation does not name, or that has no current binding. It refuses
+   before binding when the store has a current binding that the checkout cannot load, as the old checkout cannot after
+   an advance. This lands in WP9.3-1b. Until it does, a later pin's checklist adds "No generic `ars submit` ran from the
+   old checkout after the advance" to the drain.
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5175,6 +5184,10 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
     also carries item 3's binding recheck inside `_submission_lock`, and `research_system/cli.py` hands the service
     its binding check where `ars submit` builds it. No schema, binding, census row or protected identity changes
     (note §9.1, §16, revision 14).
+    **Amended a sixth time 2026-11-09** (Stephen, in chat, during WP9.3-1's code: "Extend to spec.py (Recommended)";
+    recorded in P-082 item 3). The boundary also covers `research_system/discovery/spec.py`, for two constructor
+    arguments only, in `SpecCoordinator._discovery` and `_command_service`. They pass the binding's `revalidate` where
+    production builds `DiscoveryRuntime` and its `CommandService`.
 11. **S-014's timing (K′).** An item's S-014 ref names the latest restore run before LR-020. The post-batch re-run W9
     §12.3 requires goes on the L-4 checklist.
 12. **G4 at the proposal rows (L).** For LR-003, LR-006, LR-011 and LR-016, the grant is exact on the pre-assigned record
@@ -5258,6 +5271,125 @@ WP9.7's `RegisterArtefact` guard (O-22) before any live `untracked_file` or `vau
 recheck); P-080 (Boundary extended); P-073 item 1 (W9-C20's session limb, read as item 8); the annex's LR-016
 precondition (read as item 5) and G4 (read as item 12, except LR-015); 06v's O-33 line (read as the 2026-11-08
 addition).<br>
+**Migration consequence:** None.
+
+### P-082 - WP9.3-1: D-4 re-accepted at main commit `23f8f737`, its independent review, and the rulings on M-1 to M-3 and m-1 to m-3
+
+**Date:** 2026-11-10<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-10). This is the 06v D-4 re-acceptance for WP9.3-1, the second
+package to add W9 commands. It also records his rulings on the findings of its independent review and the three
+rulings he made while the code was written.<br>
+**Authority:** Stephen, in chat, 2026-11-10, after PR #420 (WP9.3-1) merged as `23f8f737` and its independent review
+reported.
+- Asked "Take the recommended rulings on M-1, M-2/M-3 and m-1 to m-3?", he answered "Yes, as recommended". The
+  recommendations read:
+  - M-1: skip the recheck only for a store that was never bound, and refuse when the store has a current binding that
+    this checkout cannot load (amending P-081 item 3);
+  - M-2 and M-3: a small follow-up PR before WP9.3-2 (WP9.3-1b) that adds the builder and the resolution check they
+    share, plus the M-1 fix;
+  - m-1 to m-3: record each as a reading, since changing the code would mean re-accepting the reference tool's blob,
+    and the governed bytes are unaffected.
+- D-4: asked whether he re-accepts the merged D-4 bytes, he chose "Re-accept, record P-082 (Recommended)". The
+  question read: "Main at 23f8f737 has the census at 273 rows (0cca0414…4712), the 06h manifest at blob 4c895042 and
+  the smoke test at blob 559d684a, with the test_schema_registry count pin at 273. The squash tree equals the PR head
+  441f3f09, the independent review recomputed all of these, and no other protected identity changed. Do you re-accept
+  them, recorded as P-082?"<br>
+**Evidence:**
+- PR #420 merged as `23f8f7377c74a7c698f874af06f403645d964426`. It is a squash merge whose tree
+  (`8c2382c8f7ab0ca9c350c1731d37fbca645527d0`) equals the PR head `441f3f09`, so no rebase changed the bytes.
+- The independent adversarial review is `reviews/wp9-3-1-review-23f8f737-2026-11-10.md` (blob `ba9fc51d`, SHA-256
+  `e1b3ac4d…bd83`, 30,812 bytes), with its re-implementation and probes in `reviews/wp9-3-1-review-artifacts/`.
+  - **Verdict:** accept with required changes. It found 0 Blocking, 3 Major, 4 Minor and 6 Info.
+  - **Independence:** the reviewer wrote neither WP9.3-1, the WP9.3 note, nor `w9-segmentation/1.0.0`.
+  - **D-4:** it recomputed the census on both trees, 262 rows at `2d9aeddc` and 273 at `23f8f737`. The delta is exactly
+    note §16's eleven rows, with none removed or reordered (review §5).
+  - **Genesis and W11:** it re-verified the genesis path at `23f8f737` (owner point F; P-081 item 6). The W11 catalogue,
+    schemas and census rows are unchanged, and the W11 suites pass unchanged (review §6).
+  - **Segmentation:** its independent re-implementation of `w9-segmentation/1.0.0` reproduced all 38 of the contract's
+    vectors on the first run. With the runtime's readings, it agrees with the runtime segmenter and the reference tool
+    on 18,000 generated cases. All three agree on the governed bytes (review §3). This is the independent
+    re-implementation contract §7, P-068 and P-081 item 9 require.
+- On the record branch, cut from `23f8f737`, one run of the 06h smoke test and `test_schema_registry.py` gave 100 passed
+  and 1 skipped (the existing skip in `test_schema_registry.py`).
+
+**Decision:**
+1. **The WP9.3-1 protected identities are re-accepted** at main commit `23f8f737`:
+
+   | Identity | Accepted value |
+   |---|---|
+   | Runtime-binding census | 273 rows, `0cca0414641bf4fbed32b5f42d7c3753a8c47dcdd09d815dcba0658ef8814712` (was 262, `3d6ae37a…9f06`, P-079) |
+   | `tests/research_system/smoke/wp6_1_06h_current_append_manifest.yaml` | blob `4c8950421d3a9f25da7cf4b657a358536df42332`, SHA-256 `7b6accbc38792fc707f0dde9574a02db1295189db39ee8683f518a945b05fb24`, 6,343 bytes |
+   | `tests/research_system/smoke/test_wp6_1_06h_append_path_closure.py` | blob `559d684a5d78abc285ce9b50dd23ce071aad32c5`, SHA-256 `33ef58d3828e757f774dd8bd705ac392c2e3f8ec0391dab0f14a8b6643d7b3da`, 26,480 bytes |
+   | `tests/research_system/unit/test_schema_registry.py` | the census count pin is 273 |
+   | Append sites | unchanged: `LegacyRuntime._submit_authorized` stays the one W9 site, and the generic, T2 and W11 sites are the same symbols |
+
+2. **Unchanged.** The core command and event schema trees, the `contracts/w9` schemas, the T2 validator expectations
+   and seal, the `wp6-6` binding-advance schemas, the owner-source catalogue, the W11 catalogue and
+   `tools/w9_segmentation.py` (blob `43e1454d`, P-068) do not change (review §5).
+3. **The rulings made during the code (2026-11-09).** The WP9.3-1 record (`transition/w9/wp9-3-1-record.md` §3) asks the
+   merge-queue entry to record them. They are recorded here:
+   - **The resolution's `governing_evidence_refs`** ("Option A (row swapped)"). Note §5.2's "equal to the proposal's"
+     is read as the proposal's subject refs with the row ref replaced by the resolution's own row: `W9:LR-005` and
+     `W9:LR-010` in WP9.3-1, and `W9:LR-020` in WP9.3-2. `assign_row` is unchanged, and replay requires exactly that
+     list.
+   - **`research_system/discovery/spec.py` joins the boundary** ("Extend to spec.py (Recommended)"). The change is two
+     constructor arguments, in `SpecCoordinator._discovery` and `_command_service`, so that production builds
+     `DiscoveryRuntime` and its `CommandService` with the binding recheck. This amends P-081 item 10.
+   - **`ars submit`'s recheck** ("Recheck if foundation-named (Recommended)"). `ars submit` tries the configured
+     store's current binding and passes its recheck to `CommandService` when the canonical foundation names the store.
+     Item 4 narrows what "tries" covers.
+4. **M-1: an unadmitted checkout is refused, not unchecked.** As merged, `ars submit` passes no recheck whenever
+   `load_current_binding` raises. After a later pin's advance, the old checkout gets exactly that error, so a grant-free
+   command such as `VerifyEvidenceDeletion` could append from pre-pin code (review M-1, with a probe). The ruling:
+   - `ars submit` skips the recheck only for a store that the canonical foundation does not name, or that has no current
+     binding;
+   - when the foundation names the store and it has a current binding that this checkout cannot load, `ars submit`
+     refuses before binding. This covers a code-root mismatch after an advance, a moved Git subject, and any other
+     failure to load.
+
+   This amends P-081 item 3 (its eighth amendment). Note §9.1's "On WP9.3-1 code the `CommandService` recheck refuses
+   it", and §18's refusal of a writer on pre-pin code, hold from WP9.3-1b's merge. Until then, a later pin's checklist
+   adds to the drain: "No generic `ars submit` ran from the old checkout after the advance." No pin is authorized
+   anyway.
+5. **M-2 and M-3: WP9.3-1b, a follow-up PR before WP9.3-2.** Note §2.3 put the light-inventory builder and its
+   reproduction mode in WP9.3-1, and they did not land (review M-3). LR-011's preparer also checks only the declared
+   `after_line` hash of a "from the first anchor after" region, not its resolution (review M-2). WP9.3-1b is cut from
+   `main` after this entry and holds:
+   - the light-inventory builder and its reproduction mode (note §12.1), the `inventory build` and `inventory
+     reproduce` subcommands (note §13), and their tool tests (§17's "Tools write nothing" row);
+   - the resolution check: from the bytes, the preparer derives the first non-suppressed anchor line after
+     `after_line` for the selector, and the file's last line, and requires them to equal the declared
+     `resolved_first_line` and `resolved_last_line`. The builder shares the same derivation, and there is a negative
+     control for each wrong resolution;
+   - item 4's fix to `ars submit`.
+
+   WP9.3-1b adds no command type and changes no protected identity, so it carries no D-4. It stays inside P-080's
+   boundary as P-081 item 10 extends it. It gets its own independent review, CodeRabbit and Stephen's merge. WP9.3-2 is
+   cut from WP9.3-1b's merge commit, not from `23f8f737` (amending P-081 item 1). WP9.3-1b's implementer disposes of
+   the review's m-4 (a missing public-replay control) and i-1 to i-6 in its record.
+6. **m-1 to m-3: readings of contract §3.** The runtime segmenter and the accepted reference tool make the same choice
+   in three places where contract §3's words say otherwise (review m-1 to m-3). Each choice is recorded as the reading.
+   `w9-segmentation/1.0.0` and the reference tool's blob `43e1454d` stay as accepted (P-068), and no governed file's
+   segmentation changes (review §3):
+   - **m-1:** "each cell is trimmed of spaces" is read as trimmed of every whitespace character that Python's
+     `str.strip()` removes, tabs, no-break spaces and `\x0b` included (`legacy/segmentation.py:276`);
+   - **m-2:** a conventions section whose heading is not valid UTF-8 gives items anchored on the empty string, not
+     `unparseable_anchor` blockers (`legacy/segmentation.py:356`). Such units then collide, as duplicates, with an
+     empty `## ` section's units;
+   - **m-3:** the conventions footer is matched after trailing whitespace is trimmed, not byte for byte
+     (`legacy/segmentation.py:347`).
+
+**Not decided here:**
+- The six open readings R-1 to R-8 in review §3's table. The contract leaves each one open, and the runtime and the
+  reference tool make the same choice on each.
+- The test-runtime growth the implementer escalated (WP9.3-1 record §7). It stays open for Stephen.
+- Any live operation L-0 to L-5, genesis on a real store, a grant on one, and legacy writes.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only. WP9.3-1b's code follows, under item 5.<br>
+**Affected specifications:** 06v D-4 (WP9.3-1 done); P-081 items 1 (WP9.3-2's base), 3 (item 4) and 10 (item 3's
+`spec.py`); the WP9.3 note §5.2 (read as item 3) and §9.1 and §18 (hold from WP9.3-1b, item 4); `w9-segmentation/1.0.0`
+§3 (read as item 6); the WP9.3-1 record (merged and accepted).<br>
 **Migration consequence:** None.
 
 ## Decision protocol

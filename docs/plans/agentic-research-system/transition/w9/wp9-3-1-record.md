@@ -1,8 +1,10 @@
 # WP9.3-1: LR-003 to LR-015, the reader, the segmenter and the W9 identity checks
 
 **Date:** 2026-11-09<br>
-**Status:** Revision 1, on branch `pipe/w9-wp9-3-1-observation-reader`, for independent review. Not merged. D-4 is
-re-accepted by Stephen in the merge-queue entry, and WP9.3-1 merges alone (note §16).<br>
+**Status:** Revision 1, merged as `23f8f737` (PR #420), with the same tree as the head `441f3f09`. D-4 was re-accepted
+at that commit (P-082), which also records the three rulings of §3. The independent review
+(`reviews/wp9-3-1-review-23f8f737-2026-11-10.md`) reached accept with required changes. Its M-1 to M-3 go to WP9.3-1b
+(P-082 items 4 and 5), and its m-1 to m-3 are recorded as readings (P-082 item 6).<br>
 **Package:** 06v WP9.3, the first of its two PRs (P-081 item 1). The design note is
 `transition/w9/wp9-3-design-note.md`, revision 14, merged as `2d9aeddc` (PR #411).<br>
 **Authority:** P-080 (WP9.3, note first; the code with its own independent review, CodeRabbit, D-4 and Stephen's
