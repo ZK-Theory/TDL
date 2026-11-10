@@ -184,6 +184,8 @@ def test_command_submit_derives_retention_policy_path_from_binding(
         return authorizer
 
     monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "load_evidence_store_registry", lambda path, schemas: registry)
     monkeypatch.setattr(
         cli,
@@ -247,6 +249,8 @@ def test_command_submit_rejects_partial_or_malformed_runtime_authority_before_se
         raise AssertionError("CommandService must not be constructed")
 
     monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "CommandService", forbidden_service)
     config, command = _command_submit_inputs(tmp_path)
 
@@ -309,6 +313,8 @@ def test_command_submit_runtime_authority_provider_reloads_manifest_and_rejects_
         return manifests[len(calls) - 1]
 
     monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "CommandService", FakeCommandService)
     monkeypatch.setattr(cli, "load_store_manifest", fake_load_store_manifest)
     config, command = _command_submit_inputs(tmp_path)

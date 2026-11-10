@@ -440,11 +440,12 @@ LEGACY_ROW_ROUTES = {
     ),
 }
 
-# Design note §3: WP9.2 routes genesis only. Every other row is deferred, tagged with what routes it.
-LEGACY_ROUTED_ROWS = frozenset({"LR-001"})
+# WP9.2 note §3: WP9.2 routes genesis. WP9.3-1 routes LR-003 to LR-015 (WP9.3 note §2.3). Every other row is deferred,
+# tagged with what routes it. The counts are pinned by the route test for each PR, not by the guard (WP9.3 note §15).
+LEGACY_ROUTED_ROWS = frozenset({"LR-001", *(f"LR-{number:03d}" for number in range(3, 16))})
 LEGACY_DEFERRED_ROWS = {
     "LR-002": "catalogue_revision",
-    **dict.fromkeys((f"LR-{number:03d}" for number in range(3, 21)), "WP9.3"),
+    **dict.fromkeys((f"LR-{number:03d}" for number in range(16, 21)), "WP9.3"),
     **dict.fromkeys(("LR-021", "LR-022", "LR-024", "LR-025", "LR-061"), "WP9.7"),
     **dict.fromkeys(
         ("LR-023", *(f"LR-{number:03d}" for number in range(26, 36)), "LR-039"),
@@ -628,7 +629,10 @@ def validate_transaction_shape(row_id: str, event_types: Sequence[str]) -> None:
 
 
 def validate_legacy_route_registry(catalogue: Mapping[str, Any]) -> None:
-    """Prove the route table is exact to the accepted W9 catalogue and partitions it 1 routed / 60 deferred.
+    """Prove the route table is exact to the accepted W9 catalogue and that the routed and deferred sets partition it.
+
+    The partition is exact: no overlap, every accepted row in one set, and every deferred tag valid (WP9.3 note §15,
+    owner point F). The counts are pinned per PR by the route test, not here.
 
     Raises:
         IntegrityError: If a row is missing, differs from its accepted bytes, or the classes do not partition the rows.
@@ -641,11 +645,9 @@ def validate_legacy_route_registry(catalogue: Mapping[str, Any]) -> None:
     if (
         tuple(by_id) != ROW_IDS
         or tuple(LEGACY_ROW_ROUTES) != ROW_IDS
-        or len(LEGACY_ROUTED_ROWS) != 1
-        or len(LEGACY_DEFERRED_ROWS) != 60
         or LEGACY_ROUTED_ROWS & set(LEGACY_DEFERRED_ROWS)
         or LEGACY_ROUTED_ROWS | set(LEGACY_DEFERRED_ROWS) != set(ROW_IDS)
-        or set(LEGACY_DEFERRED_ROWS.values()) != DEFERRED_TAGS
+        or not set(LEGACY_DEFERRED_ROWS.values()) <= DEFERRED_TAGS
     ):
         raise IntegrityError("W9 route registry does not partition the accepted W9 catalogue")
     for row_id, route in LEGACY_ROW_ROUTES.items():

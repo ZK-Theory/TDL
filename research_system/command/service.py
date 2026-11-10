@@ -632,6 +632,16 @@ class MessageAdapterRegistration:
             raise ValueError("message adapter registry content hash does not bind its immutable entry")
 
 
+def _refuse_w9_identity(events: Any, ledger_events: Any, schemas: Any) -> None:
+    """WP9.3 note §4.3: the generic append site's W9 identity check, over the snapshot already materialized.
+
+    The lazy import keeps ``research_system.legacy`` out of the generic import graph until a command is checked.
+    """
+    from research_system.legacy.identities import refuse_w9_identity_collision
+
+    refuse_w9_identity_collision(events, ledger_events, schemas=schemas)
+
+
 class CommandService:
     def __init__(
         self,
@@ -655,7 +665,13 @@ class CommandService:
         restore_verification_provider: Callable[[Command, LedgerSnapshot], tuple[dict[str, Any], Callable[[], None]]]
         | None = None,
         governing_evidence_resolver: Any | None = None,
+        binding_check: Callable[[], Any] | None = None,
     ) -> None:
+        if binding_check is not None and not callable(binding_check):
+            raise TypeError("binding_check must be callable")
+        # WP9.3 note §9.1: rechecks the store's current binding inside every writer lock that can append, before the
+        # snapshot that lock hands out. The caller that holds a current binding passes its ``revalidate``.
+        self.binding_check = binding_check
         if authority_resolver is not None and type(authority_resolver) is not LedgerAuthorityGrantResolver:
             raise TypeError("authority_resolver must be LedgerAuthorityGrantResolver")
         self.control_root = control_root
@@ -1175,6 +1191,7 @@ class CommandService:
             if lock is None:
                 continue
             try:
+                self._recheck_binding()
                 status = self._scoped_activation_event_status(marker)
                 self._reconcile_scoped_activation_marker(marker, status=status)
             finally:
@@ -1720,6 +1737,9 @@ class CommandService:
                     command_schema=command_schema,
                 )
                 event = events[0]
+                # WP9.3 note §4.3: after the stream-version check and before any append, no stream these events
+                # append to, and no record ID they create, may be a W9 fixed identity or one W9 claims or reserves.
+                _refuse_w9_identity(events, snapshot.events, self.schemas)
                 if restore_verification_revalidator is not None:
                     self._before_restore_verification_revalidation(command)
                     restore_verification_revalidator()
@@ -1865,6 +1885,11 @@ class CommandService:
         if not marker_preexisting:
             self._remove_scoped_activation_marker(command.command_id)
 
+    def _recheck_binding(self) -> None:
+        """WP9.3 note §9.1: recheck the current binding under the writer lock, before any snapshot or append."""
+        if self.binding_check is not None:
+            self.binding_check()
+
     def _before_submission_lock(self, command: Command) -> None:
         """Provide a post-validation setup seam before writer-lock acquisition."""
 
@@ -1908,6 +1933,7 @@ class CommandService:
                     continue
                 break
             try:
+                self._recheck_binding()
                 snapshot = self.ledger.snapshot()
                 self._revalidate_prepared_moved_restore(command, prepared, snapshot)
                 yield _SubmissionLease(lock, snapshot)
@@ -1952,6 +1978,7 @@ class CommandService:
             {"command_id": new_id("command")},
             lock_factory=WriterLock,
         ):
+            self._recheck_binding()
             snapshot = self.ledger.snapshot()
             replay(
                 snapshot.events,

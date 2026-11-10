@@ -380,10 +380,11 @@ def test_w9_t20_a_receipt_root_in_the_gate6_store_is_refused(tmp_path: Path, ins
 def test_a_w9_command_without_a_binding_row_is_refused(tmp_path: Path) -> None:
     runtime, harness = _store(tmp_path)
     runtime.submit(_genesis_command(harness))
+    # WP9.3-1 binds ObserveLegacyRecord; CreateLegacyPaperRoot stays unbound until WP9.4 (WP9.3 note §2.2).
     command = _genesis_command(
-        harness, command_type="ObserveLegacyRecord", payload={"record_id": new_id("scope_definition")}
+        harness, command_type="CreateLegacyPaperRoot", payload={"record_id": new_id("scope_definition")}
     )
-    with pytest.raises(IntegrityError, match="inactive W9 command binding: ObserveLegacyRecord"):
+    with pytest.raises(IntegrityError, match="inactive W9 command binding: CreateLegacyPaperRoot"):
         runtime.submit(command)
 
 

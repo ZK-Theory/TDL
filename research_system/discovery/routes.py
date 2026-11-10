@@ -298,6 +298,23 @@ def discovery_identity_exists(state: Mapping[str, Any], identity: Any) -> bool:
     )
 
 
+def refuse_w9_identity(prepared: Any, ledger_events: Any, schemas: Any) -> None:
+    """WP9.3 note §4.3: the W11 side of the symmetric W9 identity check, before append.
+
+    A W11 command is refused if any stream its events would append to, or any record ID they would create, is one of
+    W9's fixed identities (read from the code constants, so they hold before W9 genesis) or an ID the W9 projection
+    claims or reserves. It is a preparer check beside U-7 site 2, not a change to that site, and the lazy import keeps
+    ``research_system.legacy`` out of Discovery's import graph.
+
+    Raises:
+        IntegrityError: If the command would take a W9 identity.
+    """
+
+    from research_system.legacy.identities import refuse_w9_identity_collision
+
+    refuse_w9_identity_collision(prepared, ledger_events, schemas=schemas)
+
+
 def shared_event_partition(
     event: Mapping[str, Any],
     *,

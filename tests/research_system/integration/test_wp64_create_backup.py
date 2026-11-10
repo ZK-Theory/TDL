@@ -258,6 +258,8 @@ def test_store_verify_restore_appends_evidence_without_cutover_and_replays(
     request_path = tmp_path / "backup-request.json"
     request_path.write_text(json.dumps(request), encoding="utf-8")
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "load_evidence_store_registry", lambda _path, _schemas: registry)
     assert (
         cli.main(
@@ -544,6 +546,8 @@ def test_store_backup_cli_is_event_first_retryable_and_not_available_via_generic
     request_path = tmp_path / "backup-request.json"
     request_path.write_text(json.dumps(request), encoding="utf-8")
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "load_evidence_store_registry", lambda _path, _schemas: registry)
     arguments = [
         "store",

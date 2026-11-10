@@ -42,7 +42,7 @@ from research_system.config import (
     disposable_checkout_reason,
     load_foundation_origin_pins,
 )
-from research_system.errors import ArsError, ConfigurationError, IntegrityError
+from research_system.errors import ArsError, ConfigurationError, IntegrityError, SchemaError
 from research_system.discovery.spec import ACTION_EFFECTS, SpecCoordinator
 from research_system.evals.calibration import calibrate_fixture
 from research_system.evals.coverage import FOUNDATION_CASES, load_p0_coverage
@@ -817,14 +817,37 @@ def _store_activate_schema_binding(args: argparse.Namespace) -> int:
 def _store_advance_binding(args: argparse.Namespace) -> int:
     """Advance one store binding solely through its typed public service seam."""
 
+    expected_head = _expected_ledger_head(args.expected_ledger_head)
     intent = read_advance_intent(args.intent)
     service = StoreBindingService(
         intent.control_root,
         intent.expected_project_id,
         intent.expected_store_identity,
     )
-    _print_json(service.advance(intent))
+    # The checked head travels beside the intent, never inside it (WP9.3 note §9.1); other advances are unchanged.
+    if expected_head is None:
+        _print_json(service.advance(intent))
+    else:
+        _print_json(service.advance(intent, expected_ledger_head=expected_head))
     return 0
+
+
+def _expected_ledger_head(value: str | None) -> tuple[int, str] | None:
+    """Parse ``--expected-ledger-head <global position>:<event hash>`` before the service runs (WP9.3 note §9.1)."""
+
+    if value is None:
+        return None
+    position, separator, event_hash = value.partition(":")
+    if (
+        not separator
+        or not position.isascii()
+        or not position.isdigit()
+        or str(int(position)) != position
+        or len(event_hash) != 64
+        or any(char not in "0123456789abcdef" for char in event_hash)
+    ):
+        raise ConfigurationError("--expected-ledger-head must be <global position>:<64 lowercase hex event hash>")
+    return int(position), event_hash
 
 
 def _store_repair_binding(args: argparse.Namespace) -> int:
@@ -879,8 +902,48 @@ def _command_submit_runtime_authority_provider(
     return provider
 
 
+def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | None:
+    """The in-lock binding recheck for ``ars submit`` (WP9.3 note §9.1; Stephen, 2026-11-09).
+
+    The accepted option: ``ars submit`` *tries* ``load_current_binding`` for the configured store. When the canonical
+    foundation names the store and its current binding loads, that binding's ``revalidate`` is returned. Otherwise there
+    is no recheck, and today's uses keep working. That covers a store the foundation does not name (local
+    administration through ``--config``) and a named store whose current binding does not load (for example, one never
+    bound): the recorded known limit. A binding that changes while it loads (``ConflictError``) still refuses.
+    """
+    import yaml
+
+    from research_system.store.current_binding import load_current_binding
+
+    foundation_path = canonical_foundation_path()
+    try:
+        foundation = yaml.safe_load(foundation_path.read_text(encoding="utf-8"))
+        named = (
+            isinstance(foundation, dict)
+            and foundation.get("project_id") == binding.project_id
+            and foundation.get("store_identity") == binding.store_identity
+            and Path(str(foundation.get("control_root"))).resolve() == binding.control_root.resolve()
+        )
+    except (OSError, UnicodeError, yaml.YAMLError):
+        named = False
+    if not named:
+        return None
+    try:
+        current = load_current_binding(
+            foundation_path=foundation_path,
+            repository_root=foundation_path.parents[2].resolve(strict=True),
+            expected_control_root=binding.control_root,
+            expected_project_id=binding.project_id,
+            expected_store_identity=binding.store_identity,
+        )
+    except (ConfigurationError, IntegrityError, SchemaError, OSError):
+        return None
+    return current.revalidate
+
+
 def _command_submit(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
+    binding_check = _foundation_binding_check(binding)
     trusted_runtime_authority_provider = _command_submit_runtime_authority_provider(
         binding,
         args.host_identity,
@@ -905,6 +968,7 @@ def _command_submit(args: argparse.Namespace) -> int:
         ),
         clock=_authority_clock,
         trusted_runtime_authority_provider=trusted_runtime_authority_provider,
+        binding_check=binding_check,
     )
     if args.evidence_store_registry is not None:
         registry = load_evidence_store_registry(args.evidence_store_registry, schemas)
@@ -1522,6 +1586,102 @@ def _legacy_projection(control_root: Path) -> tuple[dict[str, Any], int]:
     events = tuple(ledger.iter_events())
     replay(events, schema_registry=schemas, authority_state_validator=resolver.validate_replayed_administration_state)
     return replay_legacy(events, schemas=schemas), sum(1 for event in events if is_legacy_projection_event(event))
+
+
+def _legacy_current_binding(control_root: Path) -> Any:
+    """Refuse a Gate 6 lock root, then admit the store through its current binding (WP9.3 note §13, F-4 widened).
+
+    Every root the command will lock that is known before binding is refused first by the ancestor scan: the target
+    control root, which is also the W9 receipt root and the authority root, as Discovery's are. Only then is the
+    current binding loaded, which reads and writes nothing in the store.
+    """
+    from research_system.legacy.accepted_w9 import accepted_genesis_payload
+    from research_system.legacy.runtime import refuse_gate6_lock_roots
+    from research_system.store.current_binding import load_current_binding
+    from research_system.store.identity import load_store_manifest_unbound
+
+    refused = accepted_genesis_payload()["refused_store_identities"]
+    refuse_gate6_lock_roots(control_root, (control_root,), refused)
+    manifest = load_store_manifest_unbound(control_root)
+    foundation_path = canonical_foundation_path()
+    return load_current_binding(
+        foundation_path=foundation_path,
+        repository_root=foundation_path.parents[2].resolve(strict=True),
+        expected_control_root=control_root,
+        expected_project_id=str(manifest.get("project_id")),
+        expected_store_identity=str(manifest.get("store_identity")),
+    )
+
+
+def _legacy_submit(args: argparse.Namespace) -> int:
+    """Submit one W9 command: refuse before binding, admit through the current binding, then submit (§13)."""
+    from research_system.legacy import accepted_w9
+    from research_system.legacy.reader import LegacyReader
+    from research_system.legacy.runtime import LegacyRuntime
+
+    envelope = _read_json(args.envelope)
+    binding = _legacy_current_binding(args.control_root)
+    schemas = runtime_schema_registry(binding.schema_root)
+    ledger = EventLedger(binding.control_root, binding.project_id, schemas)
+    resolver = LedgerAuthorityGrantResolver(
+        binding.control_root,
+        binding.project_id,
+        binding.store_identity,
+        schemas,
+        approved_witness=binding.origin_witness,
+        approved_witness_path=binding.origin_witness_path,
+    )
+    runtime = LegacyRuntime(
+        binding.control_root,
+        ledger,
+        schemas,
+        repository_root=binding.repository_root,
+        authority_resolver=resolver,
+        clock=_authority_clock,
+        reader=LegacyReader(
+            repository_root=binding.repository_root,
+            git_head=binding.binding["git_head"],
+            vault_root=args.vault_root,
+            accepted_cl_export=accepted_w9.ACCEPTED_CL_EXPORT,
+        ),
+        vault_root=args.vault_root,
+        binding_check=binding.revalidate,
+    )
+    _print_json(asdict(runtime.submit(envelope)))
+    return 0
+
+
+def _legacy_observation_id(args: argparse.Namespace) -> int:
+    """Print the derived ``record_id`` of an observation envelope before it is granted or submitted (§5.3, §13).
+
+    Read-only: it runs through the read-only binding (the Gate 6 refusal, then ``_verified_ledger(read_only=True)``,
+    the public replay and ``replay_legacy``), reads the source bytes as the preparer would, appends nothing, takes no
+    writer lock and writes no file.
+    """
+    from research_system.legacy import accepted_w9
+    from research_system.legacy.preparers import Environment, observation_id
+    from research_system.legacy.reader import LegacyReader
+
+    envelope = _read_json(args.envelope)
+    if envelope.get("command_type") != "ObserveLegacyRecord" or not isinstance(envelope.get("payload"), dict):
+        raise ArsError("ars legacy observation-id takes an ObserveLegacyRecord envelope")
+    state, _ = _legacy_projection(args.control_root)
+    binding = _legacy_current_binding(args.control_root)
+    reader = LegacyReader(
+        repository_root=binding.repository_root,
+        git_head=binding.binding["git_head"],
+        vault_root=args.vault_root,
+        accepted_cl_export=accepted_w9.ACCEPTED_CL_EXPORT,
+    )
+    environment = Environment(reader, {}, binding.control_root, args.vault_root)
+    _print_json(
+        {
+            "record_id": observation_id(
+                envelope["payload"], actor=str(envelope.get("actor_id")), legacy=state, environment=environment
+            )
+        }
+    )
+    return 0
 
 
 def _legacy_status(args: argparse.Namespace) -> int:
@@ -2290,6 +2450,11 @@ def _parser() -> argparse.ArgumentParser:
 
     advance_binding = store_commands.add_parser("advance-binding")
     advance_binding.add_argument("--intent", type=Path, required=True)
+    advance_binding.add_argument(
+        "--expected-ledger-head",
+        help="the ledger head a pre-pin check recorded, <global position>:<event hash>; the advance refuses if it "
+        "moved (required by a later W0 pin's checklist, optional otherwise)",
+    )
     advance_binding.set_defaults(handler=_store_advance_binding)
 
     backup = store_commands.add_parser("backup")
@@ -2473,6 +2638,20 @@ def _parser() -> argparse.ArgumentParser:
     legacy_show.add_argument("id", help="a W9 record, review, Decision or reserved identity")
     legacy_show.add_argument("--control-root", type=Path, required=True, help="local-store administration root")
     legacy_show.set_defaults(handler=_legacy_show)
+    legacy_submit = legacy_actions.add_parser("submit", help="submit one W9 command through the current binding")
+    legacy_submit.add_argument("envelope", type=Path, help="the W9 command envelope (JSON)")
+    legacy_submit.add_argument("--control-root", type=Path, required=True, help="the target store's control root")
+    legacy_submit.add_argument("--vault-root", type=Path, help="the real vault path, for vault_file sources")
+    legacy_submit.set_defaults(handler=_legacy_submit)
+    legacy_observation_id = legacy_actions.add_parser(
+        "observation-id", help="print an observation envelope's derived record ID (read-only)"
+    )
+    legacy_observation_id.add_argument("envelope", type=Path, help="the ObserveLegacyRecord envelope (JSON)")
+    legacy_observation_id.add_argument(
+        "--control-root", type=Path, required=True, help="the target store's control root"
+    )
+    legacy_observation_id.add_argument("--vault-root", type=Path, help="the real vault path, for vault_file sources")
+    legacy_observation_id.set_defaults(handler=_legacy_observation_id)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)

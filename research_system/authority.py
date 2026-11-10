@@ -204,6 +204,14 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "ProposeW11AuthorityDecision",
         "AdmitResearchDossier",
         "ImportAcceptedW9CatalogueGenesis",
+        # WP9.3-1 (WP9.3 note §16; P-081 item 10).
+        "ProposeLegacyRecord",
+        "RequestW9AuthorityReview",
+        "RecordW9AuthorityReview",
+        "ProposeW9AuthorityDecision",
+        "ResolveW9AuthorityDecision",
+        "RecordLegacyLightInventory",
+        "ObserveLegacyRecord",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {
@@ -234,6 +242,14 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "ProposeW11AuthorityDecision": "decision",
     "AdmitResearchDossier": "scope_definition",
     "ImportAcceptedW9CatalogueGenesis": "scope_definition",
+    # WP9.3-1: the subject kinds of WP9.3 note §5.3.
+    "ProposeLegacyRecord": "scope_definition",
+    "RequestW9AuthorityReview": "review",
+    "RecordW9AuthorityReview": "review",
+    "ProposeW9AuthorityDecision": "decision",
+    "ResolveW9AuthorityDecision": "decision",
+    "RecordLegacyLightInventory": "scope_definition",
+    "ObserveLegacyRecord": "scope_definition",
     "CreateScopeDefinition": "scope_definition",
     "AmendScopeDefinition": "scope_definition",
     "SupersedeScopeDefinition": "scope_definition",

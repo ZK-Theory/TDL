@@ -210,6 +210,8 @@ def test_cli_register_artefact_carries_the_c2_command_through_the_real_service(t
         origin_witness_path=harness.authority_resolver.approved_witness_path,
     )
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *args, **kwargs: harness.authority_resolver)
     monkeypatch.setattr(cli, "CommandService", lambda *args, **kwargs: harness.service)
 
@@ -1084,6 +1086,8 @@ def test_cli_command_submit_carries_a_c2_command_through_the_real_service(tmp_pa
         origin_witness_path=harness.authority_resolver.approved_witness_path,
     )
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: binding)
+    # `ars submit` reads the canonical foundation for its binding recheck (WP9.3-1); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "LedgerAuthorityGrantResolver", lambda *args, **kwargs: harness.authority_resolver)
     monkeypatch.setattr(cli, "CommandService", lambda *args, **kwargs: harness.service)
 

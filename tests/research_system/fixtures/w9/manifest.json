@@ -1,0 +1,25 @@
+{
+  "purpose": "WP9.3-1 fixture copies (WP9.3 note sections 8.2, 9.4 and 17, Fixtures). Each test re-derives the blob from the fixture bytes.",
+  "fixtures": [
+    {
+      "fixture": "usoc_headline_frozen_2026-05-28.json",
+      "test": "W9-T2",
+      "source_path": "results/trajectory_tda_integration/stage1/usoc_headline_frozen_2026-05-28.json",
+      "source_commit": "f3ae4541492bb0fc646142b35912a3c95a23569b",
+      "source_blob": "8f95cbbb3a5c8bda2ee250b8ac36493d70e2a6b1",
+      "line_span": null,
+      "sha256": "792a89195636736bda9858f78f5f32a82078893f8df145f539598c768025be81",
+      "byte_length": 1709
+    },
+    {
+      "fixture": "superseded_lines_69_71.md",
+      "test": "W9-T4",
+      "source_path": "results/trajectory_tda_integration/stage1/SUPERSEDED.md",
+      "source_commit": "1af52f6d3ee58919028bdde19d8bf76fc2dad02d",
+      "source_blob": "ee7557ad15b01edfbc742bdc340111ba80581625",
+      "line_span": {"first_line": 69, "last_line": 71},
+      "sha256": "11aab66bdaaf40370c0dda6903fa9028cce829e914f7ce31067e5bfd6e53c2dc",
+      "byte_length": 249
+    }
+  ]
+}

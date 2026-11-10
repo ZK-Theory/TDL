@@ -240,6 +240,8 @@ class SpecCoordinator:
             authority_resolver=self.resolver,
             governing_evidence_resolver=GoverningScientificReviewStore(self.objects, self.schemas),
             clock=self.clock,
+            # WP9.3 note §9.1, boundary extended to this file by Stephen on 2026-11-09: the in-lock binding recheck.
+            binding_check=self.binding.revalidate,
             **({} if document is None else {"document": document[1], "derived_from": derived_from}),
         )
 
@@ -348,6 +350,8 @@ class SpecCoordinator:
             repository_root=binding.repository_root,
             root_tokens={"control": binding.control_root, "repo": binding.repository_root},
             operational_ledger=self.ledger,
+            # WP9.3 note §9.1, boundary extended to this file by Stephen on 2026-11-09: the in-lock binding recheck.
+            binding_check=binding.revalidate,
         )
 
     @per_operation

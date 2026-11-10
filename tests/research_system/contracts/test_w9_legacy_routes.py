@@ -61,7 +61,7 @@ def _envelope_pin() -> tuple[str, str, str, str, int]:
 # Design note §3, written out row by row.
 EXPECTED_TAGS = {
     "LR-002": "catalogue_revision",
-    **{f"LR-{n:03d}": "WP9.3" for n in range(3, 21)},
+    **{f"LR-{n:03d}": "WP9.3" for n in range(16, 21)},
     "LR-021": "WP9.7",
     "LR-022": "WP9.7",
     "LR-023": "WP9.4",
@@ -163,10 +163,43 @@ def test_legacy_command_types_equal_the_accepted_catalogue_command_set() -> None
     assert LEGACY_COMMAND_TYPES == {row["command_type"] for row in _rows().values()}
 
 
-def test_only_genesis_has_a_runtime_binding_row() -> None:
+# WP9.3 note §16: WP9.3-1 binds the seven commands of §2.2 and four producer rows. Four W9 commands stay unbound
+# (§2.2): two of WP9.4, one of WP9.7, and LR-002's.
+WP9_3_COMMANDS = {
+    "ProposeLegacyRecord",
+    "RequestW9AuthorityReview",
+    "RecordW9AuthorityReview",
+    "ProposeW9AuthorityDecision",
+    "ResolveW9AuthorityDecision",
+    "RecordLegacyLightInventory",
+    "ObserveLegacyRecord",
+}
+WP9_3_PRODUCERS = {
+    ("ReviewRequested", "RequestW9AuthorityReview", "ars://core/event/ReviewRequested"),
+    ("ReviewVerdictRecorded", "RecordW9AuthorityReview", "ars://core/event/ReviewVerdictRecorded"),
+    ("DecisionProposed", "ProposeW9AuthorityDecision", "ars://core/event/DecisionProposed"),
+    ("DecisionResolved", "ResolveW9AuthorityDecision", "ars://core/event/DecisionResolved"),
+}
+
+
+def test_genesis_and_the_seven_wp9_3_commands_have_runtime_binding_rows() -> None:
     bound = {binding.command_type for binding in _RUNTIME_BINDINGS if binding.command_type in LEGACY_COMMAND_TYPES}
-    assert bound == {"ImportAcceptedW9CatalogueGenesis"}
-    assert not any(binding.producer_command_type in LEGACY_COMMAND_TYPES for binding in _RUNTIME_BINDINGS)
+    assert bound == {"ImportAcceptedW9CatalogueGenesis", *WP9_3_COMMANDS}
+    assert LEGACY_COMMAND_TYPES - bound == {
+        "CreateLegacyPaperRoot",
+        "RecordPaperCitationStatus",
+        "RecordAdoptionUseMismatch",
+        "ImportAcceptedW9CatalogueRevision",
+    }
+    producers = {
+        (binding.event_type, binding.producer_command_type, binding.schema_id)
+        for binding in _RUNTIME_BINDINGS
+        if binding.producer_command_type in LEGACY_COMMAND_TYPES
+    }
+    assert producers == WP9_3_PRODUCERS
+    rows = [binding for binding in _RUNTIME_BINDINGS if binding.command_type in WP9_3_COMMANDS]
+    assert {(binding.schema_id, binding.schema_version) for binding in rows} == {("ars://core/command", "1.0.0")}
+    assert len(rows) == 7
 
 
 def test_route_registry_is_exact_to_the_accepted_catalogue() -> None:
@@ -190,9 +223,32 @@ def test_route_registry_refuses_a_changed_catalogue(mutate: Any) -> None:
         routes.validate_legacy_route_registry(catalogue)
 
 
-def test_route_classes_are_one_routed_and_sixty_deferred_with_the_design_note_tags() -> None:
-    assert routes.LEGACY_ROUTED_ROWS == {"LR-001"}
+def test_route_classes_are_fourteen_routed_and_forty_seven_deferred_with_the_design_note_tags() -> None:
+    """WP9.3 note §15: the counts are pinned here, per PR, not in genesis guard 8."""
+    assert routes.LEGACY_ROUTED_ROWS == {"LR-001", *(f"LR-{n:03d}" for n in range(3, 16))}
+    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (14, 47)
     assert routes.LEGACY_DEFERRED_ROWS == EXPECTED_TAGS
+
+
+@pytest.mark.parametrize(
+    ("routed", "deferred"),
+    [
+        # A missing row: LR-015 in neither set.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 15))}), EXPECTED_TAGS),
+        # An overlapping row: LR-016 both routed and deferred.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 17))}), EXPECTED_TAGS),
+        # An untagged row: LR-016 deferred with no valid tag.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 16))}), {**EXPECTED_TAGS, "LR-016": "WP9.9"}),
+    ],
+    ids=["missing", "overlapping", "untagged"],
+)
+def test_genesis_guard_8_partition_check_refuses_a_broken_partition(
+    monkeypatch: pytest.MonkeyPatch, routed: frozenset[str], deferred: dict[str, str]
+) -> None:
+    monkeypatch.setattr(routes, "LEGACY_ROUTED_ROWS", routed)
+    monkeypatch.setattr(routes, "LEGACY_DEFERRED_ROWS", deferred)
+    with pytest.raises(IntegrityError, match="W9 route registry does not partition the accepted W9 catalogue"):
+        routes.validate_legacy_route_registry(_catalogue())
 
 
 def test_c5_no_row_emits_a_shared_event_type() -> None:
@@ -579,6 +635,10 @@ def test_w9_t11_store_half_a_restricted_source_never_carries_a_frozen_copy(ident
 
 def test_supersession_is_acyclic() -> None:
     state = reducers.new_legacy_state()
+    # WP9.3 note §3 row 5: only a recorded record can be superseded.
+    state["records"]["legacy_paper_root"] = dict.fromkeys(("obj_a", "obj_b", "obj_c", "obj_d"), {})
+    with pytest.raises(IntegrityError, match="W9 supersession names no recorded record"):
+        reducers._apply_supersession(state, {"superseded_ref": {"id": "obj_e"}, "replacing_ref": {"id": "obj_a"}})
 
     def supersede(old: str, new: str) -> None:
         reducers._apply_supersession(state, {"superseded_ref": {"id": old}, "replacing_ref": {"id": new}})

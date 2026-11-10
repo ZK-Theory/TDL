@@ -75,6 +75,17 @@ ROW_IDS = tuple(f"LR-{number:03d}" for number in range(1, 62))
 # Accepted catalogue revisions LR-002 may import. Inert in v1: none exists (P-071 item 4; P-072 item 5).
 ACCEPTED_REVISIONS: tuple[MappingProxyType[str, Any], ...] = ()
 CATALOGUE_STREAM_ID = "obj_01a17eb7-5ae0-7000-8000-000000000001"
+# Accepted identities from outside the store (WP9.3 note §9.1, §11.3; P-081 item 3). Each tuple is append-only: an
+# entry is added by its own reviewed PR after Stephen's acceptance, with independent test literals, and never replaced
+# once a store is bound to it. Both are empty in WP9.3, so LR-015 refuses every observation in production.
+#
+# An ACCEPTED_W0_SIGNATURES entry: {"ref": {"id", "record_revision", "content_hash"}, "domain", "accepted_at",
+# "signature_record": {"repository_path", "git_commit", "git_blob", "sha256"},
+# "signed_w0_documents": ({"repository_path", "git_blob"}, ...)}.
+ACCEPTED_W0_SIGNATURES: tuple[MappingProxyType[str, Any], ...] = ()
+# An ACCEPTED_CL_EXPORT entry: {"export": {"repository_path", "git_commit", "git_blob", "sha256", "byte_length"},
+# "retained_copy": {the same fields}, "classified_list": {the same fields}}.
+ACCEPTED_CL_EXPORT: tuple[MappingProxyType[str, Any], ...] = ()
 # The nominal request string the closed genesis schema requires. It is not a ledger transaction ID and carries no
 # ``txb_`` prefix; retries are answered from receipts (design note §5.2; confirmation n-2).
 REQUESTED_GENESIS_TRANSACTION_ID = "w9-genesis-request-v1"
