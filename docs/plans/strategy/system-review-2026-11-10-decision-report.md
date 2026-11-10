@@ -17,10 +17,11 @@ branch. It does not authorize direct changes to `main`, silent gate weakening, o
 controls.
 
 > **Act today: `main` is red.** PR #420 (WP9.3-1) merged at 09:04Z by admin bypass, while its suite was red on an
-> earlier head and still running on the merged one. `main` at `23f8f737` fails
-> `test_wp6_1_scope_task_authority.py::test_submission_lock_yields_the_acquired_composite_lease`. The break is in the
-> test, and the fix is one line. Unfixed, tonight's nightly goes red and opens an issue, and so does every PR that
-> selects that file. See Group A.
+> earlier head and still running on the merged one. `main` at `23f8f737` fails two tests,
+> `test_submission_lock_yields_the_acquired_composite_lease` and `test_submission_lock_retries_writer_lock_contention`.
+> Both breaks are in tests that build `CommandService` by hand. On your go-ahead after this review, the fix is open as
+> PR #422 (Group A1). Unfixed, tonight's nightly goes red and opens an issue, and so does every PR that selects either
+> file. See Group A.
 
 **What this review changed.**
 - **Record (observation log):**
@@ -98,6 +99,9 @@ Total: 1 + 3 + 3 + 3 + 1 + 1 = **12**.
   `AttributeError: 'CommandService' object has no attribute 'binding_check'`.
 - The two pushes after it (`2f215881`, a test-counting change, and `441f3f09`) did not touch that test. Their suite runs
   were cancelled or still running. I ran the test on `23f8f737`, and it fails.
+- The same run's shards 3, 4, 6 and 7 were cancelled, so they reported nothing. Running every test file that builds
+  `CommandService` by hand on `23f8f737` found a second failure with the same cause:
+  `test_command_lock_retry.py::test_submission_lock_retries_writer_lock_contention` (2 failed, 133 passed).
 - The PR states no reason for the bypass. No agent receipt in the WP9.3-1 worktree shows a merge attempt at 09:04, and
   `admin-bypass-guard.sh` refuses agent bypasses, so the merge was probably made outside an agent session. I did not
   establish that.
@@ -113,14 +117,14 @@ Total: 1 + 3 + 3 + 3 + 1 + 1 = **12**.
   (B1) would not have stopped it: the bypass skips required checks too.
 
 **Proposed action.**
-- **A1.** Fix forward today: add `service.binding_check = None` to the test's hand-copied defaults, merged through the
-  queue.
+- **A1.** Fix forward today: add `service.binding_check = None` to both tests' hand-copied defaults, merged through the
+  queue. You approved this after the review, and it is open as PR #422.
 - **A2.** Remove the hand copy's failure mode. Build the service through `__init__`, or add a control that compares the
   attribute names of the hand-built service with those of one built normally.
 - **A3.** Reinstate the bypass audit. For each bypassed update to `main`, it checks that the required checks and
   `suite-verdict` were green on the merged head and that the PR states a reason, and reports any that fail.
 
-**Controls.** A1: the test passes on the fix and fails on `23f8f737`. A2: an attribute added to `__init__` and not to
+**Controls.** A1: both tests pass on the fix and fail on `23f8f737`. A2: an attribute added to `__init__` and not to
 the copy fails the control. A3: a fixture of this merge (`23f8f737`, checks in progress, prior head red, no reason) is
 reported. A merge through the queue is not.
 
@@ -441,7 +445,7 @@ evidence.
 
 | What went wrong | Caught by | Observation |
 |---|---|---|
-| #420 merged by bypass past a red suite, and `main` fails a test | the suite caught the test; nothing checked the bypass. Found by this review | `2026-11-10-bypass-merge-skipped-a-red-suite-and-left-main-red` (A) |
+| #420 merged by bypass past a red suite, and `main` fails two tests | the suite caught the test; nothing checked the bypass. Found by this review | `2026-11-10-bypass-merge-skipped-a-red-suite-and-left-main-red` (A) |
 | An intermittent writer-lock conflict turned two nights red, and each issue closed itself | the nightly caught each night; nothing kept the count | `2026-11-10-nightly-writer-lock-flake-closes-its-own-issue-untriaged` (B) |
 | Three WP9.3 note claims (an enforcement claim, a payload encoding, two wiring sites) were wrong after many review rounds | WP9.3-1's implementation and issue #415 | the three Group D entries |
 | A directory-wide format pulled unrelated files into a commit | the session, by hand | `2026-11-09-main-holds-files-ruff-format-would-change` (E) |
