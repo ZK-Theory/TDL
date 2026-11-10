@@ -26,18 +26,6 @@ from research_system.errors import IntegrityError
 # The preparer-set fields of a record a command creates (§5.1). A payload that supplies one is refused.
 PREPARER_SET_FIELDS = frozenset({"created_by_actor_id", "created_at", "content_hash"})
 OBSERVATION_PREPARER_SET_FIELDS = PREPARER_SET_FIELDS | {"observed_at"}
-# Note §7.4: fixed per identity kind, so every observer writes the same ones. The reader writes them and replay checks
-# them (WP9.3-1b, review i-2), so they live here, where replay can read them without importing the reader.
-NON_INFERENCES = {
-    "git_tracked": ("no authority from file presence (W0 §4)",),
-    "untracked_file": ("no authority from file presence (W0 §4)", "no Git identity"),
-    "vault_file": ("no authority from file presence (W0 §4)", "no Git identity"),
-    "restricted_untracked_file": (
-        "no authority from file presence (W0 §4)",
-        "no Git identity",
-        "no frozen copy in the ARS store",
-    ),
-}
 # The read-derived fields of an observation (§5.1): a function of the bytes, filled by the preparer from its own read.
 OBSERVATION_READ_DERIVED_FIELDS = frozenset({"source_identity", "file_facts", "importer", "record_id"})
 

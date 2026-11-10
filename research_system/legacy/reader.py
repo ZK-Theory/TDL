@@ -34,7 +34,6 @@ from typing import Any
 
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError
-from research_system.legacy.records import NON_INFERENCES
 from research_system.store.lock import open_registered_member_directory_anchor, open_registered_root_anchor
 
 READER_VERSION = "1.0.0"
@@ -50,6 +49,17 @@ CONVENTIONS_LOCK = {
 }
 CL_ROLE = "legacy_decision_log_entry"
 _GIT_TIMEOUT_SECONDS = 30
+# §7.4: fixed per identity kind, so every observer writes the same ones.
+NON_INFERENCES = {
+    "git_tracked": ("no authority from file presence (W0 §4)",),
+    "untracked_file": ("no authority from file presence (W0 §4)", "no Git identity"),
+    "vault_file": ("no authority from file presence (W0 §4)", "no Git identity"),
+    "restricted_untracked_file": (
+        "no authority from file presence (W0 §4)",
+        "no Git identity",
+        "no frozen copy in the ARS store",
+    ),
+}
 
 
 class ReadRefused(IntegrityError):

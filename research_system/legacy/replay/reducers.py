@@ -30,8 +30,11 @@ from typing import Any
 from research_system.errors import IntegrityError
 from research_system.legacy.accepted_w9 import CATALOGUE_STREAM_ID, RESERVED_IDS, accepted_genesis_payload
 from research_system.legacy.identities import pinned_signature_ids
+
+# The reader owns §7.4's fixed strings, and its module blob is in the importer hash (WP9.3-1 record §2), so replay reads
+# them from there rather than from a copy (WP9.3-1b, review i-2).
+from research_system.legacy.reader import NON_INFERENCES
 from research_system.legacy.records import (
-    NON_INFERENCES,
     observation_record_id,
     observation_subject_digest,
     pre_assigned_ref_hash,
