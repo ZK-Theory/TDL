@@ -211,3 +211,12 @@ valid, all fixed.** Codex did not review: it hit its usage limit.
   whose current binding does not load. The accepted option says `ars submit` *tries* the binding, so the fix returns no
   recheck there (§3 item 3). A new test covers the recheck's four outcomes.
 - `merge-admission`: the six unresolved threads above; each now has a recorded reply.
+
+**CodeRabbit's review of `663388f8` (5839173020): one inline comment, valid, fixed in `2f215881`.**
+
+| Comment | Finding | Disposition |
+|---|---|---|
+| 4522886561 | The deep-nesting test parsed `depth` nested lists but asserted `depth + 1` pointers. Locally the C scanner refused first, so that branch never asserted | Fixed: the bytes hold `depth + 1` lists, matching the Python value |
+
+The full suite on `663388f8` and later was not run to completion before Stephen moved the PR to the merge queue
+(2026-11-10). The fixes after `e13bf197` were checked on the files they touch.
