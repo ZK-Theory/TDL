@@ -543,6 +543,59 @@ def test_pre_commit_refuses_a_staged_rewrite_of_a_committed_result(tmp_path: Pat
     assert _results_receipts(repo) == ["block"]
 
 
+def _stage_symlink(repo: Path, path: str, target: str) -> None:
+    """Stage ``path`` as a symlink to ``target`` without needing symlink support on the filesystem."""
+    blob = subprocess.run(
+        ["git", "hash-object", "-w", "--stdin"], cwd=repo, input=target, capture_output=True, text=True, check=True
+    ).stdout.strip()
+    _git(repo, "update-index", "--cacheinfo", f"120000,{blob},{path}")
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+@pytest.mark.parametrize(
+    ("change", "kind"),
+    [("symlink", "type-changed"), ("rename", "renamed"), ("delete", "deleted")],
+)
+def test_pre_commit_refuses_every_staged_loss_of_a_committed_result(tmp_path: Path, change: str, kind: str) -> None:
+    """Negative control: --diff-filter=M let a type change, a rename or a deletion of a result record through."""
+    repo, env, _ = _results_fixture(tmp_path)
+    path = "results/w2_battery_2026-07-01.json"
+    if change == "symlink":
+        _stage_symlink(repo, path, "w2_battery_2026-11-10.json")
+    elif change == "rename":
+        _git(repo, "mv", path, "results/w2_battery_renamed.json")
+    else:
+        _git(repo, "rm", "-q", path)
+
+    refused = _run_hook(repo, env)
+
+    assert refused.returncode == 1, refused.stderr
+    assert RESULTS_REWRITE in refused.stderr
+    assert f"{path} ({kind})" in refused.stderr
+    assert _results_receipts(repo) == ["block"]
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
+def test_pre_commit_refuses_a_rewrite_of_a_result_whose_path_git_quotes(tmp_path: Path) -> None:
+    """Negative control: --name-only printed "results/\\303\\251..." in quotes, so the extension match missed it."""
+    repo, env, _ = _results_fixture(tmp_path)
+    quoted = repo / "results" / "w2_été_2026-07-01.json"
+    quoted.write_text('{"w2": 1.0}\n', encoding="utf-8", newline="\n")
+    _git(repo, "add", "results")
+    _git(repo, "commit", "-q", "-m", "seed a result with a non-ASCII name")
+    assert '"' in _git(repo, "-c", "core.quotePath=true", "ls-files", "results").stdout, "the fixture must be quoted"
+    quoted.write_text('{"w2": 2.0}\n', encoding="utf-8", newline="\n")
+    _git(repo, "add", "results")
+
+    refused = _run_hook(repo, env)
+
+    assert refused.returncode == 1, refused.stderr
+    assert RESULTS_REWRITE in refused.stderr
+    assert _results_receipts(repo)[-1] == "block"
+
+
 @pytest.mark.integration
 @pytest.mark.skipif(_git_bash() is None, reason="Git Bash is required")
 def test_pre_commit_admits_a_new_date_suffixed_result(tmp_path: Path) -> None:

@@ -363,12 +363,27 @@ fi
 # rewritten by scripts and reach main by commit, so the rule binds here (obs
 # 2026-11-10-results-no-overwrite-misses-the-path-results-take). A staged modification of a tracked
 # results/**/*.{json,npy,npz} file blocks; a new date-suffixed file passes. Every run appends a receipt.
-_rewritten_results=$(git diff --cached --name-only --diff-filter=M -- results/ 2>/dev/null \
-  | grep -E '\.(json|npy|npz)$' || true)
+# Modified (M), type-changed (T: a file replaced by a symlink), renamed (R) and deleted (D) records all count: each
+# loses the committed bytes at that path. Paths are read NUL-delimited, raw, because --name-only quotes a path with
+# unusual bytes and the quoted form no longer ends in the extension. For a rename the old path is the record.
+_rewritten_results=""
+_first_result=""
+while IFS= read -r -d '' _rstatus; do
+  IFS= read -r -d '' _rpath || break
+  case "$_rstatus" in R*) IFS= read -r -d '' _rnew || break ;; esac
+  case "$_rpath" in
+    *.json|*.npy|*.npz)
+      case "$_rstatus" in M*) _rkind=modified ;; T*) _rkind=type-changed ;; R*) _rkind=renamed ;; *) _rkind=deleted ;; esac
+      _rewritten_results="${_rewritten_results}${_rpath} (${_rkind})"$'\n'
+      [ -n "$_first_result" ] || _first_result="$_rpath"
+      ;;
+  esac
+done < <(git diff --cached --name-status -z --diff-filter=MTRD -- results/ 2>/dev/null)
+_rewritten_results="${_rewritten_results%$'\n'}"
 _results_decision=allow
 [ -n "$_rewritten_results" ] && _results_decision=block
 if [ -d "$REPO_ROOT/.claude/hooks" ]; then
-  _first_result=$(printf '%s\n' "$_rewritten_results" | head -1 | tr -c 'A-Za-z0-9_./\n-' '?')
+  _first_result=$(printf '%s\n' "$_first_result" | tr -c 'A-Za-z0-9_./\n-' '?')
   printf '%s hook=pre-commit-results decision=%s file=%s\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$_results_decision" "${_first_result:--}" \
     >> "$REPO_ROOT/.claude/hooks/hook-receipts.log" 2>/dev/null || true

@@ -7,25 +7,50 @@ the defaults from a real instance, and the census below keeps new hand copies ou
 
 from __future__ import annotations
 
-import re
+import ast
 from pathlib import Path
 
 from research_system.command.service import CommandService
 from tests.research_system.factories import REPO_ROOT, hand_built_command_service
 
-_HAND_COPY = re.compile(r"object\.__new__\(\s*CommandService\s*\)|CommandService\.__new__\(")
 _ALLOWED = {Path("tests/research_system/factories.py")}
 
 
+def _names_command_service(node: ast.expr) -> bool:
+    return (isinstance(node, ast.Name) and node.id == "CommandService") or (
+        isinstance(node, ast.Attribute) and node.attr == "CommandService"
+    )
+
+
+def _is_hand_copy(call: ast.Call) -> bool:
+    """``object.__new__(CommandService)`` or ``CommandService.__new__(...)``, however its arguments are laid out."""
+    func = call.func
+    if not (isinstance(func, ast.Attribute) and func.attr == "__new__"):
+        return False
+    if _names_command_service(func.value):
+        return True
+    return (
+        isinstance(func.value, ast.Name) and func.value.id == "object" and any(map(_names_command_service, call.args))
+    )
+
+
 def _hand_copies(sources: dict[Path, str]) -> list[str]:
-    """Return ``path:line`` for every hand-built CommandService outside the shared factory."""
+    """Return ``path:line`` for every hand-built CommandService outside the shared factory.
+
+    The calls are read from the parsed source, so an allocation whose arguments span lines is still found. A file that
+    does not parse is reported too, so the census cannot pass by skipping it.
+    """
     found: list[str] = []
     for path, text in sorted(sources.items()):
         if path in _ALLOWED:
             continue
-        for number, line in enumerate(text.splitlines(), start=1):
-            if _HAND_COPY.search(line):
-                found.append(f"{path.as_posix()}:{number}")
+        try:
+            tree = ast.parse(text, filename=path.as_posix())
+        except SyntaxError as error:
+            found.append(f"{path.as_posix()}:{error.lineno}: does not parse")
+            continue
+        lines = sorted({node.lineno for node in ast.walk(tree) if isinstance(node, ast.Call) and _is_hand_copy(node)})
+        found.extend(f"{path.as_posix()}:{line}" for line in lines)
     return found
 
 
@@ -78,3 +103,26 @@ def test_the_census_reports_a_hand_copy() -> None:
     }
 
     assert _hand_copies(sources) == ["tests/research_system/unit/test_example.py:2"]
+
+
+def test_the_census_reports_a_hand_copy_split_across_lines() -> None:
+    """Negative control: the line-by-line regex missed an allocation whose argument sat on the next line."""
+    sources = {
+        Path("tests/research_system/unit/test_split.py"): (
+            "import research_system.command.service as svc\n"
+            "a = object.__new__(\n"
+            "    CommandService\n"
+            ")\n"
+            "b = object.__new__(svc.CommandService)\n"
+            "c = svc.CommandService.__new__(svc.CommandService)\n"
+            "d = object.__new__(OtherService)\n"
+        ),
+        Path("tests/research_system/unit/test_broken.py"): "def broken(:\n",
+    }
+
+    assert _hand_copies(sources) == [
+        "tests/research_system/unit/test_broken.py:1: does not parse",
+        "tests/research_system/unit/test_split.py:2",
+        "tests/research_system/unit/test_split.py:5",
+        "tests/research_system/unit/test_split.py:6",
+    ]

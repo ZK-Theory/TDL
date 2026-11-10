@@ -7,7 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 
-from check_bypass_merges import Bypass, audit  # noqa: E402
+import pytest  # noqa: E402
+from check_bypass_merges import Bypass, audit, main, merging_pull, time_period  # noqa: E402
 
 REQUIRED = ("admission-controls", "merge-admission")
 MERGED = "2026-11-10T09:04:21Z"
@@ -67,3 +68,42 @@ def test_a_bypass_with_no_pull_request_is_reported() -> None:
     problems = audit([_bypass(pr_number=None, merged_at=None, head_sha=None, texts=(), checks={})], REQUIRED)
 
     assert problems == [f"23f8f737 ({MERGED}): bypassed update to main with no pull request"]
+
+
+def test_the_window_picks_the_smallest_period_that_covers_it() -> None:
+    assert [time_period(days) for days in (1, 2, 7, 8, 30)] == ["day", "week", "week", "month", "month"]
+
+
+@pytest.mark.parametrize("days", [0, 31, 90])
+def test_a_window_the_api_cannot_read_is_refused_not_cut(days: int, capsys: pytest.CaptureFixture[str]) -> None:
+    """Negative control: time_period=month silently capped a longer window and still exited clean."""
+    with pytest.raises(ValueError, match="between 1 and 30"):
+        time_period(days)
+    with pytest.raises(SystemExit) as exited:
+        main(["--days", str(days)])
+
+    assert exited.value.code == 2
+    assert "between 1 and 30" in capsys.readouterr().err
+
+
+def test_the_merging_pull_is_the_one_whose_merge_commit_is_the_sha() -> None:
+    """Negative control: pulls[0] judged whichever pull request GitHub listed first."""
+    sha = "23f8f737" + "0" * 32
+    pulls = [
+        {"number": 418, "merged_at": "2026-11-09T10:00:00Z", "merge_commit_sha": "f" * 40},
+        {"number": 419, "merged_at": None, "merge_commit_sha": None},
+        {"number": 420, "merged_at": MERGED, "merge_commit_sha": sha},
+    ]
+
+    assert merging_pull(pulls, sha)["number"] == 420
+    assert merging_pull(pulls[:2], sha)["number"] == 418
+    assert merging_pull(pulls[1:2], sha) is None
+
+
+def test_timestamps_compare_as_times_not_strings() -> None:
+    """Negative control: 09:30+01:00 is 08:30Z, before a 09:00Z merge, which a string comparison reads as after."""
+    checks = {name: [("success", "2026-11-10T09:30:00.250+01:00")] for name in (*REQUIRED, "suite-verdict")}
+    late = {name: [("success", "2026-11-10T10:00:01+01:00")] for name in (*REQUIRED, "suite-verdict")}
+
+    assert audit([_bypass(merged_at="2026-11-10T09:00:00Z", checks=checks)], REQUIRED) == []
+    assert len(audit([_bypass(merged_at="2026-11-10T09:00:00Z", checks=late)], REQUIRED)) == 3

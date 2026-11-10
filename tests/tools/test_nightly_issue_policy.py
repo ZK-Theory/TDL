@@ -55,3 +55,25 @@ def test_episodes_older_than_the_window_do_not_count() -> None:
 
 def test_a_green_night_with_no_open_issue_does_nothing() -> None:
     assert decide("success", NOW, [ISSUE_413])["action"] == "none"
+
+
+OLD_OPEN = {"number": 380, "state": "OPEN", "createdAt": "2026-10-20T09:00:00Z"}
+
+
+def test_a_red_night_comments_on_an_open_issue_older_than_the_window() -> None:
+    """Negative control: an issue left open for triage past 14 days dropped out, and the next red opened a duplicate."""
+    assert decide("failure", NOW, [OLD_OPEN]) == {"action": "comment", "number": 380, "note": ""}
+
+
+def test_a_green_night_leaves_an_open_issue_older_than_the_window_to_a_person() -> None:
+    decision = decide("success", NOW, [OLD_OPEN, ISSUE_413])
+
+    assert decision["action"] == "none"
+    assert decision["number"] == 380
+    assert "A person closes it" in decision["note"]
+
+
+def test_the_newest_open_issue_is_the_current_one() -> None:
+    issues = [{"number": 414, "state": "OPEN", "createdAt": "2026-11-08T09:03:55Z"}, OLD_OPEN]
+
+    assert decide("failure", NOW, issues)["number"] == 414

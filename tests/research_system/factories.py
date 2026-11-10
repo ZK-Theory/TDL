@@ -60,6 +60,13 @@ def hand_built_command_service(control_root: Path, **attributes: Any) -> Command
     by adding ``binding_check`` (obs 2026-11-10-bypass-merge-skipped-a-red-suite-and-left-main-red). Here the defaults
     come from a real instance built over an empty directory, so an attribute added to ``__init__`` arrives with them.
     ``attributes`` then set what the test needs, ``control_root`` first.
+
+    Args:
+        control_root: Set as the service's ``control_root``. Nothing is created or recovered under it.
+        **attributes: Instance attributes set after the defaults and ``control_root``, overriding either.
+
+    Returns:
+        A CommandService whose ``__init__`` never ran on ``control_root``, carrying every default a real instance has.
     """
     with tempfile.TemporaryDirectory() as reference_root:
         reference = CommandService(Path(reference_root), None, None, None, None)  # type: ignore[arg-type]

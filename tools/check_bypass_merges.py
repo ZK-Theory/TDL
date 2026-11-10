@@ -21,7 +21,8 @@ Reading rule suites needs the repository owner's token, which a workflow's ``GIT
 the weekly system review runs this in its step 1. ``audit`` is pure, and its controls run in admission-controls.
 
 Usage: python tools/check_bypass_merges.py [--repo OWNER/NAME] [--ruleset 20822054] [--days 7]
-Exit 0 when every bypass is clean, 1 when any is reported, 2 when GitHub cannot be read.
+``--days`` runs from 1 to 30: the rule-suites API reads at most a month, so a longer window is refused, never cut.
+Exit 0 when every bypass is clean, 1 when any is reported, 2 when GitHub cannot be read or the arguments are invalid.
 """
 
 from __future__ import annotations
@@ -53,10 +54,60 @@ class Bypass:
     checks: Mapping[str, list[tuple[str | None, str | None]]] = field(default_factory=dict)
 
 
+MAX_DAYS = 30
+_PERIODS = ((1, "day"), (7, "week"), (MAX_DAYS, "month"))
+
+
+def _when(stamp: str) -> datetime:
+    """Parse a GitHub timestamp, ``Z`` or offset form, with or without fractional seconds, as an aware datetime."""
+    parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
 def _before(completed_at: str | None, merged_at: str | None) -> bool:
     if completed_at is None or merged_at is None:
         return False
-    return completed_at <= merged_at
+    return _when(completed_at) <= _when(merged_at)
+
+
+def time_period(days: int) -> str:
+    """Return the smallest rule-suites ``time_period`` that covers ``days``.
+
+    The rule-suites API accepts ``hour``, ``day``, ``week`` and ``month`` only, so a window longer than ``MAX_DAYS``
+    cannot be read in one query. It is refused rather than silently cut to a month.
+
+    Args:
+        days: The audit window in days.
+
+    Returns:
+        ``"day"``, ``"week"`` or ``"month"``.
+
+    Raises:
+        ValueError: when ``days`` is below 1 or above ``MAX_DAYS``.
+    """
+    if days < 1 or days > MAX_DAYS:
+        raise ValueError(f"--days must be between 1 and {MAX_DAYS}; the rule-suites API reads at most a month")
+    return next(period for limit, period in _PERIODS if days <= limit)
+
+
+def merging_pull(pulls: Iterable[Mapping[str, Any]], sha: str) -> Mapping[str, Any] | None:
+    """Return the merged pull request that produced ``sha``.
+
+    ``commits/{sha}/pulls`` can list several pull requests that contain the commit. The one whose
+    ``merge_commit_sha`` is ``sha`` merged it. Without such a match, the earliest merged one is the fallback.
+
+    Args:
+        pulls: The pull requests GitHub lists for the commit.
+        sha: The commit that reached main.
+
+    Returns:
+        The merging pull request, or None when none of them merged.
+    """
+    merged = [pull for pull in pulls if pull.get("merged_at")]
+    if not merged:
+        return None
+    exact = [pull for pull in merged if pull.get("merge_commit_sha") == sha]
+    return (exact or sorted(merged, key=lambda pull: _when(pull["merged_at"])))[0]
 
 
 def audit(bypasses: Iterable[Bypass], required: Iterable[str]) -> list[str]:
@@ -107,18 +158,18 @@ def collect(repo: str, ruleset: int, days: int, now: datetime) -> tuple[list[Byp
         if rule.get("type") == "required_status_checks"
         for check in rule["parameters"]["required_status_checks"]
     ]
-    since = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    suites = _paged(f"repos/{repo}/rulesets/rule-suites?ref=refs/heads/main&time_period=month")
+    period = time_period(days)
+    since = now - timedelta(days=days)
+    suites = _paged(f"repos/{repo}/rulesets/rule-suites?ref=refs/heads/main&time_period={period}")
     bypasses: list[Bypass] = []
     for suite in suites:
-        if suite.get("result") != "bypass" or suite.get("pushed_at", "") < since:
+        if suite.get("result") != "bypass" or _when(suite["pushed_at"]) < since:
             continue
         sha = suite["after_sha"]
-        pulls = [p for p in _gh("api", f"repos/{repo}/commits/{sha}/pulls") if p.get("merged_at")]
-        if not pulls:
+        pr = merging_pull(_gh("api", f"repos/{repo}/commits/{sha}/pulls"), sha)
+        if pr is None:
             bypasses.append(Bypass(sha, suite["pushed_at"], None, None, None))
             continue
-        pr = pulls[0]
         head = pr["head"]["sha"]
         comments = _gh("api", f"repos/{repo}/issues/{pr['number']}/comments")
         checks: dict[str, list[tuple[str | None, str | None]]] = {}
@@ -130,11 +181,23 @@ def collect(repo: str, ruleset: int, days: int, now: datetime) -> tuple[list[Byp
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the audit over the window and print one ``ERROR:`` line per problem.
+
+    Args:
+        argv: Command-line arguments; ``None`` reads ``sys.argv``.
+
+    Returns:
+        0 when every bypass is clean, 1 when any is reported, 2 when GitHub cannot be read.
+    """
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", default="ZK-Theory/TDL")
     parser.add_argument("--ruleset", type=int, default=20822054)
-    parser.add_argument("--days", type=int, default=7)
+    parser.add_argument("--days", type=int, default=7, help=f"window in days, 1 to {MAX_DAYS}")
     args = parser.parse_args(argv)
+    try:
+        time_period(args.days)
+    except ValueError as error:
+        parser.error(str(error))
     try:
         bypasses, required = collect(args.repo, args.ruleset, args.days, datetime.now(UTC))
     except (RuntimeError, KeyError, json.JSONDecodeError) as error:
