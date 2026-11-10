@@ -21,6 +21,7 @@ import pytest
 
 from research_system.command import service, t2
 from research_system.discovery.replay.registry import REDUCERS as DISCOVERY_REDUCERS
+from research_system.legacy.accepted_w9 import RESERVED_IDS
 from research_system.legacy.identities import NON_W9_ID_FIELDS, W9_CLAIMABLE_PREFIXES, w9_fixed_identities
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -95,7 +96,14 @@ class _Census(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         if self._is_class(node.func):
-            binding = any(keyword.arg == "binding_check" for keyword in node.keywords)
+            # Review i-5: the argument must be a binding's ``revalidate`` (an attribute ending ``.revalidate``), so a
+            # present but empty ``binding_check=None``, or any other constant or name, does not count as the binding.
+            binding = any(
+                keyword.arg == "binding_check"
+                and isinstance(keyword.value, ast.Attribute)
+                and keyword.value.attr == "revalidate"
+                for keyword in node.keywords
+            )
             self.constructions.append((self.path, ".".join(self.scope), node.lineno, binding))
         self.generic_visit(node)
 
@@ -180,11 +188,19 @@ def test_runtime_construction_census_fails_a_fixture_that_escapes_the_binding(so
     assert message in _violations("fixture.py", source)
 
 
-def test_an_allowed_site_without_its_binding_check_fails_the_census() -> None:
-    source = "class SpecCoordinator:\n    def _discovery(self):\n        return DiscoveryRuntime(1, 2)\n"
+@pytest.mark.parametrize(
+    "argument",
+    ["", ", binding_check=None", ", binding_check=check", ", binding_check=lambda: None", ", binding_check=self.check"],
+    ids=["absent", "none", "a-name", "a-lambda", "another-attribute"],
+)
+def test_an_allowed_site_without_its_binding_check_fails_the_census(argument: str) -> None:
+    """Review i-5: only ``binding_check=<binding>.revalidate`` counts as the site's binding."""
+    source = f"class SpecCoordinator:\n    def _discovery(self):\n        return DiscoveryRuntime(1, 2{argument})\n"
     assert _violations("research_system/discovery/spec.py", source) == [
         "research_system/discovery/spec.py:3: constructs a runtime without its binding check"
     ]
+    passing = "class SpecCoordinator:\n    def _discovery(self):\n        return DiscoveryRuntime(1, binding_check=b.revalidate)\n"
+    assert _violations("research_system/discovery/spec.py", passing) == []
 
 
 # --- The CommandService lock-site census (§9.1) ------------------------------------------------------------------------
@@ -291,11 +307,25 @@ def test_a_fixture_type_that_writes_without_a_grant_fails_the_census() -> None:
 # --- The created-ID table's coverage (§4.3) -----------------------------------------------------------------------------
 
 _ID_PATTERN = re.compile(r"^\^(" + "|".join(prefix.rstrip("_") for prefix in W9_CLAIMABLE_PREFIXES) + r")_\[0-9a-f\]")
+# One real W9 ID of each claimable kind: the accepted reserved refs (an obj_, a rev_ and a dec_).
+_W9_SAMPLE_IDS = tuple(sorted(RESERVED_IDS))
 EVENT_SCHEMA_DIRECTORIES = (
     ".research-system/schemas/core/events",
     ".research-system/schemas/wp6-2-t2/events",
     ".research-system/schemas/wp6-2-live-issue/events",
 )
+
+
+def _admits_w9_id(pattern: str, path: list[str]) -> bool:
+    """Whether a schema pattern accepts one of W9's own IDs (review i-4).
+
+    A JSON Schema pattern is ECMA-262, so Python's ``re`` may reject a valid one. That fails the census loudly, naming the
+    field, rather than reading as "no match" and letting a field escape it (PR #428 review).
+    """
+    try:
+        return any(re.search(pattern, sample) for sample in _W9_SAMPLE_IDS)
+    except re.error as exc:
+        raise AssertionError(f"schema pattern at {'/'.join(path)} cannot be checked by Python re: {exc}") from exc
 
 
 def _id_fields(node, root, path, found, seen) -> None:
@@ -307,7 +337,10 @@ def _id_fields(node, root, path, found, seen) -> None:
             for part in ref[2:].split("/"):
                 target = target[part]
             _id_fields(target, root, path, found, seen)
-        if isinstance(node.get("pattern"), str) and _ID_PATTERN.match(node["pattern"]):
+        pattern = node.get("pattern")
+        # Review i-4: a field counts when its pattern starts with a W9 kind, or when the compiled pattern accepts one
+        # of W9's own IDs, so a broader pattern (``^[a-z]+_<uuid7>$``) is caught too.
+        if isinstance(pattern, str) and (_ID_PATTERN.match(pattern) or _admits_w9_id(pattern, path)):
             found.add("/".join(path))
         for name, child in node.get("properties", {}).items():
             _id_fields(child, root, [*path, name], found, seen)
@@ -355,6 +388,32 @@ def test_the_coverage_test_fails_on_a_fixture_schema_whose_created_id_field_the_
         },
     }
     assert _unclassified([fixture]) == ["FixtureCreated: new_fixture_id"]
+
+
+def test_the_coverage_test_fails_on_a_fixture_field_whose_broad_pattern_admits_a_w9_id() -> None:
+    """Review i-4: a pattern that does not start with a W9 kind but accepts one is still a W9-claimable field."""
+    uuid7 = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+    fixture = {
+        "$id": "ars://core/event/FixtureCreated",
+        "properties": {
+            "payload": {
+                "properties": {
+                    "any_record_id": {"type": "string", "pattern": f"^[a-z][a-z0-9]*_{uuid7}$"},
+                    "actor_only_id": {"type": "string", "pattern": f"^act_{uuid7}$"},
+                }
+            }
+        },
+    }
+    assert _unclassified([fixture]) == ["FixtureCreated: any_record_id"]
+
+
+def test_a_schema_pattern_python_cannot_compile_fails_the_census_naming_its_field() -> None:
+    fixture = {
+        "$id": "ars://core/event/FixtureCreated",
+        "properties": {"payload": {"properties": {"odd_id": {"type": "string", "pattern": "^\\p{L}+$"}}}},
+    }
+    with pytest.raises(AssertionError, match="schema pattern at payload/odd_id cannot be checked by Python re"):
+        _unclassified([fixture])
 
 
 def test_the_created_id_table_names_every_event_discoverys_reducers_handle() -> None:

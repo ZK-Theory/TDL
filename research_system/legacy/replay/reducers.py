@@ -30,6 +30,10 @@ from typing import Any
 from research_system.errors import IntegrityError
 from research_system.legacy.accepted_w9 import CATALOGUE_STREAM_ID, RESERVED_IDS, accepted_genesis_payload
 from research_system.legacy.identities import pinned_signature_ids
+
+# The reader owns §7.4's fixed strings, and its module blob is in the importer hash (WP9.3-1 record §2), so replay reads
+# them from there rather than from a copy (WP9.3-1b, review i-2).
+from research_system.legacy.reader import NON_INFERENCES
 from research_system.legacy.records import (
     observation_record_id,
     observation_subject_digest,
@@ -1113,6 +1117,13 @@ def _check_observation(
     """LR-015's replay checks (§6.2). Returns the registration's ID."""
 
     _created_fields(record, event)
+    # Review i-2: both are preparer-set from the one clock read and the source kind (§5.1, §7.4), so replay checks them.
+    if record.get("observed_at") != event.get("occurred_at"):
+        raise IntegrityError("W9 observation observed_at is not the event's time")
+    non_inferences = record.get("non_inferences")
+    kind = record.get("source_identity", {}).get("identity_kind")
+    if not isinstance(non_inferences, list | tuple) or tuple(non_inferences) != NON_INFERENCES.get(kind):
+        raise IntegrityError("W9 observation non_inferences are not the fixed strings for its source kind")
     if event.get("actor_id") != record.get("observer_actor_id"):
         raise IntegrityError("W9 observer is not the event's actor")
     registration_ref = record.get("registration_ref", {})
