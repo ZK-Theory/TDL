@@ -29,6 +29,7 @@ from tests.research_system.factories import (
     ACTORS,
     PROJECT_ID,
     activate_lifecycle_grant,
+    hand_built_command_service,
     control_plane,
     create_task_command,
     revoke_lifecycle_grant,
@@ -1564,22 +1565,17 @@ def test_submission_lock_yields_the_acquired_composite_lease(tmp_path):
 
     root = tmp_path / "submission-root"
     (root / "runtime").mkdir(parents=True)
-    service = object.__new__(CommandService)
-    service.control_root = root
-    service.release_lock_timeout_seconds = 1.0
-    service._monotonic = lambda: 0.0
-    service._lock_wait = lambda _seconds: None
-    # Mirror every default CommandService.__init__ sets that _submission_lock reads (#208 added the four
-    # restore defaults; #420 added binding_check, which _recheck_binding reads under the writer lock).
-    service.binding_check = None
-    service._restore_source_root = None
-    service._restore_approved_witness = None
-    service._restore_approved_witness_path = None
-    service._restore_preflight_result = None
-    service._restore_preflight_rechecker = None
-    service._restore_admission_sequence_lock = threading.RLock()
     snapshot = SimpleNamespace(global_position=0, event_hash="0" * 64)
-    service.ledger = SimpleNamespace(snapshot=lambda: snapshot)
+    # Every __init__ default comes from a real instance, so a new one cannot be missed (#208 and #420 each broke
+    # a hand-copied list here).
+    service = hand_built_command_service(
+        root,
+        release_lock_timeout_seconds=1.0,
+        _monotonic=lambda: 0.0,
+        _lock_wait=lambda _seconds: None,
+        _restore_admission_sequence_lock=threading.RLock(),
+        ledger=SimpleNamespace(snapshot=lambda: snapshot),
+    )
     command = SimpleNamespace(
         command_id="cmd_01978abc-7272-7000-8000-000000007272",
         envelope={"command_type": "UncoordinatedProbe"},

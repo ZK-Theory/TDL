@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
+import tempfile
 import uuid
 from typing import Any, Callable
 
@@ -49,6 +50,34 @@ ACTORS = {
 # actor class or role is therefore reached only by a non-owner: test it with this actor and a grant naming the classes
 # under test (observation 2026-10-28-authority-guard-tests-ran-only-as-the-owner).
 NON_OWNER_ACTOR_ID = ACTORS["actor-b"]
+
+
+def hand_built_command_service(control_root: Path, **attributes: Any) -> CommandService:
+    """Return a CommandService that carries every ``__init__`` default without running ``__init__`` on ``control_root``.
+
+    Tests that drive one lock path build the service with ``object.__new__`` so that ``__init__``'s side effects (marker
+    recovery under ``control_root``) do not run. Two of them copied ``__init__``'s defaults by hand, and #420 broke both
+    by adding ``binding_check`` (obs 2026-11-10-bypass-merge-skipped-a-red-suite-and-left-main-red). Here the defaults
+    come from a real instance built over an empty directory, so an attribute added to ``__init__`` arrives with them.
+    ``attributes`` then set what the test needs, ``control_root`` first.
+
+    Args:
+        control_root: Set as the service's ``control_root``. Nothing is created or recovered under it.
+        **attributes: Instance attributes set after the defaults and ``control_root``, overriding either.
+
+    Returns:
+        A CommandService whose ``__init__`` never ran on ``control_root``, carrying every default a real instance has.
+    """
+    with tempfile.TemporaryDirectory() as reference_root:
+        reference = CommandService(Path(reference_root), None, None, None, None)  # type: ignore[arg-type]
+    service = object.__new__(CommandService)
+    service.__dict__.update(vars(reference))
+    service.control_root = control_root
+    for name, value in attributes.items():
+        setattr(service, name, value)
+    return service
+
+
 ROOT_AUTHORITY_GRANT_ID = "agr_01978abc-1004-7000-8000-000000001004"
 RELEASE_DECISION_ID = "rgd_01978abc-1003-7000-8000-000000001003"
 

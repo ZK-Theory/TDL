@@ -9,7 +9,6 @@ import threading
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
-from research_system.command.service import CommandService
 from research_system.command.models import Receipt
 from research_system.errors import ArsError, ConflictError, IntegrityError, SchemaError
 from research_system.schema_registry import SchemaRegistry, runtime_schema_registry
@@ -29,6 +28,7 @@ from research_system.store.lock import (
 )
 from research_system.store.objects import ObjectStore, write_object
 from research_system.store.receipts import ReceiptStore
+from tests.research_system.factories import hand_built_command_service
 
 
 PROJECT_ID = "prj_01978abc-0001-7000-8000-000000000001"
@@ -1089,12 +1089,13 @@ def test_two_reclaimers_cannot_remove_a_fresh_winner(tmp_path, monkeypatch):
 
 
 def _recovery_service(root):
-    service = object.__new__(CommandService)
-    service.control_root = root
-    service.recovery_lock_timeout_seconds = 0.05
     now = [0.0]
-    service._monotonic = lambda: now[0]
-    service._lock_wait = lambda seconds: now.__setitem__(0, now[0] + seconds)
+    service = hand_built_command_service(
+        root,
+        recovery_lock_timeout_seconds=0.05,
+        _monotonic=lambda: now[0],
+        _lock_wait=lambda seconds: now.__setitem__(0, now[0] + seconds),
+    )
     return service, now
 
 
