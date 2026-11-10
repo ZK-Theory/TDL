@@ -10,31 +10,30 @@ from research_system.command.models import Command
 from research_system.command.service import CommandService
 from research_system.errors import ConflictError
 from research_system.store.lock import WriterLockContentionError
+from tests.research_system.factories import hand_built_command_service
 
 
 def _recovery_service(tmp_path) -> CommandService:
-    service = object.__new__(CommandService)
-    service.control_root = tmp_path
-    service.recovery_lock_timeout_seconds = 1.0
-    service._monotonic = lambda: 0.0
-    service._lock_wait = lambda _seconds: None
-    return service
+    return hand_built_command_service(
+        tmp_path,
+        recovery_lock_timeout_seconds=1.0,
+        _monotonic=lambda: 0.0,
+        _lock_wait=lambda _seconds: None,
+    )
 
 
 def _submission_service(tmp_path) -> CommandService:
-    service = object.__new__(CommandService)
-    service.control_root = tmp_path
-    # CommandService.__init__ default (#420): _submission_lock's _recheck_binding reads it under the writer lock.
-    service.binding_check = None
-    service._restore_admission_sequence_lock = threading.Lock()
-    service._prepare_moved_restore = lambda _command: None
-    service._canonical_authority_resolver = lambda: None
-    service._monotonic = lambda: 0.0
-    service._lock_wait = lambda _seconds: None
-    service.release_lock_timeout_seconds = 1.0
-    service.ledger = SimpleNamespace(snapshot=lambda: "one-verified-snapshot")
-    service._revalidate_prepared_moved_restore = lambda _command, _prepared, _snapshot: None
-    return service
+    return hand_built_command_service(
+        tmp_path,
+        _restore_admission_sequence_lock=threading.Lock(),
+        _prepare_moved_restore=lambda _command: None,
+        _canonical_authority_resolver=lambda: None,
+        _monotonic=lambda: 0.0,
+        _lock_wait=lambda _seconds: None,
+        release_lock_timeout_seconds=1.0,
+        ledger=SimpleNamespace(snapshot=lambda: "one-verified-snapshot"),
+        _revalidate_prepared_moved_restore=lambda _command, _prepared, _snapshot: None,
+    )
 
 
 def _lifecycle_command() -> Command:

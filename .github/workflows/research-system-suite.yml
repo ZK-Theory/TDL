@@ -242,7 +242,10 @@ jobs:
   # The verdict reaches a person. This lane was red for its first 9 scheduled runs, and nothing
   # carried that anywhere (obs 2026-10-15-report-only-run-findings-never-reached-the-log). A
   # scheduled run that is not green opens one issue, or comments on the open one; a green run
-  # closes it. Pull-request runs report on the PR itself, so this runs on the schedule only.
+  # closes it, unless the last 14 days hold two or more red episodes: then it stays open for a
+  # person to triage (tools/nightly_issue_policy.py; obs
+  # 2026-11-10-nightly-writer-lock-flake-closes-its-own-issue-untriaged, where #413 and #414 each
+  # closed themselves). Pull-request runs report on the PR itself, so this runs on the schedule only.
   nightly-verdict:
     needs: [select, suite]
     if: always() && github.event_name == 'schedule'
@@ -253,6 +256,13 @@ jobs:
       issues: write
 
     steps:
+      - name: Checkout the issue policy
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/nightly_issue_policy.py
+          sparse-checkout-cone-mode: false
+
       - name: Open, update or close the red-nightly issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -262,16 +272,19 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           title="Nightly research_system suite is red"
-          number="$(gh issue list --state open --search "\"$title\" in:title" --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
-          if [ "$SUITE" = "success" ]; then
-            if [ -n "$number" ]; then
-              gh issue close "$number" --comment "Green again at $SHA: $RUN_URL"
-            fi
-          else
-            body="The scheduled research-system-suite run at $SHA ended \`$SUITE\`: $RUN_URL"
-            if [ -n "$number" ]; then
-              gh issue comment "$number" --body "$body"
-            else
-              gh issue create --title "$title" --body "$body"
-            fi
-          fi
+          issues="$(gh issue list --state all --limit 50 --search "\"$title\" in:title" --json number,title,state,createdAt --jq "map(select(.title == \"$title\"))")"
+          now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          decision="$(printf '{"suite": "%s", "now": "%s", "issues": %s}' "$SUITE" "$now" "$issues" | python tools/nightly_issue_policy.py)"
+          action="$(printf '%s' "$decision" | python -c "import json,sys; print(json.load(sys.stdin)['action'])")"
+          number="$(printf '%s' "$decision" | python -c "import json,sys; print(json.load(sys.stdin)['number'] or '')")"
+          note="$(printf '%s' "$decision" | python -c "import json,sys; print(json.load(sys.stdin)['note'])")"
+          body="The scheduled research-system-suite run at $SHA ended \`$SUITE\`: $RUN_URL"
+          echo "policy: $decision"
+          case "$action" in
+            close) gh issue close "$number" --comment "Green again at $SHA: $RUN_URL" ;;
+            keep-open) gh issue comment "$number" --body "Green again at $SHA: $RUN_URL. $note" ;;
+            comment) gh issue comment "$number" --body "$body" ;;
+            create) gh issue create --title "$title" --body "$body$note" ;;
+            none) ;;
+            *) echo "::error::unknown policy action: $action"; exit 1 ;;
+          esac

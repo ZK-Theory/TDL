@@ -208,6 +208,8 @@ jobs:
           tests/tools/test_staged_contract_gate.py
           tests/tools/test_system_record_id.py
           tests/tools/test_w9_segmentation.py
+          tests/tools/test_check_bypass_merges.py
+          tests/tools/test_nightly_issue_policy.py
           tests/contracts/test_contract_hardening_gates.py
           tests/contracts/test_paper_table_reconciliation.py
           --junitxml=admission-controls.xml

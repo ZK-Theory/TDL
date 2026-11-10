@@ -769,7 +769,15 @@ Three journal-targeted papers replacing the original four technique-first papers
   bypass audit proposed with this choice was declined, since bypasses are rare
   again. Requiring `suite-verdict` in ruleset 20822054 is the owner's separate
   edit. Decided by Stephen, 2026-11-08 (system review 2026-11-03, Group A2).
-  Locked 2026-11-08.
+  Locked 2026-11-08. The reason is a line starting `Bypass reason:` in the
+  PR description or a comment. The weekly system review runs
+  `tools/check_bypass_merges.py`, which reports each bypassed update to
+  `main` that lacks that line, or whose required checks and `suite-verdict`
+  were not green on the merged head. It was built after #420 merged by bypass
+  past a red suite and left `main` failing two tests (observation
+  `2026-11-10-bypass-merge-skipped-a-red-suite-and-left-main-red`). Bypasses
+  stayed rare, but nothing looked at the rare one. Decided by Stephen,
+  2026-11-10 (system review 2026-11-10, Group A3).
 
 ---
 
