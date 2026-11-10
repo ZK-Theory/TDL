@@ -486,3 +486,67 @@ def segment(
         "rows": _rows(lines, rows),
         "suppressed_anchors": suppressed,
     }
+
+
+def resolve_first_anchor_after(
+    data: bytes,
+    selector_kind: str,
+    after_line: int,
+    *,
+    level: int | None = None,
+    structural: Sequence[tuple[int, int]] = (),
+) -> tuple[int, int]:
+    """Resolve a "from the first anchor after" declaration to a line range (contract §3; P-082 item 5, review M-2).
+
+    The resolution is the inventory's check, not the segmentation's (contract §7). The light-inventory builder and
+    LR-011's preparer share this one derivation. It uses this module's own line model and anchor rules, so it agrees
+    with ``segment`` by construction:
+
+    - ``heading_section``: a heading of the declared level k that no declared structural range suppresses;
+    - ``computational_log_entry``: a level-2 or level-3 heading whose text starts with a date token, or with a digit
+      that is not one, since that heading opens an ``unparseable_anchor`` blocker row that must not drop out (note
+      §6.2, "so no blocker row is dropped").
+
+    An anchor line is therefore exactly a line that opens an item or blocker row under ``segment``.
+
+    Args:
+        data: The source bytes.
+        selector_kind: ``heading_section`` or ``computational_log_entry``, the selectors with a declared region.
+        after_line: The named structural line, 1-based.
+        level: The heading level k, for ``heading_section``.
+        structural: The declared structural ranges, 1-based and inclusive.
+
+    Returns:
+        The first anchor line after ``after_line``, and the file's last line, both 1-based.
+
+    Raises:
+        SegmentationError: For a selector with a fixed region, ``heading_section`` without a level, an ``after_line``
+            or a structural range outside the file, or no anchor after ``after_line``.
+    """
+
+    if selector_kind not in ("heading_section", "computational_log_entry"):
+        raise SegmentationError(f"{selector_kind} takes no declared region")
+    if not isinstance(data, bytes):
+        raise SegmentationError("segmentation reads bytes")
+    lines = _lines(data)
+    if not 1 <= after_line <= len(lines):
+        raise SegmentationError(f"after_line {after_line} is outside the file")
+    if selector_kind == "heading_section":
+        if level is None:
+            raise SegmentationError("heading_section needs a level")
+        declared = _declared(structural, len(lines))
+
+        def anchor(index: int) -> bool:
+            return lines[index].level == level and index not in declared
+
+    else:
+
+        def anchor(index: int) -> bool:
+            text = lines[index].heading_text
+            return lines[index].level in (2, 3) and bool(_DATE_TOKEN.match(text) or _STARTS_WITH_DIGIT.match(text))
+
+    # 0-based index ``after_line`` is the 1-based line after ``after_line``.
+    first = next((index for index in range(after_line, len(lines)) if anchor(index)), None)
+    if first is None:
+        raise SegmentationError(f"no anchor follows line {after_line}")
+    return first + 1, len(lines)

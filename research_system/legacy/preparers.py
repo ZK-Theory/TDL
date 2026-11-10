@@ -48,7 +48,7 @@ from research_system.legacy.records import (
 )
 from research_system.legacy.replay import reducers as r
 from research_system.legacy.routes import record_kind
-from research_system.legacy.segmentation import SegmentationError, segment
+from research_system.legacy.segmentation import SegmentationError, resolve_first_anchor_after, segment
 
 # The rows a preparer builds, by what the command names (§2.1).
 REQUEST_ROWS = {"legacy_field_family_membership": "LR-007", "legacy_light_inventory": "LR-012"}
@@ -212,18 +212,41 @@ def check_frozen_copy(environment: Environment, ref: Mapping[str, Any], sha256: 
         raise IntegrityError("W9 frozen copy bytes differ from the observed bytes")
 
 
-def _segment_kwargs(record: Mapping[str, Any]) -> dict[str, Any]:
-    region = record.get("covered_region", {})
+def _resolution_kwargs(record: Mapping[str, Any]) -> dict[str, Any]:
+    """The heading level and structural ranges a record declares, as ``segment`` and the resolution take them."""
     kwargs: dict[str, Any] = {}
     if record.get("heading_level") is not None:
         kwargs["level"] = record["heading_level"]
+    if record.get("structural_ranges"):
+        kwargs["structural"] = [(item["first_line"], item["last_line"]) for item in record["structural_ranges"]]
+    return kwargs
+
+
+def segment_kwargs(record: Mapping[str, Any]) -> dict[str, Any]:
+    """The ``segment`` arguments an inventory record declares (§8.3); the builder and LR-011 share them."""
+    region = record.get("covered_region", {})
+    kwargs = _resolution_kwargs(record)
     if region.get("form") == "line_range":
         kwargs["region"] = (region["first_line"], region["last_line"])
     elif region.get("form") == "first_anchor_after":
         kwargs["region"] = (region["resolved_first_line"], region["resolved_last_line"])
-    if record.get("structural_ranges"):
-        kwargs["structural"] = [(item["first_line"], item["last_line"]) for item in record["structural_ranges"]]
     return kwargs
+
+
+def anchor_line_sha256s(segmented: Mapping[str, Any]) -> list[Any]:
+    """A ``line_range`` declaration's hashes: each segmented row's anchor-line SHA-256, in order (contract §3)."""
+    return [row["anchor_line_sha256"] for row in segmented["rows"]]
+
+
+def after_line_sha256(raw: bytes, after_line: Any) -> str | None:
+    """The SHA-256 of the named structural line's bytes, terminator included; ``None`` for no such line.
+
+    A line outside the file, or a value that is not a line number, has no hash, so a declaration naming it is refused.
+    """
+    lines = raw.split(b"\n")
+    if not isinstance(after_line, int) or isinstance(after_line, bool) or not 1 <= after_line <= len(lines):
+        return None
+    return sha256_hex(lines[after_line - 1] + (b"\n" if after_line < len(lines) else b""))
 
 
 def inventory_rows(segmented: Mapping[str, Any], selector_kind: str) -> list[dict[str, Any]]:
@@ -243,7 +266,7 @@ def check_resegmentation(raw: bytes, record: Mapping[str, Any]) -> dict[str, Any
     """LR-011 (§6.2; contract §3): re-segmentation reproduces every row, and the declarations match their hashes."""
 
     try:
-        segmented = segment(raw, str(record.get("selector_kind")), **_segment_kwargs(record))
+        segmented = segment(raw, str(record.get("selector_kind")), **segment_kwargs(record))
     except SegmentationError as exc:
         raise IntegrityError(f"W9 inventory source cannot be segmented: {exc}") from exc
     if inventory_rows(segmented, str(record["selector_kind"])) != record.get("rows"):
@@ -253,16 +276,24 @@ def check_resegmentation(raw: bytes, record: Mapping[str, Any]) -> dict[str, Any
     if segmented["file_facts"] != record.get("file_facts"):
         raise IntegrityError("W9 inventory file facts differ from re-segmentation")
     region = record.get("covered_region", {})
-    lines = raw.split(b"\n")
     if region.get("form") == "line_range":
-        hashes = [row["anchor_line_sha256"] for row in segmented["rows"]]
-        if region.get("anchor_line_sha256s") != hashes:
+        if region.get("anchor_line_sha256s") != anchor_line_sha256s(segmented):
             raise IntegrityError("W9 inventory region declaration differs from its anchor-line hashes")
     elif region.get("form") == "first_anchor_after":
         after = region.get("after_line")
-        line = lines[after - 1] + (b"\n" if after < len(lines) else b"") if isinstance(after, int) else b""
-        if region.get("after_line_sha256") != sha256_hex(line):
+        if region.get("after_line_sha256") != after_line_sha256(raw, after):
             raise IntegrityError("W9 inventory region declaration differs from its anchor-line hashes")
+        # P-082 item 5 (review M-2): the declared range must be the resolution the bytes give, so no row drops out.
+        if not isinstance(after, int) or isinstance(after, bool):
+            raise IntegrityError("W9 inventory region cannot be resolved: after_line is not a line number")
+        try:
+            resolved = resolve_first_anchor_after(
+                raw, str(record["selector_kind"]), after, **_resolution_kwargs(record)
+            )
+        except SegmentationError as exc:
+            raise IntegrityError(f"W9 inventory region cannot be resolved: {exc}") from exc
+        if (region.get("resolved_first_line"), region.get("resolved_last_line")) != resolved:
+            raise IntegrityError("W9 inventory region resolution differs from the first anchor after its after_line")
     return segmented
 
 
