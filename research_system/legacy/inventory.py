@@ -117,10 +117,18 @@ def build_light_inventory(
         The payload, without the preparer-set fields (``created_by_actor_id``, ``created_at``, ``content_hash``).
 
     Raises:
-        IntegrityError: If the source cannot be read, the region cannot be resolved or segmented, a frozen copy ref is
-            missing or not allowed, or the built inventory fails LR-011's own check.
+        IntegrityError: If the selector's level or structural ranges break the record schema's rule, the source cannot
+            be read, the region cannot be resolved or segmented, a frozen copy ref is missing or not allowed, or the
+            built inventory fails LR-011's re-segmentation check.
     """
 
+    # WP9.3-1b review i-1: the record schema's selector rule, before any read, so no proposal the schema refuses is
+    # handed out. Only heading_section takes a heading level and structural ranges, and it requires the level.
+    if selector_kind == "heading_section":
+        if heading_level is None:
+            raise IntegrityError("W9 heading_section inventory declares its heading level")
+    elif heading_level is not None or structural_ranges:
+        raise IntegrityError(f"W9 {selector_kind} inventory takes no heading level and no structural ranges")
     read = reader.read(registration)
     source_identity = dict(read.source_identity)
     kind = source_identity.get("identity_kind")
@@ -168,7 +176,7 @@ def build_light_inventory(
     record["file_facts"] = segmented["file_facts"]
     record["rows"] = inventory_rows(segmented, selector_kind)
     record["independent_reproduction_ref"] = pre_assigned_ref("review", review_id or new_id("review"), record_id)
-    # The builder's output is what LR-011 checks; a proposal it cannot admit is never handed out.
+    # LR-011's re-segmentation check on the builder's own output; the schema's selector rule ran before the read.
     check_resegmentation(read.raw, record)
     return record
 
@@ -240,17 +248,21 @@ def reproduce_light_inventory(record: Mapping[str, Any], raw: bytes) -> dict[str
     }
 
 
-def refuse_tool_output(output: Path, *, repository_root: Path | None, vault_root: Path | None) -> Path:
+def refuse_tool_output(output: Path, *, repository_root: Path | None, vault_root: Path) -> Path:
     """Note §12: a tool writes only to an output path the operator names, never under ``.apm/``, the vault or a store.
 
     The output must also lie outside the repository the tool reads (a reading recorded in the WP9.3-1b record): a file
     written there would change the input tree, which §17's "Tools write nothing" row forbids, and would make the
     reader's dual Git read refuse. It must not exist yet. Every check runs before any input is read.
 
+    The vault check is unconditional (WP9.3-1b review m-3): a tool cannot know the vault unless it is told, so every
+    tool takes the vault root and checks it. Paths are resolved, so the repository's ``vault/`` junction, which
+    resolves out of the repository, is caught as the vault.
+
     Args:
         output: The output path the operator named.
         repository_root: The repository the tool reads, if any.
-        vault_root: The real vault path, if any.
+        vault_root: The real vault path, always required.
 
     Returns:
         The resolved output path.
@@ -262,7 +274,9 @@ def refuse_tool_output(output: Path, *, repository_root: Path | None, vault_root
     resolved = output.resolve()
     if any(part.lower() == ".apm" for part in resolved.parts):
         raise IntegrityError(f"W9 tool output is under .apm/: {output}")
-    if vault_root is not None and resolved.is_relative_to(vault_root.resolve()):
+    if not isinstance(vault_root, Path):
+        raise IntegrityError("W9 tool output guard needs the vault root")
+    if resolved.is_relative_to(vault_root.resolve()):
         raise IntegrityError(f"W9 tool output is under the vault: {output}")
     for directory in resolved.parents:
         # lexists: a manifest path that is a directory or a dangling link still marks a store.

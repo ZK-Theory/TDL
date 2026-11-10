@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -172,11 +173,24 @@ def _write_json(path: Path, value: Any) -> Path:
     return path
 
 
+def _vault(store: W9Store) -> Path:
+    """A scratch vault beside the scratch repository: every tool run names one (WP9.3-1b review m-3)."""
+    vault = store.repo.parent / "vault"
+    vault.mkdir(exist_ok=True)
+    return vault
+
+
+def _reproduce_args(store: W9Store, inventory: Path) -> list[str]:
+    return ["legacy", "inventory", "reproduce", "--inventory", str(inventory), "--vault-root", str(_vault(store))]
+
+
 def _build_args(store: W9Store, registration: Path, output: Path) -> list[str]:
     return [
         "legacy",
         "inventory",
         "build",
+        "--vault-root",
+        str(_vault(store)),
         "--registration",
         str(registration),
         "--selector-kind",
@@ -210,7 +224,7 @@ def test_build_then_reproduce_through_the_cli_writes_only_its_outputs(store: W9S
     assert cli.main(_build_args(store, registration, out / "inventory.json")) == 0
     record = json.loads((out / "inventory.json").read_text(encoding="utf-8"))
     check_resegmentation(SECTIONS, record)
-    reproduce = ["legacy", "inventory", "reproduce", "--inventory", str(out / "inventory.json")]
+    reproduce = _reproduce_args(store, out / "inventory.json")
     assert cli.main([*reproduce, "--repository-root", str(store.repo), "--output", str(out / "report.json")]) == 0
     assert json.loads((out / "report.json").read_text(encoding="utf-8"))["reproduced"] is True
     (inputs / "copy.md").write_bytes(SECTIONS)
@@ -227,7 +241,7 @@ def test_reproduce_exits_1_when_the_report_shows_a_difference(store: W9Store, tm
     record["covered_region"]["resolved_first_line"] = 6
     inventory = _write_json(tmp_path / "inventory.json", record)
     report = tmp_path / "report.json"
-    args = ["legacy", "inventory", "reproduce", "--inventory", str(inventory), "--repository-root", str(store.repo)]
+    args = [*_reproduce_args(store, inventory), "--repository-root", str(store.repo)]
     assert cli.main([*args, "--output", str(report)]) == 1
     assert json.loads(report.read_text(encoding="utf-8"))["region"]["resolution_equal"] is False
 
@@ -246,7 +260,7 @@ def test_reproduce_refuses_a_git_blob_that_is_not_a_hex_object_id(
     inventory = _write_json(
         tmp_path / "inventory.json", {"source_identity": {"identity_kind": "git_tracked", "git_blob": blob}}
     )
-    args = ["legacy", "inventory", "reproduce", "--inventory", str(inventory), "--repository-root", str(store.repo)]
+    args = [*_reproduce_args(store, inventory), "--repository-root", str(store.repo)]
     assert cli.main([*args, "--output", str(tmp_path / "report.json")]) == 1
     assert "W9 reproduction needs the inventory's git_blob as a lowercase hex object ID" in capsys.readouterr().err
     assert not (tmp_path / "report.json").exists()
@@ -268,8 +282,7 @@ def test_each_tool_refuses_a_forbidden_output_before_it_reads(
     """Note §12: never under .apm/, the vault or a store; never in the input tree; never over an existing file."""
     sections = store.register("sections.md", role="legacy_coordination")
     registration = _write_json(tmp_path / "registration.json", sections)
-    vault = tmp_path / "vault"
-    vault.mkdir()
+    vault = _vault(store)
     targets = {
         "apm": tmp_path / "work" / ".apm" / "inventory.json",
         "vault": vault / "inventory.json",
@@ -290,21 +303,13 @@ def test_each_tool_refuses_a_forbidden_output_before_it_reads(
     monkeypatch.setattr(cli, "_read_json", no_read)
     build = _build_args(store, registration, output)
     # The legacy group turns a refusal into exit 1 and an ``error:`` line; a read before the guard would raise instead.
-    assert cli.main([*build, "--vault-root", str(vault)]) == 1
+    assert cli.main(build) == 1
     assert message in capsys.readouterr().err
     inventory = _write_json(tmp_path / "inventory.json", {"source_identity": {}})
-    reproduce = [
-        "legacy",
-        "inventory",
-        "reproduce",
-        "--inventory",
-        str(inventory),
-        "--repository-root",
-        str(store.repo),
-    ]
-    if where != "vault":  # reproduce reads no vault, so names none
-        assert cli.main([*reproduce, "--output", str(output)]) == 1
-        assert message in capsys.readouterr().err
+    reproduce = [*_reproduce_args(store, inventory), "--repository-root", str(store.repo)]
+    # WP9.3-1b review m-3: reproduce takes the vault root too, and refuses the vault like build.
+    assert cli.main([*reproduce, "--output", str(output)]) == 1
+    assert message in capsys.readouterr().err
     assert _worktree_bytes(store.repo) == repository
     assert _worktree_bytes(store.harness.ledger.control_root) == control
     if where != "existing":
@@ -314,9 +319,83 @@ def test_each_tool_refuses_a_forbidden_output_before_it_reads(
 def test_the_output_guard_reads_a_store_marker_that_is_a_directory_or_a_dangling_link(tmp_path: Path) -> None:
     store_root = tmp_path / "store"
     (store_root / "manifests" / "store-identity.json").mkdir(parents=True)
+    vault = tmp_path / "vault"
     with pytest.raises(IntegrityError, match="W9 tool output is inside a store"):
-        refuse_tool_output(store_root / "deep" / "out.json", repository_root=None, vault_root=None)
+        refuse_tool_output(store_root / "deep" / "out.json", repository_root=None, vault_root=vault)
     assert (
-        refuse_tool_output(tmp_path / "elsewhere.json", repository_root=None, vault_root=None)
+        refuse_tool_output(tmp_path / "elsewhere.json", repository_root=None, vault_root=vault)
         == (tmp_path / "elsewhere.json").resolve()
     )
+
+
+def test_the_output_guard_requires_a_vault_root() -> None:
+    """WP9.3-1b review m-3: the vault check is never skipped, so a guard called without a vault root refuses."""
+    with pytest.raises(IntegrityError, match="W9 tool output guard needs the vault root"):
+        refuse_tool_output(Path("out.json"), repository_root=None, vault_root=None)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("tool", ["build", "reproduce"])
+def test_each_tool_requires_vault_root(tool: str, capsys) -> None:
+    """WP9.3-1b review m-3: ``--vault-root`` is a required argument of both tools."""
+    with pytest.raises(SystemExit):
+        cli.main(["legacy", "inventory", tool, "--output", "x.json"])
+    assert "--vault-root" in capsys.readouterr().err
+
+
+@pytest.mark.skipif(os.name != "nt", reason="directory junctions are Windows-only")
+def test_an_output_through_the_repositorys_vault_junction_is_refused_as_the_vault(tmp_path: Path) -> None:
+    """The WP9.3-1b review's m-3 probe as a control: the repository's ``vault/`` junction resolves out of the
+    repository, so only the vault check catches an output named under it, and the vault check is always on."""
+    import subprocess
+
+    repository = tmp_path / "repo"
+    repository.mkdir()
+    real_vault = tmp_path / "real-vault"
+    real_vault.mkdir()
+    subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(repository / "vault"), str(real_vault)], check=True, capture_output=True
+    )
+    assert (repository / "vault" / "x.json").resolve() == (real_vault / "x.json").resolve()
+    with pytest.raises(IntegrityError, match="W9 tool output is under the vault"):
+        refuse_tool_output(repository / "vault" / "x.json", repository_root=repository, vault_root=real_vault)
+
+
+@pytest.mark.parametrize("head", ["--output=written-by-git", "-p", "HEAD", "abc", "G" * 40])
+def test_build_refuses_a_git_head_that_is_not_a_hex_commit_id(
+    store: W9Store, tmp_path: Path, capsys, head: str
+) -> None:
+    """WP9.3-1b review i-2: ``--git-head`` never reaches ``git show`` as an option or a ref name."""
+    sections = store.register("sections.md", role="legacy_coordination")
+    registration = _write_json(tmp_path / "registration.json", sections)
+    args = _build_args(store, registration, tmp_path / "inventory.json")
+    at = args.index("--git-head")
+    # The ``=`` form is how a dash-leading value reaches argparse as a value, not as an option of its own.
+    args[at : at + 2] = [f"--git-head={head}"]
+    assert cli.main(args) == 1
+    assert "W9 inventory build needs --git-head as a lowercase hex commit ID" in capsys.readouterr().err
+    assert not (tmp_path / "inventory.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("selector", "kwargs", "message"),
+    [
+        ("computational_log_entry", {"heading_level": 2}, "takes no heading level and no structural ranges"),
+        ("computational_log_entry", {"structural_ranges": [(1, 1)]}, "takes no heading level and no structural ranges"),
+        (
+            "heading_section",
+            {"region": ("line_range", 1, 10)},
+            "W9 heading_section inventory declares its heading level",
+        ),
+    ],
+    ids=["log-with-level", "log-with-structural", "heading-without-level"],
+)
+def test_the_builder_refuses_what_the_record_schema_would_refuse(
+    store: W9Store, selector: str, kwargs: dict[str, Any], message: str
+) -> None:
+    """WP9.3-1b review i-1: the schema's selector rule runs in the builder, so it never hands such a proposal out."""
+    sections = store.register("sections.md", role="legacy_coordination")
+    with pytest.raises(IntegrityError, match=message):
+        _build(store, sections, selector, **kwargs)
+    # Control: the same log selector with neither is built and admitted at LR-011.
+    record = _build(store, sections, "computational_log_entry")
+    assert _propose(store, record).status == "accepted"
