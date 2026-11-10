@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.4.0"
+  version: "1.5.0"
   tier: domain
   lanes: []
   roles:
@@ -70,10 +70,8 @@ rediscovering the same mismatch at full price, after a branch and worktree
 already exist. A Stop-Partial rule present in the plan is not a substitute
 for this: it only fires after dispatch, once context has already been spent.
 
-For every wiring claim ("X passes Y to Z"), also cite Z's production
-construction sites, show that each builder holds Y, and list each of those
-files in the package boundary. Naming the receiving class is not enough: a
-seam is wired where its object is built.
+A wiring claim ("X passes Y to Z") needs more than the signature: see "Wiring
+claims" in the claims checklist below.
 
 ## Authority Boundary Check
 
@@ -99,54 +97,21 @@ disposition. For any entry classified "protected", require a runtime
 negative that enters through the real root and proves capability rejection
 before route/grant/lease/provider effects — a unit test at the final wrapper
 alone does not establish the claim. The same closure backs a negative claim
-about enforcement ("code cannot refuse X", "X is recorded, not proved"):
-enumerate every path that reaches the seam before saying none of them checks.
-
-## Shared-Ledger Reader Inventory
-
-A plan that adds a command or event family to a shared store must map what
-the family will meet, not only the path it copies. Enumerate every reducer
-that replays the whole ledger, with the branch each takes for an unknown
-event type (raise, ignore, misroute to a default reducer), and every closed
-allowlist the family must join: runtime bindings, grant command types,
-subject-kind enums, census pins. Cite each with a `path:line`. Settle these
-before marking an interface unverified, because the code often already
-answers the question. A cheap control is a test that replays a ledger holding
-one synthetic foreign event through every public replay entry point and
-asserts a named, intended outcome for each.
+about enforcement: see "Enforcement claims" in the claims checklist below.
 
 ## Claims About Artefacts the Plan Does Not Own
 
-Author-side counterpart of `adversarial-design-review`'s "Claims About Another
-Artefact". Before the plan states any of these, do the check and cite it:
-
-- **Precedents.** When following a precedent for shape, list which of its rows
-  or mechanisms the plan drops, and give a `path:line` for whatever takes over
-  each dropped row's job.
-- **"Handled by existing X".** Read X's preparer and record the subject or
-  precondition check it applies. If the plan's subject cannot pass it, X does not
-  handle the case.
-- **Catalogue IDs.** Before re-specifying, renaming or deferring an ID, run
-  `git grep -l <ID> -- .research-system research_system tests tools` and record
-  what is already materialized.
-- **Restated preconditions.** Point to the owning matrix as operative ("adds to,
-  never relaxes") and restate only what this plan adds.
-- **Selector contracts.** Ship a census of each governed file and a reference
-  script run on the real bytes in the same commit as the contract.
-- **Probes.** If the chosen shape differs from the prototype a probe ran, re-run
-  the probe on the chosen shape before stating its result as evidence. Every probe
-  case asserts its message. A revision that adds or changes an encoded field
-  re-runs the probe on the final payloads.
-- **Absence claims.** A claim that an accepted set omits, lacks or includes an
-  item is checked against the parsed artefact, and the parsed list goes in the
-  note. A cited line range runs to the end of the enclosing item.
-- **Rules the owner may already have fixed.** Before an owner point asks Stephen
-  to decide a rule, search the accepted artefacts (the catalogue, the annex's
-  `derivation_rules` and `global_preconditions`, the contracts, the register) for
-  it and cite what you find.
-- **Shared locations.** A location that several packages read or write gets its
-  path at its first mention, or a row in the plan's table of paths. An unnamed
-  shared location is an interface each package will name differently.
+Before the plan states a claim about an artefact it does not own, do the check
+and cite it. The checks live in one file shared with `adversarial-design-review`:
+`../adversarial-design-review/references/claims-checklist.md`, beside this
+skill's directory in whichever skills tree loaded it. Apply the **Author** line of
+each entry that matches a claim in the plan: reuse, shared-store tenants (the
+whole-ledger reader inventory for a new command or event family), precedents and
+"handled by existing X", restated preconditions, catalogue IDs, selector
+contracts, "in the shape of", verifiers, negative controls, prescribed
+corrections, probes, absence, enforcement and wiring claims, rules the owner may
+already have fixed, carried obligations, and shared locations. A new lesson of
+this kind goes into that file, once, with both an author and a reviewer line.
 
 ## Currency Addenda
 
