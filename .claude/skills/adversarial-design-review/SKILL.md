@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: domain
   lanes: []
   roles:
@@ -204,11 +204,20 @@ it, never against prose that describes them.
 - **Probes.** When the design's chosen shape differs from the prototype its probe
   ran, re-run the probe on the chosen shape, with one instance of every event
   family the claim covers, before crediting the probe's result. A probe case that
-  prints instead of asserting is not evidence.
+  prints instead of asserting is not evidence. A probe result covers the revision
+  it ran on: when a later revision adds or changes an encoded field, run the
+  final revision's payloads through the seam again.
 - **Absence claims.** For every "X omits Y" or "the set lacks Y", re-derive the
   set from the parsed artefact (a YAML or JSON load of the row), and re-read the
   cited range past its stated end. A read that stops early turns a complete set
-  into an apparent gap.
+  into an apparent gap. A claim that code cannot enforce X, or that X is recorded
+  rather than proved, is an absence claim about code paths. Require a census of
+  every path that reaches the seam (each production constructor and the admission
+  it goes through), not one function's docstring.
+- **Wiring claims.** For every "X passes Y to Z", find where production builds Z,
+  confirm the builder holds Y, and check that the package boundary lists that
+  file. A seam is wired where its object is built, not where its class is
+  defined.
 - **Owner points on rules.** Before a finding or owner point asks Stephen to fix
   a rule, search the accepted texts for it (the catalogue, the annex's
   `derivation_rules` and `global_preconditions`, the contracts, the register) and

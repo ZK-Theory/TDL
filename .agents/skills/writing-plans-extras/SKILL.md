@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.3.0"
+  version: "1.4.0"
   tier: domain
   lanes: []
   roles:
@@ -70,6 +70,11 @@ rediscovering the same mismatch at full price, after a branch and worktree
 already exist. A Stop-Partial rule present in the plan is not a substitute
 for this: it only fires after dispatch, once context has already been spent.
 
+For every wiring claim ("X passes Y to Z"), also cite Z's production
+construction sites, show that each builder holds Y, and list each of those
+files in the package boundary. Naming the receiving class is not enough: a
+seam is wired where its object is built.
+
 ## Authority Boundary Check
 
 A plan cannot mint authority by naming a gate or a dispatchable stage. Every
@@ -93,7 +98,9 @@ fail when a root, registry entry, wrapper, or fixture row has no recorded
 disposition. For any entry classified "protected", require a runtime
 negative that enters through the real root and proves capability rejection
 before route/grant/lease/provider effects — a unit test at the final wrapper
-alone does not establish the claim.
+alone does not establish the claim. The same closure backs a negative claim
+about enforcement ("code cannot refuse X", "X is recorded, not proved"):
+enumerate every path that reaches the seam before saying none of them checks.
 
 ## Shared-Ledger Reader Inventory
 
@@ -128,7 +135,8 @@ Artefact". Before the plan states any of these, do the check and cite it:
   script run on the real bytes in the same commit as the contract.
 - **Probes.** If the chosen shape differs from the prototype a probe ran, re-run
   the probe on the chosen shape before stating its result as evidence. Every probe
-  case asserts its message.
+  case asserts its message. A revision that adds or changes an encoded field
+  re-runs the probe on the final payloads.
 - **Absence claims.** A claim that an accepted set omits, lacks or includes an
   item is checked against the parsed artefact, and the parsed list goes in the
   note. A cited line range runs to the end of the enclosing item.
