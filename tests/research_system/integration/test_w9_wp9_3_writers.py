@@ -463,6 +463,33 @@ def test_a_pointer_that_appears_before_the_lock_with_an_unloadable_binding_refus
         check()
 
 
+def test_a_revalidation_that_fails_inside_the_lock_refuses_with_the_fixed_message(tmp_path: Path, monkeypatch) -> None:
+    """PR #429 CodeRabbit: the binding loaded before binding fails its in-lock ``revalidate``, for example after an
+    advance between the two. The refusal carries the same fixed message as a failed load, with the cause kept, and a
+    binding that changes during the check still refuses as itself."""
+    import research_system.store.current_binding as current_binding
+
+    outcome: list[Exception] = []
+
+    def revalidate() -> None:
+        raise outcome[0]
+
+    monkeypatch.setattr(
+        current_binding, "load_current_binding", lambda **kwargs: SimpleNamespace(revalidate=revalidate)
+    )
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    check = cli._foundation_binding_check(binding)  # loaded before binding
+    error = IntegrityError("current store binding identity is invalid")
+    outcome.append(error)
+    with pytest.raises(ConfigurationError, match=UNLOADABLE) as refused:
+        check()
+    assert refused.value.__cause__ is error
+    outcome[0] = ConflictError("current store binding changed during the operation")
+    with pytest.raises(ConflictError, match="changed during the operation"):
+        check()
+
+
 def test_a_check_taken_while_an_advance_replaces_the_pointer_still_decides_inside_the_lock(
     tmp_path: Path, monkeypatch
 ) -> None:

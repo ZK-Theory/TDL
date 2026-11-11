@@ -946,6 +946,11 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
         return None
     pointer = binding.control_root / CURRENT_BINDING_RELATIVE_PATH
 
+    def refused(exc: BaseException) -> ConfigurationError:
+        return ConfigurationError(
+            f"{command} refused: the store has a current binding this checkout cannot load: {exc}"
+        )
+
     def load() -> Any:
         try:
             return load_current_binding(
@@ -958,9 +963,7 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
         except ConflictError:
             raise
         except (ArsError, OSError) as exc:
-            raise ConfigurationError(
-                f"{command} refused: the store has a current binding this checkout cannot load: {exc}"
-            ) from exc
+            raise refused(exc) from exc
 
     # lexists: a pointer that is a directory or a dangling link is present, and its load refuses.
     loaded = [load()] if os.path.lexists(pointer) else []
@@ -970,7 +973,12 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
             return  # no current binding, read under the writer lock
         if not loaded:
             loaded.append(load())  # absent before binding, present now: load it here, or refuse
-        loaded[0].revalidate()
+        try:
+            loaded[0].revalidate()
+        except ConflictError:
+            raise
+        except (ArsError, OSError) as exc:  # PR #429 CodeRabbit: the in-lock refusal carries the same fixed message
+            raise refused(exc) from exc
 
     return check_in_lock
 

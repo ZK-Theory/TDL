@@ -386,8 +386,17 @@ def test_build_refuses_a_git_head_that_is_not_a_hex_commit_id(
             {"region": ("line_range", 1, 10)},
             "W9 heading_section inventory declares its heading level",
         ),
+        # PR #429 CodeRabbit: the schema bounds heading_level to 1..6, so the builder refuses any other level too.
+        *(
+            (
+                "heading_section",
+                {"heading_level": level, "region": ("line_range", 1, 10)},
+                "W9 heading_section inventory heading level is outside 1 to 6",
+            )
+            for level in (0, 7, True)
+        ),
     ],
-    ids=["log-with-level", "log-with-structural", "heading-without-level"],
+    ids=["log-with-level", "log-with-structural", "heading-without-level", "level-0", "level-7", "level-true"],
 )
 def test_the_builder_refuses_what_the_record_schema_would_refuse(
     store: W9Store, selector: str, kwargs: dict[str, Any], message: str

@@ -127,6 +127,8 @@ def build_light_inventory(
     if selector_kind == "heading_section":
         if heading_level is None:
             raise IntegrityError("W9 heading_section inventory declares its heading level")
+        if isinstance(heading_level, bool) or not isinstance(heading_level, int) or not 1 <= heading_level <= 6:
+            raise IntegrityError("W9 heading_section inventory heading level is outside 1 to 6")
     elif heading_level is not None or structural_ranges:
         raise IntegrityError(f"W9 {selector_kind} inventory takes no heading level and no structural ranges")
     read = reader.read(registration)

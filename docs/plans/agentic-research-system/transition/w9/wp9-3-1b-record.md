@@ -52,8 +52,8 @@ Every store in these tests is a scratch store under `tmp_path`, and every source
     `ars eval publish-release`;
   - "W9 tool output guard needs the vault root"; "W9 inventory build needs --git-head as a lowercase hex commit ID";
     "W9 reproduction needs the inventory's git_blob as a lowercase hex object ID";
-  - "W9 heading_section inventory declares its heading level"; "W9 `<selector>` inventory takes no heading level and
-    no structural ranges";
+  - "W9 heading_section inventory declares its heading level"; "W9 heading_section inventory heading level is outside
+    1 to 6"; "W9 `<selector>` inventory takes no heading level and no structural ranges";
   - "W9 inventory region resolution differs from the first anchor after its after_line";
   - "W9 inventory region cannot be resolved: …";
   - "W9 tool output is under .apm/", "… is under the vault", "… is inside a store", "… is inside the repository it
@@ -127,7 +127,8 @@ Every store in these tests is a scratch store under `tmp_path`, and every source
    make the reader's dual Git read refuse. An existing output is also refused, so nothing is overwritten.
 4. **`--git-head` is the operator's.** No tool opens a store, so the builder cannot read the binding's `git_head`.
    LR-011's preparer re-reads at the binding's `git_head`, so a proposal built at another head is refused there. It
-   must be a 40- or 64-character lowercase hex commit ID (WP9.3-1b review i-2), so it never reaches Git as an option.5. **`reproduce --frozen-copy` treats the frozen copy's directory as an input tree.** The frozen copy normally sits in
+   must be a 40- or 64-character lowercase hex commit ID (WP9.3-1b review i-2), so it never reaches Git as an option.
+5. **`reproduce --frozen-copy` treats the frozen copy's directory as an input tree.** The frozen copy normally sits in
    a store's evidence area, which the store check already refuses.
 6. **O9 deferred.** Note §12.1's "prints the derived ownership list when it builds a batch (§10.5)" belongs to
    WP9.3-2, which owns batches and the ownership list (note §2.3). This PR's builder builds one inventory.
@@ -319,3 +320,15 @@ every recommendation (in chat, 2026-11-10: "Yes, as recommended").
 ("writer lock name was replaced during exact generation deletion"). The review reproduced it on `0ea4e489` (3 in 600)
 as well as on this head (1 in 600), with the same message, in the same parameter. It is a pre-existing flake outside
 WP9.3, and it is noted here, not fixed.
+
+**CodeRabbit's review of PR #429 at `c8bf2f35` (5851893384): two inline comments and one comment outside the diff.
+Each was checked against the code and found valid, and each is fixed.** Every thread has a reply.
+
+| Comment | Finding | Disposition |
+|---|---|---|
+| 4532490635 | §4 item 5 ran on into item 4's line, so it did not render as its own item (the independent re-check's n-5) | Fixed: item 5 starts its own line |
+| 4532490657 | `heading_section` took any heading level, so with a line range the builder could hand out level 0 or 9, which the record schema's `minimum: 1`, `maximum: 6` refuses | Fixed: the builder refuses a level outside 1 to 6, and a boolean, before any read. The selector-rule test adds levels 0, 7 and `True` |
+| Outside the diff, `cli.py:973` (marked unverified) | The in-lock `revalidate()` raised without the command label, so a binding that broke between the early load and the lock refused without §2's fixed message | Confirmed: `load()` wraps its failures and `revalidate()` did not. Fixed: the same wrapper, with `ConflictError` still refusing as itself. New control: `test_a_revalidation_that_fails_inside_the_lock_refuses_with_the_fixed_message`, which checks the cause and the `ConflictError` pass-through |
+
+The "Docstring Coverage" pre-merge check is CodeRabbit's repository-wide estimate. The two helpers this round adds,
+`refused` and the test's `revalidate`, are local closures.
