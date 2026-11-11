@@ -278,6 +278,15 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
     tree = ast.parse(source)
     names = {SERVICE_CLASS}
     partials: dict[str, bool] = {}  # names bound to a partial of a class, with whether the partial binds a check
+    partial_names = {"partial"}
+    # Review m-1: an import alias is the class (or ``functools.partial``) under another name.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.asname and alias.name == SERVICE_CLASS:
+                    names.add(alias.asname)
+                elif alias.asname and alias.name == "partial":
+                    partial_names.add(alias.asname)
 
     def call_name(call: ast.Call) -> str | None:
         function = call.func
@@ -291,10 +300,18 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
             keyword.arg == "binding_check" and not isinstance(keyword.value, ast.Constant) for keyword in call.keywords
         )
 
+    def overrides_check(call: ast.Call) -> bool:
+        """Whether calling a partial may replace its bound check: a constant ``binding_check=`` (``None`` included),
+        or a ``**`` mapping, which can carry one. Invocation keywords override a partial's own (functools)."""
+        return any(
+            keyword.arg is None or (keyword.arg == "binding_check" and isinstance(keyword.value, ast.Constant))
+            for keyword in call.keywords
+        )
+
     def is_partial(value: ast.expr) -> bool:
         return (
             isinstance(value, ast.Call)
-            and call_name(value) == "partial"
+            and call_name(value) in partial_names
             and bool(value.args)
             and class_valued(value.args[0])
         )
@@ -309,6 +326,8 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
         """Whether an expression evaluates to one of the classes, not to an instance or a call's result."""
         if isinstance(value, ast.Name):
             return value.id in names
+        if isinstance(value, ast.NamedExpr):
+            return class_valued(value.value)
         if isinstance(value, ast.IfExp):
             return class_valued(value.body) or class_valued(value.orelse)
         if isinstance(value, ast.Subscript):
@@ -332,11 +351,18 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and any(class_valued(base) for base in node.bases):
                 names.add(node.name)
-            elif isinstance(node, ast.Assign) and class_valued(node.value):
-                targets = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            elif isinstance(node, ast.Assign | ast.AnnAssign | ast.NamedExpr) and (
+                node.value is not None and class_valued(node.value)
+            ):
+                # Review m-1: an annotated assignment and a walrus bind a name as a plain assignment does.
+                bound = node.targets if isinstance(node, ast.Assign) else [node.target]
+                targets = [target.id for target in bound if isinstance(target, ast.Name)]
                 names.update(targets)
                 if is_partial(node.value):
                     partials.update(dict.fromkeys(targets, has_check(node.value)))
+                elif isinstance(node.value, ast.Name) and node.value.id in partials:
+                    # ``alias = factory``: the alias is the same partial, with the same bound check (CodeRabbit, #432).
+                    partials.update(dict.fromkeys(targets, partials[node.value.id]))
         if (len(names), len(partials)) == before:
             break
     sites: list[tuple[str, str, int, bool]] = []
@@ -348,11 +374,12 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
                 function = child.func
                 called = function.id if isinstance(function, ast.Name) else getattr(function, "attr", None)
                 direct = isinstance(function, ast.Name | ast.Attribute) and called in names
-                if direct or (isinstance(function, ast.Call | ast.Subscript) and class_valued(function)):
+                indirect = isinstance(function, ast.Call | ast.Subscript | ast.NamedExpr) and class_valued(function)
+                if direct or indirect:
                     if is_partial(function):
-                        checked = has_check(function)
+                        checked = has_check(function) and not overrides_check(child)
                     elif isinstance(function, ast.Name) and function.id in partials:
-                        checked = partials[function.id]
+                        checked = partials[function.id] and not overrides_check(child)
                     else:
                         checked = has_check(child)
                     sites.append((path, ".".join(scope), child.lineno, checked))
@@ -435,6 +462,56 @@ def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str
         ("def f():\n    return globals()['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
         ("def f(m):\n    return vars(m)['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
         ("def f(m):\n    return m.__dict__['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
+        (
+            "from functools import partial\n\ndef f(c):\n    factory = partial(CommandService, binding_check=c)\n"
+            "    alias = factory\n    return alias()\n",
+            [("fixture.py", "f", 6, True)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c):\n    factory = partial(CommandService, 1)\n"
+            "    alias = factory\n    return alias()\n",
+            [("fixture.py", "f", 6, False)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c):\n    factory = partial(CommandService, binding_check=c)\n"
+            "    return factory(binding_check=None)\n",
+            [("fixture.py", "f", 5, False)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c):\n    return partial(CommandService, binding_check=c)(binding_check=None)\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c, k):\n    factory = partial(CommandService, binding_check=c)\n"
+            "    return factory(**k)\n",
+            [("fixture.py", "f", 5, False)],
+        ),
+        (
+            "from research_system.command.service import CommandService as Svc\n\ndef f():\n    return Svc(1)\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        (
+            "from research_system.command.service import CommandService as Svc\n\n"
+            "def f(c):\n    return Svc(1, binding_check=c)\n",
+            [("fixture.py", "f", 4, True)],
+        ),
+        (
+            "from functools import partial as p\n\ndef f():\n    return p(CommandService, 1)()\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        (
+            "from typing import Any\nfrom functools import partial\n\nfactory: Any = partial(CommandService, 1)\n\n"
+            "def f():\n    return factory()\n",
+            [("fixture.py", "f", 7, False)],
+        ),
+        (
+            "def f():\n    if (made := CommandService):\n        return made(1)\n",
+            [("fixture.py", "f", 3, False)],
+        ),
+        (
+            "def f():\n    return (made := CommandService)(1)\n",
+            [("fixture.py", "f", 2, False)],
+        ),
     ],
     ids=[
         "partial-alias",
@@ -445,6 +522,17 @@ def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str
         "globals",
         "vars",
         "dict",
+        "checked-partial-alias",
+        "unchecked-partial-alias",
+        "named-partial-none-override",
+        "inline-partial-none-override",
+        "partial-splat-override",
+        "import-alias",
+        "import-alias-checked",
+        "partial-import-alias",
+        "annotated-partial",
+        "walrus",
+        "walrus-called",
     ],
 )
 def test_the_service_census_sees_partial_and_string_lookups(source: str, expected: list) -> None:

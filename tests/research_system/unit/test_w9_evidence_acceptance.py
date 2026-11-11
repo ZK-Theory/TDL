@@ -15,8 +15,10 @@ from typing import Any
 
 import pytest
 
-from research_system.legacy import evidence
+from research_system.errors import IntegrityError
+from research_system.legacy import acceptance, evidence
 from research_system.legacy.evidence import EvidenceRefused, is_ancestor, require_change_list, require_cl_export
+from research_system.legacy.reader import ReadRefused
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRATION = {"root_kind": "repository_root", "root_id": "repository", "normalized_path": "results/x.json"}
@@ -29,6 +31,7 @@ SYNTHETIC_LOG = (
 
 
 def git(root: Path, *args: str) -> str:
+    """Run Git in ``root`` with a fixed test identity and return its stripped standard output."""
     return subprocess.run(
         ["git", "-C", str(root), "-c", "user.email=t@t", "-c", "user.name=t", *args],
         check=True,
@@ -38,6 +41,7 @@ def git(root: Path, *args: str) -> str:
 
 
 def commit_file(root: Path, relative: str, content: str, message: str) -> str:
+    """Write ``content`` to ``relative`` under ``root``, commit it alone, and return the new commit."""
     path = root / relative
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content.encode("utf-8"))
@@ -47,10 +51,12 @@ def commit_file(root: Path, relative: str, content: str, message: str) -> str:
 
 
 def change_list(*entries: dict[str, Any]) -> str:
+    """A ``w9-shared-surface-changes/1`` list holding ``entries``, as JSON text."""
     return json.dumps({"format": evidence.SHARED_SURFACE_CHANGES_FORMAT, "entries": list(entries)})
 
 
 def entry(merge_commit: str, *registrations: dict[str, Any]) -> dict[str, Any]:
+    """One change-list entry: a merge commit on a shared surface, affecting ``registrations``."""
     return {"merge_commit": merge_commit, "surface": "a shared surface", "affected_registrations": list(registrations)}
 
 
@@ -135,8 +141,22 @@ def test_a_declared_commit_that_does_not_hold_the_declared_list_is_refused(repos
             {"format": evidence.SHARED_SURFACE_CHANGES_FORMAT, "entries": [{**entry("a" * 40), "surface": ""}]},
             "W9 shared-surface change list entry does not have the fixed format",
         ),
+        (
+            {
+                "format": evidence.SHARED_SURFACE_CHANGES_FORMAT,
+                "entries": [entry("a" * 40, {**REGISTRATION, "normalized_path": None})],
+            },
+            "W9 shared-surface change list affected registration does not have the fixed format",
+        ),
+        (
+            {
+                "format": evidence.SHARED_SURFACE_CHANGES_FORMAT,
+                "entries": [entry("a" * 40, {**REGISTRATION, "normalized_path": ""})],
+            },
+            "W9 shared-surface change list affected registration does not have the fixed format",
+        ),
     ],
-    ids=["format", "no-entries", "entry-keys", "commit", "registration", "empty-surface"],
+    ids=["format", "no-entries", "entry-keys", "commit", "registration", "empty-surface", "null-path", "empty-path"],
 )
 def test_a_malformed_change_list_is_refused(repository: Path, body: dict[str, Any], message: str) -> None:
     listed = commit_file(repository, evidence.SHARED_SURFACE_CHANGES, json.dumps(body), "list")
@@ -152,6 +172,73 @@ def test_is_ancestor_answers_and_refuses_an_unknown_commit(repository: Path) -> 
     assert is_ancestor(repository, base, base) is True
     with pytest.raises(EvidenceRefused, match="W9 evidence cannot order commits"):
         is_ancestor(repository, "f" * 40, later)
+
+
+# --- The anchors (W9-T16): a commit introduces the anchored bytes ----------------------------------------------------
+
+
+def _anchored(commit: str, content: str) -> dict[str, Any]:
+    return {
+        "threshold_preregistration_sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+        "anchors": [{"anchor_kind": "git_commit", "value": commit, "anchored": "threshold_preregistration"}],
+    }
+
+
+def test_a_root_commit_introduces_its_whole_tree(tmp_path: Path) -> None:
+    root = tmp_path / "repository"
+    root.mkdir()
+    git(root, "init", "-q")
+    first = commit_file(root, "threshold.md", "threshold\n", "root")
+    acceptance.check_anchors(root, first, _anchored(first, "threshold\n"))
+
+
+def test_a_later_commit_does_not_introduce_bytes_it_inherits(repository: Path) -> None:
+    threshold = commit_file(repository, "threshold.md", "threshold\n", "threshold")
+    unrelated = commit_file(repository, "other.md", "other\n", "unrelated")
+    acceptance.check_anchors(repository, unrelated, _anchored(threshold, "threshold\n"))
+    with pytest.raises(IntegrityError, match="W9 acceptance anchor commit does not introduce the anchored bytes"):
+        acceptance.check_anchors(repository, unrelated, _anchored(unrelated, "threshold\n"))
+
+
+def test_a_shallow_repository_is_refused_before_its_boundary_commit_reads_as_a_root(
+    repository: Path, tmp_path: Path
+) -> None:
+    """Review m-3: in a ``--depth 1`` clone Git lists the boundary commit with no parents, so a commit that only
+    touched an unrelated file would introduce its whole inherited tree. The full clone refuses the same anchor."""
+    commit_file(repository, "threshold.md", "threshold\n", "threshold")
+    unrelated = commit_file(repository, "other.md", "other\n", "unrelated")
+    record = _anchored(unrelated, "threshold\n")
+    with pytest.raises(IntegrityError, match="W9 acceptance anchor commit does not introduce the anchored bytes"):
+        acceptance.check_anchors(repository, unrelated, record)
+    shallow = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", repository.resolve().as_uri(), str(shallow)],
+        check=True,
+        capture_output=True,
+    )
+    assert git(shallow, "rev-parse", "HEAD") == unrelated
+    assert git(shallow, "rev-list", "--parents", "-n", "1", unrelated) == unrelated  # no parent listed
+    with pytest.raises(IntegrityError, match="W9 acceptance anchors cannot be checked in a shallow repository"):
+        acceptance.check_anchors(shallow, unrelated, record)
+
+
+def test_a_failed_parent_lookup_refuses_and_is_never_read_as_a_root_commit(
+    repository: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-root commit whose parent lookup fails must not fall back to its whole inherited tree (CodeRabbit, #432)."""
+    commit_file(repository, "threshold.md", "threshold\n", "threshold")
+    unrelated = commit_file(repository, "other.md", "other\n", "unrelated")
+    real = acceptance._git
+
+    def failing_parent_lookup(root: Path, *args: str, text: bool = True) -> Any:
+        if args[0] == "rev-list" or (args[0] == "rev-parse" and any(arg.endswith("^1") for arg in args)):
+            # The parent lookup alone fails; the shallow check, a separate rev-parse, still answers.
+            raise ReadRefused("git parent lookup failed")
+        return real(root, *args, text=text)
+
+    monkeypatch.setattr(acceptance, "_git", failing_parent_lookup)
+    with pytest.raises(ReadRefused, match="git parent lookup failed"):
+        acceptance.check_anchors(repository, unrelated, _anchored(unrelated, "threshold\n"))
 
 
 # --- The Computational-Log export (D-7) -------------------------------------------------------------------------------
@@ -239,6 +326,10 @@ def _drop(key: str):
             "W9 Computational-Log export read does not have the fixed format",
         ),
         (
+            lambda value: value["read"].update(started_at="2026-02-30T00:00:00Z"),
+            "W9 Computational-Log export read does not have the fixed format",
+        ),
+        (
             lambda value: value["read"].update(ended_at="2026-11-10T00:00:00Z"),
             "W9 Computational-Log export read ends before it starts",
         ),
@@ -249,6 +340,20 @@ def _drop(key: str):
         (
             lambda value: value["retained_copy"].update(byte_length=1),
             "W9 Computational-Log export segmentation does not match its retained copy",
+        ),
+        (
+            lambda value: value["retained_copy"].update(repository_path="docs/cl-retained-copy.md"),
+            "W9 Computational-Log export copy is not in the evidence area",
+        ),
+        (
+            lambda value: value["retained_copy"].update(
+                repository_path=".research-system/evidence/w9/../../../docs/cl-retained-copy.md"
+            ),
+            "W9 Computational-Log export copy is not in the evidence area",
+        ),
+        (
+            lambda value: value["retained_copy"].update(repository_path=".research-system/evidence/w9"),
+            "W9 Computational-Log export copy is not in the evidence area",
         ),
         (
             lambda value: value["classifications"].pop(),
@@ -275,9 +380,13 @@ def _drop(key: str):
         "contract",
         "segmentation-kind",
         "read-time",
+        "read-calendar",
         "read-order",
         "copy-hash",
         "copy-length",
+        "copy-outside-area",
+        "copy-dot-dot",
+        "copy-is-the-area",
         "classification-count",
         "classification-ordinal",
         "classification-class",

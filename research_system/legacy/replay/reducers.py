@@ -554,11 +554,22 @@ def _batch_rules(state: Mapping[str, Any], record: Mapping[str, Any]) -> list[Ma
         registration_id = observation["registration_ref"]["id"]
         history = state["observations_by_registration"].get(registration_id, [])
         later = history[history.index(observation_id) + 1 :] if observation_id in history else []
-        if any(
-            state["records"]["legacy_observation"][other]["selector"] == observation.get("selector") for other in later
-        ):
+        selector = _selector_key(observation.get("selector"))
+        if any(_selector_key(state["records"]["legacy_observation"][other]["selector"]) == selector for other in later):
             raise IntegrityError("W9 acceptance item's observation is not the latest for its source and selector")
     return observations
+
+
+def _selector_key(selector: Any) -> Any:
+    """A selector compared as §8.2 reads it: a ``json_family_set`` names a set of families, so their order is not
+    part of the selector (as in ``_check_selector`` and ``_whole_file``). Every other field compares as recorded."""
+
+    if not isinstance(selector, Mapping) or selector.get("selector_kind") != "json_family_set":
+        return selector
+    names = selector.get("family_names")
+    if not isinstance(names, list):
+        return dict(selector)
+    return {**selector, "family_names": sorted({str(name) for name in names})}
 
 
 def _check_pilot_promotion(item: Mapping[str, Any]) -> None:

@@ -280,14 +280,29 @@ def _record_file(record: Any, kind: str) -> Mapping[str, Any]:
     return record
 
 
+def _names(ref: Any, record: Mapping[str, Any]) -> bool:
+    """Whether a recordRef names ``record`` as replay resolves it (§4.4): its ID, revision and content hash."""
+    return isinstance(ref, Mapping) and dict(ref) == {
+        "id": record.get("record_id"),
+        "record_revision": record.get("record_revision"),
+        "content_hash": record.get("content_hash"),
+    }
+
+
 def _covers_whole_file(observation: Mapping[str, Any], membership: Mapping[str, Any] | None) -> bool:
-    """§10.5's rule, as replay applies it: ``whole_file``, or the complete family set of the file's table."""
+    """§10.5's rule, as replay applies it: ``whole_file``, or the complete family set of the file's table.
+
+    A ``json_family_set`` observation needs the membership record it names: without it, whether the item transitions
+    cannot be told, and replay at LR-016 would resolve the table and may transition it.
+    """
     selector = observation.get("selector", {})
     if selector.get("selector_kind") == "whole_file":
         return True
-    if selector.get("selector_kind") != "json_family_set" or membership is None:
+    if selector.get("selector_kind") != "json_family_set":
         return False
-    if selector.get("membership_ref", {}).get("id") != membership.get("record_id"):
+    if membership is None:
+        raise IntegrityError("W9 batch build json_family_set observation needs the membership record it names")
+    if not _names(selector.get("membership_ref"), membership):
         raise IntegrityError("W9 batch build membership record is not the one the observation names")
     return set(selector.get("family_names", [])) == {family.get("name") for family in membership.get("families", [])}
 
@@ -322,7 +337,7 @@ def build_acceptance_batch(batch: Any) -> tuple[dict[str, Any], list[dict[str, A
         membership = (
             None if item["membership"] is None else _record_file(item["membership"], "legacy_field_family_membership")
         )
-        if observation["registration_ref"]["id"] != registration["record_id"]:
+        if not _names(observation.get("registration_ref"), registration):
             raise IntegrityError("W9 batch build observation names another registration")
         reference = {"id": observation["record_id"], "record_revision": observation["record_revision"]}
         reference["content_hash"] = record_content_hash(observation)

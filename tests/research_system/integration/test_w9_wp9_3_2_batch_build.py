@@ -142,6 +142,65 @@ def test_batch_mode_refuses_an_observation_of_another_registration(store: W9Stor
         build_acceptance_batch(batch)
 
 
+def _family_set_batch() -> tuple[dict[str, Any], dict[str, Any]]:
+    """A one-item batch, built without a store: a complete ``json_family_set`` observation and its membership."""
+    actors = flows.Actors(owner="actor-owner")
+    registration = flows.registration("tdl", actors.analyst, flows.at(0))
+    table = flows.membership("tdl", actors.owner, flows.at(1), sha256="a" * 64, size=1)
+    selector = {
+        "selector_kind": "json_family_set",
+        "membership_ref": flows.record_ref(table),
+        "family_names": ["headline", "other"],
+    }
+    families = [flows.signed_family(name, flows.signature()) for name in ("headline", "other")]
+    observation = flows.observation(
+        "tdl", actors.observer, flows.at(2), registration, flows.signature(), selector=selector, families=families
+    )
+    item = {"observation": observation, "registration": registration, "membership": table}
+    item["pilot_promotion"] = flows.pilot_promotion()
+    batch = {
+        "project_id": "tdl",
+        "items": [item],
+        "threshold_preregistration_sha256": "1" * 64,
+        "governing_record_set_sha256": "2" * 64,
+        "anchors": [],
+        "enforcement_change_list": None,
+    }
+    return batch, item
+
+
+def test_batch_mode_transitions_a_complete_family_set_with_its_membership() -> None:
+    batch, _ = _family_set_batch()
+    _, [row] = build_acceptance_batch(batch)
+    assert row["transitions"] is True
+
+
+def test_batch_mode_refuses_a_family_set_with_no_membership_record() -> None:
+    """Without the table, whether the item transitions cannot be told; LR-016 would resolve it (CodeRabbit, #432)."""
+    batch, item = _family_set_batch()
+    item["membership"] = None
+    with pytest.raises(IntegrityError, match="json_family_set observation needs the membership record it names"):
+        build_acceptance_batch(batch)
+
+
+def test_batch_mode_refuses_a_membership_record_at_another_hash_under_the_same_id() -> None:
+    """The ref names ID, revision and hash; an edited table re-hashed under its ID is another record (CodeRabbit)."""
+    batch, item = _family_set_batch()
+    edited = {**item["membership"], "families": item["membership"]["families"][:1]}
+    item["membership"] = flows.stamp(edited)
+    assert item["membership"]["record_id"] == item["observation"]["selector"]["membership_ref"]["id"]
+    with pytest.raises(IntegrityError, match="W9 batch build membership record is not the one the observation names"):
+        build_acceptance_batch(batch)
+
+
+def test_batch_mode_refuses_a_registration_at_another_hash_under_the_same_id() -> None:
+    batch, item = _family_set_batch()
+    item["registration"] = flows.stamp({**item["registration"], "role": "legacy_coordination"})
+    assert item["registration"]["record_id"] == item["observation"]["registration_ref"]["id"]
+    with pytest.raises(IntegrityError, match="W9 batch build observation names another registration"):
+        build_acceptance_batch(batch)
+
+
 def test_batch_mode_refuses_a_malformed_input() -> None:
     with pytest.raises(IntegrityError, match="W9 batch build input does not have the fixed format"):
         build_acceptance_batch({"items": []})

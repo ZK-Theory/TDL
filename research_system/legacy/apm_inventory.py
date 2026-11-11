@@ -36,13 +36,25 @@ BUS_FORMAT = "w9-apm-bus-inventory/1"
 FILES_FORMAT = "w9-apm-file-inventory/1"
 CLOSURE_MAP_FORMAT = "w9-apm-closure-map/1"
 _STAGE = re.compile(r"stage-[0-9]+\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 def _walk_files(root: Path, start: Path) -> list[str]:
-    """Every regular file under ``start``, as a POSIX path relative to ``root``. A linked directory refuses."""
+    """Every regular file under ``start``, as a POSIX path relative to ``root``.
+
+    A linked directory refuses, ``start`` included: ``os.walk`` follows a link given as its starting path even with
+    ``followlinks=False``. A directory that cannot be listed refuses too: ``os.walk`` skips it silently by default,
+    which would leave a partial inventory looking complete.
+    """
+
+    if start.is_symlink() or start.is_junction():
+        raise IntegrityError(f"W9 .apm inventory meets a linked directory: {start.relative_to(root).as_posix()}")
+
+    def refuse(error: OSError) -> None:
+        raise IntegrityError(f"W9 .apm inventory cannot list a directory: {error}") from error
 
     found = []
-    for directory, subdirectories, files in os.walk(start, followlinks=False):
+    for directory, subdirectories, files in os.walk(start, onerror=refuse, followlinks=False):
         here = Path(directory)
         for name in subdirectories:
             child = here / name
@@ -86,12 +98,19 @@ def apm_universe(repository_root: Path, git_commit: str) -> list[str]:
 
     tracked = str(_git(repository_root, "ls-tree", "-r", "-z", "--name-only", git_commit, "--", ".apm"))
     paths = {path for path in tracked.split("\0") if path}
-    memory = repository_root / ".apm" / "memory"
+    apm = repository_root / ".apm"
+    memory = apm / "memory"
+    for root in (apm, memory):
+        if root.is_symlink() or root.is_junction():
+            raise IntegrityError(
+                f"W9 .apm inventory meets a linked directory: {root.relative_to(repository_root).as_posix()}"
+            )
     if memory.is_dir():
         for stage in sorted(memory.iterdir()):
+            # is_dir follows a link, so a linked stage directory reaches _walk_files, which refuses it.
             if stage.is_dir() and _STAGE.match(stage.name):
                 paths.update(_walk_files(repository_root, stage))
-    bus = repository_root / ".apm" / "bus"
+    bus = apm / "bus"
     if bus.is_dir():
         paths.update(_walk_files(repository_root, bus))
     return sorted(paths)
@@ -138,19 +157,43 @@ def build_apm_file_inventory(repository_root: Path, git_commit: str, closure_map
             for row in rows
             if row.get("row_kind") == "blocker"
         ]
-        items = {row.get("row_ordinal") for row in rows if row.get("row_kind") == "item"}
+        items = {row.get("row_ordinal"): row for row in rows if row.get("row_kind") == "item"}
+        inventory_ref = {
+            "id": inventory.get("record_id"),
+            "record_revision": inventory.get("record_revision"),
+            "content_hash": inventory.get("content_hash"),
+        }
         observed = set()
         for observation in closure["observations"]:
             selector = _verified(observation, "observation").get("selector", {})
             ordinal = selector.get("row_ordinal")
-            if selector.get("inventory_ref", {}).get("id") != inventory.get("record_id") or ordinal not in items:
+            row = items.get(ordinal) if isinstance(ordinal, int) and not isinstance(ordinal, bool) else None
+            # The selector as replay checks it (§8.2): the whole inventory ref, and the row's anchor and raw hash.
+            if (
+                selector.get("selector_kind") != "inventory_item"
+                or selector.get("inventory_ref") != inventory_ref
+                or row is None
+                or selector.get("anchor_text") != row.get("anchor_text")
+                or selector.get("raw_row_sha256") != row.get("raw_row_sha256")
+            ):
                 items_extra.append({"file": path, "row_ordinal": ordinal})
             else:
                 observed.add(ordinal)
-        items_missing += [{"file": path, "row_ordinal": ordinal} for ordinal in sorted(items - observed)]
+        items_missing += [{"file": path, "row_ordinal": ordinal} for ordinal in sorted(items.keys() - observed)]
     for record in closure_map["non_import"]:
         if not isinstance(record, Mapping) or set(record) != {"files", "record"}:
             raise IntegrityError("W9 .apm non-import record does not have the fixed format")
+        named = record["record"]
+        if (
+            not isinstance(named, Mapping)
+            or set(named) != {"kind", "sha256"}
+            or not isinstance(named["kind"], str)
+            or not named["kind"]
+            or not isinstance(named["sha256"], str)
+            or not _SHA256.match(named["sha256"])
+            or not isinstance(record["files"], list)
+        ):
+            raise IntegrityError("W9 .apm non-import record does not name its record by kind and SHA-256")
         for path in record["files"]:
             placed[str(path)] = placed.get(str(path), 0) + 1
     missing = [path for path in universe if path not in placed]

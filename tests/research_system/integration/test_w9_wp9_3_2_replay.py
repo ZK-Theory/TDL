@@ -178,6 +178,39 @@ def test_lr016_refuses_an_observation_that_is_not_the_latest_for_its_source_and_
     )
 
 
+def test_lr016_compares_family_set_selectors_as_sets(flow, actors) -> None:
+    """A later observation naming the same families in another order replaces the earlier one (CodeRabbit, #432)."""
+    forger, records, schemas = flow
+    names = [family["name"] for family in records["table"]["families"]]
+    assert len(names) >= 2
+
+    def complete(order: list[str], count: int, minute: int) -> dict[str, Any]:
+        return flows.observation(
+            forger.project_id,
+            actors.observer,
+            at(minute),
+            records["registration"],
+            PIN,
+            count=count,
+            selector={
+                "selector_kind": "json_family_set",
+                "membership_ref": flows.record_ref(records["table"]),
+                "family_names": order,
+            },
+            families=[flows.signed_family(name, PIN) for name in order],
+        )
+
+    earlier, later = complete(names, 2, 55), complete(list(reversed(names)), 3, 56)
+    forger = forger.row("LR-015", earlier["record_id"], earlier, actor=actors.observer, when=at(55))
+    forger = forger.row("LR-015", later["record_id"], later, actor=actors.observer, when=at(56))
+    assert earlier["record_id"] not in _replay(forger, schemas)["stale_observations"]
+    _refused(
+        _at_lr016(forger, actors, _batch(forger, actors, earlier)),
+        schemas,
+        "W9 acceptance item's observation is not the latest for its source and selector",
+    )
+
+
 def test_lr016_refuses_two_whole_file_items_of_one_registration(flow, actors) -> None:
     """§10.5 (review m-2): a whole_file item and a complete family set of the same registration."""
     forger, records, schemas = flow

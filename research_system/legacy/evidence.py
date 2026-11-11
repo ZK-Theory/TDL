@@ -26,7 +26,7 @@ import re
 import subprocess
 from collections.abc import Mapping
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
@@ -213,11 +213,17 @@ def _change_entries(raw: Any) -> list[dict[str, Any]]:
         ):
             raise EvidenceRefused("W9 shared-surface change list entry does not have the fixed format")
         for registration in row["affected_registrations"]:
-            _closed(
+            key = _closed(
                 registration,
                 {"root_kind", "root_id", "normalized_path"},
                 "shared-surface change list affected registration",
             )
+            # A null or empty member would match no registration, so the affected item's freshness check would never
+            # run. Each member is a non-empty string.
+            if not all(isinstance(value, str) and value for value in key.values()):
+                raise EvidenceRefused(
+                    "W9 shared-surface change list affected registration does not have the fixed format"
+                )
         entries.append(json.loads(json.dumps(row)))
     return entries
 
@@ -225,7 +231,23 @@ def _change_entries(raw: Any) -> list[dict[str, Any]]:
 def _utc(value: Any) -> datetime | None:
     if not isinstance(value, str) or not _UTC.match(value):
         return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:  # the right shape but no calendar date, such as 2026-02-30
+        return None
+
+
+def _in_evidence_area(path: Any) -> bool:
+    """Addendum row 28: the retained copy is a file in the W9 evidence area, named in normal POSIX form."""
+    if not isinstance(path, str):
+        return False
+    parts = PurePosixPath(path).parts
+    return (
+        str(PurePosixPath(path)) == path
+        and parts[:3] == tuple(EVIDENCE_DIRECTORY.split("/"))
+        and len(parts) > 3
+        and not any(part in {".", ".."} for part in parts)
+    )
 
 
 def require_cl_export(export: Any) -> Mapping[str, Any]:
@@ -294,6 +316,8 @@ def require_cl_export(export: Any) -> Mapping[str, Any]:
     )
     if not _SHA1.match(str(copy["git_blob"])) or not _SHA256.match(str(copy["sha256"])):
         raise EvidenceRefused("W9 Computational-Log export copy does not have the fixed format")
+    if not _in_evidence_area(copy["repository_path"]):
+        raise EvidenceRefused(f"W9 Computational-Log export copy is not in the evidence area {EVIDENCE_DIRECTORY}/")
     if copy["sha256"] != segmentation["file_sha256"] or copy["byte_length"] != segmentation["file_bytes"]:
         raise EvidenceRefused("W9 Computational-Log export segmentation does not match its retained copy")
     ordinals = [row.get("row_ordinal") if isinstance(row, Mapping) else None for row in segmentation["rows"]]

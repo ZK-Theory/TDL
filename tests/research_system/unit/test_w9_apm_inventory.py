@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
@@ -191,6 +192,110 @@ def test_a_closure_whose_inventory_names_another_file_is_refused(repository: Pat
     closure = {**_closure(), "file": ".apm/plan.md"}
     with pytest.raises(IntegrityError, match="W9 .apm closure's inventory names another file: .apm/plan.md"):
         build_apm_file_inventory(repository, commit, _closure_map(closures=[closure]))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda selector: selector.update(raw_row_sha256="0" * 64),
+        lambda selector: selector.update(anchor_text="9.9"),
+        lambda selector: selector["inventory_ref"].update(record_revision=2),
+        lambda selector: selector["inventory_ref"].update(content_hash="0" * 64),
+        lambda selector: selector.update(selector_kind="whole_file"),
+    ],
+    ids=["raw-row-hash", "anchor", "ref-revision", "ref-hash", "selector-kind"],
+)
+def test_an_observation_whose_selector_differs_from_its_item_row_blocks(repository: Path, change) -> None:
+    """The selector as replay checks it (§8.2), not its inventory ID and ordinal alone (CodeRabbit, #432).
+
+    Only the one selector field changes: the inventory ID and the ordinal still name the item row, and the
+    observation is re-hashed so it verifies."""
+    from research_system.legacy.records import record_content_hash
+
+    commit = git(repository, "rev-parse", "HEAD")
+    closure = _closure()
+    observation = deepcopy(closure["observations"][0])
+    change(observation["selector"])
+    assert observation["selector"]["inventory_ref"]["id"] == closure["inventory"]["record_id"]
+    assert observation["selector"]["row_ordinal"] == 1
+    observation["content_hash"] = record_content_hash(observation)
+    closure["observations"][0] = observation
+    report = build_apm_file_inventory(repository, commit, _closure_map(closures=[closure]))
+    assert report["blocked"] is True
+    assert report["items_extra"] == [{"file": ".apm/tracker.md", "row_ordinal": 1}]
+    assert report["items_missing"] == [{"file": ".apm/tracker.md", "row_ordinal": 1}]
+
+
+@pytest.mark.parametrize(
+    "named",
+    [None, {}, {"kind": "", "sha256": "f" * 64}, {"kind": "w9-apm-non-import", "sha256": "F" * 64}, "f" * 64],
+    ids=["null", "empty", "no-kind", "bad-hash", "not-an-object"],
+)
+def test_a_non_import_entry_without_its_record_is_refused(repository: Path, named: Any) -> None:
+    """A null or malformed ``record`` must not place its files (CodeRabbit, #432)."""
+    commit = git(repository, "rev-parse", "HEAD")
+    body = _closure_map()
+    body["non_import"][0]["record"] = named
+    with pytest.raises(IntegrityError, match="W9 .apm non-import record does not name its record by kind and SHA-256"):
+        build_apm_file_inventory(repository, commit, body)
+
+
+def _link_directory(link: Path, target: Path) -> None:
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlink unavailable: {exc}")
+
+
+@pytest.mark.parametrize("linked", ["stage", "bus", "memory"])
+def test_a_linked_stage_bus_or_memory_root_is_refused_before_it_is_listed(
+    repository: Path, tmp_path: Path, linked: str
+) -> None:
+    """``os.walk`` follows a link given as its start even with ``followlinks=False`` (CodeRabbit, #432)."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "foreign.md").write_bytes(b"not an .apm file\n")
+    apm = repository / ".apm"
+    if linked == "stage":
+        _link_directory(apm / "memory" / "stage-02", outside)
+        where = ".apm/memory/stage-02"
+    elif linked == "bus":
+        os.rename(apm / "bus", tmp_path / "old-bus")
+        _link_directory(apm / "bus", outside)
+        where = ".apm/bus"
+    else:
+        os.rename(apm / "memory", tmp_path / "old-memory")
+        _link_directory(apm / "memory", outside)
+        where = ".apm/memory"
+    commit = git(repository, "rev-parse", "HEAD")
+    with pytest.raises(IntegrityError, match="W9 .apm inventory meets a linked directory: " + re.escape(where)):
+        apm_universe(repository, commit)
+    if linked == "bus":
+        with pytest.raises(IntegrityError, match="W9 .apm inventory needs a real bus directory"):
+            build_bus_inventory(apm)
+
+
+@pytest.mark.parametrize("tool", ["universe", "bus"])
+def test_a_directory_that_cannot_be_listed_is_refused(
+    repository: Path, monkeypatch: pytest.MonkeyPatch, tool: str
+) -> None:
+    """``os.walk`` skips an unlistable directory by default, which would leave a partial inventory (CodeRabbit, #432)."""
+    nested = repository / ".apm" / "bus" / "nested"
+    nested.mkdir()
+    (nested / "message-2.json").write_bytes(b"{}\n")
+    real = os.scandir
+
+    def unlistable(path: Any = ".") -> Any:
+        if Path(path).name == "nested":
+            raise PermissionError(13, "Access is denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(os, "scandir", unlistable)
+    with pytest.raises(IntegrityError, match="W9 .apm inventory cannot list a directory: .*Access is denied"):
+        if tool == "universe":
+            apm_universe(repository, git(repository, "rev-parse", "HEAD"))
+        else:
+            build_bus_inventory(repository / ".apm")
 
 
 def test_a_malformed_closure_map_is_refused(repository: Path) -> None:

@@ -76,12 +76,19 @@ def reread_items(environment: Any, legacy: Mapping[str, Any], record: Mapping[st
 
 
 def _introduced_blobs(repository_root: Path, commit: str) -> list[str]:
-    """The blobs ``commit`` adds or modifies against its first parent, or all of its tree for a root commit."""
+    """The blobs ``commit`` adds or modifies against its first parent, or all of its tree for a root commit.
 
-    try:
-        parent = str(_git(repository_root, "rev-parse", "--verify", "--quiet", f"{commit}^1")).strip()
-    except ReadRefused:
-        parent = ""
+    A commit is a root commit only when Git lists it with no parents. A failed lookup refuses (``ReadRefused``); it is
+    never read as "no parent", which would let a non-root commit introduce its whole inherited tree. A shallow
+    repository refuses too: there Git lists the boundary commit with no parents, though it has one (review m-3).
+    """
+
+    if str(_git(repository_root, "rev-parse", "--is-shallow-repository")).strip() != "false":
+        raise IntegrityError("W9 acceptance anchors cannot be checked in a shallow repository")
+    listed = str(_git(repository_root, "rev-list", "--parents", "-n", "1", commit)).split()
+    if not listed:
+        raise ReadRefused("git rev-list names no commit")
+    parent = listed[1] if len(listed) > 1 else ""
     if parent:
         listing = str(_git(repository_root, "diff-tree", "-r", "--no-renames", "--diff-filter=AM", parent, commit))
         return [line.split()[3] for line in listing.splitlines() if line.startswith(":")]

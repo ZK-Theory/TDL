@@ -130,6 +130,11 @@ merges. Dropping it is your call, in the merge entry.
     unconditional fixtures.
 13. **The intake-row tests.** The fixture table is owned and built from W9 §12.3 by category, and checked against the
     parsed catalogue. The precondition table maps 13 matching preconditions, plus LR-016's exception.
+14. **R11 (§10.1, CodeRabbit on #432).** "The latest for its source and selector" compares a `json_family_set`
+    selector's `family_names` as a set, as `_check_selector` and `_whole_file` already read them. Every other selector
+    field compares as recorded.
+15. **R12 (D-7; addendum row 28, CodeRabbit on #432).** "In the evidence area" is enforced: the export's retained copy
+    must be a file under `.research-system/evidence/w9/`, named in normal POSIX form.
 
 **Departure, for the merge entry.** The W9 paths addendum (`implementation/06v-addendum-2026-11-10-w9-paths.md`) gets a
 dated amendment, which changes an addendum's text:
@@ -204,7 +209,9 @@ Run on the operator machine (Windows, Python 3.13), on 2026-11-11.
 - **For WP9.3-2's independent review** (a separate session, P-081 item 6):
   - re-verify the genesis path at this head, since guard 8's input changes (owner point F);
   - check R1 against an absent-final crash on a real anchor transaction;
-  - check T5 and T7 against note §10;
+  - check the plan's T5 (LR-016 to LR-019 at replay: the batch rules, `pilot_promotion`, the anchors' kind, the
+    change list's presence, the ownership derivation and its reservation) and T7 (LR-020: G5, the stored ownership
+    list emitted exactly and recomputed, and the window re-read at resolution) against note §10;
   - check the tools' write-nothing claims.
 - **Known limits carried, not changed:**
   - a computed class name escapes the census (R2);
@@ -224,3 +231,62 @@ The WP9.3-1b review's addendum (§A.3):
 - **n-5:** fixed in #429.
 
 O9 (P-083 item 3) is done under Q1's reading.
+
+## 10. CodeRabbit on #432, and the independent review's further fixes (2026-11-11)
+
+CodeRabbit left 14 inline findings at `b98515c6`. WP9.3-2's independent review
+(`reviews/wp9-3-2-review-b98515c6-2026-11-11.md`, on `review/w9-wp9-3-2`) reached accept with required changes:
+0 Blocking, 0 Major, 4 Minor (m-1 to m-4), 8 Info and no D-4. Stephen sent its fixes beyond CodeRabbit's threads for
+the same push. Each finding was checked against the code, and each holds. None changes a command type, a protected
+path, a register entry, a decision or an accepted text. The "Review" column names the review finding that shares the
+thread.
+
+| # | Review | Where | Finding | Fix | Control |
+|---|---|---|---|---|---|
+| 1 | m-3 | `acceptance.py`, `_introduced_blobs` | A failed parent lookup was read as a root commit, so the whole inherited tree passed W9-T16 | Parents read with `rev-list --parents -n 1`; a failed lookup refuses | `test_a_failed_parent_lookup_refuses_and_is_never_read_as_a_root_commit`, plus root and inherited-bytes controls |
+| 2 | m-4 | `apm_inventory.py`, `_walk_files` | `os.walk` skips an unlistable directory, so an inventory could be partial | `onerror` raises | `test_a_directory_that_cannot_be_listed_is_refused` (universe, bus) |
+| 3 | m-4 | `apm_inventory.py`, roots | `os.walk` follows a linked start directory | `.apm/`, `memory/`, each stage and the bus are refused when linked | `test_a_linked_stage_bus_or_memory_root_is_refused_before_it_is_listed` (stage, bus, memory) |
+| 4 | m-4 | `apm_inventory.py`, observations | Only the inventory ID and ordinal were compared | The whole inventory ref, the selector kind, the anchor and the raw row hash, as replay checks them | `test_an_observation_whose_selector_differs_from_its_item_row_blocks` (five fields) |
+| 5 | m-4 | `apm_inventory.py`, non-import | `"record": null` placed its files | `record` must be `{kind, sha256}`, a non-empty kind and a SHA-256 | `test_a_non_import_entry_without_its_record_is_refused` (five forms) |
+| 6 | none | `evidence.py`, change list | A null or empty `normalized_path` matched nothing, so freshness never ran | Each affected-registration member is a non-empty string | `test_a_malformed_change_list_is_refused` (null and empty path) |
+| 7 | none | `evidence.py`, `_utc` | `2026-02-30T00:00:00Z` raised `ValueError` past the controlled refusal | Returns `None`, so the format refusal fires | `test_a_malformed_export_is_refused[read-calendar]` |
+| 8 | none | `evidence.py`, retained copy | Any repository path was accepted (R12) | The copy must be under the evidence area | `test_a_malformed_export_is_refused` (outside, `..`, the directory itself) |
+| 9 | m-2 | `inventory.py`, batch mode | A `json_family_set` item with no membership record was previewed as transitioning nothing | Refused whenever the selector is `json_family_set` | `test_batch_mode_refuses_a_family_set_with_no_membership_record`, with a positive control |
+| 10 | m-2 | `inventory.py`, batch mode | Membership and registration links were compared by ID only | ID, revision and content hash, as §4.4 resolves a ref | `test_batch_mode_refuses_a_membership_record_at_another_hash_under_the_same_id`, and the registration twin |
+| 11 | i-1 | `reducers.py`, `_batch_rules` | Family-set selectors compared with family order significant (R11) | `_selector_key` compares family names as a set | `test_lr016_compares_family_set_selectors_as_sets` |
+| 12 | m-1 | census, aliases | `alias = factory` lost the partial's bound check | The alias inherits it | `checked-partial-alias`, `unchecked-partial-alias` |
+| 13 | m-1 | census, overrides | `factory(binding_check=None)` was counted as checked | A constant `binding_check=` or a `**` mapping at invocation counts as unchecked | `named-partial-none-override`, `inline-partial-none-override`, `partial-splat-override` |
+| 14 | none | `unit/test_w9_evidence_acceptance.py` | Four public helpers lacked docstrings | Added | none needed |
+
+**The review's fixes beyond CodeRabbit's threads:**
+
+| Review | Where | Finding | Fix | Control |
+|---|---|---|---|---|
+| m-1 | census | `from ... import CommandService as Svc`, `from functools import partial as p`, an annotated assignment and a walrus were reported as no construction at all | Import aliases of the class and of `partial` are followed; `AnnAssign` and `NamedExpr` bind like an assignment; a called walrus is a construction | `import-alias`, `import-alias-checked`, `partial-import-alias`, `annotated-partial`, `walrus`, `walrus-called`. The walrus is handled, so no new limit joins R2 |
+| m-3 | `acceptance.py`, `_introduced_blobs` | In a `--depth 1` clone Git lists the boundary commit with no parents, so row 1's fix alone still read it as a root commit | A shallow repository refuses (`rev-parse --is-shallow-repository`) before any parent lookup | `test_a_shallow_repository_is_refused_before_its_boundary_commit_reads_as_a_root` (a full clone refuses the anchor; the shallow clone refuses as shallow) |
+| m-4 | `apm_inventory.py`, roots | A linked `memory` root, beside the stage and bus roots | Already in row 3 | row 3's `memory` case |
+
+The review's Info findings other than i-1 change no code in this round.
+
+**Red evidence.** With the five production files restored from `b98515c6`, the new production controls gave 26 failed
+(each by its own assertion or refusal text) and the preservation controls passed. One first draft of finding 4's ref
+cases passed on the old code because its ref named a fresh inventory: it was refused by the ID check, not the guard
+under test. It was rewritten to change only the revision or the hash, and then failed 5 of 5 on the old code. For the
+census, the eleven new fixtures were run against `b98515c6`'s `_service_constructions`: the ten remediation fixtures
+failed, and `unchecked-partial-alias`, a preservation control, passed. With the shallow-repository guard alone removed
+from the fixed `acceptance.py`, the shallow control failed ("DID NOT RAISE"), so row 1's fix does not cover m-3. All
+pass at the new head.
+
+**Green runs** (operator machine, 2026-11-11). After CodeRabbit's fourteen fixes, the thirteen affected files gave 420
+passed in 631 s:
+- the evidence, export-recheck and `.apm/` inventory units;
+- the census;
+- batch build;
+- both WP9.3 replay files and `test_w9_legacy_replay.py`;
+- both WP9.3 runtime files;
+- the inventory builder;
+- the two intake-row contracts.
+
+After the review's m-1 and m-3 additions, the files those reach gave 137 passed in 273 s: the evidence and
+export-recheck units, the census, the WP9.3-2 runtime file and batch build. Ruff check and format are clean on every
+changed file.
