@@ -1842,6 +1842,34 @@ def _legacy_export_recheck(args: argparse.Namespace) -> int:
     return 1 if report["void"] else 0
 
 
+def _legacy_apm_bus(args: argparse.Namespace) -> int:
+    """``ars legacy apm-inventory bus`` (note §12.3; O-19): a tool. It reads ``.apm/bus/`` and writes only the output,
+    which may not lie under ``.apm/``, the vault, a store or the repository holding ``.apm/``."""
+    from research_system.legacy.apm_inventory import apm_root_of, build_bus_inventory
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+
+    apm_root = apm_root_of(args.apm_root)
+    output = refuse_tool_output(args.output, repository_root=apm_root.parent, vault_root=args.vault_root)
+    inventory = build_bus_inventory(apm_root)
+    write_tool_output(output, inventory)
+    _print_json({"output": str(output), "files": len(inventory["files"])})
+    return 0
+
+
+def _legacy_apm_files(args: argparse.Namespace) -> int:
+    """``ars legacy apm-inventory files`` (note §12.4; O-36, W9-T18): a tool. Exit 0 for an exact bijection, 1 when
+    the report blocks."""
+    from research_system.legacy.apm_inventory import build_apm_file_inventory
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+
+    output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    commit = _hex_object_id(args.git_commit, "apm-inventory files --git-commit")
+    report = build_apm_file_inventory(args.repository_root, commit, _read_json(args.closure_map))
+    write_tool_output(output, report)
+    _print_json({"output": str(output), "blocked": report["blocked"]})
+    return 1 if report["blocked"] else 0
+
+
 def _legacy_observation_id(args: argparse.Namespace) -> int:
     """Print the derived ``record_id`` of an observation envelope before it is granted or submitted (§5.3, §13).
 
@@ -2891,6 +2919,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     export_recheck.add_argument("--output", type=Path, required=True, help="where to write the report")
     export_recheck.set_defaults(handler=_legacy_export_recheck)
+    legacy_apm = legacy_actions.add_parser("apm-inventory", help="the .apm/ inventory tools; they open no store")
+    apm_actions = legacy_apm.add_subparsers(dest="apm_action", required=True)
+    apm_bus = apm_actions.add_parser("bus", help="the dated .apm/bus/ file list (note §12.3; O-19)")
+    apm_bus.add_argument("--apm-root", type=Path, required=True, help="the .apm directory to read")
+    apm_bus.add_argument("--vault-root", type=Path, required=True, help="the real vault path, never written")
+    apm_bus.add_argument("--output", type=Path, required=True, help="where to write the inventory")
+    apm_bus.set_defaults(handler=_legacy_apm_bus)
+    apm_files = apm_actions.add_parser("files", help="the .apm/ file-level inventory (note §12.4; O-36, W9-T18)")
+    apm_files.add_argument("--repository-root", type=Path, required=True, help="the repository holding .apm/")
+    apm_files.add_argument("--git-commit", required=True, help="the commit whose tracked .apm/ files are listed")
+    apm_files.add_argument("--closure-map", type=Path, required=True, help="the closure map (w9-apm-closure-map/1)")
+    apm_files.add_argument("--vault-root", type=Path, required=True, help="the real vault path, never written")
+    apm_files.add_argument("--output", type=Path, required=True, help="where to write the report")
+    apm_files.set_defaults(handler=_legacy_apm_files)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
