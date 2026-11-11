@@ -12,6 +12,7 @@ broke main on 2026-10-02.
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -415,41 +416,91 @@ def test_the_nightly_verdict_runs_on_the_schedule_after_every_shard(workflow: di
     assert "permissions" not in workflow or workflow["permissions"].get("issues") is None, "issues: write only here"
 
 
-def _verdict(workflow: dict, tmp_path: Path, suite: str, existing: str) -> list[str]:
-    """Run the real verdict step with gh stubbed; return the gh calls it made."""
+VERDICT_NOW = "2026-11-10T08:00:00Z"
+
+
+def _checked_out(workflow: dict, job: str, tree: Path) -> None:
+    """Lay out in ``tree`` exactly the files the job's sparse checkout fetches, so the step finds what CI finds.
+
+    A step that reads a repository file the checkout does not fetch then fails here as it would on the runner.
+    """
+    checkouts = [
+        step for step in workflow["jobs"][job]["steps"] if str(step.get("uses", "")).startswith("actions/checkout")
+    ]
+    assert len(checkouts) == 1, f"{job} has {len(checkouts)} checkout steps"
+    paths = checkouts[0]["with"]["sparse-checkout"].split()
+    assert paths, f"{job} checks out nothing"
+    for relative in paths:
+        target = tree / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((REPO_ROOT / relative).read_bytes())
+
+
+def _issue(number: int, state: str, created: str) -> dict:
+    return {"number": number, "title": "Nightly research_system suite is red", "state": state, "createdAt": created}
+
+
+def _verdict(workflow: dict, tree: Path, suite: str, existing: list[dict]) -> list[str]:
+    """Run the real verdict step in its checkout with gh and the clock stubbed; return the gh calls it made."""
+    tree.mkdir()
+    _checked_out(workflow, "nightly-verdict", tree)
     stub = (
         'gh() { printf "%s\\n" "$*" >> calls.txt; if [ "$1 $2" = "issue list" ]; then printf "%s" "$EXISTING"; fi; }\n'
+        f'date() {{ printf "%s\\n" "{VERDICT_NOW}"; }}\n'
     )
     result = run_step(
         workflow,
         "nightly-verdict",
         "Open, update or close the red-nightly issue",
-        tmp_path,
+        tree,
         prelude=stub,
-        env={"SUITE": suite, "EXISTING": existing, "SHA": "abc123", "RUN_URL": "https://example.invalid/run/1"},
+        env={
+            "SUITE": suite,
+            "EXISTING": json.dumps(existing),
+            "SHA": "abc123",
+            "RUN_URL": "https://example.invalid/run/1",
+        },
     )
-    assert result.returncode == 0, result.stderr
-    calls = tmp_path / "calls.txt"
+    assert result.returncode == 0, result.stdout + result.stderr
+    calls = tree / "calls.txt"
     return [line for line in calls.read_text(encoding="utf-8").splitlines() if not line.startswith("issue list")]
 
 
+def test_the_verdict_step_fails_without_its_checked_out_policy(workflow: dict, tmp_path: Path) -> None:
+    """Negative control: the step runs the policy from the checkout, so a tree without it must fail the step."""
+    result = run_step(
+        workflow,
+        "nightly-verdict",
+        "Open, update or close the red-nightly issue",
+        tmp_path,
+        prelude='gh() { printf "[]"; }\n',
+        env={"SUITE": "failure", "SHA": "abc123", "RUN_URL": "https://example.invalid/run/1"},
+    )
+    assert result.returncode != 0
+    assert "nightly_issue_policy.py" in result.stderr
+
+
 def test_a_red_night_opens_the_issue_and_a_second_comments_on_it(workflow: dict, tmp_path: Path) -> None:
-    (tmp_path / "first").mkdir()
-    assert _verdict(workflow, tmp_path / "first", "failure", "") == [
+    assert _verdict(workflow, tmp_path / "first", "failure", []) == [
         "issue create --title Nightly research_system suite is red --body "
         "The scheduled research-system-suite run at abc123 ended `failure`: https://example.invalid/run/1"
     ]
-    (tmp_path / "second").mkdir()
-    calls = _verdict(workflow, tmp_path / "second", "cancelled", "41")
+    calls = _verdict(workflow, tmp_path / "second", "cancelled", [_issue(41, "OPEN", "2026-11-09T09:00:00Z")])
     assert len(calls) == 1 and calls[0].startswith("issue comment 41 --body ") and "`cancelled`" in calls[0]
 
 
 def test_a_green_night_closes_the_open_issue_and_otherwise_does_nothing(workflow: dict, tmp_path: Path) -> None:
-    (tmp_path / "open").mkdir()
-    calls = _verdict(workflow, tmp_path / "open", "success", "41")
+    calls = _verdict(workflow, tmp_path / "open", "success", [_issue(41, "OPEN", "2026-11-09T09:00:00Z")])
     assert calls == ["issue close 41 --comment Green again at abc123: https://example.invalid/run/1"]
-    (tmp_path / "none").mkdir()
-    assert _verdict(workflow, tmp_path / "none", "success", "") == []
+    assert _verdict(workflow, tmp_path / "none", "success", []) == []
+
+
+def test_a_green_night_after_a_recurring_red_leaves_the_issue_open(workflow: dict, tmp_path: Path) -> None:
+    """The keep-open branch through the real step: #413 and #414 each closed themselves before the policy."""
+    issues = [_issue(413, "CLOSED", "2026-11-03T09:54:45Z"), _issue(414, "OPEN", "2026-11-08T09:03:55Z")]
+    calls = _verdict(workflow, tmp_path / "recurring", "success", issues)
+    assert len(calls) == 1 and calls[0].startswith("issue comment 414 --body Green again at abc123")
+    assert "#413, #414" in calls[0] and not any(call.startswith("issue close") for call in calls)
 
 
 # --- the required verdict (obs 2026-10-20-suite-lane-has-no-stable-required-check-name) ---------------------
