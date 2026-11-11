@@ -40,6 +40,15 @@ def test_a_one_byte_change_in_the_retained_copy_voids_the_export() -> None:
     assert report["rows"]["differing_ordinals"] == [2]
 
 
+def test_an_export_naming_another_blob_for_its_retained_copy_is_void() -> None:
+    """The copy check compares the Git blob as well as the SHA-256 and length."""
+    export = copy.deepcopy(reference_export())
+    export["retained_copy"]["git_blob"] = "0" * 40
+    report = recheck_cl_export(export, SYNTHETIC_LOG)
+    assert report["void"] is True and report["retained_copy_equal"] is False
+    assert report["rows"]["differing_ordinals"] == []
+
+
 def test_a_tampered_exported_row_voids_the_export_naming_its_ordinal() -> None:
     export = copy.deepcopy(reference_export())
     export["segmentation"]["rows"][1]["raw_row_sha256"] = "0" * 64

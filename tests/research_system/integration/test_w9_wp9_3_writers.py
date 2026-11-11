@@ -606,6 +606,23 @@ def test_n1_a_binding_loaded_before_binding_whose_pointer_is_gone_under_the_lock
     assert calls == ["load"]
 
 
+def test_n1_a_binding_loaded_before_binding_is_refused_when_its_pointer_goes_even_with_no_object_seen(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The loaded limb alone (P-083 item 5's original wording): a binding was loaded before the lock, so an absent
+    pointer under it is never "never bound", even if no binding object is visible."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    check = cli._foundation_binding_check(binding)
+    (control_root / "manifests" / "binding-repair-current.json").unlink()
+    assert not (control_root / "objects" / "binding-repair").exists()
+    with pytest.raises(ConfigurationError, match=re.escape(POINTER_ABSENT)):
+        check()
+    assert calls == ["load"]
+
+
 def test_n1_a_fresh_process_on_a_store_with_binding_objects_and_no_pointer_is_refused_under_the_lock(
     tmp_path: Path, monkeypatch
 ) -> None:

@@ -176,6 +176,30 @@ def test_w9_t6_a_source_changed_between_lr016_and_lr020_refuses_lr020(store: W9S
     assert _state(store)["stale_observations"] == []  # a failed re-read leaves no event, so nothing is stale
 
 
+def test_w9_t6_a_source_changed_between_lr016s_first_read_and_its_commit_re_read_aborts(store, monkeypatch) -> None:
+    """§7.2: the window is re-read at commit, under the lock, after the shadow step. A change after the preparer's
+    first read and before that re-read aborts LR-016 with no event and no receipt."""
+    observation_id, path, _ = _untracked(store)
+    record = store.acceptance_payload([observation_id])
+    reader = store.runtime.reader
+    original = reader.read
+    calls: list[int] = []
+
+    def read_then_change(registration):
+        result = original(registration)
+        calls.append(1)
+        if len(calls) == 1:
+            path.write_bytes(b"edited between the reads\n")
+        return result
+
+    monkeypatch.setattr(reader, "read", read_then_change)
+    before = _unchanged(store)
+    with pytest.raises(IntegrityError, match="W9 acceptance item's source re-reads differently"):
+        store.submit("ProposeLegacyRecord", store.actors.analyst, record["record_id"], 0, record)
+    assert len(calls) == 2  # the preparer's read, then the commit-time re-read that refused
+    assert _unchanged(store) == before
+
+
 def test_o33_a_change_in_lr016s_gap_commits_and_lr020_then_refuses_it(store: W9Store) -> None:
     """§7.2: a change between LR-016's final re-read and its append is a change after the proposal; the proposal
     commits, LR-020's re-read refuses the changed source, and the projection marks nothing stale."""

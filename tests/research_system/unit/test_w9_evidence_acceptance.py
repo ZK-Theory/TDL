@@ -131,8 +131,12 @@ def test_a_declared_commit_that_does_not_hold_the_declared_list_is_refused(repos
             {"format": evidence.SHARED_SURFACE_CHANGES_FORMAT, "entries": [entry("a" * 40, {"root_kind": "x"})]},
             "W9 shared-surface change list affected registration does not have the fixed format",
         ),
+        (
+            {"format": evidence.SHARED_SURFACE_CHANGES_FORMAT, "entries": [{**entry("a" * 40), "surface": ""}]},
+            "W9 shared-surface change list entry does not have the fixed format",
+        ),
     ],
-    ids=["format", "no-entries", "entry-keys", "commit", "registration"],
+    ids=["format", "no-entries", "entry-keys", "commit", "registration", "empty-surface"],
 )
 def test_a_malformed_change_list_is_refused(repository: Path, body: dict[str, Any], message: str) -> None:
     listed = commit_file(repository, evidence.SHARED_SURFACE_CHANGES, json.dumps(body), "list")

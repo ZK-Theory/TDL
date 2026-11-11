@@ -100,6 +100,15 @@ def test_the_ownership_derivation_is_deterministic_and_distinct_across_batches(f
     assert len(ids) == 2
 
 
+def test_a_whole_file_item_of_a_registration_not_legacy_owned_transitions_nothing(base, actors) -> None:  # noqa: F811
+    """§10.5: only a legacy_owned registration transitions (LR-020's one direction, P-072 item 2)."""
+    forger, registration = flows.registered(base[0], actors, ownership_mode="successor_owned")
+    whole = flows.observation(forger.project_id, actors.observer, at(50), registration, PIN)
+    forger = forger.row("LR-015", whole["record_id"], whole, actor=actors.observer, when=at(50))
+    state = _replay(forger, base[1])
+    assert reducers.derive_ownership(state, _batch(forger, actors, whole)) == []
+
+
 def test_an_inventory_item_and_a_partial_family_set_transition_nothing(flow, actors) -> None:
     """§10.5: only an item covering the whole file transitions its registration."""
     forger, records, schemas = flow
