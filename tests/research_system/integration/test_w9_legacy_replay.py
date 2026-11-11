@@ -33,7 +33,6 @@ from research_system.projection.replay import _validate_active_lifecycle_binding
 from research_system.projection.replay import replay as replay_projection
 from research_system.schema_registry import SchemaBinding
 from tests.research_system.contracts.test_w9_contract_materialization import (
-    _acceptance,
     _header,
     _load_tool,
     _observation,
@@ -306,16 +305,18 @@ def test_c3_a_w9_payload_naming_a_w11_row_is_refused(base) -> None:
 
 
 def test_a_deferred_row_is_refused(base) -> None:
-    """LR-016 stays deferred to WP9.3-2, and LR-023 to WP9.4, though ProposeLegacyRecord is bound (note §2.2)."""
+    """LR-023 stays deferred to WP9.4, though ProposeLegacyRecord is bound (note §2.2). LR-016 is routed by WP9.3-2, so
+    the same forged payload now reaches its schema check instead of the route check."""
     events, schemas = base
-    for kind, row, tag in (
-        ("legacy-closed-reference-acceptance", "LR-016", "WP9.3"),
-        ("legacy-adoption-decision", "LR-023", "WP9.4"),
-    ):
-        event_type = LEGACY_ROW_ROUTES[row].events[0].event_type
-        ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": f"ars://legacy/{kind}"})
-        with pytest.raises(IntegrityError, match=rf"W9 row not routed in this version: {row} \({tag}\)"):
-            replay_legacy(ledger, schemas=schemas)
+    event_type = LEGACY_ROW_ROUTES["LR-023"].events[0].event_type
+    ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": "ars://legacy/legacy-adoption-decision"})
+    with pytest.raises(IntegrityError, match=r"W9 row not routed in this version: LR-023 \(WP9.4\)"):
+        replay_legacy(ledger, schemas=schemas)
+    event_type = LEGACY_ROW_ROUTES["LR-016"].events[0].event_type
+    acceptance = {"schema_id": "ars://legacy/legacy-closed-reference-acceptance"}
+    ledger = _forge(events, "ProposeLegacyRecord", event_type, acceptance)
+    with pytest.raises(IntegrityError, match="W9 event payload does not validate against its record schema"):
+        replay_legacy(ledger, schemas=schemas)
 
 
 def test_a_schema_invalid_payload_is_refused(base) -> None:
@@ -556,30 +557,9 @@ def test_w9_t5_an_ownership_transition_other_than_allowed_is_refused(base, first
         _replay_all(ledger, schemas)
 
 
-def test_lr_020_records_its_acceptance_and_its_ownership_transitions(base) -> None:
-    """LR-020's ownership events validate against the ownership schema, not the acceptance schema of their row."""
-    events, schemas = base
-    ledger, registration, _ = _registered(events)
-    decision_id = new_id("decision")
-    acceptance = flows.stamp({**_acceptance(), "record_id": _obj(), "decision_ref": _ref(decision_id)})
-    closure = _transition_record(registration["record_id"], decision_id, "legacy_owned", "closed_reference")
-    ledger = _row(ledger, "LR-016", acceptance)
-    ledger = _propose_decision(ledger, "LR-019", decision_id, acceptance["record_id"])
-    ledger = _row(
-        ledger,
-        "LR-020",
-        _resolve("LR-020", decision_id),
-        deepcopy(acceptance),
-        closure,
-        event_types=[
-            "DecisionResolved",
-            "LegacyClosedReferenceAcceptanceRecorded",
-            "LegacyOwnershipTransitionedRecorded",
-        ],
-    )
-    state = _replay_all(ledger, schemas)
-    assert state["ownership"] == {registration["record_id"]: "closed_reference"}
-    assert closure["record_id"] in state["records"]["legacy_ownership_transitioned"]
+# LR-020's acceptance and ownership transitions, which this file forged bare under WP9.2, are WP9.3-2's: routed with
+# their full checks, they are tested through a reviewed batch in test_w9_wp9_3_2_replay.py, where the ownership event is
+# shown to validate against the ownership schema (note §10.5).
 
 
 _TRACKER = b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.1 | a |\n"

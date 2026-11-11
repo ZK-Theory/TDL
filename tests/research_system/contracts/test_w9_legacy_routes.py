@@ -61,7 +61,6 @@ def _envelope_pin() -> tuple[str, str, str, str, int]:
 # Design note §3, written out row by row.
 EXPECTED_TAGS = {
     "LR-002": "catalogue_revision",
-    **{f"LR-{n:03d}": "WP9.3" for n in range(16, 21)},
     "LR-021": "WP9.7",
     "LR-022": "WP9.7",
     "LR-023": "WP9.4",
@@ -223,22 +222,23 @@ def test_route_registry_refuses_a_changed_catalogue(mutate: Any) -> None:
         routes.validate_legacy_route_registry(catalogue)
 
 
-def test_route_classes_are_fourteen_routed_and_forty_seven_deferred_with_the_design_note_tags() -> None:
-    """WP9.3 note §15: the counts are pinned here, per PR, not in genesis guard 8."""
-    assert routes.LEGACY_ROUTED_ROWS == {"LR-001", *(f"LR-{n:03d}" for n in range(3, 16))}
-    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (14, 47)
+def test_route_classes_are_nineteen_routed_and_forty_two_deferred_with_the_design_note_tags() -> None:
+    """WP9.3 note §15: the counts are pinned here, per PR, not in genesis guard 8. WP9.3-2: 19 and 42."""
+    assert routes.LEGACY_ROUTED_ROWS == {"LR-001", *(f"LR-{n:03d}" for n in range(3, 21))}
+    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (19, 42)
     assert routes.LEGACY_DEFERRED_ROWS == EXPECTED_TAGS
+    assert "WP9.3" not in set(routes.LEGACY_DEFERRED_ROWS.values())
 
 
 @pytest.mark.parametrize(
     ("routed", "deferred"),
     [
-        # A missing row: LR-015 in neither set.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 15))}), EXPECTED_TAGS),
-        # An overlapping row: LR-016 both routed and deferred.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 17))}), EXPECTED_TAGS),
-        # An untagged row: LR-016 deferred with no valid tag.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 16))}), {**EXPECTED_TAGS, "LR-016": "WP9.9"}),
+        # A missing row: LR-020 in neither set.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20))}), EXPECTED_TAGS),
+        # An overlapping row: LR-020 both routed and deferred.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 21))}), {**EXPECTED_TAGS, "LR-020": "WP9.7"}),
+        # An untagged row: LR-020 deferred with no valid tag.
+        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20))}), {**EXPECTED_TAGS, "LR-020": "WP9.9"}),
     ],
     ids=["missing", "overlapping", "untagged"],
 )

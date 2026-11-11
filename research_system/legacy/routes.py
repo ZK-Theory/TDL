@@ -440,12 +440,12 @@ LEGACY_ROW_ROUTES = {
     ),
 }
 
-# WP9.2 note §3: WP9.2 routes genesis. WP9.3-1 routes LR-003 to LR-015 (WP9.3 note §2.3). Every other row is deferred,
-# tagged with what routes it. The counts are pinned by the route test for each PR, not by the guard (WP9.3 note §15).
-LEGACY_ROUTED_ROWS = frozenset({"LR-001", *(f"LR-{number:03d}" for number in range(3, 16))})
+# WP9.2 note §3: WP9.2 routes genesis. WP9.3-1 routes LR-003 to LR-015 and WP9.3-2 LR-016 to LR-020 (WP9.3 note §2.3).
+# Every other row is deferred, tagged with what routes it. The counts are pinned by the route test for each PR, not by
+# the guard (WP9.3 note §15).
+LEGACY_ROUTED_ROWS = frozenset({"LR-001", *(f"LR-{number:03d}" for number in range(3, 21))})
 LEGACY_DEFERRED_ROWS = {
     "LR-002": "catalogue_revision",
-    **dict.fromkeys((f"LR-{number:03d}" for number in range(16, 21)), "WP9.3"),
     **dict.fromkeys(("LR-021", "LR-022", "LR-024", "LR-025", "LR-061"), "WP9.7"),
     **dict.fromkeys(
         ("LR-023", *(f"LR-{number:03d}" for number in range(26, 36)), "LR-039"),
