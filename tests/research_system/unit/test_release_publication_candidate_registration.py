@@ -83,6 +83,7 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
             "observed_at": "2026-08-08T12:00:00Z",
             "relative_directory": "release/evidence",
         },
+        binding_check=None,  # a unit test of the evidence path; the CLI passes the binding check
     )
 
     assert resolver is None and pending is True
@@ -113,6 +114,7 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
         actor_id="act_01978abc-1002-7000-8000-000000001002",
         authority_grant_id="agr_01978abc-1003-7000-8000-000000001003",
         registration_context=None,
+        binding_check=None,
     )
 
     assert resolver is None and pending is True
@@ -149,6 +151,7 @@ def test_new_release_snapshots_register_exact_candidates_and_stop_pending(monkey
         actor_id="act_01978abc-1002-7000-8000-000000001002",
         authority_grant_id="agr_01978abc-1003-7000-8000-000000001003",
         registration_context=None,
+        binding_check=None,
     )
 
     assert isinstance(resolver, StoredEvidence) and pending is False

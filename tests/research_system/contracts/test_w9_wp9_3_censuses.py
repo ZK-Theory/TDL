@@ -254,6 +254,114 @@ def test_a_fixture_lock_site_without_the_recheck_fails_the_census() -> None:
     assert _lock_sites(source) == {"careful": True, "careless": False}
 
 
+# --- The CommandService construction census (§9.1; WP9.3-1b review M-1) -------------------------------------------------
+
+SERVICE_CLASS = "CommandService"
+# Production code that may build CommandService with no binding check, and why. Nothing else may.
+SERVICE_WITHOUT_BINDING = {
+    "research_system/evals/executors/release_tranche.py": (
+        "the release-tranche executor builds and writes only the scratch stores it initializes itself "
+        "(initialize_authority_control_store); no foundation names them and no binding exists to recheck"
+    ),
+}
+
+
+def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, bool]]:
+    """Every call of CommandService, of a subclass, or of a name bound to either, with whether it passes a check.
+
+    A check is a ``binding_check=`` keyword whose value is not a constant, so ``binding_check=None`` does not count.
+    """
+    tree = ast.parse(source)
+    names = {SERVICE_CLASS}
+
+    def class_valued(value: ast.expr) -> bool:
+        """Whether an expression evaluates to one of the classes, not to an instance or a call's result."""
+        if isinstance(value, ast.Name):
+            return value.id in names
+        if isinstance(value, ast.IfExp):
+            return class_valued(value.body) or class_valued(value.orelse)
+        if isinstance(value, ast.Subscript):
+            return class_valued(value.value)
+        if isinstance(value, ast.Dict):
+            return any(item is not None and class_valued(item) for item in value.values)
+        return False
+
+    while True:
+        before = len(names)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and any(class_valued(base) for base in node.bases):
+                names.add(node.name)
+            elif isinstance(node, ast.Assign) and class_valued(node.value):
+                names.update(target.id for target in node.targets if isinstance(target, ast.Name))
+        if len(names) == before:
+            break
+    sites: list[tuple[str, str, int, bool]] = []
+
+    def visit(node: ast.AST, scope: list[str]) -> None:
+        for child in ast.iter_child_nodes(node):
+            inner = [*scope, child.name] if isinstance(child, ast.FunctionDef | ast.ClassDef) else scope
+            if isinstance(child, ast.Call):
+                function = child.func
+                called = function.id if isinstance(function, ast.Name) else getattr(function, "attr", None)
+                if called in names:
+                    checked = any(
+                        keyword.arg == "binding_check" and not isinstance(keyword.value, ast.Constant)
+                        for keyword in child.keywords
+                    )
+                    sites.append((path, ".".join(scope), child.lineno, checked))
+            visit(child, inner)
+
+    visit(tree, [])
+    return sites
+
+
+def test_every_production_command_service_construction_passes_a_binding_check() -> None:
+    """Review M-1 (WP9.3-1b): a lock site's ``_recheck_binding`` is only as good as what its caller supplies."""
+    unchecked: list[str] = []
+    checked: list[tuple[str, str]] = []
+    for relative, source in _tracked_python():
+        if SERVICE_CLASS not in source or relative == "research_system/command/service.py":
+            continue
+        for path, scope, line, has_check in _service_constructions(relative, source):
+            if has_check:
+                checked.append((path, scope))
+            elif path not in SERVICE_WITHOUT_BINDING:
+                unchecked.append(f"{path}:{line} ({scope}) builds CommandService with no binding check")
+    assert unchecked == []
+    # Positive control: the seven CLI writers and SpecCoordinator's service are all found, each with its check.
+    assert {
+        ("research_system/cli.py", "_store_backup"),
+        ("research_system/cli.py", "_store_verify_restore"),
+        ("research_system/cli.py", "_command_submit"),
+        ("research_system/cli.py", "_brief_runtime"),
+        ("research_system/cli.py", "_authority_activate_grant"),
+        ("research_system/cli.py", "_publication_evidence"),
+        ("research_system/cli.py", "_eval_publish_release"),
+        ("research_system/discovery/spec.py", "SpecCoordinator._command_service"),
+    } <= set(checked)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("def f():\n    return CommandService(1, 2)\n", [("fixture.py", "f", 2, False)]),
+        ("def f():\n    return CommandService(1, binding_check=None)\n", [("fixture.py", "f", 2, False)]),
+        ("def f(c):\n    return CommandService(1, binding_check=c)\n", [("fixture.py", "f", 2, True)]),
+        (
+            "class Quiet(CommandService):\n    pass\n\nmade = Quiet\n\ndef f():\n    return made(1)\n",
+            [("fixture.py", "f", 7, False)],
+        ),
+        (
+            "def f(kind):\n    service_type = CommandService if kind else Other\n    return service_type(1)\n",
+            [("fixture.py", "f", 3, False)],
+        ),
+    ],
+    ids=["direct", "none", "checked", "subclass-alias", "conditional-alias"],
+)
+def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str, expected: list) -> None:
+    assert _service_constructions("fixture.py", source) == expected
+
+
 # --- The grant-free census (§9.1) ---------------------------------------------------------------------------------------
 
 # Generic command types the service writes without resolving a grant under its writer lock (§9.1). Each is a known

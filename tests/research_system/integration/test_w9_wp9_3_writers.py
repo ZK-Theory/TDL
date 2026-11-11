@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -377,16 +378,20 @@ def _bound(control_root: Path) -> None:
 
 
 def test_ars_submit_skips_the_recheck_only_for_an_unnamed_or_never_bound_store(tmp_path: Path, monkeypatch) -> None:
-    """P-082 item 4: no recheck for a store the foundation does not name, or that has no current binding."""
+    """P-082 item 4: no recheck for a store the foundation does not name, or that has no current binding.
+
+    WP9.3-1b review m-1: for a named store the decision is taken again inside the writer lock, so a named store always
+    gets a check. With no pointer under the lock it does nothing; once a pointer is present it loads and revalidates.
+    """
     import yaml
 
     import research_system.store.current_binding as current_binding
 
-    calls: list[int] = []
+    calls: list[str] = []
 
     def load_ok(**kwargs: Any) -> SimpleNamespace:
-        calls.append(1)
-        return SimpleNamespace(revalidate="the binding's revalidate")
+        calls.append("load")
+        return SimpleNamespace(revalidate=lambda: calls.append("revalidate"))
 
     monkeypatch.setattr(current_binding, "load_current_binding", load_ok)
     binding, control_root = _named_store(tmp_path, monkeypatch)
@@ -399,11 +404,17 @@ def test_ars_submit_skips_the_recheck_only_for_an_unnamed_or_never_bound_store(t
     )
     assert cli._foundation_binding_check(binding) is None  # another store named
     binding, control_root = _named_store(tmp_path / "named", monkeypatch)
-    assert cli._foundation_binding_check(binding) is None  # named, never bound: no pointer
-    assert calls == []  # absence is read from the pointer, never inferred from a load failure
+    check = cli._foundation_binding_check(binding)  # named, never bound: no pointer
+    assert callable(check) and calls == []  # absence is read from the pointer, never inferred from a load failure
+    check()
+    assert calls == []  # under the lock, still no pointer: no current binding, nothing to recheck
     _bound(control_root)
-    assert cli._foundation_binding_check(binding) == "the binding's revalidate"
-    assert calls == [1]
+    check()
+    assert calls == ["load", "revalidate"]  # the pointer appeared before the lock: loaded and revalidated there
+    bound_check = cli._foundation_binding_check(binding)  # bound from the start: loaded before binding
+    assert calls == ["load", "revalidate", "load"]
+    bound_check()
+    assert calls == ["load", "revalidate", "load", "revalidate"]
 
 
 @pytest.mark.parametrize(
@@ -432,6 +443,89 @@ def test_ars_submit_refuses_a_named_store_whose_current_binding_this_checkout_ca
     with pytest.raises(ConfigurationError, match=UNLOADABLE) as refused:
         cli._foundation_binding_check(binding)
     assert refused.value.__cause__ is error
+
+
+def test_a_pointer_that_appears_before_the_lock_with_an_unloadable_binding_refuses_inside_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """WP9.3-1b review m-1: absent when the command starts, present under the lock, and not loadable: refused there."""
+    import research_system.store.current_binding as current_binding
+
+    def load_refused(**kwargs: Any) -> None:
+        raise IntegrityError("current store binding identity is invalid")
+
+    monkeypatch.setattr(current_binding, "load_current_binding", load_refused)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    check = cli._foundation_binding_check(binding)
+    assert callable(check)
+    _bound(control_root)
+    with pytest.raises(ConfigurationError, match=UNLOADABLE):
+        check()
+
+
+def test_a_revalidation_that_fails_inside_the_lock_refuses_with_the_fixed_message(tmp_path: Path, monkeypatch) -> None:
+    """PR #429 CodeRabbit: the binding loaded before binding fails its in-lock ``revalidate``, for example after an
+    advance between the two. The refusal carries the same fixed message as a failed load, with the cause kept, and a
+    binding that changes during the check still refuses as itself."""
+    import research_system.store.current_binding as current_binding
+
+    outcome: list[Exception] = []
+
+    def revalidate() -> None:
+        raise outcome[0]
+
+    monkeypatch.setattr(
+        current_binding, "load_current_binding", lambda **kwargs: SimpleNamespace(revalidate=revalidate)
+    )
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    check = cli._foundation_binding_check(binding)  # loaded before binding
+    error = IntegrityError("current store binding identity is invalid")
+    outcome.append(error)
+    with pytest.raises(ConfigurationError, match=UNLOADABLE) as refused:
+        check()
+    assert refused.value.__cause__ is error
+    outcome[0] = ConflictError("current store binding changed during the operation")
+    with pytest.raises(ConflictError, match="changed during the operation"):
+        check()
+
+
+def test_a_check_taken_while_an_advance_replaces_the_pointer_still_decides_inside_the_lock(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The WP9.3-1b review's m-1 probe as a control. An advance replaces the pointer by unlinking it and publishing the
+    new one (``replace_or_recover``), under its own writer lock. A check taken in that window reads no pointer, but it
+    is a check, not a skip: once the replacement is published, calling it under the lock loads the new binding, and
+    here refuses because this scratch pointer is not a binding this checkout can load."""
+    from research_system.store.anchor import DirectoryTransaction
+    from research_system.store.current_binding import CURRENT_BINDING_RELATIVE_PATH
+    from research_system.store.writer import CompositeWriterLock
+
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    pointer = control_root / CURRENT_BINDING_RELATIVE_PATH
+    pointer.parent.mkdir(parents=True)
+    pointer.write_bytes(b'{"binding":"old"}')
+    (control_root / "runtime").mkdir()
+    taken: list[tuple[bool, Any]] = []
+    original = DirectoryTransaction.adopt_or_publish
+
+    def observed(self: Any, stage: Any, final_name: str) -> Any:
+        if final_name == pointer.name and not taken:
+            # The old pointer is unlinked here, so taking the check attempts no load.
+            taken.append((os.path.lexists(pointer), cli._foundation_binding_check(binding)))
+        return original(self, stage, final_name)
+
+    monkeypatch.setattr(DirectoryTransaction, "adopt_or_publish", observed)
+    with CompositeWriterLock((control_root,), {"writer_id": "wp9-3-1b-m1"}) as lock:
+        lock.locked_root(control_root).replace_exact_file(
+            CURRENT_BINDING_RELATIVE_PATH.as_posix(), b'{"binding":"old"}', b'{"binding":"new"}'
+        )
+    assert pointer.read_bytes() == b'{"binding":"new"}'
+    [(present, check)] = taken
+    assert present is False  # absent mid-replace
+    assert callable(check)  # a check, not WP9.3-1b's earlier "never bound" None
+    with pytest.raises(ConfigurationError, match=UNLOADABLE):
+        check()  # under the lock, after the advance: the published pointer is loaded, and refused
 
 
 def test_ars_submit_still_refuses_a_binding_that_changes_while_it_loads(tmp_path: Path, monkeypatch) -> None:
