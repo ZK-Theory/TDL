@@ -437,6 +437,7 @@ def _checked_out(workflow: dict, job: str, tree: Path) -> None:
 
 
 def _issue(number: int, state: str, created: str) -> dict:
+    """Return one red-nightly issue as ``gh issue list --json number,title,state,createdAt`` reports it."""
     return {"number": number, "title": "Nightly research_system suite is red", "state": state, "createdAt": created}
 
 
@@ -481,6 +482,7 @@ def test_the_verdict_step_fails_without_its_checked_out_policy(workflow: dict, t
 
 
 def test_a_red_night_opens_the_issue_and_a_second_comments_on_it(workflow: dict, tmp_path: Path) -> None:
+    """A red night with no open issue creates one; a red night with one open comments on it instead."""
     assert _verdict(workflow, tmp_path / "first", "failure", []) == [
         "issue create --title Nightly research_system suite is red --body "
         "The scheduled research-system-suite run at abc123 ended `failure`: https://example.invalid/run/1"
@@ -490,6 +492,7 @@ def test_a_red_night_opens_the_issue_and_a_second_comments_on_it(workflow: dict,
 
 
 def test_a_green_night_closes_the_open_issue_and_otherwise_does_nothing(workflow: dict, tmp_path: Path) -> None:
+    """A green night closes a lone open red episode, and with no issue open it calls nothing."""
     calls = _verdict(workflow, tmp_path / "open", "success", [_issue(41, "OPEN", "2026-11-09T09:00:00Z")])
     assert calls == ["issue close 41 --comment Green again at abc123: https://example.invalid/run/1"]
     assert _verdict(workflow, tmp_path / "none", "success", []) == []
