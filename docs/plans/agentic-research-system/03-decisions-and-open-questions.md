@@ -5128,8 +5128,11 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    n-1 fixed (Recommended)"). All six CLI `CommandService` writers take the in-lock binding check, and the never-bound
    decision is taken again inside the lock (WP9.3-1b, `fbb99ce0`). The checklist line stays, narrowed to the crashed
    advance: "No ARS CLI writer ran from the old checkout after the advance, and no advance on the store ended without
-   publishing its new binding." WP9.3-2 hardens the in-lock check for that case, and the line is dropped when the
-   hardening merges.
+   publishing its new binding." WP9.3-2 hardens the never-bound decision for that case, and the line is dropped when
+   the hardening merges. The hardening reads "never bound" from durable store evidence, not from the pointer alone: a
+   store with no pointer but any `objects/binding-repair/` object, which no crash removes, is refused under the lock,
+   whether the process loaded a binding before binding or started fresh (P-083 item 5, corrected 2026-11-11 on
+   CodeRabbit's comment on PR #430; Stephen, in chat: "Yes, revise both").
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5410,7 +5413,9 @@ is merged and accepted. It carries no D-4.<br>
 - 2026-11-11: after #428 was found merged without the review's fixes, asked whether to carry them to `main` in a
   follow-up PR, he answered "Yes, open it". He merged that PR ("Now merged over some CI failures");
 - 2026-11-11, for n-2: "Confirm (Recommended)";
-- 2026-11-11, for the later-pin checklist line: "Keep until n-1 fixed (Recommended)".<br>
+- 2026-11-11, for the later-pin checklist line: "Keep until n-1 fixed (Recommended)";
+- 2026-11-11, for CodeRabbit's comment on PR #430 (the hardening item 5 named did not cover a fresh process): "Yes,
+  revise both", for item 5 and P-081 item 3's ninth amendment.<br>
 **Evidence:**
 - **Two merges.**
   - PR #428 merged on 2026-11-10 at 21:38 UTC as `6aeb3b315f09cab184515f408995a1e56dc68816`, with head `649d0698`.
@@ -5481,11 +5486,17 @@ is merged and accepted. It carries no D-4.<br>
 5. **The later-pin checklist line stays until n-1 is fixed.** This amends P-081 item 3 for the ninth time.
    - **The gap that remains (review n-1):** an advance that crashes after unlinking the old pointer and before
      publishing the new one leaves the store looking never-bound. A binding that was loaded before the lock is then
-     not rechecked under it.
+     not rechecked under it. A fresh process, from the candidate checkout with a matching foundation and
+     configuration, loads no binding at all. Once scoped-activation recovery clears the advance's stale lock, it can
+     pass the in-lock check and append without the clean-checkout check (CodeRabbit on PR #430; review n-1 noted the
+     fresh process).
    - **The line,** narrowed to that gap: "No ARS CLI writer ran from the old checkout after the advance, and no advance
      on the store ended without publishing its new binding."
-   - **WP9.3-2 carries n-1's hardening:** the in-lock check refuses when a binding was loaded before binding but the
-     pointer is absent under the lock. The line is dropped when that hardening merges.
+   - **WP9.3-2 carries n-1's hardening:** "never bound" is read from durable store evidence, not from the pointer
+     alone. A store with no pointer but any `objects/binding-repair/` object, which no crash removes, is refused under
+     the lock, whether the process loaded a binding before binding or started fresh. The line is dropped when that
+     hardening merges, not on a check that covers only a binding loaded before the lock. Corrected 2026-11-11
+     (CodeRabbit on PR #430; Stephen, in chat: "Yes, revise both"): the first wording named only that narrower check.
 6. **Carried to WP9.3-2:**
    - n-1 (item 5);
    - n-3: the service census does not see a construction through `functools.partial` or a string lookup;
