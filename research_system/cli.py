@@ -1801,6 +1801,47 @@ def _legacy_inventory_reproduce(args: argparse.Namespace) -> int:
     return 0 if report["reproduced"] else 1
 
 
+def _hex_object_id(value: str, what: str) -> str:
+    """A Git object ID that reaches Git as an argument: lowercase hex, 40 or 64 characters, never an option."""
+    if len(value) not in (40, 64) or any(char not in "0123456789abcdef" for char in value):
+        raise IntegrityError(f"W9 {what} needs a lowercase hex object ID")
+    return value
+
+
+def _repository_path(value: Any, what: str) -> str:
+    text = str(value)
+    if not text or text.startswith(("-", "/")) or ":" in text or "\\" in text or ".." in text.split("/"):
+        raise IntegrityError(f"W9 {what} is not a repository-relative path")
+    return text
+
+
+def _legacy_export_recheck(args: argparse.Namespace) -> int:
+    """``ars legacy export recheck``: the runtime segmenter rechecks a committed export (note §12.2, §13; D-7).
+
+    A tool: it reads the export and its retained copy from Git at ``--git-commit``, never from the working tree,
+    opens no store, and writes only the report. Exit 0 when the export reproduces, 1 when the report voids it.
+    """
+    import json as json_module
+
+    from research_system.legacy.evidence import require_cl_export
+    from research_system.legacy.export_recheck import recheck_cl_export
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+    from research_system.legacy.reader import _git
+
+    output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    commit = _hex_object_id(args.git_commit, "export recheck --git-commit")
+    export_path = _repository_path(args.export, "export recheck --export")
+    export = require_cl_export(
+        json_module.loads(_git(args.repository_root, "show", f"{commit}:{export_path}", text=False))
+    )
+    copy_path = _repository_path(export["retained_copy"]["repository_path"], "export's retained copy path")
+    retained = _git(args.repository_root, "show", f"{commit}:{copy_path}", text=False)
+    report = recheck_cl_export(export, retained)
+    write_tool_output(output, report)
+    _print_json({"output": str(output), "void": report["void"]})
+    return 1 if report["void"] else 0
+
+
 def _legacy_observation_id(args: argparse.Namespace) -> int:
     """Print the derived ``record_id`` of an observation envelope before it is granted or submitted (§5.3, §13).
 
@@ -2839,6 +2880,17 @@ def _parser() -> argparse.ArgumentParser:
     )
     inventory_reproduce.add_argument("--output", type=Path, required=True, help="where to write the report")
     inventory_reproduce.set_defaults(handler=_legacy_inventory_reproduce)
+    legacy_export = legacy_actions.add_parser("export", help="the Computational-Log export tool; it opens no store")
+    export_actions = legacy_export.add_subparsers(dest="export_action", required=True)
+    export_recheck = export_actions.add_parser("recheck", help="recheck a committed export (note §12.2; D-7)")
+    export_recheck.add_argument("--repository-root", type=Path, required=True, help="the repository holding the export")
+    export_recheck.add_argument("--git-commit", required=True, help="the commit to read the export and its copy at")
+    export_recheck.add_argument("--export", required=True, help="the export's repository path")
+    export_recheck.add_argument(
+        "--vault-root", type=Path, required=True, help="the real vault path, which the report is never written under"
+    )
+    export_recheck.add_argument("--output", type=Path, required=True, help="where to write the report")
+    export_recheck.set_defaults(handler=_legacy_export_recheck)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)
