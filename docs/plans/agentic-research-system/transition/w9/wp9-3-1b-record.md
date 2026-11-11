@@ -1,7 +1,9 @@
 # WP9.3-1b: the `ars submit` refusal, the light-inventory builder, LR-011's resolution check, and the review's dispositions
 
 **Date:** 2026-11-10<br>
-**Status:** Revision 1, for review. The PR is open for CodeRabbit and needs its own independent review (P-082 item 5).
+**Status:** Revision 1, merged across `6aeb3b31` (PR #428) and `fbb99ce0` (PR #429), and accepted (P-083). The
+independent review (`reviews/wp9-3-1b-review-649d0698-2026-11-10.md`) gave accept at `6836b846` after its fixes. P-083
+records the rulings, the §4 readings, n-2, and the later-pin checklist line, which is kept until WP9.3-2 hardens n-1.
 **Corrected 2026-11-11:** this package landed in two PRs. PR #428 merged on 2026-11-10 at 21:38 UTC as `6aeb3b31`,
 with head `649d0698`. That was before the independent review's fixes, `6a907e49` and `6836b846`, were pushed at 23:10
 and 23:14. On every path those fixes change, `6aeb3b31` matches `649d0698`. The fixes are carried to `main` by a
