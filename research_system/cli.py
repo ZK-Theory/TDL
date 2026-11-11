@@ -917,9 +917,15 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
       before it builds the ledger or the service.
     - **Inside the writer lock** (WP9.3-1b review m-1): a check is always returned, and it decides again there. An
       advance replaces the pointer by unlinking it and then publishing the new one, under its own writer lock, so a
-      pointer absent when the command starts may be present by the time it holds the lock. If the pointer is absent
-      under the lock, the store has no current binding and the check returns. If it is present, the binding loaded
-      before binding is revalidated, or, if none was, loaded now; a load that fails refuses with the same message.
+      pointer absent when the command starts may be present by the time it holds the lock. If it is present, the
+      binding loaded before binding is revalidated, or, if none was, loaded now; a load that fails refuses with the
+      same message.
+    - **"Never bound" is read from durable store evidence** (WP9.3-1b review n-1; P-083 item 5, corrected on
+      CodeRabbit's comment on PR #430). Every repair and advance writes its ``objects/binding-repair/`` object before it
+      touches the pointer, and no crash removes one; store init does not create that directory. So a pointer absent
+      under the lock is "no current binding" only when no binding object exists either, and no binding was loaded
+      before binding. Otherwise an advance crashed between unlinking the old pointer and publishing the new one, and
+      the check refuses, for a process that loaded a binding before the lock and for a fresh one alike.
 
     A binding that changes while it loads (``ConflictError``) refuses as itself. ``command`` names the CLI writer in
     the refusal.
@@ -945,8 +951,10 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
     if not named:
         return None
     pointer = binding.control_root / CURRENT_BINDING_RELATIVE_PATH
+    # The directory binding_service.py alone writes (``_BINDING_OBJECT_DIRECTORY``, private there; a test pins the two).
+    binding_objects = binding.control_root / "objects" / "binding-repair"
 
-    def refused(exc: BaseException) -> ConfigurationError:
+    def refused(exc: BaseException | str) -> ConfigurationError:
         return ConfigurationError(
             f"{command} refused: the store has a current binding this checkout cannot load: {exc}"
         )
@@ -970,7 +978,10 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
 
     def check_in_lock() -> None:
         if not os.path.lexists(pointer):
-            return  # no current binding, read under the writer lock
+            if loaded or os.path.lexists(binding_objects):
+                # n-1: the store was bound, and its pointer is gone: a crashed advance, never "never bound".
+                raise refused("its binding pointer is absent")
+            return  # never bound: no pointer and no binding object, read under the writer lock
         if not loaded:
             loaded.append(load())  # absent before binding, present now: load it here, or refuse
         try:

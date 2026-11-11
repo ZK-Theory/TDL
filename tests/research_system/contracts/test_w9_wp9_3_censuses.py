@@ -270,9 +270,40 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
     """Every call of CommandService, of a subclass, or of a name bound to either, with whether it passes a check.
 
     A check is a ``binding_check=`` keyword whose value is not a constant, so ``binding_check=None`` does not count.
+    Review n-3 (WP9.3-1b addendum): a class reached through ``functools.partial``, ``getattr`` or
+    ``operator.attrgetter`` with a constant name, or a ``globals()``, ``vars()`` or ``__dict__`` subscript, is followed
+    too. Through ``partial``, only a check the ``partial`` call itself binds counts, since the call that finally
+    constructs may be anywhere.
     """
     tree = ast.parse(source)
     names = {SERVICE_CLASS}
+    partials: dict[str, bool] = {}  # names bound to a partial of a class, with whether the partial binds a check
+
+    def call_name(call: ast.Call) -> str | None:
+        function = call.func
+        return function.id if isinstance(function, ast.Name) else getattr(function, "attr", None)
+
+    def string(node: ast.expr | None) -> str | None:
+        return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
+
+    def has_check(call: ast.Call) -> bool:
+        return any(
+            keyword.arg == "binding_check" and not isinstance(keyword.value, ast.Constant) for keyword in call.keywords
+        )
+
+    def is_partial(value: ast.expr) -> bool:
+        return (
+            isinstance(value, ast.Call)
+            and call_name(value) == "partial"
+            and bool(value.args)
+            and class_valued(value.args[0])
+        )
+
+    def namespace(value: ast.expr) -> bool:
+        """``globals()``, ``vars(x)`` or ``x.__dict__``: a mapping from names to module or class attributes."""
+        if isinstance(value, ast.Call):
+            return call_name(value) in {"globals", "vars", "locals"}
+        return isinstance(value, ast.Attribute) and value.attr == "__dict__"
 
     def class_valued(value: ast.expr) -> bool:
         """Whether an expression evaluates to one of the classes, not to an instance or a call's result."""
@@ -281,19 +312,32 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
         if isinstance(value, ast.IfExp):
             return class_valued(value.body) or class_valued(value.orelse)
         if isinstance(value, ast.Subscript):
+            if namespace(value.value):
+                return string(value.slice) in names
             return class_valued(value.value)
         if isinstance(value, ast.Dict):
             return any(item is not None and class_valued(item) for item in value.values)
+        if isinstance(value, ast.Call):
+            if is_partial(value):
+                return True
+            if call_name(value) == "getattr" and len(value.args) >= 2:
+                return string(value.args[1]) in names
+            getter = value.func
+            if isinstance(getter, ast.Call) and call_name(getter) == "attrgetter" and getter.args:
+                return string(getter.args[0]) in names
         return False
 
     while True:
-        before = len(names)
+        before = len(names), len(partials)
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and any(class_valued(base) for base in node.bases):
                 names.add(node.name)
             elif isinstance(node, ast.Assign) and class_valued(node.value):
-                names.update(target.id for target in node.targets if isinstance(target, ast.Name))
-        if len(names) == before:
+                targets = [target.id for target in node.targets if isinstance(target, ast.Name)]
+                names.update(targets)
+                if is_partial(node.value):
+                    partials.update(dict.fromkeys(targets, has_check(node.value)))
+        if (len(names), len(partials)) == before:
             break
     sites: list[tuple[str, str, int, bool]] = []
 
@@ -303,11 +347,14 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
             if isinstance(child, ast.Call):
                 function = child.func
                 called = function.id if isinstance(function, ast.Name) else getattr(function, "attr", None)
-                if called in names:
-                    checked = any(
-                        keyword.arg == "binding_check" and not isinstance(keyword.value, ast.Constant)
-                        for keyword in child.keywords
-                    )
+                direct = isinstance(function, ast.Name | ast.Attribute) and called in names
+                if direct or (isinstance(function, ast.Call | ast.Subscript) and class_valued(function)):
+                    if is_partial(function):
+                        checked = has_check(function)
+                    elif isinstance(function, ast.Name) and function.id in partials:
+                        checked = partials[function.id]
+                    else:
+                        checked = has_check(child)
                     sites.append((path, ".".join(scope), child.lineno, checked))
             visit(child, inner)
 
@@ -360,6 +407,96 @@ def test_every_production_command_service_construction_passes_a_binding_check() 
 )
 def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str, expected: list) -> None:
     assert _service_constructions("fixture.py", source) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "import functools\nfactory = functools.partial(CommandService, 1)\n\ndef f():\n    return factory()\n",
+            [("fixture.py", "f", 5, False)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c):\n    return partial(CommandService, binding_check=c)()\n",
+            [("fixture.py", "f", 4, True)],
+        ),
+        (
+            "from functools import partial\n\ndef f(c):\n    return partial(CommandService, 1)(binding_check=c)\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        (
+            "import research_system.command.service as m\n\ndef f():\n    return getattr(m, 'CommandService')(1)\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        (
+            "import operator\n\ndef f(m):\n    return operator.attrgetter('CommandService')(m)(1)\n",
+            [("fixture.py", "f", 4, False)],
+        ),
+        ("def f():\n    return globals()['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
+        ("def f(m):\n    return vars(m)['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
+        ("def f(m):\n    return m.__dict__['CommandService'](1)\n", [("fixture.py", "f", 2, False)]),
+    ],
+    ids=[
+        "partial-alias",
+        "partial-checked",
+        "partial-check-on-call",
+        "getattr",
+        "attrgetter",
+        "globals",
+        "vars",
+        "dict",
+    ],
+)
+def test_the_service_census_sees_partial_and_string_lookups(source: str, expected: list) -> None:
+    """Review n-3 (WP9.3-1b addendum; P-083 item 6): a construction through ``functools.partial`` or a constant-string
+    lookup is a construction. Through ``partial``, only a check the ``partial`` call itself binds counts."""
+    assert _service_constructions("fixture.py", source) == expected
+
+
+def _service_name_strings(source: str) -> list[int]:
+    """Lines holding the literal string ``CommandService`` outside an import: the backstop for string lookups the
+    census cannot resolve (n-3). A string annotation (a forward reference) is a type, not a lookup, so it is skipped.
+    A name computed at run time stays outside any AST census (note §18)."""
+    tree = ast.parse(source)
+    annotations: set[int] = set()
+    for node in ast.walk(tree):
+        parts: list[ast.AST | None] = []
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            arguments = node.args
+            parts.append(node.returns)
+            parts += [a.annotation for a in [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]]
+            parts += [arguments.vararg and arguments.vararg.annotation, arguments.kwarg and arguments.kwarg.annotation]
+        elif isinstance(node, ast.AnnAssign):
+            parts.append(node.annotation)
+        for part in parts:
+            if part is not None:
+                annotations.update(id(inner) for inner in ast.walk(part))
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and node.value == SERVICE_CLASS and id(node) not in annotations
+    ]
+
+
+def test_no_production_file_names_command_service_in_a_string() -> None:
+    """Positive control: no production file outside the defining module holds the class name as a string."""
+    hits = [
+        f"{relative}:{line}"
+        for relative, source in _tracked_python()
+        if relative.startswith("research_system/")
+        and relative != "research_system/command/service.py"
+        and SERVICE_CLASS in source
+        for line in _service_name_strings(source)
+    ]
+    assert hits == []
+
+
+def test_the_string_backstop_flags_a_lookup_the_census_cannot_resolve() -> None:
+    source = "def f(m, suffix):\n    name = 'CommandService'\n    return getattr(m, name)(1)\n"
+    assert _service_constructions("fixture.py", source) == []  # the census alone misses it
+    assert _service_name_strings(source) == [2]
+    annotated = "def f(x: 'CommandService') -> tuple['CommandService', int]:\n    y: 'CommandService' = x\n"
+    assert _service_name_strings(annotated) == []
 
 
 # --- The grant-free census (§9.1) ---------------------------------------------------------------------------------------
