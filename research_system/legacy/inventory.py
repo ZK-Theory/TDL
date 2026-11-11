@@ -10,9 +10,16 @@ the preparer admits on the same bytes.
 **Reproduction mode** re-segments given bytes (the Git blob, or the frozen copy) against a recorded or proposed
 inventory, and reports row-by-row equality. LR-013's reproducer reads that report.
 
-Neither mode opens a store, computes an observation ID (that needs the store's projection; ``ars legacy
-observation-id`` does it, note §13), or derives an ownership list. The ownership list belongs to a batch, which is
-WP9.3-2's (note §10.5).
+Neither mode opens a store or computes an observation ID (that needs the store's projection; ``ars legacy
+observation-id`` does it, note §13).
+
+**Batch mode** (WP9.3-2; note §12.1, §10.5; the WP9.3-2 plan's Q1, Stephen, 2026-11-11, "Yes, as recommended") builds
+an LR-016 proposal's content from record files the operator supplies, each recomputed at its content hash, and prints
+the derived ownership list's parts that are already fixed: which item transitions, its subject registration, the
+modes and the copied refs. Each record's ``record_id``, ``created_at`` and ``content_hash`` are marked "assigned at
+LR-016", because the ID's timestamp is the proposal's ``created_at``, which the runtime clock sets at submit (§5.1),
+and the tool opens no store. After LR-016, the read-only ``ars legacy show <acceptance ID>`` prints the stored list in
+full. This is a reading of note §12.1's "prints the derived ownership list".
 """
 
 from __future__ import annotations
@@ -248,6 +255,109 @@ def reproduce_light_inventory(record: Mapping[str, Any], raw: bytes) -> dict[str
         "file_facts_equal": facts_equal,
         "region": {"form": form, "hashes_equal": hashes_equal, "resolution_equal": resolution_equal},
     }
+
+
+ACCEPTANCE_SCHEMA_ID = "ars://legacy/legacy-closed-reference-acceptance"
+ASSIGNED_AT_LR_016 = "assigned at LR-016"
+_BATCH_KEYS = {
+    "project_id",
+    "items",
+    "threshold_preregistration_sha256",
+    "governing_record_set_sha256",
+    "anchors",
+    "enforcement_change_list",
+}
+_BATCH_ITEM_KEYS = {"observation", "registration", "membership", "pilot_promotion"}
+
+
+def _record_file(record: Any, kind: str) -> Mapping[str, Any]:
+    from research_system.legacy.records import record_content_hash
+
+    if not isinstance(record, Mapping) or record.get("schema_id") != f"ars://legacy/{kind.replace('_', '-')}":
+        raise IntegrityError(f"W9 batch build needs a {kind} record")
+    if record.get("content_hash") != record_content_hash(record):
+        raise IntegrityError(f"W9 batch build {kind} record is not at its recomputed content hash")
+    return record
+
+
+def _covers_whole_file(observation: Mapping[str, Any], membership: Mapping[str, Any] | None) -> bool:
+    """§10.5's rule, as replay applies it: ``whole_file``, or the complete family set of the file's table."""
+    selector = observation.get("selector", {})
+    if selector.get("selector_kind") == "whole_file":
+        return True
+    if selector.get("selector_kind") != "json_family_set" or membership is None:
+        return False
+    if selector.get("membership_ref", {}).get("id") != membership.get("record_id"):
+        raise IntegrityError("W9 batch build membership record is not the one the observation names")
+    return set(selector.get("family_names", [])) == {family.get("name") for family in membership.get("families", [])}
+
+
+def build_acceptance_batch(batch: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Batch mode: an LR-016 proposal's content, and the derived ownership list's fixed parts (note §10.5, §12.1).
+
+    Args:
+        batch: ``{"project_id", "items": [{"observation", "registration", "membership" (or null),
+            "pilot_promotion"}], "threshold_preregistration_sha256", "governing_record_set_sha256", "anchors",
+            "enforcement_change_list"}``, each record a record file at its recomputed content hash.
+
+    Returns:
+        The proposal's content, without the preparer-set fields, and one preview row per item.
+
+    Raises:
+        IntegrityError: For a malformed batch, a record at another hash, or an observation of another registration.
+    """
+    from research_system.legacy.records import record_content_hash
+
+    if not isinstance(batch, Mapping) or set(batch) != _BATCH_KEYS or not isinstance(batch["items"], list):
+        raise IntegrityError("W9 batch build input does not have the fixed format")
+    record_id = new_id("scope_definition")
+    items, preview = [], []
+    review_ref = pre_assigned_ref("review", new_id("review"), record_id)
+    decision_ref = pre_assigned_ref("decision", new_id("decision"), record_id)
+    for item in batch["items"]:
+        if not isinstance(item, Mapping) or set(item) != _BATCH_ITEM_KEYS:
+            raise IntegrityError("W9 batch build item does not have the fixed format")
+        observation = _record_file(item["observation"], "legacy_observation")
+        registration = _record_file(item["registration"], "legacy_path_registration")
+        membership = (
+            None if item["membership"] is None else _record_file(item["membership"], "legacy_field_family_membership")
+        )
+        if observation["registration_ref"]["id"] != registration["record_id"]:
+            raise IntegrityError("W9 batch build observation names another registration")
+        reference = {"id": observation["record_id"], "record_revision": observation["record_revision"]}
+        reference["content_hash"] = record_content_hash(observation)
+        items.append({"observation_ref": reference, "pilot_promotion": deepcopy(item["pilot_promotion"])})
+        transitions = _covers_whole_file(observation, membership) and registration["ownership_mode"] == "legacy_owned"
+        row: dict[str, Any] = {"observation_id": observation["record_id"], "transitions": transitions}
+        if transitions:
+            row.update(
+                record_id=ASSIGNED_AT_LR_016,
+                created_at=ASSIGNED_AT_LR_016,
+                content_hash=ASSIGNED_AT_LR_016,
+                subject_registration_ref=deepcopy(observation["registration_ref"]),
+                from_mode="legacy_owned",
+                to_mode="closed_reference",
+                reviewer_ref=deepcopy(review_ref),
+                decision_ref=deepcopy(decision_ref),
+                condition="if the registration is still legacy_owned at LR-016",
+            )
+        preview.append(row)
+    proposal = {
+        "schema_id": ACCEPTANCE_SCHEMA_ID,
+        "schema_version": "1.0.0",
+        "record_id": record_id,
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": batch["project_id"],
+        "independent_review_ref": review_ref,
+        "decision_ref": decision_ref,
+        "items": items,
+        "threshold_preregistration_sha256": batch["threshold_preregistration_sha256"],
+        "governing_record_set_sha256": batch["governing_record_set_sha256"],
+        "anchors": deepcopy(batch["anchors"]),
+        "enforcement_change_list": deepcopy(batch["enforcement_change_list"]),
+    }
+    return proposal, preview
 
 
 def refuse_tool_output(output: Path, *, repository_root: Path | None, vault_root: Path) -> Path:
