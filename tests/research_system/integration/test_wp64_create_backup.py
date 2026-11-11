@@ -79,6 +79,8 @@ def test_store_backup_cli_rejects_unexpected_external_artefact_fields(
     request = _backup_request_for_cli_validation()
     request["external_artefacts"][0]["unexpected"] = "not-in-the-input-contract"
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: object())
+    # `ars store backup` reads the canonical foundation for its binding check (WP9.3-1b); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "_read_json", lambda _path: request)
 
     with pytest.raises(ConfigurationError, match=r"external_artefacts\[0\].*unexpected"):
@@ -107,6 +109,8 @@ def test_store_backup_cli_rejects_strings_for_json_array_fields(
     else:
         request[field] = "not-a-json-array"
     monkeypatch.setattr(cli.ControlBinding, "load", lambda _path: object())
+    # `ars store backup` reads the canonical foundation for its binding check (WP9.3-1b); pin one that names no store.
+    monkeypatch.setattr(cli, "canonical_foundation_path", lambda: tmp_path / "unnamed-foundation.yaml")
     monkeypatch.setattr(cli, "_read_json", lambda _path: request)
 
     with pytest.raises(ConfigurationError, match=rf"{field} must be a list"):

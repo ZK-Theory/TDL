@@ -423,6 +423,7 @@ def _store_backup(args: argparse.Namespace) -> int:
     """Create one governed event-first backup through the public CLI."""
     operator_config = getattr(args, "operator_config", None)
     binding = _store_operation_binding(args.config, operator_config)
+    binding_check = _writer_binding_check(binding, "ars store backup")
     request = _read_json(args.request)
     if set(request) != _BACKUP_REQUEST_FIELDS:
         missing = sorted(_BACKUP_REQUEST_FIELDS - set(request))
@@ -555,6 +556,7 @@ def _store_backup(args: argparse.Namespace) -> int:
         ),
         clock=_authority_clock,
         backup_materializer=materializer,
+        binding_check=binding_check,
     ).submit(command)
     if receipt.status != "accepted":
         _print_json(
@@ -694,6 +696,7 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
     """Verify a moved restore and append evidence without binding or cutover."""
     operator_config = getattr(args, "operator_config", None)
     binding = _store_operation_binding(args.config, operator_config)
+    binding_check = _writer_binding_check(binding, "ars store verify-restore")
     command = _read_json(args.command)
     receipt = _backup_receipt_from_json(_read_canonical_json(args.receipt))
     schemas = runtime_schema_registry(binding.schema_root)
@@ -782,6 +785,7 @@ def _store_verify_restore(args: argparse.Namespace) -> int:
         ),
         clock=_authority_clock,
         restore_verification_provider=verification_provider,
+        binding_check=binding_check,
     ).submit(command)
     _print_json(
         {
@@ -902,16 +906,23 @@ def _command_submit_runtime_authority_provider(
     return provider
 
 
-def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | None:
-    """The in-lock binding recheck for ``ars submit`` (WP9.3 note §9.1; Stephen, 2026-11-09).
+def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars submit") -> Callable[[], Any] | None:
+    """The in-lock binding recheck for a CLI writer (WP9.3 note §9.1; P-082 item 4; WP9.3-1b review M-1 and m-1).
 
     P-082 item 4 (review M-1), amending P-081 item 3. The recheck is skipped only for a store that the canonical
-    foundation does not name (local administration through ``--config``, the recorded known limit), or that has no
-    current binding: no pointer at ``CURRENT_BINDING_RELATIVE_PATH``, read from the control root and never inferred
-    from a load failure. When the foundation names the store and its pointer exists, the binding must load from this
-    checkout, and its ``revalidate`` is returned. If it does not load, as the old checkout's does not after an advance,
-    ``ars submit`` refuses before it builds the ledger or the service. A binding that changes while it loads
-    (``ConflictError``) refuses as itself.
+    foundation does not name, or that has no current binding (no pointer at ``CURRENT_BINDING_RELATIVE_PATH``, read
+    from the control root and never inferred from a load failure). For a store the foundation names:
+
+    - **Before binding:** if the pointer exists now, the binding must load from this checkout, or the command refuses
+      before it builds the ledger or the service.
+    - **Inside the writer lock** (WP9.3-1b review m-1): a check is always returned, and it decides again there. An
+      advance replaces the pointer by unlinking it and then publishing the new one, under its own writer lock, so a
+      pointer absent when the command starts may be present by the time it holds the lock. If the pointer is absent
+      under the lock, the store has no current binding and the check returns. If it is present, the binding loaded
+      before binding is revalidated, or, if none was, loaded now; a load that fails refuses with the same message.
+
+    A binding that changes while it loads (``ConflictError``) refuses as itself. ``command`` names the CLI writer in
+    the refusal.
 
     Raises:
         ConfigurationError: If the named store has a current binding this checkout cannot load.
@@ -933,24 +944,49 @@ def _foundation_binding_check(binding: ControlBinding) -> Callable[[], Any] | No
         named = False
     if not named:
         return None
-    # lexists: a pointer that is a directory or a dangling link is present, and its load refuses below.
-    if not os.path.lexists(binding.control_root / CURRENT_BINDING_RELATIVE_PATH):
-        return None
-    try:
-        current = load_current_binding(
-            foundation_path=foundation_path,
-            repository_root=foundation_path.parents[2].resolve(strict=True),
-            expected_control_root=binding.control_root,
-            expected_project_id=binding.project_id,
-            expected_store_identity=binding.store_identity,
-        )
-    except ConflictError:
-        raise
-    except (ArsError, OSError) as exc:
-        raise ConfigurationError(
-            f"ars submit refused: the store has a current binding this checkout cannot load: {exc}"
-        ) from exc
-    return current.revalidate
+    pointer = binding.control_root / CURRENT_BINDING_RELATIVE_PATH
+
+    def load() -> Any:
+        try:
+            return load_current_binding(
+                foundation_path=foundation_path,
+                repository_root=foundation_path.parents[2].resolve(strict=True),
+                expected_control_root=binding.control_root,
+                expected_project_id=binding.project_id,
+                expected_store_identity=binding.store_identity,
+            )
+        except ConflictError:
+            raise
+        except (ArsError, OSError) as exc:
+            raise ConfigurationError(
+                f"{command} refused: the store has a current binding this checkout cannot load: {exc}"
+            ) from exc
+
+    # lexists: a pointer that is a directory or a dangling link is present, and its load refuses.
+    loaded = [load()] if os.path.lexists(pointer) else []
+
+    def check_in_lock() -> None:
+        if not os.path.lexists(pointer):
+            return  # no current binding, read under the writer lock
+        if not loaded:
+            loaded.append(load())  # absent before binding, present now: load it here, or refuse
+        loaded[0].revalidate()
+
+    return check_in_lock
+
+
+def _writer_binding_check(binding: Any, command: str) -> Callable[[], Any] | None:
+    """The binding check a CLI writer hands ``CommandService`` (WP9.3-1b review M-1; note §9.1).
+
+    A writer bound through the admitted Gate 6 route already holds a ``VerifiedCurrentBinding``, whose ``revalidate``
+    is the check. A writer bound through ``ControlBinding.load`` gets ``_foundation_binding_check``'s, which refuses
+    before binding and decides again inside the lock.
+    """
+    from research_system.store.current_binding import VerifiedCurrentBinding
+
+    if isinstance(binding, VerifiedCurrentBinding):
+        return binding.revalidate
+    return _foundation_binding_check(binding, command=command)
 
 
 def _command_submit(args: argparse.Namespace) -> int:
@@ -1004,6 +1040,7 @@ def _brief_runtime(
 ]:
     """Construct the real 06i/06j/command dependencies for a brief operation."""
     binding = ControlBinding.load(args.config)
+    binding_check = _writer_binding_check(binding, "ars brief")
     schemas = runtime_schema_registry(binding.schema_root)
     ledger = EventLedger(binding.control_root, binding.project_id, schemas)
     objects = ObjectStore(binding.control_root)
@@ -1023,6 +1060,7 @@ def _brief_runtime(
         ),
         governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
         clock=_authority_clock,
+        binding_check=binding_check,
     )
     return binding, schemas, ledger, objects, service
 
@@ -1252,6 +1290,7 @@ def _authority_activate_grant(args: argparse.Namespace) -> int:
     from research_system.ids import validate_id
 
     binding = ControlBinding.load(args.config)
+    binding_check = _writer_binding_check(binding, "ars authority activate-grant")
     request = _read_json(args.request)
     if set(request) != _GRANT_REQUEST_FIELDS:
         raise ConfigurationError("authority grant request fields are not exact")
@@ -1400,6 +1439,7 @@ def _authority_activate_grant(args: argparse.Namespace) -> int:
         schemas,
         authority_resolver=resolver,
         clock=_authority_clock,
+        binding_check=binding_check,
     ).submit(command)
     _print_json(
         {
@@ -1683,6 +1723,9 @@ def _legacy_inventory_build(args: argparse.Namespace) -> int:
     from research_system.legacy.reader import LegacyReader
 
     output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    # WP9.3-1b review i-2: the head reaches ``git show <head>:<path>``, so it is never an option or a stray word.
+    if len(args.git_head) not in (40, 64) or any(char not in "0123456789abcdef" for char in args.git_head):
+        raise IntegrityError("W9 inventory build needs --git-head as a lowercase hex commit ID")
     region: tuple[Any, ...] | None = None
     if args.line_range is not None:
         region = ("line_range", *args.line_range)
@@ -1720,7 +1763,7 @@ def _legacy_inventory_reproduce(args: argparse.Namespace) -> int:
     from research_system.legacy.reader import _git
 
     input_root = args.repository_root if args.repository_root is not None else args.frozen_copy.resolve().parent
-    output = refuse_tool_output(args.output, repository_root=input_root, vault_root=None)
+    output = refuse_tool_output(args.output, repository_root=input_root, vault_root=args.vault_root)
     record = _read_json(args.inventory)
     if args.repository_root is not None:
         source = record.get("source_identity", {})
@@ -1995,6 +2038,7 @@ def _publication_evidence(
     actor_id: str,
     authority_grant_id: str,
     registration_context: dict[str, Any] | None,
+    binding_check: Callable[[], Any] | None,
 ) -> tuple[StoredReleasePublicationEvidence | None, str, str, bool]:
     schemas = runtime_schema_registry(binding.schema_root)
     authority = LedgerAuthorityGrantResolver(
@@ -2125,6 +2169,7 @@ def _publication_evidence(
         authority_resolver=authority,
         governing_evidence_resolver=GoverningScientificReviewStore(objects, schemas),
         clock=_authority_clock,
+        binding_check=binding_check,
     )
     store = CandidateDocumentStore(
         binding.control_root,
@@ -2302,6 +2347,7 @@ def _publish_reserved_output(
 
 def _eval_publish_release(args: argparse.Namespace) -> int:
     binding = ControlBinding.load(args.config)
+    binding_check = _writer_binding_check(binding, "ars eval publish-release")
     source = _read_json(args.evaluation_runs)
     schemas = runtime_schema_registry(binding.schema_root)
     schemas.validate("ars://evals/release-gate-decision", source)
@@ -2319,6 +2365,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             actor_id=args.actor_id,
             authority_grant_id=args.authority_grant_id,
             registration_context=registration_context,
+            binding_check=binding_check,
         )
         if pending:
             _print_json(
@@ -2380,6 +2427,7 @@ def _eval_publish_release(args: argparse.Namespace) -> int:
             authority_resolver=authority,
             release_publication_evidence=evidence,
             clock=_authority_clock,
+            binding_check=binding_check,
         ).submit(command)
         reserved_descriptor = descriptor
         descriptor = -1
@@ -2754,7 +2802,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     inventory_build.add_argument("--repository-root", type=Path, required=True, help="the source repository")
     inventory_build.add_argument("--git-head", required=True, help="the commit the binding admits")
-    inventory_build.add_argument("--vault-root", type=Path, help="the real vault path, for vault_file sources")
+    inventory_build.add_argument(
+        "--vault-root", type=Path, required=True, help="the real vault path: read for vault_file sources, never written"
+    )
     inventory_build.add_argument("--frozen-copy-ref", type=Path, help="the frozen copy's artefact ref (JSON)")
     inventory_build.add_argument("--observer", required=True, help="the observer's actor ID")
     inventory_build.add_argument("--project-id", required=True, help="the store's project ID")
@@ -2765,6 +2815,9 @@ def _parser() -> argparse.ArgumentParser:
     inventory_bytes = inventory_reproduce.add_mutually_exclusive_group(required=True)
     inventory_bytes.add_argument("--repository-root", type=Path, help="read the inventory's Git blob from here")
     inventory_bytes.add_argument("--frozen-copy", type=Path, help="the frozen copy's bytes")
+    inventory_reproduce.add_argument(
+        "--vault-root", type=Path, required=True, help="the real vault path, which the report is never written under"
+    )
     inventory_reproduce.add_argument("--output", type=Path, required=True, help="where to write the report")
     inventory_reproduce.set_defaults(handler=_legacy_inventory_reproduce)
 
