@@ -5124,6 +5124,12 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    before binding when the store has a current binding that the checkout cannot load, as the old checkout cannot after
    an advance. This lands in WP9.3-1b. Until it does, a later pin's checklist adds "No generic `ars submit` ran from the
    old checkout after the advance" to the drain.
+   **Amended a ninth time 2026-11-11** (P-083 items 2 and 5; Stephen, in chat: "Yes, as recommended" and "Keep until
+   n-1 fixed (Recommended)"). All six CLI `CommandService` writers take the in-lock binding check, and the never-bound
+   decision is taken again inside the lock (WP9.3-1b, `fbb99ce0`). The checklist line stays, narrowed to the crashed
+   advance: "No ARS CLI writer ran from the old checkout after the advance, and no advance on the store ended without
+   publishing its new binding." WP9.3-2 hardens the in-lock check for that case, and the line is dropped when the
+   hardening merges.
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5391,6 +5397,115 @@ reported.
 `spec.py`); the WP9.3 note §5.2 (read as item 3) and §9.1 and §18 (hold from WP9.3-1b, item 4); `w9-segmentation/1.0.0`
 §3 (read as item 6); the WP9.3-1 record (merged and accepted).<br>
 **Migration consequence:** None.
+
+### P-083 - WP9.3-1b accepted: the two merges, its independent review, the readings, n-2 and the later-pin checklist line
+
+**Date:** 2026-11-11<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-10 and 2026-11-11). WP9.3-1b, the follow-up P-082 item 5 required,
+is merged and accepted. It carries no D-4.<br>
+**Authority:** Stephen, in chat:
+- 2026-11-10: asked "Take the recommended rulings on M-1, m-1, m-2 and m-3?" for WP9.3-1b's independent review, he
+  answered "Yes, as recommended";
+- 2026-11-10: for the WP9.3-1 review's i-1, he chose "Record as reading (Recommended)";
+- 2026-11-11: after #428 was found merged without the review's fixes, asked whether to carry them to `main` in a
+  follow-up PR, he answered "Yes, open it". He merged that PR ("Now merged over some CI failures");
+- 2026-11-11, for n-2: "Confirm (Recommended)";
+- 2026-11-11, for the later-pin checklist line: "Keep until n-1 fixed (Recommended)".<br>
+**Evidence:**
+- **Two merges.**
+  - PR #428 merged on 2026-11-10 at 21:38 UTC as `6aeb3b315f09cab184515f408995a1e56dc68816`, with head `649d0698`.
+    The independent review's fixes, `6a907e49` and `6836b846`, were pushed to its branch after the merge and never
+    reached `main` through it.
+  - PR #429 carried them unchanged. It then took CodeRabbit's round on its own head (`75af7f16`): a heading-level bound
+    of 1 to 6, the labeled in-lock refusal, and the record's list item. It merged on 2026-11-11 as
+    `fbb99ce093ea5b1aca62cfd727d2d0fd24d8ab16`. That squash tree (`925ecd2b`) equals the head `75af7f16`.
+- **The independent review:** `reviews/wp9-3-1b-review-649d0698-2026-11-10.md` (blob `10758780`, SHA-256
+  `7a1566ac…17b5`, 37,516 bytes), with its probes in `reviews/wp9-3-1b-review-artifacts/`. A fresh session wrote it,
+  independent of the implementer and of the note's and contract's authors.
+  - **At `649d0698`:** accept with required changes. It found 0 Blocking, 1 Major, 3 Minor and 6 Info. It closed the
+    WP9.3-1 review's M-1, M-2 and M-3. Its T2 lock-race test found a pre-existing flake: 3 in 600 on `0ea4e489` and 1
+    in 600 at `649d0698`.
+  - **Its addendum at `6836b846`:** accept, with 0 Blocking, 0 Major, 0 Minor and 5 Info (n-1 to n-5). The regression
+    set gave 1,296 passed.
+  - **Not re-reviewed:** `75af7f16`'s CodeRabbit round. That round is three small changes, each with its own control.
+    Its three test files gave 97 passed, slow tests included.
+- **No D-4.** At `fbb99ce0` the census is still 273 rows, `0cca0414…4712`. The 06h manifest is still blob `4c895042`
+  and the smoke test still blob `559d684a`. `tools/w9_segmentation.py` is still blob `43e1454d` (review A.4).
+- **CI on `75af7f16`:**
+  - the suite lane passed, with 39 files selected;
+  - `merge-admission` was cancelled, not failed;
+  - `ci-tools` failed two tests in `test_research_system_ci_tools.py`, `test_a_red_night_opens_the_issue_and_a_second_comments_on_it`
+    and `test_a_green_night_closes_the_open_issue_and_otherwise_does_nothing`. Both fail because `tools/nightly_issue_policy.py`
+    is missing from the test's temporary copy. That tool and its tests came with #425 (SYS), and WP9.3-1b touches
+    neither;
+  - `suite-verdict` failed only because `ci-tools` did.
+
+**Decision:**
+1. **WP9.3-1b is accepted** as merged across `6aeb3b31` (#428) and `fbb99ce0` (#429), with its record,
+   `transition/w9/wp9-3-1b-record.md`. P-082 items 4 and 5 are met:
+   - `ars submit`, and now the other five CLI `CommandService` writers, refuse a named store whose current binding the
+     checkout cannot load;
+   - the decision is taken again inside the writer lock;
+   - the light-inventory builder, its reproduction mode and LR-011's resolution check have landed.
+2. **The review rulings (2026-11-10).**
+   - **M-1:** all six CLI `CommandService` constructions take the in-lock binding check, and a census fails on any
+     production construction without one. Its one allowlisted file is `evals/executors/release_tranche.py`, which
+     builds services only on stores it initializes itself.
+   - **m-1:** the never-bound decision is taken again inside the writer lock.
+   - **m-3:** `--vault-root` is required on both inventory tools, and the vault guard always runs.
+3. **Readings, recorded here as the record's §9 (i-5) asks.** Each is set out in `wp9-3-1b-record.md` §4:
+   - **i-1, of the WP9.3-1 review** (record §4 item 1): when a Decision's `expires_at` equals its proposal's lapse
+     time, note §4.6 governs, and the resolution is refused at that instant;
+   - **m-2, of P-082 item 5's "anchor line"** (§4 item 2): for `computational_log_entry`, a level-2 or level-3 heading
+     that starts with a digit but not a date token counts as an anchor line, so no `unparseable_anchor` blocker is
+     dropped. This sits beside P-082 item 6's m-1 to m-3;
+   - **the tools also refuse an output inside the repository they read** (§4 item 3), in addition to note §12's `.apm/`,
+     vault and store;
+   - **`--git-head` is the operator's**, as a lowercase hex commit ID. LR-011 re-reads at the binding's head (§4 item
+     4);
+   - **the vault root is a required argument** (§4 item 11), and a wrong one is the operator's error;
+   - **the census's one allowlisted file** (§4 item 12), as in item 2;
+   - **the never-bound skip is the one real skip** (§4 item 13). The "not named" branch is unreachable in production,
+     because `ControlBinding.load` refuses an unnamed store first. It stays as defence in depth;
+   - **O9 deferred to WP9.3-2** (§4 item 6): the builder's batch mode with the derived ownership list.
+4. **n-2 confirmed.** From `fbb99ce0`, six CLI commands refuse on a store the canonical foundation names, the Gate 6
+   store included, unless they run from its bound, clean checkout:
+   - the six commands are `ars submit`, `ars store backup`, `ars store verify-restore`, `ars brief`,
+     `ars authority activate-grant` and `ars eval publish-release`;
+   - "clean" means a clean worktree, untracked files included, on the binding's single code root, with `HEAD` at the
+     binding's `git_head` unless the binding is v1.2;
+   - each call pays a full `revalidate` under the lock.
+
+   This is note §9.1's intent. Running them from a worktree or a dirty tree is refused by design. The binding-repair
+   and advance commands do not use `CommandService` and are unaffected.
+5. **The later-pin checklist line stays until n-1 is fixed.** This amends P-081 item 3 for the ninth time.
+   - **The gap that remains (review n-1):** an advance that crashes after unlinking the old pointer and before
+     publishing the new one leaves the store looking never-bound. A binding that was loaded before the lock is then
+     not rechecked under it.
+   - **The line,** narrowed to that gap: "No ARS CLI writer ran from the old checkout after the advance, and no advance
+     on the store ended without publishing its new binding."
+   - **WP9.3-2 carries n-1's hardening:** the in-lock check refuses when a binding was loaded before binding but the
+     pointer is absent under the lock. The line is dropped when that hardening merges.
+6. **Carried to WP9.3-2:**
+   - n-1 (item 5);
+   - n-3: the service census does not see a construction through `functools.partial` or a string lookup;
+   - n-4: adopt the re-check's handler-level refusal probe for the five commands;
+   - O9 (item 3).
+
+   n-5 is fixed in #429. WP9.3-2 is cut from `fbb99ce0` (P-082 item 5).
+
+**Not decided here:**
+- The pre-existing T2 `WriterLock` release flake (WP9.3-1b review §6), and the #425 `ci-tools` failure. Both are outside
+  WP9.3.
+- The test-runtime growth the WP9.3-1 implementer escalated (P-082, "Not decided here").
+- Any live operation L-0 to L-5, genesis on a real store, a grant on one, and legacy writes.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** Docs only. WP9.3-2 follows, under P-080, P-081 and items 5 and 6.<br>
+**Affected specifications:** P-082 items 4 and 5 (met); P-081 item 3 (item 5); `w9-segmentation/1.0.0` §3 (m-2, read as
+item 3); the WP9.3 note §4.6 and §5.2 (i-1, read as item 3) and §12 (the tools, read as item 3); the WP9.3-1b record
+(merged and accepted).<br>
+**Migration consequence:** None. The CLI admission of item 4 already applies at `fbb99ce0`.
 
 ## Decision protocol
 
