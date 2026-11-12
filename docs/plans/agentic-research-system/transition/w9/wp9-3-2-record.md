@@ -281,6 +281,13 @@ failed against `4636bc4c`'s census. `partial-rebound-unchecked` passed there, be
 binding happened to win. The rule is conservative: a name rebound from an unchecked to a checked partial is reported
 unchecked, and no production construction does that.
 
+**CodeRabbit's third pass, at `26f9af91`:** one finding. The rebinding rule keyed partial bindings by name alone
+across the module, so two functions binding the same local name merged their flags and valid code was reported
+unchecked. Partial bindings are now keyed by lexical scope, the chain of enclosing defs, classes and lambdas. A call
+resolves its name from the innermost scope that gives it a class value. Controls: `same-name-in-two-functions` and
+`local-shadows-module-partial`, which both failed against `26f9af91`'s census and pass now. The census file gave 52
+passed, its production census included.
+
 **Red evidence.** With the five production files restored from `b98515c6`, the new production controls gave 26 failed
 (each by its own assertion or refusal text) and the preservation controls passed. One first draft of finding 4's ref
 cases passed on the old code because its ref named a fresh inventory: it was refused by the ID check, not the guard
