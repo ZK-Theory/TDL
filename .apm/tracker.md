@@ -147,6 +147,49 @@ title: P01-A and P01-B Reviewer-Response Revision to v2
 
 ## Working Notes
 
+- **2026-11-12: worktree sweep (User trigger, after WP9.3-2 merged as `baea2c13`, PR #432).**
+  - **The rule** is the 2026-10-21 rule: a plain `git worktree remove` (no `--force`), every branch kept. A worktree
+    qualified when:
+    - its PR was merged with CodeRabbit concluded (the CodeRabbit check completed on the PR head);
+    - the tree was clean, with no commit on no remote ref;
+    - its HEAD equalled or was an ancestor of the PR's final head.
+
+    Also checked: no session was running in it, and no ignored file beyond tooling was present (`tdl.egg-info`,
+    `.claude/settings.local.json`, `.vscode/`, caches).
+  - **One change from 2026-10-21:** the User approved removing qualifying app-managed `.claude/worktrees/*` session
+    worktrees. A resumed session checks its branch out again.
+  - **Swept (23):**
+    - `.apm/worktrees/worktree-sweep-2026-10-21` (#388);
+    - `.claude/worktrees/`:
+      - `fix-binding-check` (#422), `gate7-prep-docs-5202cf` (#409), `gate7-step1-check-18647f` (#390),
+        `nifty-visvesvaraya-540bf9` (#431);
+      - `review-1103-ci` (#418), `review-1103-lint` (#417), `review-1103-record` (#419), `review-1103-skills` (#416);
+      - `review-1110-docs` (#424), `review-1110-gates` (#425), `review-1110-skills` (#423);
+      - `review-campaign-gates` (#402), `review-campaign-lints` (#400), `review-campaign-skills` (#403),
+        `review-campaign-w11-bytes` (#401);
+      - `system-review-2026-10-27` (#397), `system-review-2026-11-03` (#412), `system-review-2026-11-10` (#421);
+      - `vigilant-rhodes-7815ad` (#427), `wp9-2-2-review-record` (#410), `wp9-3-1` (#420), `wp9-3-design-note` (#430).
+    - `wp9-3-design-note` is deregistered and emptied. Its empty folder stays, busy as some process's working
+      directory, and can go once that process ends.
+  - **Held (26):**
+    - **Dirty:**
+      - the system-review scratch `diag/s014-runner-paths`, with no PR;
+      - `.apm/worktrees/06s-acceptance`, with no PR and two commits on no remote;
+      - `determined-goldberg-c91245` (#284) and `nervous-boyd-368c36` (#186), both merged.
+    - **Merged, but with local commits on no remote:** `cool-yalow-de9824` (#398), `dreamy-dijkstra-afb8c4` (#370),
+      `goofy-saha-aedb62` (#345), `happy-wilbur-052844` (#379), `intelligent-noyce-0e827d` (#376) and
+      `priceless-kilby-1bad85` (#372).
+    - **Merged, HEAD outside the PR's final head:** `wp9-3-1b` (#428), at `6836b846` against `649d0698`.
+    - **No PR, review branches** (their review records may exist only on these local branches):
+      `ecstatic-dirac-23d7ac`, `fervent-mcclintock-44c22b`, `review-w9-wp9-3-note`, `trusting-pascal-5f149c`,
+      `w9-wp9-3-1-f7e8d3`, `w9-wp9-3-1b-33f7d4` and `w9-wp9-3-2-8a7ce5`. The last is dirty and belongs to the WP9.3-2
+      review session.
+    - **No PR, other:** `recursing-poincare-92f774`, `w11-limb1-pr` and `w9-writer-version-enforcement-94f88a`.
+    - **Detached, clean:** `beautiful-volhard-d3f62e`, `nifty-jepsen-515bb4`, `sweet-volhard-11c89d` and
+      `wp9-0-review-3441fa`. Their HEADs were not checked against `origin/main`.
+    - **`w9-wp9-3-2-acceptance-a80a41`** (#432): this sweep's own session runs in it, and this note was written
+      there. CodeRabbit may still post on #432 after the merge.
+
 - **2026-10-21: worktree sweep (User trigger, after 06s Phase 5 closed and P-061 merged).**
   - **The rule.** It is the same as the 2026-10-16 sweep. Each removal was a plain `git worktree remove` (no
     `--force`), and branches were kept.
