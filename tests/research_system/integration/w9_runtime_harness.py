@@ -44,6 +44,10 @@ TRACKER = b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.1 | a |\n| 1.2 | b |\
 # A heading_section source for the builder (WP9.3-1b): three level-2 sections after a title, at lines 3, 6 and 9.
 SECTIONS = b"# Title\n\n## a\nlegacy text a\n\n## b\nlegacy text b\n\n## c\nlegacy text c\n"
 RESULT = b'{"headline": 1.0, "other": [1, 2]}\n'
+# WP9.3-2 (note §10.3, §10.4): the two anchored files and the shared-surface change list, in the root commit.
+THRESHOLD = b"threshold pre-registration, synthetic\n"
+GOVERNING = b"governing record set, synthetic\n"
+ANCHOR_PATHS = {"threshold_preregistration": "anchors/threshold.txt", "governing_record_set": "anchors/governing.txt"}
 RESULT_FAMILIES = [
     {"name": "meta", "definition_source": "w9 test fixture", "pointers": ["", "/other"]},
     {"name": "headline", "definition_source": "w9 test fixture", "pointers": ["/headline"]},
@@ -320,6 +324,66 @@ class W9Store:
             "ObserveLegacyRecord", actor or self.actors.observer, observation_id, 0, payload
         ), observation_id
 
+    # --- The closed-reference acceptance (WP9.3-2) ---------------------------------------------------------------
+
+    def acceptance_payload(self, observation_ids: list[str], *, anchor_commit: str | None = None, **overrides: Any):
+        """An LR-016 payload: a batch of recorded observations, anchored in the root commit, naming the change list at
+        the current head."""
+        from research_system.legacy.replay.driver import replay_legacy
+
+        state = replay_legacy(self.events(), schemas=self.harness.schemas, pinned_signatures=(self.pin,))
+        observations = [state["records"]["legacy_observation"][observation_id] for observation_id in observation_ids]
+        anchor_commit = anchor_commit or git(self.repo, "rev-list", "--max-parents=0", "HEAD")
+        record = {
+            "schema_id": "ars://legacy/legacy-closed-reference-acceptance",
+            "schema_version": "1.0.0",
+            "record_id": new_id("scope_definition"),
+            "record_revision": 1,
+            "supersedes_revision": None,
+            "project_id": self.harness.ledger.project_id,
+            "items": [
+                {"observation_ref": flows.record_ref(observation), "pilot_promotion": flows.pilot_promotion()}
+                for observation in observations
+            ],
+            "threshold_preregistration_sha256": sha256_hex(THRESHOLD),
+            "governing_record_set_sha256": sha256_hex(GOVERNING),
+            "anchors": [
+                {"anchored": anchored, "anchor_kind": "git_commit", "value": anchor_commit} for anchored in ANCHOR_PATHS
+            ],
+            "enforcement_change_list": {
+                "git_commit": self.head,
+                "git_blob": git(self.repo, "rev-parse", f"{self.head}:{evidence.SHARED_SURFACE_CHANGES}"),
+            },
+        }
+        record.update(overrides)
+        record["independent_review_ref"] = pre_assigned_ref("review", new_id("review"), record["record_id"])
+        record["decision_ref"] = pre_assigned_ref("decision", new_id("decision"), record["record_id"])
+        return record
+
+    def accept(self, record: dict[str, Any], *, stop_after: str | None = None) -> Any:
+        """LR-016 → LR-017 → LR-018 → LR-019 → LR-020 through ``submit``. Returns the last receipt."""
+        record_id = record["record_id"]
+        receipt = self.submit("ProposeLegacyRecord", self.actors.analyst, record_id, 0, record)
+        if receipt.status != "accepted" or stop_after == "LR-016":
+            return receipt
+        self.review(record, record["independent_review_ref"]["id"], self.actors.reviewer, author_session=False)
+        if stop_after == "LR-018":
+            return receipt
+        decision_id = record["decision_ref"]["id"]
+        decide = {"subject_record_id": record_id, "question": "Accept the batch?", "recommendation": "accept"}
+        decide["consequences"] = ["the batch's items become closed references"]
+        receipt = self.submit("ProposeW9AuthorityDecision", self.actors.analyst, decision_id, 0, decide)
+        if receipt.status != "accepted" or stop_after == "LR-019":
+            return receipt
+        resolve = {"decision_id": decision_id, "selected_option": "accept"}
+        return self.submit("ResolveW9AuthorityDecision", OWNER, decision_id, 1, resolve)
+
+    def rebind(self) -> str:
+        """Move the scratch binding's ``git_head`` to the repository's ``HEAD`` (a new reader at the new head)."""
+        self.head = git(self.repo, "rev-parse", "HEAD")
+        self.runtime.reader = LegacyReader(repository_root=self.repo, git_head=self.head, clock=self.clock)
+        return self.head
+
     def frozen_copy(self, raw: bytes, name: str) -> dict[str, Any]:
         """Register a frozen copy through the generic ``RegisterArtefact`` path, ``root_id: control`` (§7.3)."""
         control = self.harness.ledger.control_root
@@ -400,6 +464,11 @@ def scratch_repository(tmp_path: Path) -> tuple[Path, str]:
     (repo / evidence.DETECTOR_CONTROLS).parent.mkdir(parents=True)
     (repo / evidence.DETECTOR_CONTROLS).write_text(json.dumps(controls), encoding="utf-8")
     (repo / evidence.REGISTRATION_MANIFEST).write_text(json.dumps(manifest), encoding="utf-8")
+    changes = {"format": evidence.SHARED_SURFACE_CHANGES_FORMAT, "entries": []}
+    (repo / evidence.SHARED_SURFACE_CHANGES).write_text(json.dumps(changes), encoding="utf-8")
+    (repo / "anchors").mkdir()
+    (repo / ANCHOR_PATHS["threshold_preregistration"]).write_bytes(THRESHOLD)
+    (repo / ANCHOR_PATHS["governing_record_set"]).write_bytes(GOVERNING)
     (repo / ".gitignore").write_text("notes/\ndata/\n", encoding="utf-8")
     git(repo, "init", "-q")
     git(repo, "add", ".")

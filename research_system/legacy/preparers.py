@@ -1,4 +1,7 @@
-"""The WP9.3-1 preparers: LR-003 to LR-015 (WP9.3 note §5, §6, §7, §8).
+"""The WP9.3 preparers: LR-003 to LR-015 (WP9.3-1) and LR-016 to LR-020 (WP9.3-2) (WP9.3 note §5 to §8, §10).
+
+The acceptance's environment checks (the window, the anchors and the change list) live in
+:mod:`research_system.legacy.acceptance`, which LR-016 and LR-020 call.
 
 Each preparer builds one command's prepared transaction from its small command payload and the replayed projections,
 and adds what only the environment can show: file bytes, Git, the evidence area, the store binding, authority and the
@@ -50,11 +53,23 @@ from research_system.legacy.replay import reducers as r
 from research_system.legacy.routes import record_kind
 from research_system.legacy.segmentation import SegmentationError, resolve_first_anchor_after, segment
 
-# The rows a preparer builds, by what the command names (§2.1).
-REQUEST_ROWS = {"legacy_field_family_membership": "LR-007", "legacy_light_inventory": "LR-012"}
-DECISION_ROWS = {"legacy_path_registration": "LR-004", "legacy_field_family_membership": "LR-009"}
-RESOLUTION_ROWS = {"LR-004": "LR-005", "LR-009": "LR-010"}
-RECORDED_EVENTS = {"LR-005": "LegacyPathRegistrationRecorded", "LR-010": "LegacyFieldFamilyMembershipRecorded"}
+# The rows a preparer builds, by what the command names (§2.1). WP9.3-2 adds the acceptance's LR-017, LR-019, LR-020.
+REQUEST_ROWS = {
+    "legacy_field_family_membership": "LR-007",
+    "legacy_light_inventory": "LR-012",
+    "legacy_closed_reference_acceptance": "LR-017",
+}
+DECISION_ROWS = {
+    "legacy_path_registration": "LR-004",
+    "legacy_field_family_membership": "LR-009",
+    "legacy_closed_reference_acceptance": "LR-019",
+}
+RESOLUTION_ROWS = {"LR-004": "LR-005", "LR-009": "LR-010", "LR-019": "LR-020"}
+RECORDED_EVENTS = {
+    "LR-005": "LegacyPathRegistrationRecorded",
+    "LR-010": "LegacyFieldFamilyMembershipRecorded",
+    "LR-020": "LegacyClosedReferenceAcceptanceRecorded",
+}
 RESOLVER_ROWS = frozenset(RECORDED_EVENTS)
 # The stream version each command expects (§4.5): the claiming steps open a new stream.
 EXPECTED_VERSIONS = {
@@ -321,6 +336,11 @@ def prepare_proposal(
         registration = _recorded(legacy, "legacy_path_registration", record.get("registration_ref", {}).get("id"))
         read = _read_source(environment, registration, record.get("source_identity", {}), record)
         check_resegmentation(read, record)
+    elif kind == "legacy_closed_reference_acceptance":
+        from research_system.legacy import acceptance
+
+        # LR-016 (§6.2, §7.2, §10.3, §10.4): the window, the anchors and the change list, the window again at commit.
+        prepared.rereads.extend(acceptance.check_environment(environment, legacy, record))
     return prepared
 
 
@@ -506,7 +526,17 @@ def prepare_resolution(
         "revisit_triggers": [],
     }
     prepared = Prepared([("DecisionResolved", decision_id, resolution), (RECORDED_EVENTS[row], record_id, record)])
-    if row == "LR-005":
+    if row == "LR-020":
+        from research_system.legacy import acceptance
+
+        # §10.5: the ownership records replay derived and stored at LR-016, each on its own stream. §10.6: the window,
+        # the anchors and the change list again, against the binding at resolution, and the window again at commit.
+        prepared.events.extend(
+            ("LegacyOwnershipTransitionedRecorded", transition["record_id"], deepcopy(transition))
+            for transition in proposal.get("ownership", [])
+        )
+        prepared.rereads.extend(acceptance.check_environment(environment, legacy, record))
+    elif row == "LR-005":
         # §7.2: the physical identity re-read unchanged, at commit.
         _require_physical_identity(environment, record)
         prepared.rereads.append(lambda: _require_physical_identity(environment, record))

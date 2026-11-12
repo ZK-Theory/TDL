@@ -589,6 +589,140 @@ def membership_recorded(
     return forger, record
 
 
+# --- The closed-reference acceptance (WP9.3-2; note §10) -------------------------------------------------------------
+
+# LR-020's four unconditional fixtures (note §10.2), restated here as an independent test literal.
+UNCONDITIONAL_FIXTURES = ("F-018", "F-023", "F-037", "S-014")
+
+
+def evidence_ref(prefix: str = "review") -> dict[str, Any]:
+    return {"id": new_id(prefix), "record_revision": 1, "content_hash": "e" * 64}
+
+
+def pilot_promotion(**dispositions: dict[str, Any]) -> list[dict[str, Any]]:
+    """The four unconditional fixtures as evidence, each with a review ref; ``dispositions`` replaces or adds entries."""
+    entries = {
+        fixture: {"fixture_id": fixture, "disposition": "evidence", "ref": evidence_ref()}
+        for fixture in UNCONDITIONAL_FIXTURES
+    }
+    for fixture, entry in dispositions.items():
+        entries[fixture.replace("_", "-")] = entry
+    return list(entries.values())
+
+
+def acceptance(
+    project_id: str,
+    analyst: str,
+    when: str,
+    observations: list[dict[str, Any]],
+    *,
+    change_list: dict[str, Any] | None = None,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """An LR-016 proposal: a batch of ``observations``, each with the unconditional fixtures, stamped (§4.1, §4.2)."""
+    record = {
+        **_header("legacy-closed-reference-acceptance", project_id, analyst, when),
+        "items": [
+            {"observation_ref": record_ref(observation), "pilot_promotion": pilot_promotion()}
+            for observation in observations
+        ],
+        "threshold_preregistration_sha256": "3" * 64,
+        "governing_record_set_sha256": "4" * 64,
+        "anchors": [
+            {"anchored": "threshold_preregistration", "anchor_kind": "git_commit", "value": SHA1},
+            {"anchored": "governing_record_set", "anchor_kind": "git_commit", "value": SHA1},
+        ],
+        "enforcement_change_list": change_list or {"git_commit": SHA1, "git_blob": SHA1},
+    }
+    record.update(overrides)
+    record["independent_review_ref"] = pre_assigned_ref("review", new_id("review"), record["record_id"])
+    record["decision_ref"] = pre_assigned_ref("decision", new_id("decision"), record["record_id"])
+    return stamp(record)
+
+
+def ownership_transition(record: dict[str, Any], registration_record: dict[str, Any]) -> dict[str, Any]:
+    """One ownership record LR-020 emits, built from note §10.5's text, not from the reducer that derives it."""
+    from research_system.legacy.records import ownership_record_id
+
+    transition = {
+        "schema_id": "ars://legacy/legacy-ownership-transitioned",
+        "schema_version": "1.0.0",
+        "record_id": ownership_record_id(record["record_id"], registration_record["record_id"], record["created_at"]),
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": record["project_id"],
+        "created_at": record["created_at"],
+        "created_by_actor_id": record["created_by_actor_id"],
+        "mapping_ref": None,
+        "subject_registration_ref": record_ref(registration_record),
+        "paper_root_ref": None,
+        "from_mode": "legacy_owned",
+        "to_mode": "closed_reference",
+        "reviewer_ref": deepcopy(record["independent_review_ref"]),
+        "decision_ref": deepcopy(record["decision_ref"]),
+    }
+    return stamp(transition)
+
+
+def acceptance_recorded(
+    forger: Forger,
+    actors: Actors,
+    record: dict[str, Any],
+    transitions: list[dict[str, Any]],
+    *,
+    start: float = 60,
+    tweaks: dict[str, Tweak] | None = None,
+    stop_after: str | None = None,
+    emitted: list[dict[str, Any]] | None = None,
+) -> Forger:
+    """LR-016 → LR-017 → LR-018 → LR-019 → LR-020 for one batch. ``emitted`` replaces the ownership records LR-020
+    writes (for the list controls); ``transitions`` is what the test expects replay to derive."""
+    tweaks = tweaks or {}
+
+    def step(row: str, default_actor: str, offset: float) -> tuple[str, str, dict[str, Any]]:
+        tweak = tweaks.get(row, Tweak())
+        return (
+            tweak.actor or default_actor,
+            at(start + (offset if tweak.minutes is None else tweak.minutes)),
+            tweak.payload,
+        )
+
+    actor, when, _ = step("LR-016", actors.analyst, 0)
+    forger = forger.row("LR-016", record["record_id"], record, actor=actor, when=when)
+    if stop_after == "LR-016":
+        return forger
+    review_id = record["independent_review_ref"]["id"]
+    actor, when, changes = step("LR-017", actors.analyst, 1)
+    request = {**review_request("LR-017", record, review_id, actors.reviewer, when), **changes}
+    forger = forger.row("LR-017", review_id, request, actor=actor, when=when)
+    if stop_after == "LR-017":
+        return forger
+    requested_at = when
+    actor, when, changes = step("LR-018", actors.reviewer, 2)
+    answer = {**verdict(request, requested_at, request["reviewer_capability"][0]), **changes}
+    forger = forger.row("LR-018", review_id, answer, actor=actor, when=when)
+    if stop_after == "LR-018":
+        return forger
+    decision_id = record["decision_ref"]["id"]
+    actor, when, changes = step("LR-019", actors.analyst, 3)
+    proposal = {**decision_proposal("LR-019", record, decision_id, when), **changes}
+    forger = forger.row("LR-019", decision_id, proposal, actor=actor, when=when)
+    if stop_after == "LR-019":
+        return forger
+    grant = new_id("authority_grant")
+    actor, when, changes = step("LR-020", actors.owner, 4)
+    resolved = {**resolution("LR-020", proposal, record, actor, grant, when, [review_id]), **changes}
+    members = [
+        ("DecisionResolved", decision_id, resolved),
+        ("LegacyClosedReferenceAcceptanceRecorded", record["record_id"], deepcopy(record)),
+        *(
+            ("LegacyOwnershipTransitionedRecorded", transition["record_id"], deepcopy(transition))
+            for transition in (transitions if emitted is None else emitted)
+        ),
+    ]
+    return forger.append("ResolveW9AuthorityDecision", members, actor=actor, when=when, grant=grant)
+
+
 def inventory_recorded(
     forger: Forger, actors: Actors, registration_record: dict[str, Any], segmented: dict[str, Any], *, start: float = 20
 ) -> tuple[Forger, dict[str, Any]]:

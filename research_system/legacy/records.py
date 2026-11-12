@@ -131,6 +131,17 @@ def derived_id(prefix: str, domain: str, timestamp_ms: int) -> str:
     return f"{prefix}_{uuid.UUID(int=value)}"
 
 
+def ownership_record_id(acceptance_id: str, registration_id: str, acceptance_created_at: str) -> str:
+    """The ID of one ownership record LR-020 emits (note §10.5; owner point E, P-081 item 5).
+
+    An ``obj_`` UUIDv7 from the domain ``w9-ownership:<acceptance record ID>:<registration record ID>`` and, as its
+    timestamp, the acceptance proposal's ``created_at`` in milliseconds. It is fixed at LR-016, when replay derives,
+    reserves and stores the list.
+    """
+
+    return derived_id("obj", f"w9-ownership:{acceptance_id}:{registration_id}", utc_milliseconds(acceptance_created_at))
+
+
 def review_context_manifest_id(review_id: str, requested_at: str) -> str:
     """The verdict's ``context_manifest_id``: ``ctx_`` from ``w9-review-context:<review ID>`` (§5.2)."""
 

@@ -917,9 +917,15 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
       before it builds the ledger or the service.
     - **Inside the writer lock** (WP9.3-1b review m-1): a check is always returned, and it decides again there. An
       advance replaces the pointer by unlinking it and then publishing the new one, under its own writer lock, so a
-      pointer absent when the command starts may be present by the time it holds the lock. If the pointer is absent
-      under the lock, the store has no current binding and the check returns. If it is present, the binding loaded
-      before binding is revalidated, or, if none was, loaded now; a load that fails refuses with the same message.
+      pointer absent when the command starts may be present by the time it holds the lock. If it is present, the
+      binding loaded before binding is revalidated, or, if none was, loaded now; a load that fails refuses with the
+      same message.
+    - **"Never bound" is read from durable store evidence** (WP9.3-1b review n-1; P-083 item 5, corrected on
+      CodeRabbit's comment on PR #430). Every repair and advance writes its ``objects/binding-repair/`` object before it
+      touches the pointer, and no crash removes one; store init does not create that directory. So a pointer absent
+      under the lock is "no current binding" only when no binding object exists either, and no binding was loaded
+      before binding. Otherwise an advance crashed between unlinking the old pointer and publishing the new one, and
+      the check refuses, for a process that loaded a binding before the lock and for a fresh one alike.
 
     A binding that changes while it loads (``ConflictError``) refuses as itself. ``command`` names the CLI writer in
     the refusal.
@@ -945,8 +951,10 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
     if not named:
         return None
     pointer = binding.control_root / CURRENT_BINDING_RELATIVE_PATH
+    # The directory binding_service.py alone writes (``_BINDING_OBJECT_DIRECTORY``, private there; a test pins the two).
+    binding_objects = binding.control_root / "objects" / "binding-repair"
 
-    def refused(exc: BaseException) -> ConfigurationError:
+    def refused(exc: BaseException | str) -> ConfigurationError:
         return ConfigurationError(
             f"{command} refused: the store has a current binding this checkout cannot load: {exc}"
         )
@@ -970,7 +978,10 @@ def _foundation_binding_check(binding: ControlBinding, *, command: str = "ars su
 
     def check_in_lock() -> None:
         if not os.path.lexists(pointer):
-            return  # no current binding, read under the writer lock
+            if loaded or os.path.lexists(binding_objects):
+                # n-1: the store was bound, and its pointer is gone: a crashed advance, never "never bound".
+                raise refused("its binding pointer is absent")
+            return  # never bound: no pointer and no binding object, read under the writer lock
         if not loaded:
             loaded.append(load())  # absent before binding, present now: load it here, or refuse
         try:
@@ -1790,6 +1801,91 @@ def _legacy_inventory_reproduce(args: argparse.Namespace) -> int:
     return 0 if report["reproduced"] else 1
 
 
+def _legacy_inventory_batch(args: argparse.Namespace) -> int:
+    """``ars legacy inventory batch``: the builder's batch mode (note §12.1, §10.5; the WP9.3-2 plan's Q1).
+
+    A tool: it reads only the batch file, opens no store, writes the LR-016 proposal content to the output, and prints
+    the derived ownership list's fixed parts. The records' IDs, ``created_at`` and hashes are assigned at LR-016;
+    ``ars legacy show <acceptance ID>`` then prints the stored list in full.
+    """
+    from research_system.legacy.inventory import build_acceptance_batch, refuse_tool_output, write_tool_output
+
+    output = refuse_tool_output(args.output, repository_root=None, vault_root=args.vault_root)
+    proposal, preview = build_acceptance_batch(_read_json(args.batch))
+    write_tool_output(output, proposal)
+    _print_json({"output": str(output), "record_id": proposal["record_id"], "ownership_list": preview})
+    return 0
+
+
+def _hex_object_id(value: str, what: str) -> str:
+    """A Git object ID that reaches Git as an argument: lowercase hex, 40 or 64 characters, never an option."""
+    if len(value) not in (40, 64) or any(char not in "0123456789abcdef" for char in value):
+        raise IntegrityError(f"W9 {what} needs a lowercase hex object ID")
+    return value
+
+
+def _repository_path(value: Any, what: str) -> str:
+    text = str(value)
+    if not text or text.startswith(("-", "/")) or ":" in text or "\\" in text or ".." in text.split("/"):
+        raise IntegrityError(f"W9 {what} is not a repository-relative path")
+    return text
+
+
+def _legacy_export_recheck(args: argparse.Namespace) -> int:
+    """``ars legacy export recheck``: the runtime segmenter rechecks a committed export (note §12.2, §13; D-7).
+
+    A tool: it reads the export and its retained copy from Git at ``--git-commit``, never from the working tree,
+    opens no store, and writes only the report. Exit 0 when the export reproduces, 1 when the report voids it.
+    """
+    import json as json_module
+
+    from research_system.legacy.evidence import require_cl_export
+    from research_system.legacy.export_recheck import recheck_cl_export
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+    from research_system.legacy.reader import _git
+
+    output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    commit = _hex_object_id(args.git_commit, "export recheck --git-commit")
+    export_path = _repository_path(args.export, "export recheck --export")
+    export = require_cl_export(
+        json_module.loads(_git(args.repository_root, "show", f"{commit}:{export_path}", text=False))
+    )
+    copy_path = _repository_path(export["retained_copy"]["repository_path"], "export's retained copy path")
+    retained = _git(args.repository_root, "show", f"{commit}:{copy_path}", text=False)
+    report = recheck_cl_export(export, retained)
+    write_tool_output(output, report)
+    _print_json({"output": str(output), "void": report["void"]})
+    return 1 if report["void"] else 0
+
+
+def _legacy_apm_bus(args: argparse.Namespace) -> int:
+    """``ars legacy apm-inventory bus`` (note §12.3; O-19): a tool. It reads ``.apm/bus/`` and writes only the output,
+    which may not lie under ``.apm/``, the vault, a store or the repository holding ``.apm/``."""
+    from research_system.legacy.apm_inventory import apm_root_of, build_bus_inventory
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+
+    apm_root = apm_root_of(args.apm_root)
+    output = refuse_tool_output(args.output, repository_root=apm_root.parent, vault_root=args.vault_root)
+    inventory = build_bus_inventory(apm_root)
+    write_tool_output(output, inventory)
+    _print_json({"output": str(output), "files": len(inventory["files"])})
+    return 0
+
+
+def _legacy_apm_files(args: argparse.Namespace) -> int:
+    """``ars legacy apm-inventory files`` (note §12.4; O-36, W9-T18): a tool. Exit 0 for an exact bijection, 1 when
+    the report blocks."""
+    from research_system.legacy.apm_inventory import build_apm_file_inventory
+    from research_system.legacy.inventory import refuse_tool_output, write_tool_output
+
+    output = refuse_tool_output(args.output, repository_root=args.repository_root, vault_root=args.vault_root)
+    commit = _hex_object_id(args.git_commit, "apm-inventory files --git-commit")
+    report = build_apm_file_inventory(args.repository_root, commit, _read_json(args.closure_map))
+    write_tool_output(output, report)
+    _print_json({"output": str(output), "blocked": report["blocked"]})
+    return 1 if report["blocked"] else 0
+
+
 def _legacy_observation_id(args: argparse.Namespace) -> int:
     """Print the derived ``record_id`` of an observation envelope before it is granted or submitted (§5.3, §13).
 
@@ -1844,6 +1940,21 @@ def _legacy_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _projection_json(value: Any) -> Any:
+    """A W9 projection entry as JSON values: datetimes as RFC 3339 UTC strings ending ``Z``, tuples as lists."""
+    from datetime import datetime
+
+    from research_system.legacy.replay.reducers import iso_z
+
+    if isinstance(value, datetime):
+        return iso_z(value)
+    if isinstance(value, Mapping):
+        return {key: _projection_json(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_projection_json(item) for item in value]
+    return value
+
+
 def _legacy_show(args: argparse.Namespace) -> int:
     state, _ = _legacy_projection(args.control_root)
     identity = args.id
@@ -1852,7 +1963,9 @@ def _legacy_show(args: argparse.Namespace) -> int:
     found: dict[str, Any] = {"id": identity, "kind": state["identities"][identity]}
     for collection in ("proposals", "reviews", "decisions"):
         if identity in state[collection]:
-            found[collection.rstrip("s")] = state[collection][identity]
+            # A proposal's lapse time and a Decision's expiry are datetimes in the projection; canonical JSON needs
+            # them as the ledger's own UTC strings (found by WP9.3-2's batch-mode test: show failed on any proposal).
+            found[collection.rstrip("s")] = _projection_json(state[collection][identity])
     for kind, records in state["records"].items():
         if identity in records:
             found["record"] = {"kind": kind, "value": records[identity]}
@@ -2828,6 +2941,40 @@ def _parser() -> argparse.ArgumentParser:
     )
     inventory_reproduce.add_argument("--output", type=Path, required=True, help="where to write the report")
     inventory_reproduce.set_defaults(handler=_legacy_inventory_reproduce)
+    inventory_batch = inventory_actions.add_parser(
+        "batch", help="build an LR-016 batch and print its ownership list's fixed parts (note §12.1, §10.5)"
+    )
+    inventory_batch.add_argument("--batch", type=Path, required=True, help="the batch input, with its record files")
+    inventory_batch.add_argument(
+        "--vault-root", type=Path, required=True, help="the real vault path, which the output is never written under"
+    )
+    inventory_batch.add_argument("--output", type=Path, required=True, help="where to write the proposal content")
+    inventory_batch.set_defaults(handler=_legacy_inventory_batch)
+    legacy_export = legacy_actions.add_parser("export", help="the Computational-Log export tool; it opens no store")
+    export_actions = legacy_export.add_subparsers(dest="export_action", required=True)
+    export_recheck = export_actions.add_parser("recheck", help="recheck a committed export (note §12.2; D-7)")
+    export_recheck.add_argument("--repository-root", type=Path, required=True, help="the repository holding the export")
+    export_recheck.add_argument("--git-commit", required=True, help="the commit to read the export and its copy at")
+    export_recheck.add_argument("--export", required=True, help="the export's repository path")
+    export_recheck.add_argument(
+        "--vault-root", type=Path, required=True, help="the real vault path, which the report is never written under"
+    )
+    export_recheck.add_argument("--output", type=Path, required=True, help="where to write the report")
+    export_recheck.set_defaults(handler=_legacy_export_recheck)
+    legacy_apm = legacy_actions.add_parser("apm-inventory", help="the .apm/ inventory tools; they open no store")
+    apm_actions = legacy_apm.add_subparsers(dest="apm_action", required=True)
+    apm_bus = apm_actions.add_parser("bus", help="the dated .apm/bus/ file list (note §12.3; O-19)")
+    apm_bus.add_argument("--apm-root", type=Path, required=True, help="the .apm directory to read")
+    apm_bus.add_argument("--vault-root", type=Path, required=True, help="the real vault path, never written")
+    apm_bus.add_argument("--output", type=Path, required=True, help="where to write the inventory")
+    apm_bus.set_defaults(handler=_legacy_apm_bus)
+    apm_files = apm_actions.add_parser("files", help="the .apm/ file-level inventory (note §12.4; O-36, W9-T18)")
+    apm_files.add_argument("--repository-root", type=Path, required=True, help="the repository holding .apm/")
+    apm_files.add_argument("--git-commit", required=True, help="the commit whose tracked .apm/ files are listed")
+    apm_files.add_argument("--closure-map", type=Path, required=True, help="the closure map (w9-apm-closure-map/1)")
+    apm_files.add_argument("--vault-root", type=Path, required=True, help="the real vault path, never written")
+    apm_files.add_argument("--output", type=Path, required=True, help="where to write the report")
+    apm_files.set_defaults(handler=_legacy_apm_files)
 
     projection = groups.add_parser("projection")
     projection_actions = projection.add_subparsers(dest="projection_action", required=True)

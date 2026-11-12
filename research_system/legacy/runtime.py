@@ -200,7 +200,7 @@ class LegacyRuntime:
             repository_root: Repository root holding the accepted catalogue, annex, contract and envelope.
             authority_resolver: Canonical current-grant resolver.
             clock: Trusted timezone-aware runtime clock.
-            routed_rows: Rows this runtime may execute: LR-001 and LR-003 to LR-015 (WP9.3 note §15).
+            routed_rows: Rows this runtime may execute: LR-001 and LR-003 to LR-020 (WP9.3 note §15).
             accepted_revisions: Accepted catalogue revisions LR-002 may import. None exists in v1.
             reader: The observation reader, bound to the binding's ``git_head`` (WP9.3 note §7, §11.2).
             vault_root: The real vault path for ``vault_file`` sources (WP9.3 note §7.1).

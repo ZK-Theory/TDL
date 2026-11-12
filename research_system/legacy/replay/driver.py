@@ -158,7 +158,7 @@ def replay_legacy(
     Args:
         events: The ordered persisted events of the whole shared ledger.
         schemas: The schema registry for payload validation; the bundled registry when omitted.
-        routed_rows: The rows this code routes: LR-001 and WP9.3-1's LR-003 to LR-015 (WP9.3 note §15); tests pass a
+        routed_rows: The rows this code routes: LR-001 and WP9.3's LR-003 to LR-020 (WP9.3 note §15); tests pass a
             wider set to exercise the deferred rows' reducers.
         accepted_revisions: The accepted catalogue revisions LR-002 may import. None exists in v1.
         pinned_signatures: The pinned W0 signatures (WP9.3 note §9.1). Their ref IDs are reserved at every position.

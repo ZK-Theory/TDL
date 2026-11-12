@@ -15,8 +15,9 @@ claim is refused when a non-W9 event takes the same ID, or when it is a pinned W
 WP9.3-1 routes LR-003 to LR-015. For those rows replay checks everything the ledger determines (note §6): the W2
 payload encodings of §5.2, the pre-assigned ref hashes and reservations of §4.2 and §4.3, the lapse rule of §4.6,
 approve-only satisfaction (§5.4), the distinctness rules of §5.5, G5 at every resolution (§6.1) and the row table of
-§6.2. The rows of later packages keep WP9.2's reducer rules, plus the cross-cutting ones above; their packages add
-theirs.
+§6.2. WP9.3-2 routes LR-016 to LR-020, the closed-reference acceptance, with the batch rules of §10.1, the structural
+``pilot_promotion`` rules of §10.2, and the derived ownership list of §10.5 (owner point E). The rows of later packages
+keep WP9.2's reducer rules, plus the cross-cutting ones above; their packages add theirs.
 """
 
 from __future__ import annotations
@@ -37,6 +38,7 @@ from research_system.legacy.reader import NON_INFERENCES
 from research_system.legacy.records import (
     observation_record_id,
     observation_subject_digest,
+    ownership_record_id,
     pre_assigned_ref_hash,
     record_content_hash,
     require_content_hash,
@@ -71,20 +73,42 @@ _RECOVERY_DECISION_FAMILY = "legacy_paper_root_recovery"
 _REPRODUCTION_VERDICT_ROW = "LR-013"
 _POSITIVE_REPRODUCTION_VERDICTS = frozenset({"approve"})
 
-# --- WP9.3-1 (note §2.3): the rows whose full replay checks this module makes. ---------------------------------------
+# --- WP9.3 (note §2.3): the rows whose full replay checks this module makes. -----------------------------------------
 WP9_3_1_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 16))
+# WP9.3-2 adds LR-016 to LR-020, the closed-reference acceptance (note §10).
+WP9_3_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 21))
+ACCEPTANCE = "legacy_closed_reference_acceptance"
+OWNERSHIP = "legacy_ownership_transitioned"
 # The pre-assigned refs each proposal kind carries (§4.2), with the ref kind.
 PRE_ASSIGNED_REFS: Mapping[str, Mapping[str, str]] = {
     "legacy_path_registration": {"registration_decision_ref": "decision"},
     "legacy_field_family_membership": {"review_ref": "review", "acceptance_decision_ref": "decision"},
     "legacy_light_inventory": {"independent_reproduction_ref": "review"},
+    ACCEPTANCE: {"independent_review_ref": "review", "decision_ref": "decision"},
 }
-# The review a WP9.3-1 request row opens, by the pre-assigned field that names it.
-_REQUEST_REVIEW_FIELD = {"LR-007": "review_ref", "LR-012": "independent_reproduction_ref"}
-_DECISION_PROPOSAL_FIELD = {"LR-004": "registration_decision_ref", "LR-009": "acceptance_decision_ref"}
+# The review a WP9.3 request row opens, by the pre-assigned field that names it.
+_REQUEST_REVIEW_FIELD = {
+    "LR-007": "review_ref",
+    "LR-012": "independent_reproduction_ref",
+    "LR-017": "independent_review_ref",
+}
+_DECISION_PROPOSAL_FIELD = {
+    "LR-004": "registration_decision_ref",
+    "LR-009": "acceptance_decision_ref",
+    "LR-019": "decision_ref",
+}
 # The review a Decision family requires satisfied (§6.1), by the record field that names it. A path registration has
 # none.
-_FAMILY_REVIEW_FIELD = {"legacy_field_family_membership": "review_ref"}
+_FAMILY_REVIEW_FIELD = {"legacy_field_family_membership": "review_ref", ACCEPTANCE: "independent_review_ref"}
+# §10.1 and §2.1: the first batch only, which is the integration pilot, of at most 20 items.
+MAX_BATCH_ITEMS = 20
+# §10.2: LR-020's accepted pilot_promotion set (annex lines 729-743 and the catalogue's LR-020 row). The four
+# unconditional fixtures are required on every item. Code cannot decide a "when" condition, so the three conditional ones
+# are admitted and their applicability is the reviewer's and Stephen's. A fixture outside the seven is refused (the
+# WP9.3-2 plan's Q2; Stephen, 2026-11-11, "Yes, as recommended").
+UNCONDITIONAL_FIXTURES = ("F-018", "F-023", "F-037", "S-014")
+CONDITIONAL_FIXTURES = ("F-017", "S-005", "F-038")
+PILOT_FIXTURES = frozenset((*UNCONDITIONAL_FIXTURES, *CONDITIONAL_FIXTURES))
 PROPOSAL_TERM = timedelta(days=30)
 REVIEW_DEADLINE = timedelta(days=1)
 # §5.2's fixed values.
@@ -484,6 +508,186 @@ def _check_inventory(state: Mapping[str, Any], record: Mapping[str, Any], event:
         raise IntegrityError("W9 inventory read ends before it starts")
 
 
+# --- The closed-reference acceptance (WP9.3-2; note §10) -------------------------------------------------------------
+
+
+def acceptance_observations(state: Mapping[str, Any], record: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Each item's observation, resolved by §4.4: a recorded observation at its revision and recomputed hash."""
+
+    items = record.get("items")
+    if not isinstance(items, list):
+        raise IntegrityError("W9 acceptance carries no items")
+    return [
+        _recorded(state, "legacy_observation", item.get("observation_ref") if isinstance(item, Mapping) else None)
+        for item in items
+    ]
+
+
+def _whole_file(state: Mapping[str, Any], observation: Mapping[str, Any]) -> bool:
+    """§10.5: an observation covers the whole file when it is ``whole_file``, or a ``json_family_set`` naming every
+    family of its accepted membership table."""
+
+    selector = observation.get("selector", {})
+    if selector.get("selector_kind") == "whole_file":
+        return True
+    if selector.get("selector_kind") != "json_family_set":
+        return False
+    table = _recorded(state, "legacy_field_family_membership", selector.get("membership_ref"))
+    return set(selector.get("family_names", [])) == {family.get("name") for family in table.get("families", [])}
+
+
+def _batch_rules(state: Mapping[str, Any], record: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """§10.1's batch rules, at LR-016 and again at LR-020 (review M-1). Returns the items' observations."""
+
+    if state["records"].get(ACCEPTANCE):
+        raise IntegrityError("W9 acceptance after the first batch needs the integration-pilot outcome Decision")
+    observations = acceptance_observations(state, record)
+    if not 1 <= len(observations) <= MAX_BATCH_ITEMS:
+        raise IntegrityError("W9 acceptance batch must hold 1 to 20 items")
+    ids = [observation["record_id"] for observation in observations]
+    if len(set(ids)) != len(ids):
+        raise IntegrityError("W9 acceptance batch names an observation twice")
+    for observation in observations:
+        observation_id = observation["record_id"]
+        if observation_id in state["stale_observations"]:
+            raise IntegrityError("W9 acceptance item's observation is stale")
+        registration_id = observation["registration_ref"]["id"]
+        history = state["observations_by_registration"].get(registration_id, [])
+        later = history[history.index(observation_id) + 1 :] if observation_id in history else []
+        selector = _selector_key(observation.get("selector"))
+        if any(_selector_key(state["records"]["legacy_observation"][other]["selector"]) == selector for other in later):
+            raise IntegrityError("W9 acceptance item's observation is not the latest for its source and selector")
+    return observations
+
+
+def _selector_key(selector: Any) -> Any:
+    """A selector compared as §8.2 reads it: a ``json_family_set`` names a set of families, so their order is not
+    part of the selector (as in ``_check_selector`` and ``_whole_file``). Every other field compares as recorded."""
+
+    if not isinstance(selector, Mapping) or selector.get("selector_kind") != "json_family_set":
+        return selector
+    names = selector.get("family_names")
+    if not isinstance(names, list):
+        return dict(selector)
+    return {**selector, "family_names": sorted({str(name) for name in names})}
+
+
+def _check_pilot_promotion(item: Mapping[str, Any]) -> None:
+    """§10.2 (O-37): each fixture at most once, the four unconditional fixtures, the ref kinds, and LR-020's seven."""
+
+    entries = item.get("pilot_promotion")
+    if not isinstance(entries, list):
+        raise IntegrityError("W9 acceptance item carries no pilot_promotion list")
+    fixtures = [entry.get("fixture_id") for entry in entries]
+    if len(set(fixtures)) != len(fixtures):
+        raise IntegrityError("W9 acceptance item lists a fixture twice")
+    outside = sorted(str(fixture) for fixture in set(fixtures) - PILOT_FIXTURES)
+    if outside:
+        raise IntegrityError(f"W9 acceptance item lists a fixture LR-020 does not name: {outside[0]}")
+    missing = [fixture for fixture in UNCONDITIONAL_FIXTURES if fixture not in fixtures]
+    if missing:
+        raise IntegrityError(f"W9 acceptance item lacks the unconditional fixture {missing[0]}")
+    for entry in entries:
+        ref_id = str(entry.get("ref", {}).get("id"))
+        if entry.get("disposition") == "waiver" and not ref_id.startswith("dec_"):
+            raise IntegrityError("W9 pilot_promotion waiver ref must be a Decision")
+        if entry.get("disposition") == "evidence" and not ref_id.startswith(("rev_", "art_")):
+            raise IntegrityError("W9 pilot_promotion evidence ref must be a review or an artefact")
+
+
+def check_acceptance(state: Mapping[str, Any], record: Mapping[str, Any], context: Mapping[str, Any]) -> None:
+    """LR-016's replay checks (§6.2, §10.1, §10.2, §10.3, §10.4, §10.5). The window, the anchors' Git facts and the
+    change list's contents are the preparer's (§7.2, §10.3, §10.4)."""
+
+    if state["catalogue"] is None:
+        raise IntegrityError("W9 acceptance requires W9 genesis")
+    if not context.get("pinned_signatures"):
+        raise IntegrityError("W9 acceptance requires a pinned W0 signature")
+    observations = _batch_rules(state, record)
+    for item in record["items"]:
+        _check_pilot_promotion(item)
+    for anchor in record.get("anchors", []):
+        if anchor.get("anchor_kind") != "git_commit":
+            raise IntegrityError("W9 acceptance anchor must be a git_commit anchor (owner point G)")
+    if record.get("enforcement_change_list") is None:
+        raise IntegrityError("W9 acceptance names no shared-surface change list")
+    whole = [str(o["registration_ref"]["id"]) for o in observations if _whole_file(state, o)]
+    if len(set(whole)) != len(whole):
+        raise IntegrityError("W9 acceptance batch holds two whole-file items of one registration")
+
+
+def derive_ownership(state: Mapping[str, Any], record: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """§10.5 (owner point E; P-081 item 5): the ownership records LR-020 will emit, as a function of the acceptance and
+    the projection at this position. One per whole-file item whose registration is ``legacy_owned``, in item order."""
+
+    transitions = []
+    for observation in acceptance_observations(state, record):
+        registration_ref = observation["registration_ref"]
+        registration_id = str(registration_ref["id"])
+        registration = state["records"]["legacy_path_registration"][registration_id]
+        mode = state["ownership"].get(registration_id, registration.get("ownership_mode"))
+        if not _whole_file(state, observation) or mode != "legacy_owned":
+            continue
+        transition: dict[str, Any] = {
+            "schema_id": "ars://legacy/legacy-ownership-transitioned",
+            "schema_version": "1.0.0",
+            "record_id": ownership_record_id(str(record["record_id"]), registration_id, str(record["created_at"])),
+            "record_revision": 1,
+            "supersedes_revision": None,
+            "project_id": record.get("project_id"),
+            "created_at": record.get("created_at"),
+            "created_by_actor_id": record.get("created_by_actor_id"),
+            "mapping_ref": None,
+            "subject_registration_ref": deepcopy(dict(registration_ref)),
+            "paper_root_ref": None,
+            "from_mode": "legacy_owned",
+            "to_mode": "closed_reference",
+            "reviewer_ref": deepcopy(record.get("independent_review_ref")),
+            "decision_ref": deepcopy(record.get("decision_ref")),
+        }
+        transition["content_hash"] = record_content_hash(transition)
+        transitions.append(transition)
+    return transitions
+
+
+def _reserve_ownership(state: dict[str, Any], ownership_id: str, record_id: str, context: Mapping[str, Any]) -> None:
+    """§4.3: a batch's ownership record IDs are derived and reserved at LR-016."""
+
+    if ownership_id in RESERVED_IDS or ownership_id in state["identities"] or ownership_id in state["reservations"]:
+        raise IntegrityError("W9 ownership record ID is already claimed or reserved")
+    _refuse_foreign(ownership_id, context)
+    state["reservations"][ownership_id] = {"kind": "ownership", "proposal": record_id, "used": False}
+
+
+def batch_observers(state: Mapping[str, Any], proposal: Mapping[str, Any]) -> set[Any]:
+    """The observers of a batch's items, whom LR-017's reviewer may not be (§5.5, §6.2 LR-017)."""
+
+    return {observation.get("observer_actor_id") for observation in acceptance_observations(state, proposal["record"])}
+
+
+def _check_acceptance_resolution(
+    state: Mapping[str, Any], decision: Mapping[str, Any], transaction: Sequence[Mapping[str, Any]]
+) -> None:
+    """LR-020 beyond G5 (§6.2, §10.5, §10.6): the batch rules again, and the ownership records exactly the stored list
+    and the list recomputed here, each on its own stream at version 1, carrying the acceptance's refs."""
+
+    record_id = decision["subject"][0]
+    proposal = state["proposals"][record_id]
+    record = transaction[1]["payload"]
+    _batch_rules(state, record)
+    emitted = [event["payload"] for event in transaction[2:]]
+    for event, transition in zip(transaction[2:], emitted, strict=True):
+        if transition.get("reviewer_ref") != record.get("independent_review_ref") or transition.get(
+            "decision_ref"
+        ) != record.get("decision_ref"):
+            raise IntegrityError("W9 ownership record's copied refs are not the acceptance's")
+        _require_stream(event, transition.get("record_id"), 1, "ownership record")
+    if emitted != proposal.get("ownership"):
+        raise IntegrityError("W9 acceptance's ownership records differ from the list stored at LR-016")
+    if derive_ownership(state, record) != proposal["ownership"]:
+        raise IntegrityError("W9 acceptance's ownership list recomputed at LR-020 differs from the stored list")
+
+
 def reduce_proposal(
     state: dict[str, Any], row_id: str, transaction: Sequence[Mapping[str, Any]], context: Mapping[str, Any]
 ) -> None:
@@ -496,7 +700,7 @@ def reduce_proposal(
     kind = record_kind(record.get("schema_id"))
     record_id = record.get("record_id")
     at = _time(event.get("occurred_at"))
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         if isinstance(record_id, str):
             _refuse_foreign(record_id, context)
         _require_stream(event, record_id, 1, "proposal")
@@ -508,10 +712,18 @@ def reduce_proposal(
             _check_membership(record, event)
         elif kind == "legacy_light_inventory":
             _check_inventory(state, record, event, context)
+        elif kind == ACCEPTANCE:
+            check_acceptance(state, record, context)
     claim_identity(state, record_id, "proposal", context)
-    if row_id in WP9_3_1_ROWS:
+    ownership: list[dict[str, Any]] = []
+    if row_id in WP9_3_ROWS:
         for field, ref_kind in PRE_ASSIGNED_REFS.get(kind, {}).items():
             _reserve(state, record[field]["id"], ref_kind, str(record_id), context)
+        if kind == ACCEPTANCE:
+            # §10.5 (owner point E): derived from the proposal and the ledger before it, reserved, and stored with it.
+            ownership = derive_ownership(state, record)
+            for transition in ownership:
+                _reserve_ownership(state, transition["record_id"], str(record_id), context)
     state["proposals"][record_id] = {
         "row": row_id,
         "kind": kind,
@@ -522,6 +734,8 @@ def reduce_proposal(
         "created_at": event.get("occurred_at"),
         "lapse_at": at + PROPOSAL_TERM,
     }
+    if kind == ACCEPTANCE and row_id in WP9_3_ROWS:
+        state["proposals"][record_id]["ownership"] = ownership
 
 
 # --- Reviews (§5.2, §5.4, §5.5) --------------------------------------------------------------------------------------
@@ -554,9 +768,10 @@ def _creator_role_actor(proposal: Mapping[str, Any]) -> Any:
 
 def _refuse_analyst_creator(proposal: Mapping[str, Any], analyst: Any) -> None:
     """§5.5: the analyst who requests a review or proposes a Decision is not the creator, where the creator is an
-    observer (LR-011) or a membership author (LR-006). A path registration is the analyst's own proposal (LR-003)."""
+    observer (LR-011) or a membership author (LR-006). A path registration (LR-003) and a batch (LR-016) are the
+    analyst's own proposals."""
 
-    if proposal["kind"] != "legacy_path_registration" and analyst in {
+    if proposal["kind"] not in {"legacy_path_registration", ACCEPTANCE} and analyst in {
         proposal["actor_id"],
         _creator_role_actor(proposal),
     }:
@@ -608,6 +823,8 @@ def _check_review_request(
     excluded = {creator, analyst, _creator_role_actor(proposal)}
     if reviewer in excluded:
         raise IntegrityError("W9 reviewer is the proposal's creator, author or the requesting analyst")
+    if proposal["kind"] == ACCEPTANCE and reviewer in batch_observers(state, proposal):
+        raise IntegrityError("W9 acceptance reviewer observed an item of the batch")
     _require_stream(event, review_id, 1, "review request")
     _take_reservation(state, review_id, "review", str(record_id), "review")
     return str(record_id), sessions, reviewer
@@ -627,7 +844,7 @@ def reduce_review_request(
         "verdict_row": None,
         "verdict": None,
     }
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         record_id, sessions, reviewer = _check_review_request(
             state, row_id, event, payload, _time(event.get("occurred_at"))
         )
@@ -688,7 +905,7 @@ def reduce_review_verdict(
     review = state["reviews"].get(payload.get("review_id"))
     if review is None or review["verdict_row"] is not None:
         raise IntegrityError("W9 review verdict has no open W9 review")
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         _check_verdict(state, review, transaction[0], payload)
     review["verdict_row"] = row_id
     review["verdict"] = payload.get("verdict")
@@ -771,7 +988,7 @@ def reduce_decision_proposal(
         "resolve_row": None,
         "governing_evidence_refs": list(payload.get("governing_evidence_refs", [])),
     }
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         record_id, subject_hash, expires = _check_decision_proposal(state, row_id, event, payload)
         entry.update(subject=(record_id, subject_hash), expires_at=expires)
     else:
@@ -784,12 +1001,18 @@ def _decision_family(row_id: str) -> str:
 
 
 def _record_resolved(
-    state: dict[str, Any], row_id: str, decision_id: str, record: Mapping[str, Any], context: Mapping[str, Any]
+    state: dict[str, Any],
+    row_id: str,
+    decision_id: str,
+    record: Mapping[str, Any],
+    context: Mapping[str, Any],
+    subject_id: Any = None,
 ) -> str:
     """G5: bind a resolved record to its open proposal and to the resolving Decision.
 
     LR-020's ownership transitions are the exception: the acceptance writes one per accepted whole-file item, with no
-    proposal of their own (P-072 item 2), so each claims its own identity.
+    proposal of their own (P-072 item 2). Under WP9.3-2 each takes the reservation its acceptance made at LR-016
+    (note §10.5, §14), where the list was derived and stored.
     """
 
     record_id = record.get("record_id")
@@ -798,8 +1021,11 @@ def _record_resolved(
     decision_ref = record.get(_DECISION_FIELDS.get(kind, "decision_ref"))
     if not isinstance(decision_ref, Mapping) or decision_ref.get("id") != decision_id:
         raise IntegrityError("W9 resolved record names another Decision")
-    if row_id == "LR-020" and kind == "legacy_ownership_transitioned":
-        claim_identity(state, record_id, kind, context)
+    if row_id == "LR-020" and kind == OWNERSHIP:
+        if row_id in WP9_3_ROWS:
+            _take_reservation(state, record_id, "ownership", str(subject_id), kind)
+        else:
+            claim_identity(state, record_id, kind, context)
         state["records"].setdefault(kind, {})[record_id] = deepcopy(record)
         return str(record_id)
     proposal = state["proposals"].get(record_id)
@@ -893,6 +1119,8 @@ def _check_resolution(
         raise IntegrityError("W9 resolution's review is not satisfied on the record's hash")
     _require_stream(event, payload.get("decision_id"), 2, "Decision resolution")
     _require_stream(transaction[1], record_id, 2, "resolved record")
+    if kind == ACCEPTANCE:
+        _check_acceptance_resolution(state, decision, transaction)
 
 
 def reduce_decision_resolution(
@@ -907,14 +1135,14 @@ def reduce_decision_resolution(
         raise IntegrityError("W9 Decision resolution has no open W9 Decision")
     if _decision_family(decision["propose_row"]) != _decision_family(row_id):
         raise IntegrityError("W9 Decision is resolved under another Decision family")
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         _check_resolution(state, row_id, decision, transaction)
     decision["resolve_row"] = row_id
     if _decision_family(row_id) == _RECOVERY_DECISION_FAMILY:
         _add_edges(state, decision_id, [ref for ref in decision["governing_evidence_refs"] if ref.startswith("obj_")])
     for event in transaction[1:]:
         record = event["payload"]
-        record_id = _record_resolved(state, row_id, decision_id, record, context)
+        record_id = _record_resolved(state, row_id, decision_id, record, context, decision.get("subject", (None,))[0])
         kind = record_kind(record.get("schema_id"))
         refuse_restricted_frozen_copy(record)
         if kind == "legacy_ownership_transitioned":
@@ -948,7 +1176,7 @@ def reduce_light_inventory(
         or proposal["record"] != record
     ):
         raise IntegrityError("W9 light inventory differs from its open proposal")
-    if row_id in WP9_3_1_ROWS:
+    if row_id in WP9_3_ROWS:
         if _time(event.get("occurred_at")) >= proposal["lapse_at"]:
             raise IntegrityError("W9 step names a lapsed proposal")
         if event.get("actor_id") != record.get("observer_actor_id"):
@@ -1156,7 +1384,7 @@ def reduce_record(
     kind = record_kind(record.get("schema_id"))
     record_id = record.get("record_id")
     registration_id = None
-    if kind == "legacy_observation" and row_id in WP9_3_1_ROWS:
+    if kind == "legacy_observation" and row_id in WP9_3_ROWS:
         registration_id = _check_observation(state, record, event, context)
     claim_identity(state, record_id, kind, context)
     if kind == "legacy_paper_root":

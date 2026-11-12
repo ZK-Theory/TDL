@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -561,6 +562,176 @@ def test_ars_submit_refuses_an_unloadable_binding_before_it_builds_the_service(t
     command.write_text("{}", encoding="utf-8")
     with pytest.raises(ConfigurationError, match=UNLOADABLE):
         cli.main(["command", "submit", "--config", str(tmp_path / "x.yaml"), "--command", str(command)])
+
+
+# --- n-1 (WP9.3-1b review addendum; P-083 item 5, corrected): "never bound" read from durable store evidence ---------
+
+POINTER_ABSENT = f"{UNLOADABLE}: its binding pointer is absent"
+
+
+def _binding_object(control_root: Path) -> Path:
+    """A binding object, as every repair and advance writes before it touches the pointer (binding_service.py)."""
+    directory = control_root / "objects" / "binding-repair"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"sha256-{'0' * 64}.json"
+    path.write_text("{}", encoding="utf-8")
+    return path
+
+
+def _counting_loader(monkeypatch, calls: list[str]) -> None:
+    import research_system.store.current_binding as current_binding
+
+    def load(**kwargs: Any) -> SimpleNamespace:
+        calls.append("load")
+        return SimpleNamespace(revalidate=lambda: calls.append("revalidate"))
+
+    monkeypatch.setattr(current_binding, "load_current_binding", load)
+
+
+def test_n1_a_binding_loaded_before_binding_whose_pointer_is_gone_under_the_lock_is_refused(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The review's n-1 probe, inverted: the pre-bind load found a binding, and under the lock the pointer is absent,
+    the state an absent-final crash of an advance leaves (``store/anchor.py:2713-2720``). Refused, never revalidated."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    _binding_object(control_root)
+    check = cli._foundation_binding_check(binding)
+    assert calls == ["load"]
+    (control_root / "manifests" / "binding-repair-current.json").unlink()
+    with pytest.raises(ConfigurationError, match=re.escape(POINTER_ABSENT)):
+        check()
+    assert calls == ["load"]
+
+
+def test_n1_a_binding_loaded_before_binding_is_refused_when_its_pointer_goes_even_with_no_object_seen(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The loaded limb alone (P-083 item 5's original wording): a binding was loaded before the lock, so an absent
+    pointer under it is never "never bound", even if no binding object is visible."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    check = cli._foundation_binding_check(binding)
+    (control_root / "manifests" / "binding-repair-current.json").unlink()
+    assert not (control_root / "objects" / "binding-repair").exists()
+    with pytest.raises(ConfigurationError, match=re.escape(POINTER_ABSENT)):
+        check()
+    assert calls == ["load"]
+
+
+def test_n1_a_fresh_process_on_a_store_with_binding_objects_and_no_pointer_is_refused_under_the_lock(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """CodeRabbit on PR #430: a fresh writer loads nothing before binding, so the decision rests on the durable binding
+    objects, which no crash removes. Deferred to the lock, so a healthy advance in flight is not refused early."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _binding_object(control_root)
+    assert not (control_root / "manifests" / "binding-repair-current.json").exists()
+    check = cli._foundation_binding_check(binding)
+    assert callable(check) and calls == []
+    with pytest.raises(ConfigurationError, match=re.escape(POINTER_ABSENT)):
+        check()
+    assert calls == []
+
+
+def test_n1_an_empty_binding_object_directory_still_counts_as_bound(tmp_path: Path, monkeypatch) -> None:
+    """Only ``binding_service.py`` creates ``objects/binding-repair/`` (store init does not), so its presence alone
+    means a binding was published or attempted."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    (control_root / "objects" / "binding-repair").mkdir(parents=True)
+    check = cli._foundation_binding_check(binding)
+    with pytest.raises(ConfigurationError, match=re.escape(POINTER_ABSENT)):
+        check()
+
+
+def test_n1_a_pointer_published_before_the_lock_is_loaded_there_not_refused(tmp_path: Path, monkeypatch) -> None:
+    """Preservation: binding objects and no pointer before binding (an advance in flight), the pointer published by the
+    time the command holds the lock. The check loads and revalidates it."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _binding_object(control_root)
+    check = cli._foundation_binding_check(binding)
+    _bound(control_root)
+    check()
+    assert calls == ["load", "revalidate"]
+
+
+def test_n1_the_binding_object_directory_is_the_one_binding_service_writes() -> None:
+    """The CLI restates the directory rather than importing a private name from ``store/``; this pins the two, and
+    store init's layout, which must never create it."""
+    import inspect
+
+    from research_system.store import binding_service, layout
+
+    assert binding_service._BINDING_OBJECT_DIRECTORY == "objects/binding-repair"
+    assert '"objects" / "binding-repair"' in inspect.getsource(cli._foundation_binding_check)
+    assert "binding-repair" not in inspect.getsource(layout)
+
+
+def test_n1_a_never_bound_store_has_neither_pointer_nor_binding_objects(tmp_path: Path, monkeypatch) -> None:
+    """Preservation: the one real skip (P-083 item 3, record §4 item 13) stays a no-op."""
+    calls: list[str] = []
+    _counting_loader(monkeypatch, calls)
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    assert not (control_root / "objects" / "binding-repair").exists()
+    check = cli._foundation_binding_check(binding)
+    assert check() is None and calls == []
+
+
+# --- n-4 (WP9.3-1b review addendum; P-083 item 6): each CLI writer refuses through its own handler --------------------
+
+_FIVE_WRITERS = [
+    ("_store_backup", "ars store backup", {"config": "c", "request": "r"}),
+    ("_store_verify_restore", "ars store verify-restore", {"config": "c", "command": "x", "receipt": "r"}),
+    ("_brief_runtime", "ars brief", {"config": "c"}),
+    ("_authority_activate_grant", "ars authority activate-grant", {"config": "c", "request": "r"}),
+    ("_eval_publish_release", "ars eval publish-release", {"config": "c", "evaluation_runs": "e"}),
+]
+_BUILT_AFTER = ("_read_json", "_read_canonical_json", "runtime_schema_registry", "EventLedger", "CommandService")
+
+
+def _never(*args: Any, **kwargs: Any) -> None:
+    raise AssertionError("built or read after the refusal")
+
+
+@pytest.mark.parametrize(("handler", "command", "args"), _FIVE_WRITERS, ids=[row[1] for row in _FIVE_WRITERS])
+def test_each_cli_writer_refuses_an_unloadable_named_binding_before_it_reads_or_builds(
+    tmp_path: Path, monkeypatch, handler: str, command: str, args: dict
+) -> None:
+    """Adopted from the WP9.3-1b re-check probe (review n-4): through each handler, with the real loader on a scratch
+    named store whose pointer cannot load, the command refuses in its own name before any input read or build."""
+    binding, control_root = _named_store(tmp_path, monkeypatch)
+    _bound(control_root)
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    for name in _BUILT_AFTER:
+        monkeypatch.setattr(cli, name, _never)
+    expected = f"{command} refused: the store has a current binding this checkout cannot load"
+    with pytest.raises(ConfigurationError, match=re.escape(expected)):
+        getattr(cli, handler)(SimpleNamespace(operator_config=None, **args))
+
+
+@pytest.mark.parametrize(("handler", "command", "args"), _FIVE_WRITERS, ids=[row[1] for row in _FIVE_WRITERS])
+def test_each_cli_writer_on_a_never_bound_named_store_reaches_its_first_read(
+    tmp_path: Path, monkeypatch, handler: str, command: str, args: dict
+) -> None:
+    """Positive control for the test above: with no pointer and no binding object, the same stubs are reached, so the
+    refusal above is the binding check's and not a stub tripped first."""
+    binding, _ = _named_store(tmp_path, monkeypatch)
+    binding.schema_root = tmp_path / "schemas"  # read as an argument to the first stubbed call
+    monkeypatch.setattr(cli.ControlBinding, "load", lambda path: binding)
+    for name in _BUILT_AFTER:
+        monkeypatch.setattr(cli, name, _never)
+    with pytest.raises(AssertionError, match="built or read after the refusal"):
+        getattr(cli, handler)(SimpleNamespace(operator_config=None, **args))
 
 
 @pytest.mark.slow
