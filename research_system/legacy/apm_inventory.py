@@ -62,7 +62,13 @@ def _walk_files(root: Path, start: Path) -> list[str]:
                 raise IntegrityError(
                     f"W9 .apm inventory meets a linked directory: {child.relative_to(root).as_posix()}"
                 )
-        found.extend((here / name).relative_to(root).as_posix() for name in files)
+        for name in files:
+            # followlinks=False keeps os.walk out of linked directories, but a linked file is still listed in
+            # ``files``: it would count as an .apm file whose bytes live elsewhere (CodeRabbit, #432).
+            child = here / name
+            if child.is_symlink() or child.is_junction():
+                raise IntegrityError(f"W9 .apm inventory meets a linked file: {child.relative_to(root).as_posix()}")
+            found.append(child.relative_to(root).as_posix())
     return sorted(found)
 
 
@@ -168,9 +174,13 @@ def build_apm_file_inventory(repository_root: Path, git_commit: str, closure_map
             selector = _verified(observation, "observation").get("selector", {})
             ordinal = selector.get("row_ordinal")
             row = items.get(ordinal) if isinstance(ordinal, int) and not isinstance(ordinal, bool) else None
-            # The selector as replay checks it (§8.2): the whole inventory ref, and the row's anchor and raw hash.
+            # The selector as replay checks it (§8.2): the observation's registration is the inventory's, the whole
+            # inventory ref, and the row's anchor and raw hash.
+            observed_registration = observation.get("registration_ref", {})
             if (
-                selector.get("selector_kind") != "inventory_item"
+                not isinstance(observed_registration, Mapping)
+                or observed_registration.get("id") != inventory.get("registration_ref", {}).get("id")
+                or selector.get("selector_kind") != "inventory_item"
                 or selector.get("inventory_ref") != inventory_ref
                 or row is None
                 or selector.get("anchor_text") != row.get("anchor_text")

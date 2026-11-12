@@ -268,6 +268,19 @@ thread.
 
 The review's Info findings other than i-1 change no code in this round.
 
+**CodeRabbit's second pass, at `4636bc4c`:** three new findings, each checked and each holding.
+
+| Where | Finding | Fix | Control |
+|---|---|---|---|
+| `apm_inventory.py`, `_walk_files` | `followlinks=False` keeps `os.walk` out of linked directories, but a linked file is still listed and counted as an `.apm/` file | A linked file refuses | `test_a_linked_file_in_a_stage_log_or_the_bus_is_refused` (stage, bus) |
+| `apm_inventory.py`, observations | An observation of another registration still counted its row, which replay's §8.2 refuses | The observation's registration must be its inventory's | `test_an_observation_of_another_registration_blocks` |
+| census, aliases | `alias = factory` then `alias = CommandService` kept the partial's checked flag | The census is flow-insensitive: a name is a checked partial only if every class-valued binding of it is one | `alias-rebound-to-class`; `partial-rebound-unchecked` is a preservation control |
+
+Red evidence: the three production controls failed against `4636bc4c`'s `apm_inventory.py`. `alias-rebound-to-class`
+failed against `4636bc4c`'s census. `partial-rebound-unchecked` passed there, because the old census's last walked
+binding happened to win. The rule is conservative: a name rebound from an unchecked to a checked partial is reported
+unchecked, and no production construction does that.
+
 **Red evidence.** With the five production files restored from `b98515c6`, the new production controls gave 26 failed
 (each by its own assertion or refusal text) and the preservation controls passed. One first draft of finding 4's ref
 cases passed on the old code because its ref named a fresh inventory: it was refused by the ID check, not the guard

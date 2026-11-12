@@ -346,8 +346,13 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
                 return string(getter.args[0]) in names
         return False
 
-    while True:
-        before = len(names), len(partials)
+    # The census is flow-insensitive: a name bound more than once may hold any of its bindings when called. So a name
+    # counts as a checked partial only if every class-valued binding of it is a checked partial (or an alias of one);
+    # one binding to the class itself, or to an unchecked partial, makes every call through that name unchecked
+    # (CodeRabbit, #432: ``alias = factory`` then ``alias = CommandService``).
+    for _ in range(64):  # a fixpoint; the bound only guards against an oscillation no fixture has shown
+        before = set(names), dict(partials)
+        flags: dict[str, list[bool | None]] = {}  # per name: True or False for a partial binding, None otherwise
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef) and any(class_valued(base) for base in node.bases):
                 names.add(node.name)
@@ -359,12 +364,23 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
                 targets = [target.id for target in bound if isinstance(target, ast.Name)]
                 names.update(targets)
                 if is_partial(node.value):
-                    partials.update(dict.fromkeys(targets, has_check(node.value)))
+                    flag: bool | None = has_check(node.value)
                 elif isinstance(node.value, ast.Name) and node.value.id in partials:
                     # ``alias = factory``: the alias is the same partial, with the same bound check (CodeRabbit, #432).
-                    partials.update(dict.fromkeys(targets, partials[node.value.id]))
-        if (len(names), len(partials)) == before:
+                    flag = partials[node.value.id]
+                else:
+                    flag = None
+                for target in targets:
+                    flags.setdefault(target, []).append(flag)
+        partials = {
+            name: all(flag is True for flag in seen)
+            for name, seen in flags.items()
+            if any(flag is not None for flag in seen)
+        }
+        if (names, partials) == before:
             break
+    else:
+        raise AssertionError("the CommandService census did not reach a fixpoint")
     sites: list[tuple[str, str, int, bool]] = []
 
     def visit(node: ast.AST, scope: list[str]) -> None:
@@ -512,6 +528,16 @@ def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str
             "def f():\n    return (made := CommandService)(1)\n",
             [("fixture.py", "f", 2, False)],
         ),
+        (
+            "from functools import partial\n\ndef f(check):\n    factory = partial(CommandService, binding_check=check)\n"
+            "    alias = factory\n    alias = CommandService\n    return alias()\n",
+            [("fixture.py", "f", 7, False)],
+        ),
+        (
+            "from functools import partial\n\ndef f(check):\n    factory = partial(CommandService, binding_check=check)\n"
+            "    factory = partial(CommandService, 1)\n    return factory()\n",
+            [("fixture.py", "f", 6, False)],
+        ),
     ],
     ids=[
         "partial-alias",
@@ -533,6 +559,8 @@ def test_the_service_census_follows_aliases_and_refuses_a_none_check(source: str
         "annotated-partial",
         "walrus",
         "walrus-called",
+        "alias-rebound-to-class",
+        "partial-rebound-unchecked",
     ],
 )
 def test_the_service_census_sees_partial_and_string_lookups(source: str, expected: list) -> None:

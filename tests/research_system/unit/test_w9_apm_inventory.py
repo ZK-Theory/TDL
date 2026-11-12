@@ -226,6 +226,25 @@ def test_an_observation_whose_selector_differs_from_its_item_row_blocks(reposito
     assert report["items_missing"] == [{"file": ".apm/tracker.md", "row_ordinal": 1}]
 
 
+def test_an_observation_of_another_registration_blocks(repository: Path) -> None:
+    """Replay refuses an inventory item whose inventory belongs to another registration (§8.2); so does the file tool,
+    though the selector still names the item row exactly (CodeRabbit, #432)."""
+    from research_system.legacy.records import record_content_hash
+
+    commit = git(repository, "rev-parse", "HEAD")
+    closure = _closure()
+    other = flows.registration("tdl", "actor-analyst", flows.at(0), path=".apm/plan.md", file_id="9")
+    observation = deepcopy(closure["observations"][0])
+    observation["registration_ref"] = flows.record_ref(other)
+    observation["content_hash"] = record_content_hash(observation)
+    assert observation["selector"]["inventory_ref"]["id"] == closure["inventory"]["record_id"]
+    closure["observations"][0] = observation
+    report = build_apm_file_inventory(repository, commit, _closure_map(closures=[closure]))
+    assert report["blocked"] is True
+    assert report["items_extra"] == [{"file": ".apm/tracker.md", "row_ordinal": 1}]
+    assert report["items_missing"] == [{"file": ".apm/tracker.md", "row_ordinal": 1}]
+
+
 @pytest.mark.parametrize(
     "named",
     [None, {}, {"kind": "", "sha256": "f" * 64}, {"kind": "w9-apm-non-import", "sha256": "F" * 64}, "f" * 64],
@@ -273,6 +292,23 @@ def test_a_linked_stage_bus_or_memory_root_is_refused_before_it_is_listed(
     if linked == "bus":
         with pytest.raises(IntegrityError, match="W9 .apm inventory needs a real bus directory"):
             build_bus_inventory(apm)
+
+
+@pytest.mark.parametrize("where", ["memory/stage-01", "bus"])
+def test_a_linked_file_in_a_stage_log_or_the_bus_is_refused(repository: Path, tmp_path: Path, where: str) -> None:
+    """``followlinks=False`` keeps os.walk out of linked directories but still lists a linked file, whose bytes live
+    outside ``.apm/`` (CodeRabbit, #432)."""
+    outside = tmp_path / "outside.md"
+    outside.write_bytes(b"not an .apm file\n")
+    link = repository / ".apm" / where / "linked.md"
+    try:
+        os.symlink(outside, link)
+    except OSError as exc:
+        pytest.skip(f"file symlink unavailable: {exc}")
+    commit = git(repository, "rev-parse", "HEAD")
+    message = "W9 .apm inventory meets a linked file: " + re.escape(f".apm/{where}/linked.md")
+    with pytest.raises(IntegrityError, match=message):
+        apm_universe(repository, commit)
 
 
 @pytest.mark.parametrize("tool", ["universe", "bus"])
