@@ -1,18 +1,20 @@
 # TDL Handoff: W9 transition, WP9.3-2 acceptance and WP9.3 close-out (P06)
 
 Capability status: INCOMPLETE. WP9.3's code is merged to `main` (WP9.3-2 as `baea2c13`, PR #432), but it is not
-accepted. The gap: P-084 is not written, the WP9.3-2 independent review is committed only on a local, unpushed
-branch, and the review's one follow-up fix (m-5, PR #434) is open and unmerged.
+accepted. The gap: P-084 is not written, and the WP9.3-2 independent review is committed only on a local, unpushed
+branch. The review's one follow-up fix (m-5, PR #434) has merged as `80baa4a9`.
 
 Written 2026-11-13 by the parent session that dispatched and coordinated WP9.3-1, WP9.3-1b and WP9.3-2 and their
 reviews. Every claim below was re-derived at the time of writing against `origin/main` at `a6a98966`, the branches
-named, and GitHub. Nothing was carried over from an older status table.
+named, and GitHub. Nothing was carried over from an older status table. Updated the same day, before the handoff's PR,
+after #434 merged: the #434 rows were re-derived at `origin/main` `80baa4a9`. The other rows were not re-checked at
+`80baa4a9`, but #434 changed only one test file.
 
 ## Purpose of next session
 
 Take over as the coordinating session for WP9.3's close-out. In order:
 
-1. **PR #434 (m-5).** See it through Stephen's review and merge. Don't merge it yourself.
+1. **PR #434 (m-5)** is merged. Confirm the census still gives 273 rows at `80baa4a9` (see "Contracts and validation").
 2. **P-084.** After Stephen accepts, write the register entry that accepts WP9.3-2 and records WP9.3 as complete. Commit
    the independent review with it, as P-083 did for WP9.3-1b. Then open a docs PR.
 3. **The vault entry** for P-084.
@@ -34,8 +36,8 @@ L-0 to L-5 live operations. All of those remain unauthorized.
 
 ## Capability state
 
-PROVEN, not yet INTEGRATED. Code is on `main`, and the independent review at the merged tree says **accept**. The
-owner's acceptance (P-084) and the m-5 merge are outstanding.
+PROVEN, not yet INTEGRATED. Code is on `main`, including the m-5 fix, and the independent review at the merged tree
+says **accept**. The owner's acceptance (P-084) is outstanding.
 
 ## Completed production path
 
@@ -48,8 +50,16 @@ owner's acceptance (P-084) and the m-5 merge are outstanding.
 
 ## Exact remaining functional gap
 
-1. **PR #434 is open.** "[PIPELINE] P06: the CommandService census no longer lets a class body enclose its methods
-   (WP9.3-2 review m-5)", branch `pipe/w9-census-class-scope`, head `d8cb0514456383e0c706485610388edbea9c7860`.
+1. **P-084 is not written.**
+2. **The WP9.3-2 independent review is not on `main`, or on any remote.** It exists only on local branch
+   `review/w9-wp9-3-2`.
+
+The m-5 fix is no longer part of the gap. The record of it, for P-084:
+
+- **PR #434 merged.** "[PIPELINE] P06: the CommandService census no longer lets a class body enclose its methods
+  (WP9.3-2 review m-5)". Branch `pipe/w9-census-class-scope`, head `d8cb0514456383e0c706485610388edbea9c7860`. Merged
+  by Stephen 2026-11-13 18:54 UTC as `80baa4a9ad187383b13ff5229d3b37af8e99188a`. The merge tree equals the head
+  (`git diff --quiet d8cb0514 80baa4a9`).
    - It changes one file: `tests/research_system/contracts/test_w9_wp9_3_censuses.py` (+206/-3). No production code.
    - First commit `92e55475`: the m-5 fix (a class body no longer encloses its methods).
    - Second commit `d8cb0514`: CodeRabbit's one thread, which the WP9.3-2 reviewer fixed. Definition-time expressions
@@ -58,15 +68,12 @@ owner's acceptance (P-084) and the m-5 merge are outstanding.
      `92e55475`'s census.
    - The thread is replied to and resolved.
    - CI at `d8cb0514`: all suite shards, `suite-verdict` and `windows-store-lock` passed. `merge-admission` was
-     **cancelled**, not failed. It was cancelled the same way on #429. Re-run it if Stephen wants it green.
-2. **P-084 is not written.**
-3. **The WP9.3-2 independent review is not on `main`, or on any remote.** It exists only on local branch
-   `review/w9-wp9-3-2`.
+     **cancelled**, not failed. It was cancelled the same way on #429.
 
 ## Next production action
 
-Ask Stephen whether to merge PR #434. Merging is his. Once he has, or says to proceed without it, draft P-084 for his
-acceptance (see "Decisions to record in P-084").
+Confirm the census's 273 rows at `80baa4a9`. Then draft P-084 for Stephen's acceptance (see "Decisions to record in
+P-084").
 
 ## Current state
 
@@ -78,8 +85,8 @@ acceptance (see "Decisions to record in P-084").
 - **Report:** `docs/plans/agentic-research-system/reviews/wp9-3-2-review-b98515c6-2026-11-11.md`, on that branch.
   - **First round at `b98515c6`:** accept with required changes. 0 Blocking, 0 Major, 4 Minor (m-1 to m-4), 8 Info
     (i-1 to i-8), no D-4. 1,698 tests passed.
-  - **Addendum at the merged tree `bc47fea8` (= `baea2c13`):** accept. 0 Blocking, 0 Major, 1 Minor (m-5, now PR
-    #434) and 2 Info (i-9, i-10). m-1 to m-4 and i-1 are closed. The re-check probes give 45 passed. The W9 and CLI
+  - **Addendum at the merged tree `bc47fea8` (= `baea2c13`):** accept. 0 Blocking, 0 Major, 1 Minor (m-5, fixed by
+    #434, merged as `80baa4a9`) and 2 Info (i-9, i-10). m-1 to m-4 and i-1 are closed. The re-check probes give 45 passed. The W9 and CLI
     regression gave 1,276 passed, 0 failed.
 - **Probes:** `docs/plans/agentic-research-system/reviews/wp9-3-2-review-artifacts/`. The two first-round files are
   kept as evidence of the defects at `b98515c6`, and the re-check probe file asserts their inverses.
@@ -140,6 +147,8 @@ gh pr view 432 --json state,headRefOid,mergeCommit,mergedAt
 git diff --quiet bc47fea8 baea2c13            # merge tree == head
 gh pr checks 434
 gh run view 43338626471 --json jobs           # merge-admission: cancelled
+gh pr view 434 --json state,headRefOid,mergeCommit,mergedAt   # MERGED as 80baa4a9
+git diff --quiet d8cb0514 80baa4a9            # merge tree == head
 git ls-remote --heads origin review/w9-wp9-3-2   # empty: not pushed
 git log --format='%h %s' -8 review/w9-wp9-3-2
 ```
@@ -154,8 +163,8 @@ git log --format='%h %s' -8 review/w9-wp9-3-2
 - **Genesis** (P-081 item 6, for the L-3 checklist): the addendum names itself as the review that verified the genesis
   path on the merged tree. Guard 8 holds 19 routed rows (LR-001, LR-003 to LR-020) and 42 deferred. A real W9 genesis
   on a scratch store replays.
-- **#434 changes only a test file.** It doesn't touch any D-4 identity, but confirm the census still gives 273 rows
-  after it merges.
+- **#434 changed only a test file.** It doesn't touch any D-4 identity. It has merged, so confirm the census still gives
+  273 rows and the same digest at `80baa4a9`. This was not checked when the handoff was updated.
 
 ## Results and provenance
 
@@ -177,14 +186,15 @@ Each item comes from the review report: §9, §13 and addendum A.7. Read the rep
 - **The later-pin checklist line** (P-083 item 5): the review supports dropping it now that n-1's hardening has merged.
   **Stephen's call. Ask him.**
 - **Intake rows 36 and 37 (i-5, i-10):** restate their "done" against `baea2c13`, not the branch name.
-- **Genesis:** the addendum is the L-3 genesis verification for the merged tree. If #434 merges, it changes only a
+- **Genesis:** the addendum is the L-3 genesis verification for the merged tree. #434 (`80baa4a9`) changed only a
   test, so the production tree that genesis covers is unchanged.
 - **Checklist carries:**
   - L-0b (i-2): confirm the export's region is the legacy region;
   - L-4 (i-4): S-014's freshness at LR-020, the post-batch re-run, and §10.1's owner facts.
 - **i-9:** Git replace refs could change what the anchor check sees, but only through deliberate tampering. A later
   hardening could pass `--no-replace-objects`. Record it, with no change asked.
-- **m-5:** a follow-up as PR #434. Record its merge, or that it is still open.
+- **m-5:** fixed in PR #434, merged as `80baa4a9`. Record that its second commit `d8cb0514` was written by the WP9.3-2
+  reviewer (see "Open risks").
 - **T2 CI failure at `4636bc4c`:** consistent with the known `WriterLock` flake. It did not reproduce in 900 local
   repeats. The flake stays with the `WriterLock` follow-up, outside WP9.3.
 - **P-081 item 3** probably needs its tenth amendment pointing at P-084, and its item 1 or 10 may also be touched.
@@ -193,9 +203,9 @@ Each item comes from the review report: §9, §13 and addendum A.7. Read the rep
 
 ## Open risks
 
-- **Independence of #434's second commit.** `d8cb0514` was written by the WP9.3-2 independent reviewer, not reviewed
-  by an independent session. Only CodeRabbit has looked at it. It is test-only. Tell Stephen, and let him decide
-  whether a short independent look is needed before he merges.
+- **Independence of #434's second commit.** `d8cb0514` was written by the WP9.3-2 independent reviewer, and no
+  independent session reviewed it. Only CodeRabbit looked at it before Stephen merged it. It is test-only. Say so in
+  P-084, and leave it to Stephen whether a short independent look is wanted after the merge.
 - **The review exists only on a local branch.** If that worktree is swept before P-084 copies the files, the review is
   lost. Don't sweep `w9-wp9-3-2-8a7ce5` until P-084 has merged.
 - **The main checkout is behind.** `C:/Users/steph/TDL` is on `main` at `a16310cb`, behind `origin/main`, and its hook
@@ -213,14 +223,14 @@ Each item comes from the review report: §9, §13 and addendum A.7. Read the rep
 ## Suggested skills
 
 `research-assurance-triage` (before accepting) · `commit-log` · `vault-sync` · `adversarial-design-review` (only if
-Stephen asks for an independent look at `d8cb0514`).
+Stephen asks for an independent look at `d8cb0514`, now on `main`).
 
 ## Branch / integration state
 
-- Base: `origin/main` at `a6a98966`.
+- Base: `origin/main` at `80baa4a9` (rebased from `a6a98966`).
 - This handoff: branch `docs/w9-wp9-3-handover`, worktree `C:/Users/steph/TDL/.claude/worktrees/w9-wp9-3-handover`,
   one file.
-- PR #434: 1 changed path against `main`.
+- PR #434: merged as `80baa4a9`, 1 changed path.
 - P-084's PR will be docs only. Expect the register, the WP9.3-2 record, the intake file, and the review report with
   its artifacts. That is a handful of paths, well under CodeRabbit's 100-file cap.
 - CodeRabbit must review before merge (memory: CodeRabbit must review before a PR merges). Read inline findings with
@@ -244,7 +254,8 @@ Stephen asks for an independent look at `d8cb0514`).
 - PR bodies: use `--body-file`, end with "🤖 Generated with [Claude Code](https://claude.com/claude-code)", and verify
   the published body byte for byte.
 - A merged PR's head SHA, not its branch tip, is what landed. Check `gh api repos/ZK-Theory/TDL/pulls/N --jq .head.sha`.
-- Don't sweep the review worktree, or the #434 worktree, before their content has merged.
+- Don't sweep the review worktree before P-084 has merged. The #434 worktree's content has merged, but sweeping any
+  worktree is still Stephen's call ("sweep worktrees").
 - Don't write anything under `results/`.
 
 ## Sensitive information redacted
