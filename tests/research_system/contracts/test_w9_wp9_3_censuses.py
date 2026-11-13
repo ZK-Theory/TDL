@@ -280,10 +280,14 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
     # Partial bindings are keyed by (lexical scope, name): a binding in one function never decides another function's
     # calls (CodeRabbit, #432). A scope is the chain of enclosing defs, classes and lambdas; a call resolves its name
     # from the innermost scope that binds it to a class value, as Python resolves a local before an enclosing name.
+    # A class body encloses nothing (review m-5, WP9.3-2 addendum): a free name in a method, a lambda or a nested
+    # class body resolves from the enclosing functions and the module, never from a class body around it. So a class
+    # scope is searched only for a call made in that class body itself.
     Scope = tuple[str, ...]
     partials: dict[tuple[Scope, str], bool] = {}  # with whether every partial binding there binds a check
     bound: set[tuple[Scope, str]] = set()  # every (scope, name) given a class value
     scope_of: dict[int, Scope] = {}
+    class_scopes: set[Scope] = set()
 
     def assign_scopes(node: ast.AST, scope: Scope) -> None:
         for child in ast.iter_child_nodes(node):
@@ -291,6 +295,8 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
             inner = scope
             if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
                 inner = (*scope, f"{getattr(child, 'name', '<lambda>')}@{child.lineno}:{child.col_offset}")
+                if isinstance(child, ast.ClassDef):
+                    class_scopes.add(inner)
             assign_scopes(child, inner)
 
     assign_scopes(tree, ())
@@ -298,6 +304,8 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
     def partial_flag(scope: Scope, name: str) -> bool | None:
         """The partial check flag of ``name`` as seen from ``scope``, or ``None`` when it resolves to no partial."""
         for depth in range(len(scope), -1, -1):
+            if depth < len(scope) and scope[:depth] in class_scopes:
+                continue  # an enclosing class body is not on a nested scope's resolution path (m-5)
             if (scope[:depth], name) in bound:
                 return partials.get((scope[:depth], name))
         return None
@@ -608,6 +616,68 @@ def test_the_service_census_sees_partial_and_string_lookups(source: str, expecte
     """Review n-3 (WP9.3-1b addendum; P-083 item 6): a construction through ``functools.partial`` or a constant-string
     lookup is a construction. Through ``partial``, only a check the ``partial`` call itself binds counts."""
     assert _service_constructions("fixture.py", source) == expected
+
+
+_PARTIAL_IMPORT = "from functools import partial\n\n"
+_UNCHECKED_PARTIAL = "partial(CommandService, 1)"
+_CHECKED_PARTIAL = "partial(CommandService, binding_check=check)"
+
+
+@pytest.mark.parametrize(
+    ("source", "trigger", "expected"),
+    [
+        (
+            f"{_PARTIAL_IMPORT}factory = {_UNCHECKED_PARTIAL}\n\ndef make(check):\n    class C:\n"
+            f"        factory = {_CHECKED_PARTIAL}\n        def build(self):\n            return factory()\n    return C\n",
+            "make('the check')().build()\n",
+            [("fixture.py", "make.C.build", 9, False)],
+        ),
+        (
+            f"{_PARTIAL_IMPORT}factory = {_UNCHECKED_PARTIAL}\n\ndef make(check):\n    class C:\n"
+            f"        factory = {_CHECKED_PARTIAL}\n        made = factory()\n    return C\n",
+            "make('the check')\n",
+            [("fixture.py", "make.C", 8, True)],
+        ),
+        (
+            f"{_PARTIAL_IMPORT}check = 'the check'\nfactory = {_CHECKED_PARTIAL}\n\nclass C:\n"
+            f"    factory = {_UNCHECKED_PARTIAL}\n    def build(self):\n        return factory()\n",
+            "C().build()\n",
+            [("fixture.py", "C.build", 9, True)],
+        ),
+        (
+            f"{_PARTIAL_IMPORT}def make(check):\n    factory = {_CHECKED_PARTIAL}\n    class C:\n"
+            f"        factory = {_UNCHECKED_PARTIAL}\n        def build(self):\n            return factory()\n    return C\n",
+            "make('the check')().build()\n",
+            [("fixture.py", "make.C.build", 8, True)],
+        ),
+        (
+            f"{_PARTIAL_IMPORT}factory = {_UNCHECKED_PARTIAL}\n\ndef make(check):\n    class A:\n"
+            f"        factory = {_CHECKED_PARTIAL}\n        class B:\n            made = factory()\n    return A\n",
+            "make('the check')\n",
+            [("fixture.py", "make.A.B", 9, False)],
+        ),
+    ],
+    ids=[
+        "method-skips-class-body",
+        "class-body-call",
+        "class-body-reverse-shadow",
+        "method-resolves-enclosing-function",
+        "nested-class-body-skips-outer-class",
+    ],
+)
+def test_a_class_body_does_not_enclose_its_methods(source: str, trigger: str, expected: list) -> None:
+    """Review m-5 (WP9.3-2 addendum): a free name in a method or a nested class body resolves from the enclosing
+    functions and the module, never from a class body around it; a call in the class body itself does see the class's
+    names. Before the fix the first and last cases were false passes and the third and fourth false failures. Each
+    case also runs the source with a recording stand-in, so Python itself confirms the expected verdict."""
+    assert _service_constructions("fixture.py", source) == expected
+    calls: list[object] = []
+
+    def recorder(*args: object, **kwargs: object) -> None:
+        calls.append(kwargs.get("binding_check", "unchecked"))
+
+    exec(compile(source + trigger, "fixture.py", "exec"), {"CommandService": recorder, "__name__": "fixture"})
+    assert calls == [("the check" if expected[0][3] else "unchecked")]
 
 
 def _service_name_strings(source: str) -> list[int]:
