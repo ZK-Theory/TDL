@@ -280,26 +280,62 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
     # Partial bindings are keyed by (lexical scope, name): a binding in one function never decides another function's
     # calls (CodeRabbit, #432). A scope is the chain of enclosing defs, classes and lambdas; a call resolves its name
     # from the innermost scope that binds it to a class value, as Python resolves a local before an enclosing name.
-    # A class body encloses nothing (review m-5, WP9.3-2 addendum): a free name in a method, a lambda or a nested
-    # class body resolves from the enclosing functions and the module, never from a class body around it. So a class
-    # scope is searched only for a call made in that class body itself.
+    # A class body encloses nothing (review m-5, WP9.3-2 addendum): a free name in a method, a lambda, a comprehension
+    # or a nested class body resolves from the enclosing functions and the module, never from a class body around it.
+    # So a class scope is searched only for a call made in that class body itself.
+    # Definition-time expressions run in the enclosing scope (CodeRabbit, #434): a def's decorators, defaults and
+    # annotations, a lambda's defaults, and a class's decorators, bases and keywords are evaluated where the statement
+    # runs, so for a method that is the class body. Only the body takes the new scope. Likewise a comprehension's first
+    # iterable is evaluated in the enclosing scope, and the rest in the comprehension's own scope.
     Scope = tuple[str, ...]
     partials: dict[tuple[Scope, str], bool] = {}  # with whether every partial binding there binds a check
     bound: set[tuple[Scope, str]] = set()  # every (scope, name) given a class value
     scope_of: dict[int, Scope] = {}
     class_scopes: set[Scope] = set()
+    comprehension_scopes: set[Scope] = set()
+    comprehensions = ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp
+
+    def definition_time(node: ast.AST) -> list[ast.AST]:
+        """The parts of a def, lambda, class or comprehension evaluated in the scope around it."""
+        parts: list[ast.AST | None] = []
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+            arguments = node.args
+            parts += [*arguments.defaults, *arguments.kw_defaults]
+            if not isinstance(node, ast.Lambda):
+                every = [*arguments.posonlyargs, *arguments.args, *arguments.kwonlyargs]
+                every += [arguments.vararg, arguments.kwarg]
+                parts += [argument.annotation for argument in every if argument is not None]
+                parts += [*node.decorator_list, node.returns]
+        elif isinstance(node, ast.ClassDef):
+            parts += [*node.decorator_list, *node.bases, *node.keywords]
+        elif isinstance(node, comprehensions):
+            parts.append(node.generators[0].iter)
+        return [part for part in parts if part is not None]
 
     def assign_scopes(node: ast.AST, scope: Scope) -> None:
         for child in ast.iter_child_nodes(node):
             scope_of[id(child)] = scope
             inner = scope
-            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda):
-                inner = (*scope, f"{getattr(child, 'name', '<lambda>')}@{child.lineno}:{child.col_offset}")
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.Lambda | comprehensions):
+                label = getattr(child, "name", "<lambda>" if isinstance(child, ast.Lambda) else "<comprehension>")
+                inner = (*scope, f"{label}@{child.lineno}:{child.col_offset}")
                 if isinstance(child, ast.ClassDef):
                     class_scopes.add(inner)
+                elif isinstance(child, comprehensions):
+                    comprehension_scopes.add(inner)
             assign_scopes(child, inner)
+            for part in definition_time(child):  # re-scoped, with everything inside it, to the enclosing scope
+                scope_of[id(part)] = scope
+                assign_scopes(part, scope)
 
     assign_scopes(tree, ())
+
+    def binding_scope(node: ast.AST) -> Scope:
+        """Where an assignment binds: a walrus in a comprehension binds in the scope around it (PEP 572)."""
+        scope = scope_of[id(node)]
+        while isinstance(node, ast.NamedExpr) and scope in comprehension_scopes:
+            scope = scope[:-1]
+        return scope
 
     def partial_flag(scope: Scope, name: str) -> bool | None:
         """The partial check flag of ``name`` as seen from ``scope``, or ``None`` when it resolves to no partial."""
@@ -396,7 +432,7 @@ def _service_constructions(path: str, source: str) -> list[tuple[str, str, int, 
                 written = node.targets if isinstance(node, ast.Assign) else [node.target]
                 targets = [target.id for target in written if isinstance(target, ast.Name)]
                 names.update(targets)
-                scope = scope_of[id(node)]
+                scope = binding_scope(node)
                 flag: bool | None = None
                 if is_partial(node.value):
                     flag = has_check(node.value)
@@ -670,13 +706,110 @@ def test_a_class_body_does_not_enclose_its_methods(source: str, trigger: str, ex
     functions and the module, never from a class body around it; a call in the class body itself does see the class's
     names. Before the fix the first and last cases were false passes and the third and fourth false failures. Each
     case also runs the source with a recording stand-in, so Python itself confirms the expected verdict."""
+    _assert_census_matches_python(source, trigger, expected)
+
+
+# The module-level partial passes a check and the class-body one does not, so a construction evaluated in the class
+# body is unchecked, and the census must not resolve it past the class body to the module (CodeRabbit, #434).
+_SHADOWED = f"{_PARTIAL_IMPORT}check = 'the check'\nfactory = {_CHECKED_PARTIAL}\n\nclass C:\n    factory = {_UNCHECKED_PARTIAL}\n"
+_KEEP = "(lambda function: function)"
+
+
+@pytest.mark.parametrize(
+    ("source", "trigger", "expected"),
+    [
+        (
+            f"{_SHADOWED}    def build(self, made=factory()):\n        return made\n",
+            "",
+            [("fixture.py", "C.build", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    def build(self, *, made=factory()):\n        return made\n",
+            "",
+            [("fixture.py", "C.build", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    @(factory() or {_KEEP})\n    def build(self):\n        return None\n",
+            "",
+            [("fixture.py", "C.build", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    def build(self) -> factory():\n        return None\n",
+            "",
+            [("fixture.py", "C.build", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    def build(self, made: factory()):\n        return made\n",
+            "",
+            [("fixture.py", "C.build", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    pick = lambda made=factory(): made\n",
+            "",
+            [("fixture.py", "C", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    class B(factory() or object):\n        pass\n",
+            "",
+            [("fixture.py", "C.B", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    @(factory() or {_KEEP})\n    class B:\n        pass\n",
+            "",
+            [("fixture.py", "C.B", 8, False)],
+        ),
+        (
+            f"{_SHADOWED}    made = [factory() for _ in range(1)]\n",
+            "",
+            [("fixture.py", "C", 8, True)],
+        ),
+        (
+            f"{_SHADOWED}    made = [item for item in [factory()]]\n",
+            "",
+            [("fixture.py", "C", 8, False)],
+        ),
+        (
+            f"{_PARTIAL_IMPORT}factory = {_UNCHECKED_PARTIAL}\n\ndef f(check):\n"
+            f"    [(factory := {_CHECKED_PARTIAL}) for _ in range(1)]\n    return factory()\n",
+            "f('the check')\n",
+            [("fixture.py", "f", 7, True)],
+        ),
+    ],
+    ids=[
+        "method-default",
+        "method-keyword-default",
+        "method-decorator",
+        "method-return-annotation",
+        "method-argument-annotation",
+        "lambda-default",
+        "nested-class-base",
+        "nested-class-decorator",
+        "comprehension-body-skips-class-body",
+        "comprehension-first-iterable-sees-class-body",
+        "walrus-in-comprehension-binds-around-it",
+    ],
+)
+def test_definition_time_expressions_run_in_the_enclosing_scope(source: str, trigger: str, expected: list) -> None:
+    """CodeRabbit on #434: decorators, defaults, annotations, class bases and a comprehension's first iterable are
+    evaluated in the scope around the statement, so for a method that is the class body. A comprehension's body is
+    its own scope, which a class body does not enclose; a walrus inside it binds in the scope around it. Each case
+    runs through Python with a recording stand-in, which decides the expected verdict."""
+    _assert_census_matches_python(source, trigger, expected)
+
+
+def _assert_census_matches_python(source: str, trigger: str, expected: list) -> None:
+    """The census's verdict is ``expected``, and running ``source`` then ``trigger`` with a recording stand-in for
+    ``CommandService`` shows Python making exactly that one construction, checked or not."""
     assert _service_constructions("fixture.py", source) == expected
     calls: list[object] = []
 
     def recorder(*args: object, **kwargs: object) -> None:
         calls.append(kwargs.get("binding_check", "unchecked"))
 
-    exec(compile(source + trigger, "fixture.py", "exec"), {"CommandService": recorder, "__name__": "fixture"})
+    # dont_inherit: this module's ``from __future__ import annotations`` would otherwise make the fixtures' annotations
+    # lazy strings, and the annotation cases would construct nothing.
+    code = compile(source + trigger, "fixture.py", "exec", dont_inherit=True)
+    exec(code, {"CommandService": recorder, "__name__": "fixture"})
     assert calls == [("the check" if expected[0][3] else "unchecked")]
 
 
