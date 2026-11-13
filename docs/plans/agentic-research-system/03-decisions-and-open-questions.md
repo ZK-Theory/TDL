@@ -5133,6 +5133,10 @@ Owner point K is withdrawn: it rested on a misreading of LR-020's fixture set (r
    store with no pointer but any `objects/binding-repair/` object, which no crash removes, is refused under the lock,
    whether the process loaded a binding before binding or started fresh (P-083 item 5, corrected 2026-11-11 on
    CodeRabbit's comment on PR #430; Stephen, in chat: "Yes, revise both").
+   **Amended a tenth time 2026-11-13** (P-084 item 5; Stephen, in chat: "Drop it (Recommended)"). The hardening merged in WP9.3-2
+   (`baea2c13`, PR #432). It covers a binding loaded before the lock, a fresh process and a real absent-final crash,
+   so the checklist line "No ARS CLI writer ran from the old checkout after the advance, and no advance on the store
+   ended without publishing its new binding." is dropped. The rest of a later pin's checklist is unchanged.
 4. **The W9 evidence area (D)** is `.research-system/evidence/w9/`. WP9.3 fixes the reader-side formats of the files it
    reads there (the registration manifest, the detector control-output hashes, the shared-surface change list and the
    export). WP9.5 writes to those formats, and WP9.7 keeps D-9's suffix list there (note §11.1).
@@ -5517,6 +5521,177 @@ is merged and accepted. It carries no D-4.<br>
 item 3); the WP9.3 note §4.6 and §5.2 (i-1, read as item 3) and §12 (the tools, read as item 3); the WP9.3-1b record
 (merged and accepted).<br>
 **Migration consequence:** None. The CLI admission of item 4 already applies at `fbb99ce0`.
+
+### P-084 - WP9.3-2 accepted at `baea2c13`, its independent review, the readings, the later-pin checklist line, and WP9.3 complete
+
+**Date:** 2026-11-13<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-13). WP9.3-2, the last WP9.3 PR (P-081 item 1, as P-082 item 5
+amends it), is merged and accepted, and with it WP9.3 is complete. It carries no D-4.<br>
+**Authority:** Stephen, in chat:
+- 2026-11-11: answering the WP9.3-2 plan's Q1 to Q3, "Partial list + show", then "Yes, as recommended" for all three
+  (relayed by the Gate 7 handover session; WP9.3-2 record, Authority);
+- 2026-11-11: he approved sending the implementer the review's m-1 to m-4 and i-1, beyond CodeRabbit's threads (review
+  addendum, first bullet);
+- 2026-11-12 and 2026-11-13: he merged PR #432 and then PR #434;
+- 2026-11-13, for the later-pin checklist line: "Drop it (Recommended)";
+- 2026-11-13, for an independent look at `d8cb0514`: "Record, no look (Recommended)";
+- 2026-11-13, for R9, which the review's §9 table marks for a register entry but its §13 and A.7 lists omit: "Include
+  R9 (Recommended)";
+- 2026-11-13, for this entry: "Accept, open the PR".<br>
+**Evidence:**
+- **The merge.** PR #432 merged on 2026-11-12 at 03:13 UTC as `baea2c13a4a28f30cf38f2a5c51fdd6a063db510`, from head
+  `bc47fea828908522abb118bd27ee7ec250af8627`. The merge tree equals the head (`4b75ada8`; `git diff --quiet bc47fea8
+  baea2c13`). Three commits sit on the first-round head `b98515c6`:
+  - `4636bc4c`: CodeRabbit's fourteen findings and the review's further fixes;
+  - `26f9af91`: CodeRabbit's second pass;
+  - `bc47fea8`: CodeRabbit's third pass, which changes only the census test and the record.
+
+  Record §10 lists every CodeRabbit and review finding with its fix and control.
+- **The independent review:** `reviews/wp9-3-2-review-b98515c6-2026-11-11.md` (blob `e25fc2d1`, SHA-256
+  `03aae0ba…4738`, 52,997 bytes), with its probes in `reviews/wp9-3-2-review-artifacts/`. Both are unchanged from
+  `review/w9-wp9-3-2` at `667d8df0`. The reviewer wrote none of WP9.3-2, WP9.3-1, WP9.3-1b, the WP9.3 note and
+  `w9-segmentation/1.0.0`.
+  - **At `b98515c6`:** accept with required changes. It found 0 Blocking, 0 Major, 4 Minor (m-1 to m-4) and 8 Info
+    (i-1 to i-8). Its regression gave 1,698 passed over 47 files.
+  - **Its addendum at the merged tree:** accept. It found 0 Blocking, 0 Major, 1 Minor (m-5) and 2 Info (i-9, i-10).
+    m-1 to m-4 and i-1 are closed, each by a re-check probe through the guard's own predicate. The re-check file gave
+    45 passed. The W9 and CLI regression (shard A) gave 1,276 passed, none failed or skipped. The W11 and binding shards
+    were not re-run, since no commit after `b98515c6` touches `discovery/`, `store/`, `command/` or a W11 file.
+  - **Some probes assert the defects they found, so they fail on `main` by design.** At `26f9af91` the two first-round
+    files gave 11 failed, exactly their finding probes. The m-5 probe in the re-check file fails at `80baa4a9`, because
+    #434 fixed m-5 (run for this entry, 2026-11-13). The files sit under `docs/`, outside pytest's `testpaths`.
+- **The m-5 follow-up, PR #434.** It merged on 2026-11-13 at 18:54 UTC as `80baa4a9ad187383b13ff5229d3b37af8e99188a`,
+  from head `d8cb0514`, and the merge tree equals the head. It changes one file,
+  `tests/research_system/contracts/test_w9_wp9_3_censuses.py` (+206/-3), and no production code.
+  - `92e55475` fixes m-5: a class body no longer encloses its methods.
+  - `d8cb0514` takes CodeRabbit's one thread. Definition-time expressions (decorators, defaults, annotations, class
+    bases and keywords) take the scope around the statement, and comprehensions are scopes. Its eleven fixtures are
+    each confirmed by running the source, and 9 of them fail against `92e55475`'s census. This closes the
+    comprehension case that #434's PR body still lists as a "known residual".
+  - **Independence:** the WP9.3-2 independent reviewer wrote `d8cb0514`. No independent session has reviewed it, and
+    only CodeRabbit looked at it before the merge. It is test code only.
+  - **CI at `d8cb0514`:** every suite shard, `suite-verdict` and `windows-store-lock` passed. `merge-admission` ran
+    three times: two runs were cancelled, and the third (run 43338692755) succeeded. `gh pr checks` reports it as a
+    failure anyway.
+- **No D-4.** Checked at `80baa4a9` for this entry on 2026-11-13:
+  - the runtime-binding census is 273 rows, `0cca0414…4712`. The WP9.3-1b review's D-4 probe passes, and so does the
+    06h smoke census test;
+  - the 06h manifest is still blob `4c895042`, the smoke test still blob `559d684a`, and `tools/w9_segmentation.py`
+    still blob `43e1454d`;
+  - `.research-system/`, `research_system/`, `tools/` and `tests/research_system/smoke/` have the same tree IDs at
+    `baea2c13` and at `80baa4a9`.
+- **The T2 failure at `4636bc4c`** (review A.5). `suite (2)` of run 43119701363 failed
+  `test_t2_authority_lock_domain_wins_before_revocation[AuthorizeProviderIssue]` with the known `WriterLock` message.
+  The code under test is unchanged since the WP9.3-1b review measured the flake. 900 local repeats gave 0 failures.
+  The match rests on the message, the parameter and the unchanged code, not on a repeat, and the failure does not
+  count against WP9.3-2.
+
+**Decision:**
+1. **WP9.3-2 is accepted** as merged at `baea2c13` (#432, head `bc47fea8`), with its record,
+   `transition/w9/wp9-3-2-record.md`. P-083 items 5 and 6 are met:
+   - n-1: "never bound" is read from durable store evidence under the writer lock (R1);
+   - n-3: the `CommandService` census follows `functools.partial`, attribute and namespace lookups, import aliases,
+     annotated assignments and walruses, with R2's residue (item 4);
+   - n-4: the handler-level refusal probe covers the five commands;
+   - O9: the builder's batch mode, under Q1.
+
+   LR-016 to LR-020 are routed and checked as note §6.2 and §10 assign them. F-8's second limb holds. The export and
+   its recheck are two implementations, and the `.apm/` tools only read (review §1, §3 to §7).
+2. **Stephen's answers to the WP9.3-2 plan (2026-11-11),** recorded here as record §3 and review §9 ask:
+   - **Q1:** batch mode prints the derived ownership list's fixed parts, and marks each record's `record_id`,
+     `created_at` and `content_hash` "assigned at LR-016". `ars legacy show` prints the stored list after LR-016
+     (record §4 item 11);
+   - **Q2:** a `pilot_promotion` fixture outside LR-020's seven is refused. This is stricter than note §10.2, which
+     states only the four unconditional fixtures;
+   - **Q3:** the "Format fixed by" column of the W9 paths addendum's export row also cites `w9-cl-export/1`, as a
+     dated amendment.
+
+   **Departure:** Q3 changes an addendum's text (`implementation/06v-addendum-2026-11-10-w9-paths.md`, "Amendments",
+   2026-11-11). The same amendment fixes the change list's file name, `shared-surface-changes.json` (row 27 asked
+   WP9.3-2 to fix it, so no owner decision was needed), and re-cites the `evidence.py` line numbers.
+3. **Readings** (record §4; review §9 and A.2). Each is recorded as the reading of the text it names:
+   - **R1** (P-083 item 5's "any object"): "never bound" means no pointer and no `objects/binding-repair/` directory,
+     decided under the lock. An empty directory counts as bound (i-6). That refuses too much, never too little, and
+     recovery is an owner operation;
+   - **R3** (note §10.3): "the commit adds or changes a file" is read against the commit's first parent, or against
+     the empty tree for a root commit. Since m-3's fix, a shallow repository and a failed parent lookup both refuse
+     (`acceptance.py:78-96`);
+   - **R4** (§10.4): the declared change-list blob is the list's blob at `git_head`, and the named commit is an
+     ancestor of `git_head` (or `git_head` itself) that holds it;
+   - **R5** (§10.4): a registration is "among an entry's affected results" by its `root_kind`, `root_id` and
+     `normalized_path`;
+   - **R7** (§12.2): the export's `segmentation` member is the reference tool's `segment()` output, verbatim, and its
+     other members are L-0b's envelope;
+   - **R8** (§5.5): a batch is the analyst's own proposal, so §5.5's analyst-creator rule does not refuse its analyst
+     as requester. LR-017's reviewer exclusions still apply;
+   - **R9** (§12.4): the closure map is an operator-supplied `w9-apm-closure-map/1` JSON, recomputed at its records'
+     content hashes, with no store record in v1 (P-071 item 4). m-4's fixes have landed;
+   - **R10** (§7.2): at LR-016 and LR-020, a `git_tracked` item's re-read is compared by location and bytes, not by
+     `git_commit`;
+   - **R11** (§10.1): "the latest for its source and selector" compares a `json_family_set` selector's `family_names`
+     as a set (i-1's fix);
+   - **R12** (D-7; addendum row 28): the export's retained copy must be a file under `.research-system/evidence/w9/`,
+     named in normal POSIX form;
+   - **i-3** (§10.2's "the reviewer marks each conditional fixture's applicability"): the closed schema has no
+     applicability field, so a conditional `pilot_promotion` fixture that is listed is applicable, and one that is
+     absent is not. This is fixed when the reviewer approves the hash and Stephen resolves on it.
+
+   R6 and the extra re-read of the detector controls are not readings: the schema forces R6, and the re-read is
+   stricter than §6.2.
+4. **R2 is a known limit.** A class name computed at run time (`"Command" + "Service"`, or a name read from data)
+   escapes an AST census. It joins note §18's census-reach review question, widened to `CommandService`. With m-1's fix
+   and #434, every other form the reviews named is seen, the walrus included, so no other limit joins it.
+5. **The later-pin checklist line is dropped** ("Drop it (Recommended)"). P-083 item 5 set the trigger: the line "is
+   dropped when that hardening merges, not on a check that covers only a binding loaded before the lock." The
+   hardening merged in `baea2c13`. It covers a binding loaded before the lock, a fresh writer in the same process and
+   one in a separate interpreter, and an absent-final crash injected inside the real anchor transaction. Its n-1 probes
+   pass on the merged tree (review §7 and A.7 item 3). The line, "No ARS CLI writer ran from the old checkout after the
+   advance, and no advance on the store ended without publishing its new binding.", is dropped from a later pin's
+   checklist. The rest of P-081 item 3's checklist (the drain, the grant fence, and the grant-free known limit) is
+   unchanged. This amends P-081 item 3 for the tenth time.
+6. **Genesis, for the L-3 checklist (P-081 item 6).** The review's addendum (A.4) verifies the genesis path of the
+   merged tree, `baea2c13` (tree `4b75ada8`). Guard 8 holds 19 routed rows (LR-001 and LR-003 to LR-020) and 42
+   deferred, and refuses a missing, overlapping or mistagged row. A real W9 genesis on a scratch store replays through
+   every public replay. #434 changed only a test file, so the production tree that the addendum covers is unchanged at
+   `80baa4a9`. The L-3 checklist names this addendum when L-3's checkout has the same `research_system/` and
+   `.research-system/` trees (`a9693e7f` and `f38e5965`). Otherwise it names the review that verifies that checkout.
+7. **Checklist carries.** No L-0b or L-4 checklist document exists yet (i-4), so this entry collects these lines until
+   one does:
+   - **L-0b (i-2):** the export recheck checks the region the export declares, not that it is the legacy region. L-0b's
+     checklist confirms that the export's region is the legacy region, through L-0b's classified list and Stephen's
+     acceptance of it (P-068 item 4; note §11.3);
+   - **L-4 (i-4):** S-014's freshness at LR-020 (P-081 item 11), and the post-batch re-run that W9 §12.3 requires;
+   - **L-4 (i-4):** note §10.1's owner facts. Gate 7 is opened, and G7-A, G7-B and G7-C are accepted.
+8. **i-9 is recorded, with no change asked.** `rev-list --parents` and `diff-tree` honour `refs/replace/` and a legacy
+   `info/grafts` file. A deliberately edited object database in the bound checkout could therefore make a commit seem
+   to introduce bytes it did not. The bound checkout is the operator's and must be clean at `git_head`, so this needs
+   deliberate tampering. A later hardening could pass `--no-replace-objects`.
+9. **m-5 is fixed** by PR #434 (`80baa4a9`). Its second commit was written by the WP9.3-2 reviewer and reviewed only by
+   CodeRabbit (Evidence). Stephen chose "Record, no look (Recommended)": the gap is recorded here and no further review
+   is asked. The commit is test code only, and each fixture's expected verdict comes from running the source in Python,
+   not from its author.
+10. **The "done" claims are restated against the merge commit (i-5, i-10).** Rows 36 and 37 of the Gate 7+ intake list
+    now cite `baea2c13` (#432) instead of the branch. The `evidence.py:36` to `:43` line numbers in the paths addendum
+    hold at `baea2c13` and at `80baa4a9`. This was checked by reading for this entry, and no test binds them.
+11. **WP9.3 is complete.** Its packages are WP9.3-1 (#420, P-082), WP9.3-1b (#428 and #429, P-083) and WP9.3-2 (#432,
+    this entry), with the m-5 follow-up #434. Every W9 legacy-route row, LR-003 to LR-020, is routed and checked, from
+    its replay and preparer checks through to this acceptance. The carried items n-1, n-3, n-4 and O9 are closed, and
+    D-4 stands at P-082's values. 06v WP9.3 is done.
+
+**Not decided here:**
+- The pre-existing T2 `WriterLock` release flake. It stays with its follow-up, outside WP9.3.
+- The test-runtime growth. WP9.3-2 adds about 4.4 minutes (record §7), and the escalation stays open (P-082, P-083).
+- The segmentation readings R-1 to R-8 that are still open (P-082, "Not decided here").
+- WP9.4 to WP9.7; any live operation L-0 to L-5, the D-7 baseline export included; a real store, or genesis or a grant
+  on one; and any legacy write. This entry opens none of them, and each needs Stephen's own dispatch.
+
+**Capability status:** Gate 7 is OPEN, INCOMPLETE. WP9.3 is complete.<br>
+**Boundary:** Docs only.<br>
+**Affected specifications:** 06v WP9.3 (done); P-081 item 3 (item 5) and item 6 (item 6); P-083 items 5 and 6 (met);
+the WP9.3 note §5.5, §7.2, §10.1 to §10.4 and §12.2 to §12.4 (read as item 3), §10.2 (Q2 and i-3), §12.1 (Q1) and §18
+(R2); the W9 paths addendum (Q3, the departure in item 2); the Gate 7+ intake list, rows 36 and 37 (item 10); the
+WP9.3-2 record (merged and accepted).<br>
+**Migration consequence:** None.
 
 ## Decision protocol
 

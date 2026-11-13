@@ -1,8 +1,9 @@
 # WP9.3-2: the closed-reference acceptance (LR-016 to LR-020), the derived ownership list, the export recheck and the `.apm/` inventories
 
 **Date:** 2026-11-11<br>
-**Status:** Revision 1, for review. The PR is open for CodeRabbit. WP9.3-2 gets its own independent review in a separate
-session (P-081 item 6), and Stephen merges and accepts it.<br>
+**Status:** Revision 1, merged as `baea2c13` (PR #432, head `bc47fea8`) and accepted (P-084). The independent review (`reviews/wp9-3-2-review-b98515c6-2026-11-11.md`) gave accept at the
+merged tree in its addendum, and its one follow-up, m-5, merged as `80baa4a9` (PR #434). P-084 records Q1 to Q3, the §4
+readings, the later-pin checklist line and WP9.3's completion.<br>
 **Package:** 06v WP9.3, the second and last WP9.3 PR (owner point A; P-081 item 1, as P-082 item 5 amends it).<br>
 **Authority:**
 - P-080; P-081 with all its amendments;
