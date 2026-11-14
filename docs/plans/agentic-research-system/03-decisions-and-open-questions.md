@@ -5560,6 +5560,13 @@ amends it), is merged and accepted, and with it WP9.3 is complete. It carries no
   - **Some probes assert the defects they found, so they fail on `main` by design.** At `26f9af91` the two first-round
     files gave 11 failed, exactly their finding probes. The m-5 probe in the re-check file fails at `80baa4a9`, because
     #434 fixed m-5 (run for this entry, 2026-11-13). The files sit under `docs/`, outside pytest's `testpaths`.
+  - **One tree assertion is tied to the review's checkout.** The last line of the re-check file's
+    `test_the_merged_tree_is_bc47fea8_and_differs_from_26f9af91_only_in_the_census_test_and_the_record` compares
+    `bc47fea8` with the checkout's live `HEAD` over `research_system/` and `tests/`. It held on `review/w9-wp9-3-2`,
+    whose trees equal `bc47fea8`'s. After #434 it fails on `main` and on this entry's branch, because #434 changed the
+    census test (CodeRabbit on PR #436; confirmed 2026-11-14). The review's bytes are kept as the reviewer ran them
+    (Stephen, in chat, 2026-11-14: "Keep bytes, note in P-084 (Recommended)"). The pinned-revision assertions before it
+    still hold.
 - **The m-5 follow-up, PR #434.** It merged on 2026-11-13 at 18:54 UTC as `80baa4a9ad187383b13ff5229d3b37af8e99188a`,
   from head `d8cb0514`, and the merge tree equals the head. It changes one file,
   `tests/research_system/contracts/test_w9_wp9_3_censuses.py` (+206/-3), and no production code.
