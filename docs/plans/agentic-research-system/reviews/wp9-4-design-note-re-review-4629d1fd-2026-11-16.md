@@ -590,8 +590,7 @@ or whole root against W9 §12.1, as a departure if whole root is kept (R-M6).
 ## 6. Probes
 
 **File:** `wp9-4-design-note-re-review-artifacts/test_re_review_wp9_4_note_probes.py`, SHA-256
-`dd16d9d340b8ba21f07baf2c112624d1f68d01f1f29a4b1f16c55c859c43ea3a` before this report's commit (the pre-commit hook may
-reformat it; the committed blob is the reference).
+`dd16d9d340b8ba21f07baf2c112624d1f68d01f1f29a4b1f16c55c859c43ea3a`, unchanged by the pre-commit hook.
 
 **Command**, from the worktree root at `4629d1fd`:
 
@@ -665,8 +664,11 @@ on indirect citations; operator burden from more grants (WP9.3 note §5.3 alread
 
 ## 9. Commits and process
 
-- `git config core.hooksPath` is `.githooks` in this worktree. The report and the probes were committed through the
-  pre-commit gate (see the commit for its outcome).
+- `git config core.hooksPath` is `.githooks` in this worktree. The report and the probes were committed as `9cd60a9d`
+  through the pre-commit gate, with no bypass: the pack-pin check (12 checked, 0 drifted), ruff, ruff format and the
+  contract framework (104 contracts) passed. The two `results/trajectory_tda_integration/01_trajectories_sequences.json`
+  tests the brief warned of did not fail here: this machine has the file at `PROJ_ROOT`. The hook left the probe file's
+  bytes unchanged (SHA-256 `dd16d9d3…43ea3a`).
 - No file under `papers/`, `results/`, `.apm/`, `research_system/`, `tests/`, the note, the register, the annex or any
   schema was edited. No ARS store was written.
 - This review decides no owner point and accepts nothing.
