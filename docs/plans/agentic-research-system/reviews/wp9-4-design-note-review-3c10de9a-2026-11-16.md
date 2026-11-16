@@ -645,7 +645,9 @@ extractor's set and the reviewer's derivation may still differ on indirect citat
   - `tests/discovery/test_mcbif_employment_contract.py::test_mcbif_employment_result_contract_rejects_invalid_payloads`:
     `FileNotFoundError` for the same file.
 
-  That file is gitignored data this cloud container does not have. Under the brief, I stopped: **nothing is committed or
-  pushed**, and `--no-verify` was not used. This report and the probe file are in the working tree of
-  `review/w9-wp9-4-note`, with the probe file staged.
+  That file is gitignored data this cloud container does not have. Under the brief, I stopped and reported it. Stephen
+  then told me, in chat on 2026-11-16, to commit around the gate. The report and the probes were committed with
+  `--no-verify` as `7f3f93d` on `review/w9-wp9-4-note` and pushed, and this correction was committed the same way.
+  `ruff check` was run by hand on the probe file and is clean. The contract gate should be re-run on a checkout that
+  has the data file.
 - **No store, no vault, no `.apm/`, no `results/`** was written. `papers/` was read through Git only.
