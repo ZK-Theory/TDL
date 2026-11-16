@@ -5700,6 +5700,56 @@ the WP9.3 note §5.5, §7.2, §10.1 to §10.4 and §12.2 to §12.4 (read as item
 WP9.3-2 record (merged and accepted).<br>
 **Migration consequence:** None.
 
+### P-085 - W9 implementation authorized for WP9.4, design note first
+
+**Date:** 2026-11-16<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-16). WP9.3 is complete (P-084, PR #436).<br>
+**Authority:** Stephen, in chat, 2026-11-16, after PR #436 merged: "close 9.3 a nd move on to the next stages". Asked
+which package comes next, he chose "WP9.4, note first (Recommended)". The option read: "Adoption, discharge and
+citation status. A design note comes first with an independent review, then the code. It adds commands, so it carries a
+D-4 re-acceptance. Scratch stores only; L-0 to L-5 stay unauthorized. Same shape as P-080 for WP9.3."<br>
+**Evidence:** Checked at `4312dc63` on 2026-11-16, before this entry: the runtime-binding census is 273 rows,
+`0cca0414…4712`; the 06h manifest is blob `4c895042`, the smoke test blob `559d684a` and `tools/w9_segmentation.py`
+blob `43e1454d`; `research_system/`, `.research-system/`, `tools/` and `tests/research_system/smoke/` have the tree IDs
+they had at `baea2c13`. The census contract tests and the 06h smoke tests gave 110 passed.<br>
+**Decision:**
+1. **WP9.4** (06v §5, "Adoption, discharge and citation status") is authorized as one package, with the split 06v D-6
+   allows if its note or its review asks for one. Its rows are the ones the legacy route table tags `WP9.4`
+   (`research_system/legacy/routes.py:450-454`): LR-023, LR-026 to LR-035 and LR-039 to LR-055. A row moves between
+   packages only by a later owner decision on the note.
+2. **Order.**
+   1. A WP9.4 design note comes first. It gets an independent adversarial review in a fresh session, and Stephen
+      decides its owner points.
+   2. Then the code, with its own independent review, CodeRabbit, D-4 for the command rows it adds, and Stephen's
+      merge.
+3. **Carried obligations.** The design note addresses each one:
+   - U-5, U-6 and U-9 (06v §2.8), each recorded with `path:line` before any code;
+   - F-8's first limb at every WP9.4 resolution: the resolving Decision's proposal named the record by its
+     pre-assigned ID and exact content hash (WP9.2-2 record §7);
+   - adoption suspension, including what follows from an observation that WP9.3 projects as stale (P-081 item 12's
+     O-33 addition; WP9.3 note §7.2);
+   - the kind of an adoption's successor use (stage B note §7; WP9.3 note §3 row 9);
+   - O-31 as Stephen read it in P-073 item 4: the full-path rows are built and tested, and refuse until their W9 §4.5
+     gate.
+4. **Scratch stores** only, as P-076 item 3 defines them. No existing store is written, including
+   `C:/Users/steph/TDL-ARS-G6-Control` and the named scratch stores.
+
+**Not authorized:**
+- WP9.5 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export and the real adoptions, discharges, citation
+  statuses and transitions WP9.4's commands will later run;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file, and any paper-root transition (P-073 item 4).
+
+Each needs a later decision.<br>
+**Not decided here:** the open items P-084 lists (the T2 `WriterLock` flake, the test-runtime escalation, and the
+segmentation readings R-1 to R-8).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** WP9.4's code under `research_system/legacy/`, its runtime-binding rows, tests and docs. Census, manifest
+and append-site changes go to D-4.<br>
+**Affected specifications:** 06v WP9.4 (started).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
 ## Decision protocol
 
 Each future decision entry must record:
