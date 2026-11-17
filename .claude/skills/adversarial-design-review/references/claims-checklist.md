@@ -150,11 +150,18 @@ A fix a reviewer prescribed, carried into the next draft.
 "Code cannot enforce X", "X is recorded, not proved", "code cannot refuse X". These are absence claims about code
 paths.
 
+The positive form, "X always requires Y", is checked the same way, and also inside the seam.
+
 - **Author:** enumerate every path that reaches the seam before saying none of them checks, with the same
   registry-aware closure that backs a caller-inventory claim (`writing-plans-extras`, "Caller-Inventory Closure").
+  Before writing "X always requires Y", list the enforcing function's early returns and parameter branches, and say
+  which of them require Y.
 - **Reviewer:** require a census of every path that reaches the seam (each production constructor and the admission it
-  goes through), not one function's docstring.
-- **Source:** `2026-11-08-enforcement-impossibility-claim-cited-one-function`.
+  goes through), not one function's docstring. For "X always requires Y", enumerate the enforcing function's early
+  returns and parameter branches and probe one case per branch. A rule that holds on one branch only is not "always".
+- **Source:** `2026-11-08-enforcement-impossibility-claim-cited-one-function`;
+  `2026-11-16-gate-claim-held-on-one-predicate-branch-only` (`_claim_promotion_binding` returns `[]` for every
+  predicate but `claim_evidence`, so a manuscript promotion binds no Decision).
 
 ## Wiring claims
 
@@ -181,15 +188,18 @@ A finding or owner point asks Stephen to decide or fix a rule.
 
 ## Carried obligations
 
-Register sentences that name the package ("Carried to <package>", "<package> validates …").
+Register sentences that name the package ("Carried to <package>", "<package> validates …"), and rows in the other
+lists that route work to a package: the Gate 7+ intake list's §2 and the 06v addenda.
 
-- **Author:** run `grep -n "<package>" docs/plans/agentic-research-system/03-decisions-and-open-questions.md` and
-  enter every such sentence in the obligation register with a keep or depart disposition (`writing-plans-extras`,
-  "Forward-Obligation Scan" step 7). A forward obligation in the owner register is part of the next package's
-  specification.
-- **Reviewer:** run the same command and check that the design cites every register sentence naming its package, each
-  with a keep or depart disposition.
-- **Source:** `2026-10-27-note-departed-from-a-carried-owner-item-silently`.
+- **Author:** run the three-file `git grep` in `writing-plans-extras`, "Forward-Obligation Scan" step 7 (the register,
+  `implementation/gate7-intake-deferrals.md` and every `implementation/06v-addendum-*.md`), and enter every hit naming
+  the package in the obligation register with a keep or depart disposition. A forward obligation is part of the next
+  package's specification wherever its recorder put it.
+- **Reviewer:** run the same command and check that the design cites every hit naming its package, each with a keep
+  or depart disposition.
+- **Source:** `2026-10-27-note-departed-from-a-carried-owner-item-silently`;
+  `2026-11-11-plan-step-7-misses-intake-and-paths-rows-naming-the-package` (the register grep alone missed two intake
+  rows and an addendum row for WP9.3-2).
 
 ## Shared locations
 
