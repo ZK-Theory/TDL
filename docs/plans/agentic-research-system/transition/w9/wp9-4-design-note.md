@@ -1,10 +1,13 @@
 # WP9.4 design note: adoption, discharge, citation status and the full path
 
 **Date:** 2026-11-16<br>
-**Status:** Revision 2, for independent re-review. It reconciles the independent review of revision 1 (`3c10de9a`):
-`reviews/wp9-4-design-note-review-3c10de9a-2026-11-16.md`, on branch `review/w9-wp9-4-note` at `a9935c0b`, verdict
-accept with required changes (1 Blocking, 13 Major, 12 Minor, 4 Info). §20 says where each finding went. Nothing in
-this note is implemented, and no owner point is decided.<br>
+**Status:** Revision 3, for a confirming re-review. Revision 2 reconciled the independent review of revision 1
+(`3c10de9a`): `reviews/wp9-4-design-note-review-3c10de9a-2026-11-16.md`, on branch `review/w9-wp9-4-note` at
+`a9935c0b`, verdict accept with required changes (1 Blocking, 13 Major, 12 Minor, 4 Info). Revision 3 reconciles the
+re-review of revision 2 (`4629d1fd`): `reviews/wp9-4-design-note-re-review-4629d1fd-2026-11-16.md`, on branch
+`review/w9-wp9-4-note-re-review` at `a704d9b3`, verdict return for revision 3 (0 Blocking, 9 Major, 5 Minor, 4 Info),
+and CodeRabbit's five threads on revision 2 (PR #437). §20 and §21 say where each finding went. Nothing in this note
+is implemented, and no owner point is decided.<br>
 **Package:** 06v WP9.4 ("Adoption, discharge and citation status"), proposed as two PRs, WP9.4-1 and WP9.4-2 (owner
 point A).<br>
 **Authority:** P-085 (WP9.4, note first). WP9.3 is complete: PRs #420, #428, #429, #432 and #434 (P-082, P-083,
@@ -14,9 +17,10 @@ and `3c10de9a`, so every `path:line` below reads the same at both.<br>
 **Not authorized (P-085):** WP9.5 to WP9.7; live operations L-0 to L-5; creating a real store, or running genesis or
 issuing a grant on one; any legacy write; any paper-root transition (P-073 item 4). Every store in this note is a
 scratch store that a test creates under `tmp_path`.<br>
-**Probe:** the author ran no prototype. The review ran 20 asserting pytest cases on pure functions, in-memory legacy
-states, forged transactions and Git object reads (review §9). The author re-ran them at `3c10de9a` (20 passed) and
-re-read the code behind each finding before acting on it. §17 lists the claims revision 2 makes for the re-review.
+**Probe:** the author ran no prototype. The review ran 20 asserting pytest cases and the re-review 28, including a
+scratch-store run of the artefact path and a run of the extractor rule over both paper roots through Git. The author
+re-ran both files (20 passed at `3c10de9a`; 28 passed at `4629d1fd`) and re-read the code behind each finding before
+acting on it. §17 lists the claims revision 3 makes for the confirming re-review.
 
 ## 1. What this note settles
 
@@ -26,14 +30,15 @@ rows and seven record kinds, and three of 06v's interface questions (U-5, U-6, U
 1. the rows WP9.4 routes, the commands it binds, and the split (§2; owner points A, B and D);
 2. every obligation carried into WP9.4, each with a disposition (§3);
 3. U-5, U-6, U-9, U-10 and U-11, each with `path:line` (§4; owner points E and J);
-4. what the WP9.3 authority flow gives these rows, and the four places it does not fit (§5; owner points C and L);
+4. what the WP9.3 authority flow gives these rows, and the five places it does not fit (§5; owner points C, L and
+   N);
 5. adoption (§6; owner points F and G), the suspension projection (§7) and discharge (§8; owner point H);
 6. the legacy read interface that successor guards will call (§9);
 7. the full path: paper root, source inventory, mapping and ownership (§10; owner point K), and the citation status
    with its extractor (§11; owner point I);
 8. the reference graph (§12), the CLI (§13; owner point M), bindings and D-4 (§14);
 9. the tests (§15), research assurance (§16), the claims for the re-review (§17), the stop rules (§18), the owner
-   points (§19) and the change log (§20).
+   points (§19) and the two change logs (§20, §21).
 
 ## 2. Scope: rows, commands and the split
 
@@ -73,8 +78,9 @@ ledgers. The two rows use `ProposeW9AuthorityDecision` and `ResolveW9AuthorityDe
 the move adds no census row. The WP9.2 note allows it: "Any later move of a row between packages is a change to this
 table, made by the package that takes the row" (`wp9-2-design-note.md:191-192`).
 
-The rows do not fit WP9.3's Decision checks as they stand (review M-12). §5.5 gives the encoding the move needs. One
-part of it is Stephen's to confirm: the eligibility Decision's kind. P-073 item 3 names a kind for the pilot outcome
+The rows do not fit WP9.3's Decision checks as they stand (review M-12; re-review R-M4). §5.5 gives the encoding the
+move needs, with a proposal branch and a resolution branch of their own. One part of it is Stephen's to confirm: the
+eligibility Decision's kind. P-073 item 3 names a kind for the pilot outcome
 (`result_interpretation`) and none for eligibility, and the annex is silent. §5.5 proposes `migration_authority`.
 
 The alternative is to leave the rows with WP9.7 and accept that adoption stops at LR-023 until then. WP9.7 would
@@ -120,7 +126,7 @@ WP9.4-1 merges first, and WP9.4-2 is cut from its main commit. The alternative i
 |---|---|---|---|
 | 1 | P-085 item 3; 06v §2.8 | U-5, U-6 and U-9 recorded with `path:line` before code | §4. U-5 is answered. U-6 is answered: the call site is the artefact path, and WP9.7 binds it (owner point E). U-9 is answered for WP9.4's half |
 | 2 | P-085 item 3; WP9.2-2 record §7 (F-8, first limb) | The resolving Decision's proposal named the record by its pre-assigned ID and exact content hash | **Keep, in replay and at the preparer,** by widening the row gate to the WP9.4 resolution rows (§5.1) |
-| 3 | P-085 item 3; P-081 item 12 (O-33 addition); WP9.3 note §7.2 | What follows from an observation that WP9.3 projects as stale is WP9.4's | §7. An adoption whose observation is stale is suspended, whatever the later observation selects |
+| 3 | P-085 item 3; P-081's "Added 2026-11-08" block, the O-33 addition (`03-decisions-and-open-questions.md:5241-5250`; P-085 item 3 cites it as "item 12", which is the G4 reading); WP9.3 note §7.2 | What follows from an observation that WP9.3 projects as stale is WP9.4's | §7. An adoption whose observation is stale is suspended, whatever the later observation selects |
 | 4 | Stage B note §7; WP9.3 note §3 row 9 | The kind of an adoption's successor use (`intended_use.successor_ref`, an `anyRef`) | §6.2 (owner point F) |
 | 5 | P-073 item 4 (O-31) | The full-path rows are built and tested, and refuse until their §4.5 gate | §2.2 (owner point D) and §10 |
 | 6 | Annex `suspension_rule`; P-072 item 3 | Suspension is projected from three inputs | §7 |
@@ -160,83 +166,111 @@ Revision 1 followed the test table and said the guard was WP9.7's. The review is
 WP9.7 build it (M-11). The guard edits `research_system/command/service.py`, which P-085's boundary excludes.
 
 *Recommended:* move the guard to WP9.7 by a recorded decision, with its binding test: a Task whose
-`source_import_refs` name `w9-adoption:<id>` for an unknown, suspended or wrong-use adoption, or name a legacy
-observation directly, is refused. WP9.7 already edits the command service for its other guards and takes them to
-one review. *The alternative* is to widen P-085's boundary to `service.py` for this one guard. That puts a
+`source_import_refs` name `w9-adoption:<id>` for an unknown or suspended adoption, for an adoption that is not a
+task-input use, or for a task-input adoption whose key is not the Task's own (§6.2 names the carrier), or that name
+a legacy observation directly, is refused. WP9.7 already edits the command service for its other guards and takes
+them to one review. *The alternative* is to widen P-085's boundary to `service.py` for this one guard. That puts a
 generic-service edit in WP9.4-1 and gives it a successor-side review surface it otherwise lacks.
 
 Until J is decided, §15's "W9-T8, legacy side" is half of what 06v's WP9.4 text asks.
 
-### 4.2 U-6: the claim path is the artefact path, and it is open today
+### 4.2 U-6: the evidence path is the artefact path, and it is open today
 
-Revision 1 said no code path lets a claim take a legacy family. That was wrong (review B-1). The author checked the
-review's evidence and it holds:
+Revision 1 said no code path lets a claim take a legacy family. That was wrong (review B-1). Revision 2 described the
+path but said every promotion needs a `claim_promotion` Decision. That was wrong too (re-review R-M1). The author
+checked both reviews' evidence, and the re-review ran the path end to end on a scratch store.
 
-- **The path.** `SetArtefactUseAuthority` to `accepted_for_scope` needs a governing review and a `claim_promotion`
-  Decision (`research_system/command/service.py:4618-4631`; `_claim_promotion_binding` requires the Decision's kind
-  and an `effective_scope` of `claim_promotion:<accepted_scope>`, `:4927`, `:4940-4943`). `resolve_for_claim` and
-  `resolve_for_manuscript` then resolve `claim_evidence` and `manuscript_evidence`
-  (`research_system/evidence/consumers.py:63-78`; `research_system/artefacts/authority.py:32-37`).
-- **Nothing keeps legacy bytes out of it.** `RegisterArtefact`'s preparer checks the artefact's identity, its
-  initial `candidate` authority, its regenerability claim and an empty stream, and nothing about its path or content
-  (`service.py:4409-4440`).
-- **The guard revision 1 relied on is not built.** It is WP9.7's (06v WP9.7, O-22), and P-081 already records it as a
-  dependency (`03-decisions-and-open-questions.md:5274`).
-- **That guard is keyed by path.** 06v WP9.7 rule (a) refuses when "the resolved path is a manifest-registered legacy
-  file". The use resolver reads bytes only under the control root (`research_system/artefacts/runtime.py:31-50`). So
-  a byte copy of a legacy result, registered under the control root, passes rule (a), rule (b) (not the `repo` root)
-  and rule (d) (a `.json`). The review reasoned this from the code and did not run it. Neither did the author.
+**The path, as it is.**
+- `RegisterArtefact`'s preparer checks the artefact's identity, its initial `candidate` authority, its
+  regenerability claim and an empty stream, and nothing about its path or content
+  (`research_system/command/service.py:4409-4440`).
+- `SetArtefactUseAuthority` to `accepted_for_scope` needs a governing review (`:4618-4631`). It needs a
+  `claim_promotion` Decision **only when the use authority binds the claim predicate**:
+  `_claim_promotion_binding` returns an empty list for any other predicate (`:4901-4902`). One use authority binds
+  one consumer predicate.
+- The consumers are `resolve_for_claim` and `resolve_for_manuscript`
+  (`research_system/evidence/consumers.py:63-78`; kinds at `research_system/artefacts/authority.py:32-37`). Their
+  production callers are in `research_system/methods/brief.py:31-33` and `:57`, under the consumer IDs
+  `rm03_brief_manuscript`, `rm03_claim_assessment` and `rm04_manuscript_pilot`.
+- 06v §2.7 predicted the hook in `research_system/assurance/` ("likely `resolver.py`"). That package has none: it
+  names the `paper_claim` lane once (`assurance/models.py:13`) and takes no claim's evidence as input (re-review
+  R-m4).
+
+**What the re-review ran.** A byte copy of fixture "legacy" bytes, placed under the control root, was registered,
+given a governing review, and set `accepted_for_scope` under the manuscript predicate with no Decision.
+`resolve_for_manuscript` resolved it. A second copy took the claim route, with Stephen's `claim_promotion` Decision,
+and `resolve_for_claim` resolved it. No step read the path or the content for legacy status.
+
+**The guard that would stop it is not built, and is keyed by path.** It is WP9.7's (06v WP9.7, O-22), and P-081
+records it as a dependency (`03-decisions-and-open-questions.md:5274`). Its rule (a) refuses when "the resolved path
+is a manifest-registered legacy file". The use resolver reads bytes only under the control root
+(`research_system/artefacts/runtime.py:31-50`), so a copy there passes rule (a), rule (b) and, for a `.json`, rule
+(d).
 
 So W9-T17's last clause ("a family marked unadopted blocks its claims in W5") has a call site, and that call site
-admits an unadopted family today.
+admits an unadopted family today. Until WP9.7 lands, a governing scientific review is all that stands between a
+legacy copy and a manuscript consumer, and for a claim consumer that review plus Stephen's Decision.
 
 **Owner point E.**
 
 *Recommended:*
-- **WP9.4 builds two read functions** (§9): `family_admissible`, and `legacy_content_matches`, which returns every
-  recorded observation whose source SHA-256 or Git blob equals a given artefact's.
-- **WP9.7 binds them, in two places.** Its `RegisterArtefact` guard keeps 06v's path rule (a). Its guard on the use
-  path adds a content rule: when `resolve_for_claim` or `resolve_for_manuscript` resolves an artefact whose bytes
-  match a recorded legacy observation, it is refused unless every family of every matching observation is
-  admissible for that consumer's use. The check sits at use, not only at registration, because an adoption can
-  suspend after the artefact is registered.
-- **WP9.7's note inherits a binding test:** an unadopted family's bytes, copied under the control root, registered
-  and promoted, are refused at `resolve_for_claim` and at `resolve_for_manuscript`. The decision entry for this note
-  records that carry, as P-081 recorded WP9.3's.
-- **WP9.4 proves the predicate only.** W9-T17's last clause is complete when WP9.7's binding test passes, not
-  before.
+1. **WP9.4 builds two read functions** (§9): `family_admissible`, and `legacy_content_matches`, which returns every
+   recorded observation whose source SHA-256 or Git blob equals a given artefact's.
+2. **WP9.4 binds the content rule at its own reader.** LR-030 and LR-034 read an artefact's `use_authority` directly,
+   not through a resolver. Their preparers refuse a successor result that `legacy_content_matches` finds, whatever
+   its adoption status: a discharge needs a new result (§8; re-review R-M2).
+3. **WP9.7 binds both functions on the artefact path**, in addition to 06v's path rule (a):
+   - at use: `resolve_for_claim` and `resolve_for_manuscript` refuse an artefact whose bytes match a recorded
+     legacy observation unless every family of every matching observation is admissible for that consumer's use.
+     The check is needed at use because an adoption can suspend after the artefact is promoted;
+   - **at promotion, for Stephen to decide:** `SetArtefactUseAuthority` to `accepted_for_scope` applies the same
+     rule. That closes every direct reader of `use_authority` at once (others exist today at
+     `discovery/spec.py:533`, `discovery/spec_result.py:248` and `cli.py:2258`). The note recommends it.
+4. **WP9.7's rule also compares current bytes.** `legacy_content_matches` sees recorded observations only. A legacy
+   file that was edited and not yet re-observed, or never observed, matches nothing (re-review R-M3). So WP9.7's
+   guard also compares the artefact's Git blob with the blob, at the binding's `git_head`, of every registered
+   `git_tracked` legacy path, and refuses a match that no active adoption admits.
+5. **WP9.7's note inherits a binding test** with one artefact per consumer predicate, run through the production
+   consumer IDs above: an unadopted family's bytes, copied under the control root and promoted, are refused. The
+   manuscript case has no Decision in it. The decision entry for this note records the carry.
+6. **WP9.4 proves the predicate and its own discharge rule only.** W9-T17's last clause is complete when WP9.7's
+   binding test passes, not before.
 
-A known limit stays: content identity catches a byte copy. It does not catch a re-serialized or partly copied
-result. That case is for the artefact's own governing review.
+**Known limits that stay.** Content identity catches a byte copy of bytes that are recorded, or current at a
+registered path. It does not catch a re-serialized or partly copied result, or a copy of bytes that were at a path
+only between two observations. Those are for the artefact's own governing review (§16).
 
 *The alternative* is for WP9.7 to refuse every artefact whose bytes match a legacy observation, adopted or not. It
 is simpler and needs no use mapping. Its cost is that an adoption for a claim use then has no consumer until some
 other path is designed, so W9 §12.1's "adopted for 'evidence for the manuscript claims of paper X'" could not be
 acted on.
 
-Revision 1's other alternative, holding WP9.4 until a claim path is designed, is withdrawn. The path exists.
-
-### 4.3 U-9: where an adopted whole-file input is read and re-hashed
+### 4.3 U-9: where an adopted input is read and re-hashed
 
 - The artefact use resolver re-hashes at use (`artefacts/use_resolver.py:310-317`), but it reads through the control
   root's content reader, and restricted bytes never enter the store (W9 §5.4).
-- So an adopted whole-file input reaches a successor Task by reference only: a `w9-adoption:` string in
-  `source_import_refs` (§4.1), resolved against the adoption record through §9's interface, which returns the source's
-  path, expected SHA-256 and byte length.
-- The re-hash is successor-side code at dispatch or at use. That seam, and the request for
-  `RecordAdoptionUseMismatch` (LR-061), are WP9.7's (06v WP9.7, "Use-time re-hash").
+- So an adopted input reaches a successor Task by reference only: a `w9-adoption:` string in `source_import_refs`
+  (§4.1), resolved against the adoption record through §9's interface.
+- `resolve_adoption_ref` returns the observed source identity for **every** adoption, family or whole file: the
+  path, the SHA-256, the Git blob where there is one, and the byte length. Revision 2 returned it for whole-file
+  adoptions only, which left a family adoption's consumer nothing to re-check (re-review R-M3).
+- The re-hash is successor-side code at dispatch or at use, and it is WP9.7's (06v WP9.7, "Use-time re-hash"). WP9.7's
+  guard refuses an adopted input, of either kind, whose current bytes differ from the observed identity. For a
+  whole-file adoption it also requests `RecordAdoptionUseMismatch` (LR-061). The annex gives that row to whole-file
+  adoptions only, so a family mismatch is refused without a record, and the fix is a re-observation, which suspends
+  the adoption (§7).
 
 WP9.4's half is the adoption subject (§6.1) and the lookup (§9). It adds no successor-side read.
 
 ### 4.4 U-10 and U-11, settled
 
-Revision 1 left both to the code PR. The review showed they can be settled now (m-6), and the author re-read both.
+Revision 1 left both to the code PR. The first review showed they can be settled now (m-6).
 
 - **U-10: "the successor result artefact accepted, not only registered" (LR-030).** The one accepted state is
-  `use_authority: accepted_for_scope`. Reaching it needs a governing review and a `claim_promotion` Decision whose
-  `effective_scope` is `claim_promotion:<accepted_scope>` (`service.py:4618-4631`, `:4927`). So a discharge needs
-  its successor result promoted at claim level first. That is a real cost, and it is the accepted row's. §8 adds the
-  check that follows: the discharge's preparer reads the artefact's current authority and refuses anything else.
+  `use_authority: accepted_for_scope`. Reaching it needs a governing review under any predicate, and a
+  `claim_promotion` Decision under the claim predicate only (`service.py:4618-4631`, `:4901-4902`). Revision 2 said
+  every discharge therefore needs its result promoted at claim level. That overstated the cost (re-review R-M1). §8
+  reads the row as: accepted under any predicate. Which predicate fits a given discharge is for its reviewer (§16).
 - **U-11: where a whole-file observation carries its class.** A `whole_file` observation carries exactly one family
   entry, named `whole_file`, and that entry has the `w0_class` (`replay/reducers.py:1299-1302`;
   `.research-system/schemas/contracts/w9/legacy-observation.schema.json:179-`). §6.1's assumption holds.
@@ -255,6 +289,8 @@ The five-step flow, the content hash, the pre-assigned refs, the streams, the la
 | `_DECISION_PROPOSAL_FIELD` | `replay/reducers.py:95-99` | the five families' Decision field, which is `decision_ref` for each |
 | `REQUEST_ROWS`, `DECISION_ROWS`, `RESOLUTION_ROWS`, `RECORDED_EVENTS` | `legacy/preparers.py:57-73` | the same families' rows and recorded events |
 | the analyst rule | `replay/reducers.py:758-778` | §5.3 |
+| `_session_refs` | `replay/reducers.py:744-755` | under owner point B, a second entry for LR-026, the eligible session (§5.5) |
+| the Decision-proposal preparer's payload | `legacy/preparers.py:452-466` | three optional fields and a row discriminator (§5.5) |
 | `LEGACY_ROUTED_ROWS`, `LEGACY_DEFERRED_ROWS` | `routes.py:446-456` | each PR moves its rows from deferred to routed; the route test pins the counts |
 
 **The row gate.** `row_id in WP9_3_ROWS` occurs at ten lines of the reducers (review m-1). A `WP9_4_ROWS` set joins
@@ -309,6 +345,8 @@ would be resolved with no review at all, and the review's probe shows `_check_re
   `:521`). Those are all of them: a search for the two names finds no other read.
 - LR-026 must open exactly that review. LR-028 needs it satisfied on the current hash. LR-029's
   `considered_review_ids` must be exactly it.
+- LR-024 does not call it. An eligibility Decision is proposed before the adoption's review can exist, so it has a
+  proposal branch of its own with no review requirement (§5.5; re-review R-M4).
 
 This is a reading of P-072 item 1, LR-023 and G5, not a literal match. The derived ID is fixed by `record_id` and
 `created_at`, both of which the content hash covers, so the proposal still fixes its review and no hash depends on
@@ -349,49 +387,130 @@ several fixtures are unconditional (`when: null`), S-017 on LR-029 among them (r
 WP9.3's encoding has no room for them. A Decision proposal's `governing_evidence_refs` must be exactly three
 entries, and the resolution's are those same three (`replay/reducers.py:938-946`, `:1102`).
 
-*Recommended: encode them.*
-- A WP9.4 Decision proposal's `governing_evidence_refs` is the three subject refs, then zero or more
-  `w9-fixture:<fixture ID>:<ref ID>` entries, sorted by fixture ID.
-- Each `<ref ID>` is a `rev_` or an `art_` for evidence, or a `dec_` for a waiver, as LR-020's rule has it
-  (`:575-596`).
-- Replay requires one entry for every unconditional fixture of the resolution row, admits only the fixtures that
-  row lists, and admits at most one entry per fixture. The resolution repeats the proposal's list, as it does today.
-- A conditional fixture that is listed counts as applicable, and one that is absent as not applicable. That is the
-  reading P-084 item 3 recorded for LR-020 (i-3).
-- The unconditional sets, from the annex: LR-029: S-017. LR-044: F-018, F-023, F-037. LR-054: F-006, F-019, F-023,
-  F-037. LR-055: F-006, F-019, F-037. LR-034 and LR-049 list none. S-007 on the review and Decision-proposal rows is
-  the stale-hash control those rows already enforce (W9-C22), not an evidence ref.
+*Recommended: encode them, with the applicable set bound to the review.*
 
-This changes an encoding P-081 fixed, for WP9.4's rows only. WP9.3's rows keep exactly three refs.
+**The entries.** A WP9.4 Decision proposal's `governing_evidence_refs` is, in this order:
+1. the three subject refs, as today;
+2. zero or more `w9-fixture:<fixture ID>:<ref ID>` entries, sorted by fixture ID, at most one per fixture;
+3. for LR-033 and LR-053 only, exactly one `w9-open-items-blob:<sha1>` entry (§8).
 
-*The alternative* is a recorded departure from P-072 item 4: fixtures stay a reviewer's checklist for these rows,
-and nothing in the ledger shows whether S-017 or F-037 was ever named.
+Each `<ref ID>` is a `rev_` or an `art_` for evidence, or a `dec_` for a waiver, as LR-020's rule has it
+(`:575-596`). The resolution repeats the proposal's list after its own row ref, as it does today. The re-review
+confirmed that entries after the three subject refs leave row assignment, the resolution's rewrite and every WP9.3
+check for WP9.3's rows unchanged (R-i1). WP9.3's rows keep exactly three refs.
+
+**Which fixtures must appear.**
+- **Unconditional fixtures** of the resolution row: always. From the annex: LR-029: S-017. LR-044: F-018, F-023,
+  F-037. LR-054: F-006, F-019, F-023, F-037. LR-055: F-006, F-019, F-037. LR-034 and LR-049 list none. S-007 on the
+  review and Decision-proposal rows is the stale-hash control those rows already enforce (W9-C22), not an evidence
+  ref.
+- **F-019 at LR-029** whenever the use is `w9-use:manuscript-claims/…` or `w9-use:claim-evidence/…`. Its annex
+  condition is "the intended use is evidence for a claim", which §6.2's use string decides exactly.
+- **The other conditional fixtures** are F-015 and F-038 on LR-029, and F-038 on LR-054 and LR-055. Their conditions
+  ("the adopted family is statistical", "uses the TDA pack's lanes") are not decidable from the record.
+
+**Who decides applicability.** W9 §12.3: "Per-item applicability is proposed by the item's independent reviewer and
+fixed by Stephen …, never by the item's producer." Revision 2 let the analyst choose it at the Decision proposal,
+after the review, and cited P-084 item 3. That precedent does not carry (re-review R-M5): for LR-020 the list is
+inside the record whose hash the reviewer approves. Here it would be outside every reviewed hash.
+
+So the applicable set is put in front of the reviewer. The review request's `review_questions`
+(`replay/reducers.py:813`; `legacy/preparers.py:380-396`) must contain one entry of the form
+`w9-applicable-fixtures:<sorted fixture IDs, comma-separated>`, naming every fixture the request proposes as
+applicable. Replay requires that set to hold every fixture the two rules above require, and nothing outside the
+row's list. The Decision proposal's fixture entries must name exactly that set. The reviewer approves or refuses the
+request's set with the proposal, and Stephen resolves on it.
+
+This is still the analyst writing the list and the reviewer approving it, as at LR-020, and not the reviewer
+proposing it. The note records that as the reading: "proposed by the reviewer" is met by the reviewer's approval of
+a list that is fixed before the verdict and cannot change after it.
+
+This changes an encoding P-081 fixed, for WP9.4's rows only.
+
+*The alternative* is a recorded departure from P-072 item 4 and W9 §12.3: fixtures stay a reviewer's checklist for
+these rows, and nothing in the ledger shows whether S-017 or F-037 was ever named.
 
 ### 5.5 The eligibility Decision's encoding (if owner point B is taken)
 
 LR-024 and LR-025 fit none of WP9.3's Decision checks: they bind more than a subject, they have no Decision ID in
-any record, and LR-025 writes no record (review M-12). The encoding:
+any record, LR-024 comes before the adoption's review, and LR-025 writes no record (review M-12; re-review R-M4).
 
 - **The Decision ID** is derived: `derived_id("dec", "w9-adoption-eligibility:" + record_id,
   utc_milliseconds(created_at))`, reserved at LR-023 with the proposal. So an adoption proposal has exactly one
   eligibility Decision. A rejected or lapsed one needs a new adoption proposal.
+- **LR-024 has a proposal branch of its own.** It does not run through `_check_decision_proposal`
+  (`replay/reducers.py:931-975`), which would require the adoption's review satisfied before that review can exist.
+  The branch checks: the generic fixed fields (`:952-961`); the subject's current hash; the Decision ID is the
+  derived one and its reservation is taken; the eight refs below; the analyst rule of §5.3; and **no** review. It
+  extends the adoption proposal's lapse to the Decision's expiry, as the generic branch does (`:973-974`), so an
+  eligibility Decision that is still open keeps its adoption proposal open.
 - **LR-024's `governing_evidence_refs`** are exactly eight, in this order: `W9:LR-024`; the adoption's
   `w9-subject:` and `w9-subject-sha256:`; then `w9-eligible-session:`, `w9-eligible-family:`,
-  `w9-eligible-version:`, `w9-eligible-profile:` and `w9-eligible-grade:`, each non-empty.
+  `w9-eligible-version:`, `w9-eligible-profile:` and `w9-eligible-grade:`, each non-empty. LR-024 refuses a grade
+  other than the constant `independent` (`:117`).
 - **The kind** is `migration_authority`, subject to owner point B's confirmation (§2.2).
 - **LR-025 is a record-less resolution.** Its transaction is the one `DecisionResolved` event. `_check_resolution`
-  reads a second event (`replay/reducers.py:1087`) and would fail on it, so LR-025 gets its own branch: the Decision
-  is open and of this family; the fixed resolution fields hold; it is resolved before it expires and before the
-  adoption proposal lapses; and no record follows. It is not a G5 row (annex G5).
-- **LR-026** refuses unless that Decision is resolved `accept`, and the request names its `w9-eligible-session:`.
-- **LR-027's verdict.** `_check_verdict` fixes `reviewer_profile` to the constant `w9-independent-reviewer`
-  (`:884`). For an adoption verdict the fixed value becomes the Decision's `w9-eligible-profile:`, and
-  `reviewer_model_metadata` must equal the Decision's family and version. `computed_independence_grade` stays the
-  constant `independent` (`:117`), and LR-024 refuses a `w9-eligible-grade:` other than that value.
+  reads a second event (`:1087`) and would fail on it, so LR-025 gets its own branch: the Decision is open and of
+  this family; the fixed resolution fields hold; it is resolved before it expires and before the adoption proposal
+  lapses; and no record follows. It is not a G5 row (annex G5).
+- **LR-026 names the eligible session in the request.** A W9 request names its reviewer as an actor, and its
+  `required_evidence_refs` are fixed to the analyst's session alone for every row but LR-007 (`:744-755`). For
+  LR-026, `_session_refs` requires two entries: the analyst's session, then `w9-eligible-session:<s>`. Replay
+  refuses unless the eligibility Decision is resolved `accept` and `<s>` equals its `w9-eligible-session:`.
+- **LR-027 binds the verdict to that session.** Today replay checks only that the verdict's `reviewer_session`
+  differs from the sessions the request records (`:893-895`). For an adoption verdict it must **equal** the
+  request's eligible session. `reviewer_profile` must equal the Decision's `w9-eligible-profile:` in place of the
+  constant `w9-independent-reviewer` (`:884`). `reviewer_model_metadata` is one string in the verdict's schema
+  (`.research-system/schemas/core/events/review_verdict_recorded.schema.json:75-79`), and must equal
+  `<family>@<version>` from the Decision. `computed_independence_grade` stays `independent`.
+- **The preparer's payload.** `prepare_decision_proposal` takes exactly four fields and maps a kind to one Decision
+  row (`legacy/preparers.py:452-466`). It gains three optional fields:
+  - `eligibility`, an object with the five facts. Its presence on an adoption proposal selects LR-024, and its
+    absence LR-028. It is refused on any other kind;
+  - `fixture_refs`, the entries of §5.4, refused on a WP9.3 row and on LR-024;
+  - `open_items_blob`, required on LR-033 and LR-053 and refused elsewhere (§8).
+
+  `prepare_review_request` gains `eligible_session`, required for an adoption and refused elsewhere, and reads the
+  applicable-fixtures entry from `review_questions` (§5.4).
 - **What replay does not check.** The annex's (a) to (c), that the session's family differs from the producer's,
   that its role profile declares the lane's capability, and that its context is independent, are Stephen's check at
   LR-025 (annex: "checked by Stephen, never by the producer or the named session"). Replay sees attested strings.
   §16 lists them.
+
+### 5.6 Authority subjects: G4 for WP9.4's rows (owner point N)
+
+A scoped grant names one subject kind and one exact ID, and cannot carry a content hash (WP9.3 note §5.3). WP9.3
+therefore read G4 for a proposal row as: the grant is exact on the pre-assigned record ID, and the content hash is
+bound later by the review and the Decision. Stephen accepted that reading for LR-003, LR-006, LR-011 and LR-016 only
+(P-081 item 12, `03-decisions-and-open-questions.md:5206`). Revision 2 did not address G4 at all (re-review R-M8).
+
+| Rows | Command | Subject kind and ID | What binds the hash half |
+|---|---|---|---|
+| LR-023, LR-030, LR-040, LR-045, LR-050 | `ProposeLegacyRecord` | `scope_definition`, the pre-assigned record ID | The review and the Decision, each on the recomputed hash. **This extends P-081 item 12 to five more rows** |
+| LR-026, LR-031, LR-041, LR-046, LR-051 and their verdict rows | the two review commands | `review`, the review ID | As WP9.3: the request and verdict carry the subject hash |
+| LR-028, LR-033, LR-043, LR-048, LR-053 and their resolution rows | the two Decision commands | `decision`, the Decision ID | As WP9.3: the proposal's subject refs |
+| LR-024, LR-025 (owner point B) | the two Decision commands | `decision`, the derived eligibility Decision ID (§5.5) | The eight refs. Stephen's grant at LR-025 names the Decision, and replay fixed its refs at LR-024 |
+| LR-035 | `CreateLegacyPaperRoot` | `scope_definition`, the root's record ID | The schema closes the key and path to two values, and replay admits one root per key. The annex subject is "the P01 key + its manuscript root path", so the ID alone leaves nothing unbound that replay does not check |
+| LR-039 | `RecordPaperCitationStatus` | `scope_definition`, the status's record ID, **which is derived** | See below |
+
+**LR-039 needs a derived record ID.** Its annex subject is "the root + the frozen cited-family set's hash + the
+reviewer's derivation". It has no review and no Decision, so nothing later binds those hashes. A grant on a free
+record ID would authorize any cited-family set the reviewer then submits.
+
+WP9.3 met the same problem for an observation and solved it by deriving the record ID from a digest of the full
+subject (`legacy/records.py:157-203`). LR-039 does the same: the status's `record_id` is
+`derived_id("obj", "w9-citation-status:" + root ID + ":" + supersedes ID or "none" + ":" +
+cited_family_set_sha256 + ":" + extractor_output_sha256 + ":" + reviewer_derivation_sha256,
+utc_milliseconds(root created_at))`. The preparer refuses a supplied ID that is not that value. `ars legacy
+cited-families` prints the ID for a given reviewer hash (§13), and Stephen's grant names it. The grant then binds
+all three hashes.
+
+**The registry.** `_SCOPED_COMMAND_SUBJECT_KINDS` (`research_system/authority.py:217`) gains the two new commands as
+`scope_definition`, with WP9.4-2's D-4 (§14).
+
+*Recommended:* extend P-081 item 12 to the five proposal rows by this note's decision entry, and take the derived
+ID for LR-039. *The alternative* for LR-039 is an owner reading that its grant binds the record ID only, which
+leaves the cited-family set outside G4.
 
 ## 6. Adoption (LR-023 to LR-029)
 
@@ -400,11 +519,14 @@ any record, and LR-025 writes no record (review M-12). The encoding:
 - **By family** (`subject_kind: families`). The observation is a `json_family_set` observation. Every named family
   is one of the observation's families. The observation is in a recorded closed-reference acceptance, and neither is
   superseded.
-- **Whole file** (`subject_kind: whole_file`, `rehash_at_use: true`). The observation's selector is `whole_file`
-  and its source kind is `restricted_untracked_file` or `untracked_file`, or it is a `git_tracked` file with no
-  accepted membership table. Its class is the `w0_class` of its one `whole_file` family entry (§4.4). A JSON result
-  that has a membership table is adopted by family, never whole (W9 §9 item 1: "For a binary or restricted input with
-  no JSON family").
+- **Whole file** (`subject_kind: whole_file`, `rehash_at_use: true`). The observation's selector is `whole_file`,
+  and the source has no JSON family: its registered path does not end in `.json`. That holds for every source kind,
+  tracked, untracked or restricted. Its class is the `w0_class` of its one `whole_file` family entry (§4.4).
+
+W9 §9 item 1 limits the whole-file route to "a binary or restricted input with no JSON family (an embedding, a null
+cache)". Revision 2 tested for "no accepted membership table", which would have adopted whole a JSON result whose
+table was simply never accepted, and applied even that test to tracked files only (re-review R-m2; CodeRabbit). A
+JSON result is adopted by family, and until its membership table is accepted it cannot be adopted at all.
 
 An item observation (`inventory_item`) is not an adoption subject. W9 §9 item 1 names families and whole files only,
 and a tracker row or a log entry has no successor use that W9 defines. The proposal refuses it.
@@ -419,21 +541,31 @@ uses exactly: LR-039 ("an active adoption for the use 'evidence for the manuscri
 admissibility predicate (W9 §9 item 4: "admissible to W5 for the named use only"). A free string cannot be compared
 safely.
 
-Revision 1 proposed three fixed values, two of them with no target. The review is right that those two refuse too
-little (M-7): W9 §9 item 2 binds a named use ("input to T1.41 successor Task", "evidence for claim candidate X"),
-and one `claim-evidence` adoption with no target would be admissible for every claim.
+Revision 1 proposed three fixed values, two of them with no target. Those two refuse too little (review M-7): W9 §9
+item 2 binds a named use ("input to T1.41 successor Task", "evidence for claim candidate X"), and one
+`claim-evidence` adoption with no target would be admissible for every claim.
 
 *Recommended:* replay accepts three forms of `description`, each naming its target:
 
-| `description` | `successor_ref` | Source |
-|---|---|---|
-| `w9-use:manuscript-claims/<paper key>`, the key being `P01-A` or `P01-B` | null. The root may not exist yet (LR-035 comes later) | W9 §12.1 |
-| `w9-use:task-input/<key>` | null, or a `tsk_` ref. Null when the Task is created after the adoption, which W9-T8 requires | W9 §9 item 2; §10 item 3 |
-| `w9-use:claim-evidence/<key>` | null | W9 §9 item 2 |
+| `description` | Target | `successor_ref` | Source |
+|---|---|---|---|
+| `w9-use:manuscript-claims/<paper key>` | The paper key is exactly `P01-A` or `P01-B`, as the paper-root schema spells them | null. The root may not exist yet (LR-035 comes later) | W9 §12.1 |
+| `w9-use:task-input/<key>` | `<key>` matches `[a-z0-9][a-z0-9._-]*` | null, or a `tsk_` ref. Null when the Task is created after the adoption, which W9-T8 requires | W9 §9 item 2; §10 item 3 |
+| `w9-use:claim-evidence/<key>` | `<key>` matches the same pattern | null | W9 §9 item 2 |
 
-`<key>` matches `[a-z0-9][a-z0-9._-]*`. For a task input it is the successor Task's pre-registration ID or plan task
-key. For claim evidence it is the claim candidate's key. Both are attested strings: nothing in the store resolves
-them. `family_admissible` compares the whole `description`, so an adoption for one Task or claim admits no other.
+The lower-case pattern applies to the task and claim keys only, not to the paper key (CodeRabbit).
+
+**What a key names, and where the consumer finds it.** A claim key is the claim candidate's key, an attested
+string. A task-input key must be something the successor Task itself carries, or the guard that consumes the
+adoption cannot compare it (re-review R-M9). The Task definition has no field for a pre-registration ID or a use. Its
+`aliases` are the one carrier: each has a `namespace`, a `value` and a `scope_id`
+(`.research-system/schemas/core/commands/create_task.schema.json:42-49`, `$defs/alias`). So:
+- a task-input key is the `value` of an alias the Task carries in the reserved namespace `w9-use-key`;
+- WP9.7's CreateTask guard (owner point J) builds the use string from that alias and calls `family_admissible`
+  with it. A Task with no such alias, or with another key, is refused for that adoption;
+- the alias's `scope_id` is WP9.7's to fix when it designs the guard.
+
+`family_admissible` compares the whole `description`, so an adoption for one Task or claim admits no other.
 
 This is narrower than the schema, as WP9.3's Q2 was narrower than its note (P-084 item 2). *The alternatives:* the
 three target-free values of revision 1, which widen W9 §9 item 2 and would need recording as such; or comparing a
@@ -478,9 +610,9 @@ G1 to G5 and the flow checks of §5 apply to every row and are not repeated.
 |---|---|---|
 | LR-023 | The schema; §6.1's subject rules; §6.2's use; §6.3's qualifier rules and consequence; the observation's acceptance recorded and not superseded; the adoption would not be projected suspended at this position (§7); the derived review ID, and under B the derived eligibility Decision ID, reserved | The source re-reads to the observed identity (the window opens) |
 | LR-024, LR-025 (owner point B) | §5.5 | — |
-| LR-026 | The review ID is the derived one; the named session is the resolved eligibility Decision's; W9-C20, W9-C22 | — |
-| LR-027 | The submitter is the named reviewer; the profile and model metadata equal the Decision's (§5.5); W9-C21 | — |
-| LR-028 | `review_id_for` returns the derived review, and it is satisfied on the current hash; the subject is the record's ID and hash; the fixture entries of §5.4 | — |
+| LR-026 | The review ID is the derived one; the request's second session ref is the resolved eligibility Decision's session (§5.5); the applicable-fixtures entry (§5.4); W9-C20, W9-C22 | — |
+| LR-027 | The submitter is the named reviewer; the verdict's session equals the eligible session; the profile and model metadata equal the Decision's (§5.5); W9-C21 | — |
+| LR-028 | `review_id_for` returns the derived review, and it is satisfied on the current hash; the subject is the record's ID and hash; the fixture entries name exactly the request's applicable set (§5.4) | — |
 | LR-029 | G5 with F-8's first limb; `considered_review_ids` is exactly the derived review; the fixture entries repeat the proposal's; the adoption would not be projected suspended at this position (§7) | The source re-reads to the observed identity at commit (W9-T6, O-33) |
 
 ## 7. The suspension projection (`P:legacy-adoption-status`)
@@ -496,7 +628,8 @@ The annex's `suspension_rule` gives three causes:
      observation of a registration stale when a later one records a different source fingerprint, whatever the
      later one selects (`replay/reducers.py:1403-1414`). So when a result file changes and the observer re-observes
      only other families, the old adoption still suspends. Revision 1 missed this case (review M-1). It is the
-     carried obligation of P-081 item 12 ("the accepted record projects as stale, and what follows is WP9.4's").
+     carried obligation of P-081's 2026-11-08 addition ("the accepted record projects as stale, and what follows is
+     WP9.4's").
 
    `observations_by_registration` is in ledger order, so "later" is a position in that list after the adoption's
    observation (review i-4).
@@ -506,6 +639,11 @@ The annex's `suspension_rule` gives three causes:
 
 The annex's item-adoption clause ("a later observation of the same item selector") has no subject under §6.1. The
 projection implements it anyway, so that a later reading of §6.1 does not need a reducer change.
+
+**What the projection cannot see.** It reads recorded observations. A registered file that changes and is not yet
+re-observed leaves its adoption projected `active` (re-review R-M3). W9 §4.2 item 3 makes the re-observation an
+obligation, and WP9.5's detectors are what notice a missed one. Until then the adopted bytes are protected by the
+use-time comparison of §4.3, not by this projection.
 
 Suspension is permanent for that adoption record. P-072 item 3 says so: "Re-resolution is a new
 `AdoptLegacyAuthority`" (`03-decisions-and-open-questions.md:4617`), which is LR-023 to LR-029 again on the later
@@ -526,17 +664,24 @@ A discharge relation lets a successor result close a legacy open item. The check
 
 | Row | Replay | Preparer only |
 |---|---|---|
-| LR-030 | The schema; the pre-assigned refs reserved; one open relation per `(item_kind, item_id)` | `item_id` resolves against the accepted open-item list (owner point H); the successor result artefact's current `use_authority` is `accepted_for_scope` (§4.4) |
-| LR-031 | WP9.3's request checks, with §5.3 | **G3:** the named reviewer is not the artefact's producer, read from the artefact's manifest in the generic projection |
-| LR-032, LR-033 | WP9.3's verdict and Decision-proposal checks | — |
-| LR-034 | G5 with F-8's first limb | The artefact is still `accepted_for_scope`; the open-item list at the binding's `git_head` still holds the item; G3 again |
+| LR-030 | The schema; the pre-assigned refs reserved; one open relation per `(item_kind, item_id)` | `item_id` resolves against the accepted open-item list (owner point H); the successor result artefact's current `use_authority` is `accepted_for_scope`, under any predicate (§4.4); **the artefact's bytes match no recorded legacy observation** (`legacy_content_matches`) |
+| LR-031 | WP9.3's request checks, with §5.3 and §5.4 | **G3:** the named reviewer is not the artefact's producer, read from the artefact's manifest in the generic projection |
+| LR-032 | WP9.3's verdict checks | — |
+| LR-033 | WP9.3's Decision-proposal checks; the fixture entries; exactly one `w9-open-items-blob:` entry | The blob is the open-item file's at the binding's `git_head` |
+| LR-034 | G5 with F-8's first limb | The artefact is still `accepted_for_scope` and still matches no legacy observation; the open-item file's blob still equals the Decision's entry and still holds the item; G3 again |
+
+**A discharge needs a new result.** Without the content check, a byte copy of the legacy result that the open item
+is about could be registered, promoted under any predicate with a review only, and named as the result that
+discharges it. LR-054's "every open item has a discharge" would then pass on the legacy bytes themselves (re-review
+R-M2). The check refuses any match, adopted or not: an adopted family is still not a new result.
 
 **G3 for a discharge holds at the preparer only.** Revision 1 placed it in replay, "by the actor the proposal
 recorded". Replay has no such input (review M-8): the discharge record has no producer field, the proposal state
 keeps only the proposer's `actor_id` (`replay/reducers.py:727-736`), and replay's context carries five keys and no
 artefact state (`replay/driver.py:199-205`). Passing the generic artefact manifests into legacy replay would change
 the shared replay boundary that WP9.2 confined to four sites (06v U-7). So the check stays at the preparer, and §16
-records that a forged ledger with the producer as reviewer replays clean. §15's control for it is a preparer test.
+records that a forged ledger with the producer as reviewer replays clean. The same holds for the content check and
+the accepted-state check: both read the generic projection.
 
 LR-034 has no W9 §17 test (`discharge_no_w9_test`), so its controls are W9-C23 and the row's own negatives (§15).
 
@@ -549,10 +694,12 @@ the binding's `git_head` (WP9.3 note §11.1; P-081, owner point D).
   `item_id`, the source it comes from, and `feeds_papers`, the paper keys whose claims the item feeds;
 - its content is Stephen's, under W0-D1, and it is written at the live stage, not by this package. WP9.4 fixes the
   reader and the format, and its tests use fixture lists;
-- **the file's blob is bound in Stephen's Decision.** LR-034 and LR-054 each carry a `w9-open-items-blob:<sha1>`
-  entry among the Decision proposal's refs (after the fixture entries of §5.4), and the preparer refuses unless it
-  is the file's blob at the binding's `git_head`. So "scoped out by Stephen" (W9 §12.1) is an edit Stephen has
-  resolved on, not a PR edit alone (review m-7);
+- **the file's blob is bound in Stephen's Decision.** The Decision proposals at LR-033 and LR-053 each carry one
+  `w9-open-items-blob:<sha1>` entry, after the fixture entries (§5.4), and the preparer refuses unless it is the
+  file's blob at the binding's `git_head`. So "scoped out by Stephen" (W9 §12.1) is an edit Stephen has resolved on,
+  not a PR edit alone (review m-7);
+- **every check that reads the file is the preparer's.** Replay sees the blob string and nothing else (re-review
+  R-m1). §16 records that a forged ledger naming a wrong blob, or leaving an item undischarged, replays clean;
 - this adds one row to the W9 paths addendum, as a dated amendment.
 
 *The alternative* is to keep the list out of the machine checks and leave "resolves against the accepted list" to
@@ -571,13 +718,13 @@ reader (review m-3). It is a leaf over the replayed legacy state, with four pure
 
 - `adoption_status(state, adoption_id)`: `active` or `suspended`, with the cause (§7).
 - `resolve_adoption_ref(state, ref)`: parses `w9-adoption:<obj_ id>` and returns the adoption's observation, subject,
-  use, status, and for a whole-file subject the source's path, SHA-256 and byte length. A malformed ref, or one that
-  names no recorded adoption, raises.
+  use and status, and the observed source identity for every adoption: path, SHA-256, Git blob where there is one,
+  and byte length (§4.3). A malformed ref, or one that names no recorded adoption, raises.
 - `family_admissible(state, observation_id, family_name, use)`: true only when an active adoption of that
   observation names that family and its `description` equals `use` exactly (§6.2). Otherwise false, with one of the
   reasons `unadopted`, `suspended` or `other_use`. A whole-file adoption answers for the family name `whole_file`.
 - `legacy_content_matches(state, sha256, git_blob)`: every recorded observation whose source has that SHA-256 or
-  that Git blob (§4.2).
+  that Git blob. It sees recorded observations only (§4.2).
 
 The functions read. A test asserts that a module outside the legacy package imports from it only
 `projection_read`, plus the existing imports listed above, which the test allowlists by module and importer
@@ -593,51 +740,57 @@ check refuses on every store until WP9.7 (owner point D).
 
 ### 10.2 The root's registration and its member files (owner point K)
 
-Two registrations of different kinds are involved, and revision 1 weighed only the first.
+**What the accepted texts say.** W9 §3.1, on manuscripts: "A root is the one directory registration W9 allows. As in
+W11 §7.2, it authorizes no nested file its inventory does not list; the root's full-path inventory lists every file
+under it" (`design/09-migration-compatibility-and-pilot.md:134`). The registration schema fixes the role
+`legacy_manuscript_root` to the two root directories
+(`.research-system/schemas/contracts/w9/legacy-path-registration.schema.json:190-`), and no other role names a
+manuscript file. The source-inventory schema carries `root_registration_ref` once on the record, and per row a
+`repository_path`, a `git_blob` and an `observation_ref`, with no per-row registration.
 
-**The root registration.** Its role is `legacy_manuscript_root`, and the schema fixes its path to one of the two root
-directories (`.research-system/schemas/contracts/w9/legacy-path-registration.schema.json:190-`). It is the subject
-that LR-054 moves from `legacy_owned` to `successor_owned`, so no batch may close it first. The reader refuses a
-path that is not a regular file (`research_system/legacy/reader.py:168-169`), so no observation made through a
-preparer names it. Replay does not check that: a forged whole-file observation of a root registration replays, and
-`derive_ownership` would then close the root at LR-020 (`replay/reducers.py:619-650`; review m-4). WP9.4-2 adds the
-replay refusal: an observation whose registration has the role `legacy_manuscript_root` is refused at LR-015. This
-is the one change to a WP9.3 row's check.
+Revision 2 concluded that each of the 55 member files needs its own registration, that no role fits one, and that
+owner point K therefore needs a catalogue revision. The first two statements hold. The conclusion does not: W9 §3.1
+gives a reading that needs no revision, and revision 2 missed it (re-review R-M7).
 
-**The member files.** Annex LR-040 needs "every row bound to an accepted observation", and an observation's source
-path must equal its registration's path (`replay/reducers.py:485-491`). So each tracked file under a root needs its
-own registration: 55 files across the two roots at `3c10de9a`. Three things follow, and none is settled by an
-accepted text (review M-13):
+**Option 1 (recommended): members are observed under the root's registration.**
+- A member file is observed with a `whole_file` selector over that file, its `registration_ref` naming the root
+  registration, and its source path strictly under the root's path. It is never registered itself. The inventory
+  lists it, which is what W9 §3.1 says authorizes it.
+- That needs three readings of WP9.3's row checks, each to be recorded as P-084 recorded its readings:
+  1. **LR-015's path rule.** Replay requires an observation's source path to equal its registration's path
+     (`replay/reducers.py:485-491`). That rule is WP9.3's code, not an annex text. For a registration of role
+     `legacy_manuscript_root` it is read as: the path is a regular file strictly under the root's path;
+  2. **`_whole_file` for a root registration** (`:526-536`). A member observation covers one file, not the whole
+     registration. So LR-020 emits no ownership record for it, and P-072 item 2 ("an accepted observation whose
+     selector covers the whole registered file") is not met for the root;
+  3. **the stale rule** (`:1403-1414`) compares fingerprints across all observations of one registration. For a
+     root registration it must compare per source path, or every member observation would mark the others stale.
+- The consequences: the root registration stays `legacy_owned` until LR-054 moves it; no member has a registration
+  or an ownership record; and after LR-054 the whole root is `successor_owned`. The writer-rule question of revision
+  2 does not arise, because no member is a `closed_reference` file.
+- Its cost: the three readings change checks on a WP9.3 row, so they need Stephen's record and a test each. The
+  third is a real code change to LR-015's reducer, in WP9.4-2.
 
-1. **No role fits.** The role enum is closed, and `legacy_manuscript_root` is fixed to the two directories. A draft
-   section, a `_project.md` or a figure script is none of the other roles.
-2. **Every member file ends `closed_reference`.** LR-020 closes each accepted whole-file observation's
-   `legacy_owned` registration (P-072 item 2). After LR-054 the root is `successor_owned` and every file in it is
-   `closed_reference`.
-3. **The writer rule is then unclear.** WP9.7's guard refuses a successor write to a registered legacy file (06v
-   WP9.7, rule (a)). Read literally, a successor could not write any draft under the root it owns.
+**Option 2: a member-file role by catalogue revision.** Add a role such as `legacy_manuscript_member`, register each
+file, and let LR-020 close each one. That needs a new catalogue identity and a routed LR-002. It also sits badly
+with W9 §3.1's "the one directory registration", and it leaves every draft a `closed_reference` file under a
+`successor_owned` root, so WP9.7's guard would need an exception before a successor could write any draft.
 
-*Recommended, for Stephen to decide before WP9.4-2's code:*
-- **Role.** Add a member-file role by a catalogue revision, for example `legacy_manuscript_member`. A registration
-  is an accepted record with a closed enum, so this needs a new catalogue identity and a routed LR-002. The
-  alternative that needs no revision is to register members under an existing role, and `legacy_research_result` is
-  the nearest. That would put drafts among the files the citation extractor treats as results (§11.1), so it is not
-  recommended.
-- **End state.** Read `closed_reference` on a member file as closing the legacy bytes at the observed blob, which is
-  what the acceptance attests. It is intended.
-- **Writer rule.** A path under a root whose registration is `successor_owned` is writable by the successor, and
-  the member's `closed_reference` record stands as the reference for the bytes it observed. This is a reading of W9
-  §4.2 and §8.2 together, and WP9.7's guard would carry it as an exception to rule (a).
+**Option 3: an inventory with no per-file observation.** It contradicts annex LR-040 ("every row bound to an
+accepted observation") and the inventory schema, so it too needs a catalogue revision.
 
-*The alternative* is a root transition that binds no per-file observation: the inventory's rows would carry blobs
-only. That contradicts annex LR-040 and the inventory schema, which requires `observation_ref` on every row, so it
-too needs a catalogue revision.
+**The replay refusal that protects the root** (review m-4) depends on K. A forged whole-file observation of the root
+directory itself would, at LR-020, close the root before LR-054 needs it `legacy_owned`
+(`replay/reducers.py:619-650`). The reader refuses a non-regular file (`research_system/legacy/reader.py:168-169`),
+but replay does not check it.
+- Under option 1, LR-015 refuses an observation of a root registration whose path is not a regular file strictly
+  under the root.
+- Under option 2 or 3, LR-015 refuses every observation of a root registration, as revision 2 had it.
 
-Either way K needs an accepted text to change. If Stephen prefers not to revise the catalogue now, WP9.4-2 can
-build and test the full path on fixture registrations and leave the role to the revision. The batch rule also
-bears on timing: one batch of at most 20 items is admitted before the pilot outcome
-(`replay/reducers.py:104`, `:539-542`), so a root's members are accepted in batches after LR-022, which is when
-LR-054 can first run anyway.
+**Timing.** One batch of at most 20 items is admitted today, and the code refuses every later batch whatever LR-022
+says (`replay/reducers.py:104`, `:542`). Annex LR-016 makes a later batch depend on a passed LR-022, and the branch
+that admits one belongs to the package that routes LR-022 (WP9.3 note §2.1). A root has more than 20 members, so its
+inventory needs that branch under any option. It is WP9.7's carry.
 
 ### 10.3 The source inventory (LR-040 to LR-044)
 
@@ -647,7 +800,8 @@ LR-054 can first run anyway.
   The preparer lists the root's tracked files at the binding's `git_head` with `git ls-tree -r`, and refuses unless
   the inventory's rows are exactly that set, by path and blob. Replay cannot see Git, so it checks what it can: row
   ordinals are 1 to n with no gap, paths are unique and under the root's path, and every row's observation is
-  recorded, names that path's registration, and carries that blob.
+  recorded, names the registration that K's option gives the member (the root's, under option 1), has that source
+  path, and carries that blob.
 - **"Every row bound to an accepted observation."** Each row's observation is a `whole_file` observation in a
   recorded closed-reference acceptance.
 - **The window (LR-044).** At resolution the preparer re-reads every row's blob at `git_head` and re-lists the
@@ -665,19 +819,28 @@ non-empty subset of the inventory's ordinals with no repeat.
 - **LR-054** (`legacy_owned → successor_owned`), in replay:
   - the subject registration's role is `legacy_manuscript_root`;
   - `mapping_ref` and `paper_root_ref` are both set, the mapping is recorded, and its target is that root;
+  - **neither the mapping nor its inventory is superseded** at this position. Revision 2 checked that at LR-045 only
+    (re-review R-m3). It is testable now on a forged ledger, and has a live subject once WP9.6 routes supersession;
   - **the subject is the root the mapping targets:** `subject_registration_ref.id` equals the
     `root_registration_ref.id` of the mapping's inventory, and that registration's `normalized_path` equals the
     root's `manuscript_root_path`. Without this a P01-A mapping could transition the P01-B registration (review
     M-10);
-  - the root's current citation status is complete and consistent (§11.3), and every adoption it cites is active at
-    this position;
+  - the root's current citation status exists, its two derivation hashes are equal, and every adoption it cites is
+    active at this position (§11.3);
   - **the citation set was not made by the transition's producer** (§11.3);
   - the pilot outcome is passed (LR-022);
-  - the fixture entries of §5.4 and the open-item blob of §8 are present;
-  - every open item whose `feeds_papers` names this paper has a recorded discharge relation.
+  - the fixture entries of §5.4 and the open-item blob entry of §8 are present.
+- **LR-054, at the preparer:**
+  - **the citation status covers the mapped inventory.** The status record has no inventory ref, and its closed
+    schema admits none. So the preparer re-runs the extractor over the mapping's inventory and refuses unless its
+    output hash equals the current status's `extractor_output_sha256`. A status derived from an earlier inventory
+    then cannot carry a transition under a later one (CodeRabbit);
+  - **the open items.** Every item in the open-item file whose `feeds_papers` names this paper has a recorded
+    discharge relation, and the file's blob equals the Decision's entry. Replay cannot read the file (re-review
+    R-m1), so a forged ledger with an undischarged item replays clean (§16);
+  - the window: every inventory row's blob is re-read, as at LR-044.
 - **LR-055** (`successor_owned → closed_reference`). The subject is currently `successor_owned`. The annex adds no
-  further precondition, and neither does this note.
-- **The window.** At LR-054 and LR-055 the preparer re-reads the inventory's rows, as at LR-044.
+  further precondition, and neither does this note. The preparer re-reads the window.
 
 **The rest of §4.5's paper-root column is not machine-checkable in v1.** §16 lists each condition with the question
 its reviewer answers.
@@ -687,51 +850,101 @@ its reviewer answers.
 ### 11.1 What is compared (owner point I)
 
 D-3 is decided: both an extractor and a reviewer's derivation, and "a difference blocks" (06v §6). The record holds
-`extractor_output_sha256`, `reviewer_derivation_sha256` and `cited_family_set_sha256`. Three things need a fixed form
-so the hashes mean something.
+`extractor_output_sha256`, `reviewer_derivation_sha256` and `cited_family_set_sha256`.
 
-Revision 1's rule was a path literal, with `\` read as `/`, and no basenames. The review ran it against the P01-A
-drafts and it fails (M-5; claim 7). The author re-checked two of its cases at `3c10de9a`:
-`results-ari-stability.md:75` cites `` `escape_wilson_ci_2026-05-16.json` `` by basename only, and that name
-resolves to one tracked file; `05_analysis.json` resolves to three.
+Revision 1's rule was a bare path literal. Revision 2 added escapes, basenames and blocker entries, and scanned the
+whole root. The re-review implemented revision 2's rule and ran it over both roots through Git (R-M6). It could not
+record a citation status for either paper:
+
+| At `4629d1fd`, revision 2's rule | P01-A | P01-B |
+|---|---|---|
+| Cited files | 47 | 10 |
+| `ambiguous` blocker entries | 4 | 2 |
+| `unregistered` blocker entries | 36 | 28 |
+| of which name a directory, a stem or a filename template, not a file | 29 | 28 |
+| Distinct blocker entries under `drafts/` only | 8 (4 ambiguous names, 4 directory paths) | 2 (directory paths) |
+| Cited files if tokens are split on whitespace only | 17 | 1 |
+
+Four defects follow from that table, and each is fixed below: a directory or a template can never be registered, so
+it blocked for ever; "token" was undefined, and the cited set depended on the choice; a bare name that no
+registered result has was dropped silently; and a result adopted whole, such as an embedding, had no family to
+project to.
 
 *Recommended:*
 
-**A candidate citation** is found in a file's bytes by this procedure:
-1. decode the bytes as UTF-8. In a `.json` file, also scan every decoded string value, so that a JSON-escaped
-   Windows path is read as its path;
-2. read `\` as `/` and collapse repeated `/`;
-3. take every token that ends in a registered result's basename, or that contains `results/`.
+**1. Text and tokens.**
+- A file that is valid UTF-8 is text. In a `.json` file every decoded string value is scanned as well, so that a
+  JSON-escaped Windows path is read as its path.
+- A file that is not valid UTF-8 is not scanned. It is listed as `not_text` in the extractor's report, and it does
+  not block (CodeRabbit). A citation inside a binary file is for the reviewer's derivation.
+- In text, `\` is read as `/` and repeated `/` is collapsed. Tokens are split on whitespace and on each of
+  `` ` ' " ( ) [ ] < > , ; | * ``. A trailing `.` or `:` is stripped. This is the tokenizer the re-review ran.
 
-**Each candidate resolves to one of three things:**
-- **a cited file:** the token's path suffix equals a registered `legacy_research_result`'s normalized path, or the
-  token is a bare basename that exactly one registered result has;
-- **a blocker entry, `ambiguous`:** a bare basename that more than one registered result has;
-- **a blocker entry, `unregistered`:** a token naming a path under `results/` that no registration has.
+**2. Candidates.** A token is a candidate when it contains `results/`, or ends in a registered result's basename,
+or is a bare name with a result extension: `.json`, `.npy`, `.npz`, `.csv` or `.pkl`.
 
-Nothing is dropped silently. A set with a blocker entry cannot be recorded at LR-039.
+**3. Each candidate resolves to exactly one class.**
 
-**The cited-family set** is every family of every cited file's accepted membership table, as sorted
-`(observation ID, family name)` pairs, in canonical JSON. A cited file with no accepted table, or no accepted
-observation, is also a blocker entry.
+| Class | When | Blocks LR-039? |
+|---|---|---|
+| cited file | Its path suffix equals a registered `legacy_research_result`'s normalized path, or it is a bare basename that exactly one registered result has | No. It enters the set |
+| `ambiguous` | A bare basename that more than one registered result has, with no entry in the disambiguation file (below) | Yes |
+| `unregistered` | A token under `results/` that names a file (it has a file extension and is not a directory in Git at the binding's `git_head`) with no registration; or a bare name with a result extension that no registered result has | Yes |
+| `not_a_file` | A token under `results/` that is a directory in Git, ends in `/`, or has no file extension | No. It is reported and excluded from the hash |
 
-**Both hashes are of that same object.** The extractor's is computed by the preparer. The reviewer's is supplied,
-from a derivation made without the extractor's output.
+Nothing is dropped silently: every candidate is in the set, in a blocker entry or in the report.
 
-**Scope: the whole root, not the drafts only.** W9 §12.1 says "every result family its drafts cite". 06v WP9.4 says
-"every file in the root's inventory". This note follows 06v. For P01-A that adds 19 result files cited only outside
-`drafts/` to the 17 cited inside, and for P01-B 4 to 2 (the review's count). The wider scope asks for more adoption
-decisions or more "unadopted" marks, and never fewer. Stephen may prefer the drafts-only reading of W9 §12.1.
+**4. The cited-family set.** For each cited file: every family of its accepted membership table, as
+`(observation ID, family name)` pairs; or, for a file with no JSON family (§6.1), the one pair
+`(observation ID, "whole_file")`. The pairs are sorted and written as canonical JSON. A cited JSON file with no
+accepted table, or a cited file with no accepted observation, is a blocker entry.
+
+**5. The disambiguation file.** P01-A's drafts cite four basenames that more than one result has, for example
+`05_analysis.json`. Without a way to resolve them, the only route is to edit the drafts, which are registered legacy
+files. So an ambiguous basename can be resolved by a committed file in the W9 evidence area,
+`citation-disambiguation.json`, of format `w9-citation-disambiguation/1`: one row per `(citing file path,
+basename)` giving the registered path it means. The extractor reads it at the binding's `git_head`, and its blob is
+part of the extractor's output, so the output hash changes when the file does. Its content is the reviewer's
+proposal and Stephen's acceptance, as the membership tables are. It adds one row to the W9 paths addendum.
+
+**6. Both hashes are of the same object:** the cited-family set, the blocker entries and the disambiguation blob.
+The extractor's is computed by the preparer. The reviewer's is supplied, from a derivation made without the
+extractor's output.
+
+**7. Scope: the drafts block; the rest of the root is reported.** W9 §12.1 says "every result family its drafts
+cite". 06v WP9.4 says "every file in the root's inventory". W9 is the higher text, and the claim-trace audit that
+supplies the artifact map covers `drafts/sections/` only (below). So:
+- the blocking set is derived from the files under the root's `drafts/` directory;
+- the extractor still scans every other file in the inventory and reports what it finds there, without blocking and
+  outside the hash.
+
+Revision 2 followed 06v and scanned the whole root. On the real roots that added 19 and 4 cited files and most of
+the directory-and-template blockers, which sit in reviewer notes and `_project.md`. The decision entry records that
+this note reads 06v's "every file in the root's inventory" as the extractor's scan, not as the blocking set.
+
+**What still blocks, on the real roots.** With these rules and no disambiguation file, P01-A's drafts leave the 4
+ambiguous names, and P01-B's leave none: the directory paths become `not_a_file`. The untracked results the drafts
+name stay `unregistered` until they are registered or the citation goes. Those counts are the re-review's, re-read
+under the new classes. The author did not re-run the rule.
+
+**Citation forms the rule still misses.** A path composed in code from a directory string and a basename on another
+line, as in `drafts/sections/compute_table1_effects.py:22-53`, gives a `not_a_file` token and an ambiguous basename,
+not the cited file. A result cited by its stem, without an extension, is not a candidate. Both are for the
+reviewer's derivation, and a difference then blocks.
 
 **A departure from 06v.** 06v WP9.4 defines the extractor's output as "projected to families through the accepted
-membership tables and the audit's artifact map". This note projects through the membership tables only, and leaves
-the artifact map to the reviewer. The reasons: the author has not read the map's format, and narrowing a cited file
-to the families a claim uses can only shrink the set. The decision entry for this note records the departure.
+membership tables and the audit's artifact map". This note projects through the membership tables only. The
+artifact map is §3.2 of `docs/plans/strategy/P01-Claim-Trace-Audit-2026-07-17.md`, named as the source of the
+cited-family set at `04-parallel-specification-and-foundation-pilot-plan.md:186`. It is prose with elided basenames,
+so it is not machine-readable, and it is scoped to `drafts/sections/` (re-review R-m5). The reviewer reads it. One
+related file sits inside the root, `papers/P01-A-JRSSA/notes/claim-trace-escape-foo-2026-06.md`. It is outside
+`drafts/`, so its 15 backing files are reported and do not block. The decision entry for this note records the
+departure.
 
-**When the two derivations differ.** LR-054 refuses, and that is all the accepted row provides: no row records a
-reading that overrides it. Revision 1's "a recorded reading by Stephen" named a route that does not exist and is
-withdrawn. The executable routes are:
+**When the two derivations differ.** LR-054 refuses, and that is all the accepted row provides. The executable
+routes are:
 - **a new citation status** (LR-039 with `supersedes_status_ref`), when the reviewer's derivation was wrong;
+- **a disambiguation entry,** when a basename was ambiguous;
 - **a draft change,** when the drafts cite something they should not. That is a write to a registered legacy file,
   so it needs an allowed writer under W9 §4.2 item 1, and it re-triggers observation, the inventory and the mapping
   (W9 §4.2 item 3);
@@ -740,20 +953,28 @@ withdrawn. The executable routes are:
 
 If the reviewer finds a result cited indirectly, by a table or a figure, that the extractor cannot see, the
 transition stays blocked until the draft cites the file by name or the claim is removed. That is D-3 working as
-decided, and it is a real cost Stephen should know before accepting I.
+decided.
 
-*The alternative* is to narrow the comparison to the claim-level families the artifact map names. That needs the
-map's format fixed in a note first.
+*The alternatives:* the whole root as the blocking set, recorded as a departure from W9 §12.1, with the cost in the
+table above; or narrowing the comparison to the claim-level families the artifact map names, which needs the map
+rewritten in a machine-readable form first.
 
 ### 11.2 The extractor
 
 `research_system/legacy/citations.py` is a pure function over bytes. Its input is the source inventory's rows: for
 each, the blob named by the row's accepted observation, read from Git by blob ID at the binding's checkout. It never
-reads the live tree (06v WP9.4, "Input"). Every file in the inventory is scanned, whatever its type. The preparer for
-LR-039 runs it, stamps `extractor_output_sha256`, and refuses a supplied value, as preparers do for the content hash.
+reads the live tree (06v WP9.4, "Input"). Every file in the inventory is scanned or listed as `not_text`. It also
+needs the registered result paths, from the replayed state, and Git's tree at the binding's `git_head`, to tell a
+directory from a file.
+
+Its output is one object: the cited-family set, the blocker entries, the disambiguation file's blob or null, and a
+report of `not_a_file` tokens, `not_text` files and out-of-scope citations. `extractor_output_sha256` is the hash of
+the first three. The preparer for LR-039 runs it, stamps that hash, and refuses a supplied value, as preparers do
+for the content hash.
 
 So LR-039 needs the root's accepted inventory first. The order is LR-044, LR-049, LR-039, then LR-050 to LR-054.
-The annex's "hashed and filed before the transition" is met by that order.
+The annex's "hashed and filed before the transition" is met by that order, and LR-054's preparer re-runs the
+extractor over the mapped inventory (§10.5).
 
 ### 11.3 The record's checks
 
@@ -763,11 +984,13 @@ The annex's "hashed and filed before the transition" is met by that order.
 | `cited_family_set_sha256` is the hash of `families`; no pair repeats | Replay, at LR-039 |
 | A family marked `adopted` names an active adoption of that observation and family whose use is `w9-use:manuscript-claims/<the root's key>`. One marked `unadopted` names none | Replay, at LR-039 |
 | `supersedes_status_ref` names the root's current status, or is null when there is none | Replay, at LR-039 |
+| The `record_id` is the derived one (§5.6) | Replay, at LR-039 |
 | `families` is exactly the extractor's cited-family set, with no blocker entry. When the reviewer's set differs from the extractor's, `families` is still the extractor's, and the two hashes record the difference | Preparer, at LR-039. Replay cannot run the extractor (review m-5) |
 | The root's current status exists; the two derivation hashes are equal; every cited adoption is still active | Replay, at LR-054 |
+| The status's `extractor_output_sha256` equals a fresh run over the mapping's inventory | Preparer, at LR-054 (§10.5) |
 | **Not the transition's producer** (W9 §12.1): the current status's `derivation.reviewer_actor_id` and its submitter are none of the ownership proposal's creator, the mapping's `analyst_actor_id`, and the `observer_actor_id` of the inventory that mapping names | Replay, at LR-054. At LR-039 the transition does not exist yet (review M-9) |
 
-W9-T17's first two clauses are the fifth and sixth rows: a status that omits a family in the set is refused at
+W9-T17's first two clauses are the sixth and seventh rows: a status that omits a family in the set is refused at
 LR-039, and drafts that cite a family missing from the set change the extractor's hash, which blocks LR-054.
 
 ## 12. The reference graph (W9-T21)
@@ -783,16 +1006,17 @@ No new mutating verb. `ars legacy submit` already takes any W9 command envelope 
 (`research_system/cli.py:2898`; WP9.3 note §13). WP9.4 adds read-only verbs only:
 
 - `ars legacy adoption-status <adoption id>`: §9's status and cause;
-- `ars legacy cited-families --root <root id>`: runs the extractor at the binding's `git_head` and prints the set,
-  its blocker entries and its hash, for the reviewer to compare after making their own derivation. It writes
-  nothing.
+- `ars legacy cited-families --root <root id> [--reviewer-sha256 <hash>]`: runs the extractor at the binding's
+  `git_head` and prints its output object and hash. With the reviewer's hash it also prints the derived status
+  record ID that Stephen's grant names (§5.6). It writes nothing.
 
-**Owner point M: the boundary.** P-085's boundary is "WP9.4's code under `research_system/legacy/`". These verbs
-edit `research_system/cli.py`. WP9.3 had the same need, and Stephen extended P-080's boundary by name (P-081 item
-10, `03-decisions-and-open-questions.md:5167`). *Recommended:* the same extension for P-085, to
-`research_system/cli.py` and, for WP9.4-2's two bindings, to `research_system/schema_registry.py` and
-`research_system/authority.py`. *The alternative* is no CLI verbs: the reviewer would then run the extractor from a
-Python prompt, and the two bindings still need the registry and authority files.
+**Owner point M: the boundary.** P-085's boundary is "WP9.4's code under `research_system/legacy/`, its
+runtime-binding rows, tests and docs". The binding rows are in `research_system/schema_registry.py`, so that file is
+inside it already (re-review R-i4). Two files are not: `research_system/cli.py`, for these verbs, and
+`research_system/authority.py`, for WP9.4-2's two subject-kind entries (§5.6). WP9.3 had the same need, and Stephen
+extended P-080's boundary by name (P-081 item 10, `03-decisions-and-open-questions.md:5167`). *Recommended:* the same
+extension for P-085, to those two files. *The alternative* is no CLI verbs: the reviewer would then run the
+extractor from a Python prompt, and the two bindings still need the authority file.
 
 ## 14. Bindings and D-4
 
@@ -800,7 +1024,7 @@ Python prompt, and the two bindings still need the registry and authority files.
   smoke test keep their blobs. The PR states that and its review checks it. If the code finds it needs a row, that is
   a stop (§18).
 - **WP9.4-2** adds command rows for `CreateLegacyPaperRoot` and `RecordPaperCitationStatus`, with their authority
-  entries (`research_system/authority.py:208-252` lists the bound W9 commands and their subject kinds). The expected
+  entries (`research_system/authority.py:208-252` and `_SCOPED_COMMAND_SUBJECT_KINDS` at `:217`; §5.6). The expected
   census is 275 rows: both commands emit `E:` events only (§2.3). The code PR gives the exact row set, digest,
   manifest bytes and append-site classification, and Stephen re-accepts them at exact bytes in the merge-queue entry
   (06v D-4).
@@ -812,40 +1036,44 @@ Python prompt, and the two bindings still need the registry and authority files.
 |---|---|---|---|
 | W9-T1 at LR-029 | 1 | unit | A `Done` status word in the source yields no adoption |
 | W9-T6 at LR-029 | 1 | integration, scratch store | The source's bytes change after the proposal; resolution writes no event |
-| W9-T8, legacy side | 1 | integration | `family_admissible` is false for an accepted, unadopted family; `resolve_adoption_ref` raises for an unknown adoption. The successor half is owner point J |
-| W9-T9 | 1 | integration | Re-observe an adopted source: the same family with a new blob; the same family with the same blob; **a disjoint family set with a new blob** (M-1). All three suspend. Supersession and mismatch on forged ledgers |
-| W9-T17, last clause | 1 | unit | §9's predicate, for unadopted, suspended and other-use; `legacy_content_matches` finds a byte copy. The binding test is WP9.7's (owner point E) |
+| W9-T8, legacy side | 1 | integration | `family_admissible` is false for an accepted, unadopted family, and for a task-input adoption asked about under another key; `resolve_adoption_ref` raises for an unknown adoption and returns the observed identity for a family adoption. The successor half is owner point J |
+| W9-T9 | 1 | integration | Re-observe an adopted source: the same family with a new blob; the same family with the same blob; a disjoint family set with a new blob (M-1). All three suspend. Supersession and mismatch on forged ledgers |
+| W9-T17, last clause | 1 | unit | §9's predicate, for unadopted, suspended and other-use; `legacy_content_matches` finds a byte copy and misses unrecorded bytes. The binding test is WP9.7's (owner point E) |
 | G5 for an adoption | 1 | unit and integration | An adoption with no review, with an unsatisfied derived review, or with another review ID is refused at LR-028 and at LR-029. `review_id_for` raises for an unlisted kind (M-2) |
 | The analyst rule | 1 | unit | The analyst may request on their own adoption, discharge, mapping and ownership proposals; the inventory's observer may not request on it (M-3) |
-| Fixture entries | both | unit | A resolution missing an unconditional fixture, naming an unlisted one, or differing from its proposal is refused (owner point L) |
-| LR-023's refusals | 1 | unit | A claim use with an open finding; a task-input use whose qualifier set differs from the observation's; a target-free use; an adoption suspended at birth (M-6, M-7, m-12) |
-| LR-024, LR-025, LR-027 | 1 | integration | Under owner point B: a request before the eligibility Decision resolves; a request naming another session; a verdict whose profile or model metadata differs; W9-C20 at LR-025 |
-| LR-034's negatives | 1 | integration, at the preparer | An unknown `item_id`; a registered artefact that is not `accepted_for_scope`; the producer as reviewer; an open-item blob that is not the file's |
+| Fixture entries | both | unit | A resolution missing an unconditional fixture, naming an unlisted one, or differing from its proposal is refused; a claim-use adoption with no F-019 is refused; a Decision proposal whose fixture set differs from the request's applicable set is refused; a WP9.3 row with a fourth ref is still refused (owner point L; R-M5) |
+| LR-023's refusals | 1 | unit | A claim use with an open finding; a task-input use whose qualifier set differs from the observation's; a target-free use; `P01-A` accepted and `p01-a` refused as a paper key; a whole-file adoption of a `.json` source; an adoption suspended at birth (M-6, M-7, m-12, R-m2) |
+| LR-024, LR-025 | 1 | integration | Under owner point B: an eligibility proposal is accepted before any review exists; one with seven refs, another grade or a stale subject hash is refused; LR-025 with a record event is refused (R-M4) |
+| LR-026, LR-027 | 1 | integration | A request before the eligibility Decision resolves; a request naming another session; **a verdict from a session other than the eligible one**; a verdict whose profile or `<family>@<version>` differs; W9-C20 (R-M4) |
+| LR-034's negatives | 1 | integration, at the preparer | An unknown `item_id`; a registered artefact that is not `accepted_for_scope`; **a byte copy of a recorded legacy observation as the successor result** (R-M2); the producer as reviewer; an open-item blob that is not the file's |
+| Grant subjects | both | integration | A grant on another record ID is refused for each of the five proposal rows; for LR-039, a status whose `record_id` is not the derived one is refused, and a grant on the derived ID admits no other cited-family set (owner point N) |
 | W9-T5 | 2 | unit | `successor_owned → legacy_owned` fails the schema; `legacy_owned → closed_reference` is refused at LR-050 |
 | W9-T6 at LR-044, LR-054, LR-055 | 2 | integration | A row's blob changes inside the window |
 | W9-T17 at LR-044 | 2 | integration | An inventory that omits a tracked file under the root is refused (m-9) |
-| W9-T17 at LR-039, LR-054 | 2 | integration | A status omitting a family; a draft citing a result outside the set; unequal derivation hashes; the citation reviewer as the ownership proposal's creator, the mapping's analyst or the inventory's observer (M-9) |
-| The extractor | 2 | unit, on fixture bytes | A path literal; a JSON-escaped Windows path; a unique basename; an ambiguous basename and an unregistered `results/` path, each a blocker entry (M-5) |
-| W9-T21, graph half | 2 | unit | A cycle among root, inventory, mapping and transition; **a P01-A mapping used to transition the P01-B registration** (M-10) |
-| The root registration | 2 | unit | A forged whole-file observation of a `legacy_manuscript_root` registration is refused at LR-015 (m-4) |
+| W9-T17 at LR-039, LR-054 | 2 | integration | A status omitting a family; a draft citing a result outside the set; unequal derivation hashes; the citation reviewer as the ownership proposal's creator, the mapping's analyst or the inventory's observer (M-9); **a status derived from another inventory than the mapping's** |
+| LR-054's other refusals | 2 | forged ledger and preparer | A superseded mapping or inventory (R-m3); an open item feeding the paper with no discharge, at the preparer (R-m1) |
+| The extractor | 2 | unit, on fixture bytes | A path literal; a JSON-escaped Windows path; a unique basename; an ambiguous basename, with and without a disambiguation entry; an unregistered `results/` file and a bare unregistered `new_result.json`, each a blocker; a directory, a trailing-`/` path and a `{template` as `not_a_file`; an ordinary word that is not a candidate; a PNG as `not_text`; a cited `.npy` projected as `whole_file`; a citation outside `drafts/` reported and not hashed; the backtick and table-pipe separators (M-5, R-M6) |
+| W9-T21, graph half | 2 | unit | A cycle among root, inventory, mapping and transition; a P01-A mapping used to transition the P01-B registration (M-10) |
+| The root registration | 2 | unit | Under K's option 1: a member observation under the root is accepted and closes nothing at LR-020; two member observations do not mark each other stale; an observation of the root directory itself is refused at LR-015 (m-4, R-M7) |
 | W9-C11, W9-C20 to W9-C25 | both | integration | Per row, as the annex binds them |
 | The route partition | both | unit | The routed and deferred counts after each PR; a deferred row is still refused before append |
 | The import seam | 1 | unit | §9's allowlist (m-2) |
 | D-4 identities | 1 | contract | The census, manifest and tree IDs are unchanged |
 
 No test reads a file under `papers/`. The extractor's tests use fixture bytes that reproduce the citation forms the
-review found in the drafts.
+two reviews found in the drafts.
 
 Both PRs report their added test runtime. The test-runtime escalation is still open with Stephen (P-084, "Not decided
 here"), and WP9.3-2 added about 4.4 minutes.
 
 ## 16. Research assurance
 
-**Lanes.** `output_provenance` (every row) and `paper_claim` (LR-039, LR-054 and §9's predicate). No topology,
-null-model, statistical or representation logic is touched: the package computes no research number.
+**Lanes.** `output_provenance` (every row) and `paper_claim` (LR-039, LR-054, §9's predicate and the content rule of
+§4.2). No topology, null-model, statistical or representation logic is touched: the package computes no research
+number.
 
-**Governing texts.** W9 §§4.2, 4.5, 8.2, 8.3, 9, 12.1 and 17; the owner annex rows LR-023 to LR-055; P-072, P-073,
-P-081 and P-085; 06v §2.7, §2.8 and D-3.
+**Governing texts.** W9 §§3.1, 4.2, 4.5, 8.2, 8.3, 9, 12.1, 12.3 and 17; the owner annex rows LR-023 to LR-055;
+P-072, P-073, P-081 and P-085; 06v §2.7, §2.8 and D-3.
 
 **Machine-checkable, with an enforcement artifact:** every replay and preparer check in §5 to §8, §10 and §11.3,
 each with a negative control in §15; the D-4 identities.
@@ -855,50 +1083,56 @@ each with a negative control in §15; the D-4 identities.
 | Condition | Source | The question | Why not checked |
 |---|---|---|---|
 | The eligible session's family differs from the producer's; its role profile declares the lane's capability; its context is independent | Annex LR-024 (a) to (c); W9 §11.2 | Does the operator's record show each? | Replay sees attested strings (§5.5) |
-| A discharge's reviewer is not the result's producer, on a replayed ledger | G3 | — | Replay has no artefact state; the preparer checks it (§8) |
+| Which conditional fixtures apply (F-015, F-038) | W9 §12.3 | Is the family statistical? Does it use the TDA pack's lanes? | Not decidable from the record. The applicable set is fixed before the verdict and approved with it (§5.4) |
+| A discharge's reviewer is not the result's producer; its result is accepted and is not a legacy copy; its item is in the open-item list, on a replayed ledger | G3; §8 | — | Replay has no artefact state and cannot read the file. The preparer checks each |
+| The predicate a discharge's result is accepted under fits the discharge | §4.4 | Is this result evidence of the kind the item needs? | Any predicate is admitted |
+| Every open item feeding the paper is discharged, on a replayed ledger | W9 §12.1 | — | Replay cannot read the open-item file. The preparer checks it (§10.5) |
 | W0-D2 Stage 2 scope covers the root's rows | W9 §4.5; §12.1 | Does the Stage 2 decision name them? | The ownership record has no field |
 | The audit verdicts and the §6.2 HOLD are carried as qualifiers | W9 §12.1 | Does the root's `qualifiers` list hold each? | No accepted list of them exists to compare with |
 | For any rung-4/5 claim the paper keeps, the A1 fork is decided and the calibration has run | W9 §12.1 | Which claims are kept, and where is each calibration result? | A claim is not a W9 record |
 | The W9-D7 manuscript route | W9 §4.5; §12.2 | Has Gate 9's review capability been met for this paper? | Outside W9 |
 | Stephen's batch approval | D-G6-4 limb 2 | — | It is the resolving Decision itself |
-| The reviewer's citation derivation is independent of the extractor | D-3 | Was it made before `cited-families` was run? | Only its hash is checked |
+| The reviewer's citation derivation is independent of the extractor, and covers indirect, composed and stem citations | D-3; §11.1 | Was it made before `cited-families` was run? Does it read the artifact map? | Only its hash is checked |
+| A disambiguation entry names the result the draft means | §11.1 | Does the draft's context support it? | Stephen's acceptance, as for a membership table |
 | The content of the open-item list | W0-D1 | — | Stephen's. Its blob is bound (§8) |
-| A legacy result re-serialized into an artefact | §4.2 | Does the artefact's review trace its inputs? | Content identity catches a byte copy only |
-| Use keys name a real Task or claim | §6.2 | Does the key match the pre-registration or the claim candidate? | Attested strings |
+| A legacy result re-serialized into an artefact, or copied from bytes that were never observed | §4.2 | Does the artefact's review trace its inputs? | Content identity catches recorded or current bytes only |
+| A registered file changed and not re-observed | W9 §4.2 item 3 | — | The projection reads recorded observations. WP9.5's detectors and WP9.7's use-time comparison cover it (§7) |
+| Use keys name a real Task or claim | §6.2 | Does the key match the Task's alias or the claim candidate? | Attested strings |
 
-The fixture evidence is machine-checked for presence under owner point L, and human-reviewed for content.
+Passing these tests does not show that any real adoption is sound. That is the adoption's own review. The
+re-review's scratch-store run is the example to keep in mind: every step passed, and the passes were the defect.
 
-Passing these tests does not show that any real adoption is sound. That is the adoption's own review.
+## 17. Claims the confirming re-review should probe
 
-## 17. Claims the re-review should probe
+Revision 2's twelve claims, as the re-review disposed of them: 1, 4, 6 and 7 hold; 11 holds on reading; 3 and 10
+hold in part; 2, 5, 8, 9 (for F) and 12 failed. The claims below replace the ones that failed or held in part. Each
+names the finding it answers.
 
-Each is a claim revision 2 makes. The first five are corrections to revision 1's claims.
-
-1. **The claim path.** A legacy byte copy can be registered under the control root, promoted to
-   `accepted_for_scope` and resolved by `resolve_for_claim`, with no check on its content (§4.2). Neither the review
-   nor the author ran this end to end. A scratch-store run would settle it.
-2. **The use-time content rule is sufficient for byte copies.** With `legacy_content_matches` called at
-   `resolve_for_claim` and `resolve_for_manuscript`, no byte copy of an unadopted family resolves (§4.2, owner
-   point E). Is use time the right site, or does `SetArtefactUseAuthority` need the rule too?
-3. **The stale rule.** With §7's third bullet, the review's probe case (O1 selects `{a}` at blob X, O2 selects `{b}`
-   at blob Y) suspends an adoption of O1's family `a`, and no case leaves an adoption active on bytes that no longer
-   exist.
-4. **`review_id_for` leaves no fail-open site.** Every read of `_REQUEST_REVIEW_FIELD` and `_FAMILY_REVIEW_FIELD`
-   is among the seven sites §5.2 lists.
-5. **The extractor rule** of §11.1 finds every result the P01-A and P01-B files cite by path, escaped path or
-   unique basename, and reports every ambiguous or unregistered one. The author read two cases from Git and no
-   more. The re-review should run the rule on the real roots, read through Git.
-6. **The six widened gate sites** of §5.1 are the right six, and the four left alone need no WP9.4 row.
-7. **Fixture entries after the three subject refs** break no WP9.3 check for WP9.3's rows (§5.4), and the
-   unconditional sets listed there equal the annex's.
-8. **The eligibility encoding** of §5.5 meets every precondition of annex LR-024 to LR-027 that replay can meet.
-9. **The parameterized uses** of §6.2 and the refusal of §6.3 refuse too much only, never too little, against W9 §9
-   items 2 and 4 and annex LR-023.
-10. **No member-file role exists** in the accepted registration schema (§10.2), so owner point K cannot be closed
-    without a catalogue revision or a reading Stephen records.
-11. **LR-054's binding** (§10.5) leaves no way to transition one root's registration with another root's mapping.
-12. **The U-10 reading:** `accepted_for_scope` is the only accepted artefact state, and it always needs a
-    `claim_promotion` Decision (§4.4).
+1. **The path, as described** (R-M1): only the claim predicate binds a `claim_promotion` Decision, and §4.2, §4.4
+   and §8 say nothing that contradicts `service.py:4901-4902`.
+2. **The content rule's sites** (R-M2): with the rule at LR-030 and LR-034, no byte copy of a recorded legacy
+   observation can discharge an open item. With it also at `SetArtefactUseAuthority`, no direct reader of
+   `use_authority` can be reached by one. Are there readers the note has not named?
+3. **The stale rule, over recorded observations** (R-M3): the first review's case suspends, and §7 and §16 state the
+   unobserved-edit limit without overclaiming.
+4. **The eligibility encoding** (R-M4): walk annex LR-024 to LR-027 against §5.5 again. LR-024 passes before any
+   review exists; a verdict from a session other than the eligible one is refused; every new ref has a preparer
+   field.
+5. **Fixture applicability** (R-M5): the applicable set is fixed in the review request, so no fixture can be dropped
+   after the verdict; F-019 is required for both claim uses. Is reading "proposed by the reviewer" as "approved by
+   the reviewer before the verdict" a fair reading of W9 §12.3, or a departure Stephen must record?
+6. **The extractor on the real roots** (R-M6): re-run the rule of §11.1 over both roots through Git. With
+   drafts-only blocking and the `not_a_file` class, does P01-B record with no blocker, and does P01-A leave exactly
+   the four ambiguous names? Does any candidate fall in no class? The author did not re-run it.
+7. **K's option 1** (R-M7): the three readings are the only changes to WP9.3's checks it needs, and the per-path
+   stale comparison does not weaken the stale rule for any other registration.
+8. **G4** (R-M8): the derived status ID binds all three hashes, as the observation's derived ID binds its subject,
+   and no WP9.4 row is left with a subject the table of §5.6 does not cover.
+9. **The use-key carrier** (R-M9): a Task alias can carry the key, and J's binding test can now express "wrong
+   use".
+10. **LR-054's inventory binding:** re-running the extractor over the mapped inventory at the preparer leaves no way
+    to transition under an inventory the status was not derived from.
+11. **Nothing regressed:** the 25 first-round findings the re-review closed are still closed in revision 3.
 
 ## 18. Stop rules
 
@@ -907,7 +1141,8 @@ Each is a claim revision 2 makes. The first five are corrections to revision 1's
 - a WP9.4 row needs an edit outside the boundary as Stephen sets it under owner point M;
 - a test needs a real paper file, a vault file or restricted bytes;
 - a positive path for LR-035 or LR-054 can run without a passed LR-022;
-- WP9.4-2's code reaches a member-file registration before owner point K is decided.
+- WP9.4-2's code reaches a member file's observation or registration before owner point K is decided;
+- the extractor, run on fixture copies of the citation forms in §11.1, leaves a candidate in no class.
 
 ## 19. Owner points
 
@@ -917,21 +1152,29 @@ Each is a claim revision 2 makes. The first five are corrections to revision 1's
 | B | LR-024 and LR-025 | Move them from WP9.7 to WP9.4-1, with §5.5's encoding and the kind `migration_authority` (§2.2) | Leave them with WP9.7; adoption stops at LR-023 until then |
 | C | The adoption's review ID | Derive it, behind `review_id_for`; a reading of P-072 item 1, LR-023 and G5 (§5.2) | Add `reviewer_ref` by a catalogue revision |
 | D | LR-021 and LR-022 | Leave them with WP9.7. LR-035 and LR-054 refuse on every store until then (§2.2) | Move them, with the metric helper |
-| E | U-6, the W5 clause of W9-T17 | WP9.4 builds `family_admissible` and `legacy_content_matches`; WP9.7 binds them on the artefact path, with a content rule at use, and inherits the binding test (§4.2) | WP9.7 refuses every artefact whose bytes match a legacy observation |
-| F | The intended use | Three forms, each naming its target (§6.2) | Target-free values, recorded as widening W9 §9 item 2; or a free string |
+| E | U-6, the W5 clause of W9-T17 | WP9.4 builds the two read functions and binds the content rule at its own discharge. WP9.7 binds both at use and, **for Stephen to choose**, at `SetArtefactUseAuthority`; compares current blobs as well; and inherits a binding test per consumer predicate (§4.2) | WP9.7 refuses every artefact whose bytes match a legacy observation |
+| F | The intended use | Three forms, each naming its target; a task-input key is the Task's `w9-use-key` alias (§6.2) | Target-free values, recorded as widening W9 §9 item 2; or a free string |
 | G | Qualifiers and the W5 consequence | Refuse a claim use with an open finding at LR-023; task inputs keep their findings (§6.3) | Record and mark blocked, as an amendment to LR-023 |
-| H | The open-item list | A committed `w9-legacy-open-items/1` file with `feeds_papers`, its blob bound in Stephen's Decision (§8) | Leave the list to the discharge's reviewer |
-| I | The citation comparison | Decoded paths and unique basenames; blocker entries; the whole root; no artifact map in the extractor (§11.1) | Narrow to the artifact map's families, after its format is fixed; or the drafts only |
-| J | The W9-T8 CreateTask guard | Move it to WP9.7 by decision, with its binding test (§4.1) | Widen P-085's boundary to `service.py` |
-| K | A paper root's member files | A member role by catalogue revision; `closed_reference` is intended; a path under a `successor_owned` root is writable (§10.2) | An inventory with no per-file observation, also by revision |
-| L | Fixture refs | `w9-fixture:` entries in the resolving Decision (§5.4) | A recorded departure from P-072 item 4 |
-| M | The boundary | Extend P-085's to `cli.py`, `schema_registry.py` and `authority.py`, as P-081 item 10 did (§13) | No CLI verbs |
+| H | The open-item list | A committed `w9-legacy-open-items/1` file with `feeds_papers`, its blob bound in Stephen's Decision, read at the preparer (§8) | Leave the list to the discharge's reviewer |
+| I | The citation comparison | A defined tokenizer; four classes, one non-blocking; whole-file results projected; a disambiguation file; the drafts block and the rest of the root is reported; no artifact map in the extractor (§11.1) | The whole root as the blocking set, as a departure from W9 §12.1; or the artifact map, once machine-readable |
+| J | The W9-T8 CreateTask guard | Move it to WP9.7 by decision, with a binding test that includes a wrong-key Task (§4.1) | Widen P-085's boundary to `service.py` |
+| K | A paper root's member files | Observe members under the root's registration, with three recorded readings of WP9.3's checks and no catalogue revision (§10.2) | A member role by catalogue revision; or an inventory with no per-file observation, also by revision |
+| L | Fixture refs | `w9-fixture:` entries in the resolving Decision; the applicable set fixed in the review request; F-019 required for claim uses (§5.4) | A recorded departure from P-072 item 4 and W9 §12.3 |
+| M | The boundary | Extend P-085's to `cli.py` and `authority.py`, as P-081 item 10 did (§13) | No CLI verbs |
+| N | G4 for WP9.4's rows | Extend P-081 item 12 to the five proposal rows; derive LR-039's record ID from its three hashes (§5.6) | LR-039's grant binds the record ID only |
 
-A, D and M ask Stephen to confirm a recommendation the review supports. B, C, E, F, G, H, I and L are amended from
-revision 1 or new, and each changes what an accepted text is read to say. J and K need a decision that this note
-cannot make: J moves work between packages, and K needs a catalogue revision or a recorded reading.
+**What each asks of Stephen.**
+- A, C, D, G, J and M: confirm a recommendation both reviews support.
+- B, F, H and N: confirm, with the encodings this revision adds.
+- E: confirm the split, and choose whether WP9.7 applies the content rule at promotion as well as at use.
+- I: choose the blocking scope. The note recommends the drafts, which is W9 §12.1's text.
+- K: choose among three options. The note recommends the one that changes no accepted bytes.
+- L: confirm the encoding, and say whether the reviewer approving a list that is fixed before the verdict meets W9
+  §12.3's "proposed by the item's independent reviewer".
 
-## 20. Change log: revision 1 to revision 2
+The re-review notes that B, E, F, L and N are what WP9.4-1's code waits for, and that I and K touch WP9.4-2 only.
+
+## 20. Change log: revision 1 to revision 2 (the first review)
 
 The author re-read the code behind every finding at `3c10de9a` and re-ran the review's 20 probes (20 passed). No
 finding is disputed in substance. Three are qualified, and each qualification is stated in its row.
@@ -951,7 +1194,7 @@ finding is disputed in substance. Three are qualified, and each qualification is
 | M-10 | **Fixed.** LR-054 binds the subject to the mapping's root | §10.5, §15 |
 | M-11 | **Raised as owner point J.** *Qualified:* 06v §4's test table does assign the guard to WP9.7 (`06v-w9-implementation-plan.md:231`), which is what revision 1 followed. The finding stands because WP9.7's own list omits it | §4.1 |
 | M-12 | **Fixed.** The encoding, the record-less branch, the verdict's profile and the human-only limbs | §2.2, §5.5, §6.5, §16 |
-| M-13 | **Raised as owner point K.** *Qualified:* the review counts "at least three batches" for 55 files. That holds, but batches after the first already need LR-022 (`replay/reducers.py:539-542`), as LR-054 does, so it adds no new dependency | §10.2 |
+| M-13 | **Raised as owner point K.** *Qualified:* the review counts "at least three batches" for 55 files. That holds. Annex LR-016 makes a later batch depend on a passed LR-022, as LR-054 does, so it adds no new dependency. The code refuses every later batch today (`replay/reducers.py:542`), and the admitting branch is WP9.7's carry (re-review R-i3) | §10.2 |
 | m-1 | **Fixed.** Ten gate sites, six widened; the W2 rows at `:279-302`; the full import list | §2.3, §5.1, §9 |
 | m-2 | **Fixed.** The seam test allowlists the existing imports | §9, §15 |
 | m-3 | **Fixed.** The module is `projection_read.py` | §9 |
@@ -969,8 +1212,59 @@ finding is disputed in substance. Three are qualified, and each qualification is
 | i-3 | Noted | — |
 | i-4 | Noted. The ordering holds | §7 |
 
-Revision 1's §17 claims, as the review disposed of them: 1 and 3 hold; 2 and 7 failed and are replaced by claims 1,
-2 and 5 above; 4, 5 and 6 held in part and are replaced by claims 4, 10 and 3.
+Revision 1's §17 claims, as the first review disposed of them: 1 and 3 held; 2 and 7 failed; 4, 5 and 6 held in
+part. Revision 2 replaced them with twelve, and §17 says how the re-review disposed of those.
 
-The re-review comes next, in a fresh session that wrote none of WP9.2, WP9.3, this note or the first review. Stephen
-then decides the owner points, and the code follows.
+## 21. Change log: revision 2 to revision 3 (the re-review and CodeRabbit)
+
+The author re-read the code and the accepted texts behind every finding at `4629d1fd` and re-ran the re-review's 28
+probes (28 passed). No finding is disputed. Three rows carry a note on how far the fix goes.
+
+**The first round's partly closed findings.**
+
+| Finding | Re-review | Now |
+|---|---|---|
+| B-1 | Partly closed: the path's description was still wrong for the manuscript predicate | Fixed with R-M1 to R-M3 (§4.2) |
+| M-5 | Partly closed: silent drops, and an undefined token | Fixed with R-M6 (§11.1) |
+| M-7 | Partly closed: the task-input key had no carrier | Fixed with R-M9 (§6.2) |
+| M-12 | Partly closed: no session binding, no LR-024 branch, no payload | Fixed with R-M4 (§5.5) |
+| m-6 | Partly closed: U-10's cost was overstated | Fixed with R-M1 (§4.4) |
+
+**The re-review's findings.**
+
+| Finding | Disposition | Where |
+|---|---|---|
+| R-M1 | **Fixed.** Only the claim predicate binds a `claim_promotion` Decision. Claim 12 is withdrawn. WP9.7's inherited test has one artefact per predicate | §4.2, §4.4, §8, §17 claim 1 |
+| R-M2 | **Fixed.** The content rule is bound at LR-030 and LR-034. The promotion site is put to Stephen inside owner point E | §4.2, §8, §15 |
+| R-M3 | **Fixed.** The limit is stated; WP9.7 compares current blobs; `resolve_adoption_ref` returns the observed identity for every adoption; claim 3 is restated | §4.2, §4.3, §7, §9, §16, §17 claim 3 |
+| R-M4 | **Fixed.** The eligible session in the request and at the verdict; `<family>@<version>`; LR-024's own branch with no review; the preparer fields and the row discriminator; the lapse rule | §5.1, §5.2, §5.5, §6.5, §15 |
+| R-M5 | **Fixed, and kept inside owner point L.** F-019 is required for claim uses. The applicable set is fixed in the review request. *Note:* this is the reviewer approving a list, not proposing one, and §5.4 puts that reading to Stephen | §5.4, §15, §16 |
+| R-M6 | **Fixed.** The tokenizer, the `not_a_file` class, whole-file projection, bare unregistered names as blockers, the cost table, and drafts as the blocking scope. *Note:* a disambiguation file is added so that P01-A's four ambiguous names have a route other than editing the drafts; the re-review did not ask for it. The author did not re-run the rule | §11.1, §11.2, §15, §17 claim 6 |
+| R-M7 | **Fixed.** The W9 §3.1 reading is K's first option, and m-4's refusal is conditional on K. *Note:* the note adds a third reading the re-review did not list, the per-path stale comparison, without which member observations would mark each other stale (`replay/reducers.py:1403-1414`) | §10.2, §10.3, §15, §17 claim 7 |
+| R-M8 | **Raised as owner point N,** with a new §5.6 | §5.6, §13, §14, §15 |
+| R-M9 | **Fixed.** The carrier is a Task alias in the namespace `w9-use-key`, and J's test includes a wrong-key Task | §4.1, §6.2, §15 |
+| R-m1 | **Fixed.** The `feeds_papers` check is the preparer's, with a §16 row | §8, §10.5, §16 |
+| R-m2 | **Fixed.** The whole-file route is for a source with no JSON family | §6.1, §15 |
+| R-m3 | **Fixed.** LR-054 requires the mapping and inventory not superseded | §10.5, §15 |
+| R-m4 | **Fixed.** The assurance package's lack of a hook and the production callers are recorded | §4.2 |
+| R-m5 | **Fixed.** The artifact map and the in-root claim trace are cited | §11.1 |
+| R-i1 | Noted. Claim 7 held | §5.4 |
+| R-i2 | **Fixed.** The O-33 text is cited at its block | §3 row 3 |
+| R-i3 | **Fixed.** M-13's qualification is reworded | §10.2, §20 |
+| R-i4 | **Fixed.** Owner point M names `cli.py` and `authority.py` | §13 |
+
+**CodeRabbit's threads on revision 2.**
+
+| Thread | Disposition | Where |
+|---|---|---|
+| The open-item blob has no place in the Decision-ref encoding | **Fixed.** §5.4 lists it as the third group, for LR-033 and LR-053 | §5.4, §8 |
+| The key pattern rejects `P01-A` | **Fixed.** The lower-case pattern is for task and claim keys only | §6.2 |
+| Non-UTF-8 inventory files | **Fixed.** `not_text`: listed, not scanned, not blocking | §11.1, §15 |
+| An unregistered result cited by bare basename is dropped | **Fixed,** with R-M6 | §11.1, §15 |
+| The citation status is not bound to the mapped inventory | **Fixed by another route.** The suggested `source_inventory_ref` field cannot be added to a closed, accepted schema without a catalogue revision. LR-054's preparer re-runs the extractor over the mapped inventory instead | §10.5, §11.3, §15 |
+
+CodeRabbit's three threads on revision 1 are outdated. Two were fixed in revision 2 (the membership-table rule,
+since replaced by R-m2's; the stale rule, M-1), and the third is R-m1.
+
+A confirming re-review comes next, narrow to R-M1 to R-M9, in a fresh session. Stephen then decides the owner
+points, and the code follows.
