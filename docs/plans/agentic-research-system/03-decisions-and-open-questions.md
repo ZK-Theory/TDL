@@ -5750,6 +5750,105 @@ and append-site changes go to D-4.<br>
 **Affected specifications:** 06v WP9.4 (started).<br>
 **Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
 
+### P-086 - WP9.4 design note owner points A to O: two PRs, the eligibility rows, derived IDs, the evidence rule, the uses, members under the root, and the root's directory identity
+
+**Date:** 2026-11-19<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-19), each owner point at its recommended option.<br>
+**Authority:** Stephen, in chat, 2026-11-19, answering the owner points of the WP9.4 design note one by one. His
+answers: A "Two PRs (Recommended)"; B "Move to WP9.4-1 (Recommended)"; C "Derive it (Recommended)"; D "Stay with
+WP9.7 (Recommended)"; E "At use and promotion (Recommended)"; F "Three named forms (Recommended)"; G "Block claim uses
+(Recommended)"; H "Committed file, blob bound (Recommended)"; I "Drafts block (Recommended)"; J "WP9.7
+(Recommended)"; K "Observe under root (Recommended)"; L "Extension of i-3 (Recommended)"; M "Extend to both
+(Recommended)"; N "Extend + derived ID (Recommended)"; O "Directory read (Recommended)".<br>
+**Evidence:** The note, `transition/w9/wp9-4-design-note.md`, revision 5 at `32755276` (PR #437). Its reviews, each in
+a fresh session and each on its own branch:
+- `reviews/wp9-4-design-note-review-3c10de9a-2026-11-16.md` (`review/w9-wp9-4-note`, `a9935c0b`): accept with required
+  changes, 1 Blocking, 13 Major, 12 Minor, 4 Info;
+- `reviews/wp9-4-design-note-re-review-4629d1fd-2026-11-16.md` (`review/w9-wp9-4-note-re-review`, `a704d9b3`): return
+  for revision 3, 0 Blocking, 9 Major, 5 Minor, 4 Info;
+- `reviews/wp9-4-design-note-confirmation-ede231e5-2026-11-19.md` (`review/w9-wp9-4-note-confirmation`, `3499dd21`):
+  confirm with residuals, 0 Blocking, 2 Major, 4 Minor, 5 Info;
+- `reviews/wp9-4-design-note-r4-review-7bd7d6a6-2026-11-19.md` (`review/w9-wp9-4-note-r4`, `0a84ce83`): confirm with
+  residuals, 0 Blocking, 2 Major, 4 Minor, 5 Info.
+
+Revision 5 folds in the last review and every CodeRabbit thread on PR #437; its §20 to §23 map each finding. No review
+disagreed with any owner point. Revision 5 itself has not been reviewed. The reviewers are one model family with the
+author (P-058).<br>
+**Decision:** The note's §19, as revision 5 states it:
+1. **A, the split.** WP9.4 ships as two PRs. WP9.4-1: adoption and discharge, with no new command and no D-4.
+   WP9.4-2: the paper-root path, binding `CreateLegacyPaperRoot` and `RecordPaperCitationStatus`, with D-4. WP9.4-2 is
+   cut from WP9.4-1's main commit.
+2. **B, LR-024 and LR-025 move from WP9.7 to WP9.4-1**, with the note's §5.5 encoding: a derived eligibility Decision
+   ID, a proposal branch with no review requirement, a record-less resolution, the eligible session bound at the
+   request and the verdict, and the kind `migration_authority`. The annex's (a) to (c) stay Stephen's check at LR-025.
+   This changes the legacy route table's tags, as the WP9.2 note §3 allows.
+3. **C, the adoption's review ID is derived**, behind one resolver with no "no review needed" default (note §5.2). This
+   is a reading of P-072 item 1, annex LR-023 and G5: the ID is fixed by fields the content hash covers. No schema
+   changes.
+4. **D, LR-021 and LR-022 stay with WP9.7.** LR-035 and LR-054 refuse on every store until WP9.7 routes LR-022, as
+   P-073 item 4 asks.
+5. **E, legacy copies in evidence.** WP9.4 builds `family_admissible` and `legacy_content_matches`, and its LR-030 and
+   LR-034 preparers refuse a successor result whose bytes match a recorded legacy observation. WP9.7 applies the
+   content rule at use for claim, manuscript, result and review evidence, **and at promotion**
+   (`SetArtefactUseAuthority` to `accepted_for_scope`); compares current blobs of registered paths; and inherits a
+   binding test per consumer kind, the manuscript case with no Decision. W9-T17's last clause is complete when WP9.7's
+   test passes. The known limit stays: a re-serialized or partly copied result is for the artefact's own review.
+6. **F, the intended use** is one of `w9-use:manuscript-claims/<P01-A|P01-B>`, `w9-use:task-input/<key>` and
+   `w9-use:claim-evidence/<key>`. A task-input key is the value of a Task alias in the reserved namespace
+   `w9-use-key`. This is narrower than the schema.
+7. **G, qualifiers.** A claim or manuscript use with an open `open_review_finding` is refused at LR-023. A task-input
+   use keeps the observation's findings attached, exactly. This is the reading of LR-023's "no blocking qualifier".
+8. **H, the open-item list** is a committed `w9-legacy-open-items/1` file in the W9 evidence area, with a
+   `feeds_papers` column. Its content is Stephen's under W0-D1, written at the live stage. Its blob is named in the
+   Decision at LR-034 and LR-054, and every check that reads it is the preparer's. It adds one row to the W9 paths
+   addendum, as a dated amendment.
+9. **I, the citation comparison.** The note's §11.1 rule: a defined tokenizer, four classes with cited files tested
+   first, templates and empty stems non-blocking, whole-file results projected, and a token-keyed
+   `w9-citation-disambiguation/1` file whose rows Stephen accepts. **The drafts block, and the rest of the root is
+   reported.** That reads 06v's "every file in the root's inventory" as the extractor's scan, following W9 §12.1's
+   "every result family its drafts cite". The extractor projects through membership tables only, a recorded departure
+   from 06v's "and the audit's artifact map".
+10. **J, the W9-T8 guard moves to WP9.7.** It runs on CreateTask and AmendTask, with a binding test for an unknown,
+    suspended or wrong-use adoption, a wrong-key Task and two amendments.
+11. **K, a paper root's member files are observed under the root's registration** (option 1) and listed by its
+    inventory, never registered themselves. That needs five recorded readings of WP9.3's checks, each gated on the
+    role `legacy_manuscript_root`: LR-015's path rule; `_whole_file`; the stale rule; `_batch_rules`' "latest for its
+    source and selector"; and the observation preparer and reader reading a member by a `member_path` payload key. No
+    accepted byte changes. After LR-054 the whole root is `successor_owned`.
+12. **L, fixture refs** travel in the resolving Decision as `w9-fixture:` entries; F-019 is required for claim uses;
+    the applicable set is fixed in the review request before the verdict. This is recorded as **an extension of P-084
+    item 3's i-3 reading** to WP9.4's five families, not as literal compliance with W9 §12.3's "proposed by the item's
+    independent reviewer". It changes, for WP9.4's rows only, the three-ref encoding P-081 fixed.
+13. **M, the boundary.** P-085's Boundary line is extended, by name, to `research_system/cli.py` (two read-only verbs)
+    and `research_system/authority.py` (WP9.4-2's two subject-kind entries), as P-081 item 10 did for WP9.3.
+14. **N, G4 for WP9.4's rows.** P-081 item 12's reading extends to the five proposal rows (LR-023, LR-030, LR-040,
+    LR-045, LR-050) and to LR-024. LR-039's record ID is derived from the root, the superseded status and its three
+    hashes, so a grant on it binds the cited-family set.
+15. **O, the root registration's identity.** For role `legacy_manuscript_root` only, LR-003 and LR-005 read the
+    directory handle-bound under W11 §7.3 and record its identity in the existing schema fields. This is a reading of
+    annex LR-003's "read handle-bound" and LR-005's re-read for a directory, built in WP9.4-2.
+
+**Carried to later packages:**
+- WP9.7: the content rule at use and at promotion, with its binding tests (item 5); the CreateTask and AmendTask guard
+  (item 10); the use-time re-hash for both adoption kinds; the later-batch branch at LR-016; the writer guard's reading
+  that a path under a `successor_owned` root is writable.
+- WP9.6 and WP9.7: a binding test each that a real LR-060 and a real LR-061 suspend an adoption.
+
+**Not decided here:**
+- Whether revision 5 gets a further review before the code. It has not been reviewed.
+- The open items P-084 lists (the T2 `WriterLock` flake, the test-runtime escalation, and the segmentation readings
+  R-1 to R-8).
+
+**Not authorized:** as P-085. WP9.5 to WP9.7; L-0 to L-5; any real store, genesis or grant on one; any legacy write;
+any paper-root transition. WP9.4-1's code is authorized under P-085 item 2 now that the owner points are decided; it
+gets its own independent review, CodeRabbit and Stephen's merge.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** P-085's, extended by item 13.<br>
+**Affected specifications:** 06v WP9.4 (note decided); the legacy route table (LR-024, LR-025 retagged `WP9.4`); 06v
+WP9.7 (items 5 and 10 carried); P-081 item 12 (extended); P-084 item 3 (i-3 extended); the W9 paths addendum (two rows
+to add: the open-item list and the disambiguation file).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
 ## Decision protocol
 
 Each future decision entry must record:

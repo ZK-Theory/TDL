@@ -14,7 +14,7 @@ Revision 2 reconciled the independent review of revision 1
 re-review of revision 2 (`4629d1fd`): `reviews/wp9-4-design-note-re-review-4629d1fd-2026-11-16.md`, on branch
 `review/w9-wp9-4-note-re-review` at `a704d9b3`, verdict return for revision 3 (0 Blocking, 9 Major, 5 Minor, 4 Info),
 and CodeRabbit's five threads on revision 2 (PR #437). §20 and §21 say where those findings went. Nothing in this
-note is implemented, and no owner point is decided.<br>
+note is implemented. Stephen decided owner points A to O on 2026-11-19, each at its recommended option (P-086).<br>
 **Package:** 06v WP9.4 ("Adoption, discharge and citation status"), proposed as two PRs, WP9.4-1 and WP9.4-2 (owner
 point A).<br>
 **Authority:** P-085 (WP9.4, note first). WP9.3 is complete: PRs #420, #428, #429, #432 and #434 (P-082, P-083,
