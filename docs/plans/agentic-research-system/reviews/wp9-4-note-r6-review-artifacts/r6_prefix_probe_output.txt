@@ -1,0 +1,27 @@
+warning: in the working copy of 'papers/P01-A-JRSSA/_project.md', LF will be replaced by CRLF the next time Git touches it
+platform=win32 python=3.13.5
+
+[1] Handle-bound read (LR-003's preparer read) of case variants of a member path
+  'papers/P01-A-JRSSA/_project.md': READ, canonical_target ends 'x/papers/P01-A-JRSSA/_project.md', id=(13903934379739225562, 2533274794846729)
+  'papers/p01-a-jrssa/_project.md': READ, canonical_target ends 'x/papers/P01-A-JRSSA/_project.md', id=(13903934379739225562, 2533274794846729)
+  'PAPERS/P01-A-JRSSA/_project.md': READ, canonical_target ends 'x/papers/P01-A-JRSSA/_project.md', id=(13903934379739225562, 2533274794846729)
+
+[2] LegacyReader.read of the case variant, by source kind
+  kind=git_tracked: REFUSED (git show failed)
+  kind=untracked_file: READ
+
+[3] A registration of the case variant, with the root recorded
+  _registration_conflicts (today's equality): False
+  revision 6's normalized_path prefix rule:  False
+  canonical_target prefix rule (normcase):   True
+  control, exact-case member path:
+    revision 6's rule: True; target rule: True
+  control, component boundary (papers/P01-A-JRSSA-old/x.md):
+    revision 6's rule: False; target rule: False
+  reverse direction (member recorded first, then the root):
+    revision 6's rule: False; target rule: True
+
+[4] The physical-identity half: a declared canonical_target in another case
+  preparer _same_physical_identity(observed, declared upper-cased): True
+  one file registered twice (path case differs, declared target case differs): _registration_conflicts=False
+  control, declared target as observed: _registration_conflicts=True

@@ -1,0 +1,95 @@
+== Section 15 extractor fixtures (and two review probes) ==
+  ok   path literal: {'results/a/unique.json': 'cited'}
+  ok   JSON-escaped Windows path: {'results/a/unique.json': 'cited'}
+  ok   unique basename: {'unique.json': 'cited'}
+  ok   ambiguous basename: {'05_analysis.json': 'ambiguous'}
+  ok   unregistered results/ file: {'results/a/missing.json': 'unregistered'}
+  ok   bare unregistered: {'new_result.json': 'unregistered'}
+  ok   directory: {'results/a': 'not_a_file'}
+  ok   trailing slash: {'results/a/': 'not_a_file'}
+  ok   ordinary word: {}
+  ok   LaTeX-wrapped path: {'results/p/ph_L5000.json': 'cited'}
+  ok   registered YYYYMMDD-like name: {'results/x/level1_comparison_20260101.json': 'cited'}
+  ok   partial path, one hit: {'trajectory_tda_integration/post_audit/04_one.json': 'cited'}
+  ok   partial path, two hits: {'post_audit/04_two.json': 'ambiguous'}
+  ok   dir template, one registered: {'results/x_': 'not_a_file', '/a.json': 'cited'}
+  ok   dir template, two registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   component boundary: {'x/a.json': 'ambiguous'}
+  ok   filename template: {'.json': 'not_a_file'}
+  ok   YYYYMMDD template: {'level1_comparison_YYYYMMDD.json': 'not_a_file'}
+  ok   lone .json: {'.json': 'not_a_file'}
+  ok   notes copy: {'notes/data.json': 'ambiguous'}
+  ok   backtick and pipe separators: {'results/a/unique.json': 'cited'}
+  ok   cited .npy: {'results/e/embed.npy': 'cited'}
+  ok   PROBE: template tail, unrelated dir: {'results/x_': 'not_a_file', '/a.json': 'cited'}
+  ok   PROBE: template tail, other parent: {'results/x_': 'not_a_file', '/post/a.json': 'ambiguous'}
+
+== Real roots at b13f1592, registration set = 506 tracked files under results/ ==
+
+papers/P01-A-JRSSA/ (suffix=component, basename=component): 33 files, not_text=0
+  drafts: cited files=23
+  drafts ambiguous: 4 ['04_nulls_wasserstein_w2_20260407.json', '04_nulls_wasserstein_w2_L5000_20260502.json', '05_analysis.json', 'stratified_markov1_W2_L5000_20260502.json']
+  drafts unregistered: 0 []
+  drafts not_a_file: 5 ['.json', 'results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_bhps/stratified_markov/', 'results/trajectory_tda_integration/post_audit/', 'results/trajectory_tda_integration/stratified_markov/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=33, not_a_file=26, unregistered=8
+  other tokens starting '/': []
+
+papers/P01-A-JRSSA/ (suffix=string, basename=component): 33 files, not_text=0
+  drafts: cited files=23
+  drafts ambiguous: 4 ['04_nulls_wasserstein_w2_20260407.json', '04_nulls_wasserstein_w2_L5000_20260502.json', '05_analysis.json', 'stratified_markov1_W2_L5000_20260502.json']
+  drafts unregistered: 0 []
+  drafts not_a_file: 5 ['.json', 'results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_bhps/stratified_markov/', 'results/trajectory_tda_integration/post_audit/', 'results/trajectory_tda_integration/stratified_markov/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=33, not_a_file=26, unregistered=8
+  other tokens starting '/': []
+
+papers/P01-A-JRSSA/ (suffix=component, basename=string): 33 files, not_text=0
+  drafts: cited files=23
+  drafts ambiguous: 4 ['04_nulls_wasserstein_w2_20260407.json', '04_nulls_wasserstein_w2_L5000_20260502.json', '05_analysis.json', 'stratified_markov1_W2_L5000_20260502.json']
+  drafts unregistered: 0 []
+  drafts not_a_file: 5 ['.json', 'results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_bhps/stratified_markov/', 'results/trajectory_tda_integration/post_audit/', 'results/trajectory_tda_integration/stratified_markov/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=33, not_a_file=26, unregistered=8
+  other tokens starting '/': []
+
+papers/P01-B-JRSSB/ (suffix=component, basename=component): 22 files, not_text=0
+  drafts: cited files=2
+  drafts ambiguous: 0 []
+  drafts unregistered: 0 []
+  drafts not_a_file: 2 ['results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_integration/post_audit/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=11, not_a_file=32
+  other tokens starting '/': []
+
+papers/P01-B-JRSSB/ (suffix=string, basename=component): 22 files, not_text=0
+  drafts: cited files=2
+  drafts ambiguous: 0 []
+  drafts unregistered: 0 []
+  drafts not_a_file: 2 ['results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_integration/post_audit/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=11, not_a_file=32
+  other tokens starting '/': []
+
+papers/P01-B-JRSSB/ (suffix=component, basename=string): 22 files, not_text=0
+  drafts: cited files=2
+  drafts ambiguous: 0 []
+  drafts unregistered: 0 []
+  drafts not_a_file: 2 ['results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_integration/post_audit/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  drafts tokens starting '/' (template tails): []
+  other (reported): ambiguous=2, cited=11, not_a_file=32
+  other tokens starting '/': []
+
+fixture failures: 0

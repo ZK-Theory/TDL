@@ -1,0 +1,6 @@
+platform=win32 python=3.13.5
+os.open(directory) for os.fstat: REFUSED (PermissionError: Permission denied)
+anchor scheme=windows-file-id-v1
+anchor volume == st_dev: True
+anchor file_id (little-endian int) == st_ino: True
+directory st_nlink before=1 after adding a subdirectory and a file=1
