@@ -361,10 +361,23 @@ def check_hook_currency(workspace: Path, waiver: str | None = None) -> Check:
     ``--allow-stale-hooks '<reason>'`` records as an advisory. A check that cannot reach a verdict
     (no remote, no reference) is an advisory, not a failure. It reads the last-fetched remote ref, so
     ``git fetch`` first for a current answer.
+
+    A shallow repository also FAILS, and ``--allow-stale-hooks`` does not waive it (obs
+    2026-11-20-main-checkout-went-shallow-and-reddened-the-06h-smoke-test). Ancestry checks past the
+    shallow boundary fail, so a Worker on a shallow repository meets a red 06h smoke test that is
+    not its own, and the currency comparison itself can undercount. The fix is one command,
+    ``git fetch --unshallow origin`` from the main checkout, so there is no waiver.
     """
     from tools.hook_currency import STALE, UNVERIFIED, check
 
     result = check(workspace)
+    if result.shallow:
+        return Check(
+            "hook-currency",
+            False,
+            f"{result.shallow_warning} Fix before dispatch; --allow-stale-hooks does not waive this. "
+            f"Hook currency: {result.message}",
+        )
     if result.status == STALE:
         if waiver and waiver.strip():
             return Check("hook-currency", True, f"{result.message} WAIVED: {waiver.strip()}", advisory=True)
