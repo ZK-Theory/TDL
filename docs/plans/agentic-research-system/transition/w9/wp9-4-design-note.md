@@ -1,7 +1,10 @@
 # WP9.4 design note: adoption, discharge, citation status and the full path
 
 **Date:** 2026-11-16<br>
-**Status:** Revision 6. It folds in the review of revision 5 (`32755276`):
+**Status:** Revision 7. It folds in the review of revision 6 (`b13f1592`):
+`reviews/wp9-4-note-r6-review-2026-11-20.md`, on branch `claude/review-w9-wp9-4-note-r6-d51c67` at `7a0c6b11`,
+verdict confirm with residuals (0 Blocking, 2 Major, 3 Minor, 6 Info), and Stephen's scope decision on R6-M2
+(2026-11-20, "WP9.4-2 under O"). §25 says where each finding went. Revision 6 folded in the review of revision 5 (`32755276`):
 `reviews/wp9-4-note-r5-review-2026-11-19.md`, on branch `claude/review-w9-wp9-4-note-r5-bdb004` at `3e7846b2`,
 verdict confirm with residuals (0 Blocking, 1 Major, 3 Minor, 5 Info). §24 says where each finding went. No finding
 reopens an owner point. Revision 5 folded in the review of revision 4 (`7bd7d6a6`):
@@ -152,6 +155,7 @@ WP9.4-1 merges first, and WP9.4-2 is cut from its main commit. The alternative i
 | 14 | P-072 item 4 | Per-fixture evidence or waiver refs travel in the resolving Decision | §5.4 (owner point L) |
 | 15 | 06v WP9.4, "Successor-side refusals" | The CreateTask guard refuses a Task whose `source_import_refs` reference an unadopted family (W9-T8) | Outside P-085's boundary (owner point J; §4.1) |
 | 16 | P-086, "Carried to later packages" | The writer guard's reading that a path under a `successor_owned` root is writable | **WP9.7's.** Under K's option 1 a member has no registration of its own, so after LR-054 only a reading of the root's ownership mode lets a successor write a draft. WP9.4 records the carry and builds no guard (review of revision 5, R5-m3) |
+| 17 | W11 §7.2; review of revision 6, R6-i6 | The registration schema fixes `successor_results_root` to `results/ars/`, a second directory role. It is not recordable today (`_relative` refuses the trailing `/`, `legacy/reader.py:105-111`) | **The package that makes `results/ars/` recordable (W9-D14)** applies §10.2's prefix and case checks to that role. WP9.4's checks are scoped to `legacy_manuscript_root` |
 
 ## 4. Interface findings (06v §2.8)
 
@@ -844,11 +848,17 @@ gives a reading that needs no revision, and revision 2 missed it (re-review R-M7
      - **the root's source kind.** A `legacy_manuscript_root` registration is `git_tracked`. The schema does not
        fix it: its repository-root branch admits `git_tracked`, `untracked_file` and `restricted_untracked_file` for
        any role, and `LegacyReader.read` records `repository_path` for the first kind only, and `path` for the two
-       untracked kinds (`legacy/reader.py:317-325`). So LR-003's preparer refuses any other kind for that role, as part of this
-       reading, and every member's path is then its `source_identity.repository_path`. The inventory lists tracked
-       files only (§10.3). The D-9 restricted rule keys on the registration's path suffix, which for a root ends in
-       `/`, so it never reaches a member; LR-015's preparer therefore refuses a member whose path has a D-9 suffix
-       (`.csv`, `.pkl`). Neither root holds such a tracked file today (review of revision 5, R5-m2);
+       untracked kinds (`legacy/reader.py:317-325`). So LR-003 refuses any other kind for that role, as part of this
+       reading, **in replay as well as at the preparer**: `_check_registration` (`replay/reducers.py:423-433`) sees
+       `role` and `source_identity_kind`. A forged ledger that records the root as `untracked_file` would otherwise
+       replay clean, and by the kind-equality rule (`_source_matches_registration`, `reducers.py:464-491`) every member
+       observation would then be untracked, read without Git (review of revision 6, R6-m1). Every member's path is
+       then its `source_identity.repository_path`. The inventory lists tracked files only (§10.3). The registration
+       schema's D-9 rule keys on the registration's path suffix, which for a root ends in `/`, so it never reaches a
+       member. The observation schema's `git_tracked` `repository_path` does refuse a `.csv` or `.pkl` suffix
+       (`legacy-observation.schema.json`, `$defs.sourceIdentity`). LR-015's preparer refuses such a member as well, by
+       its own check, and §15's control asserts the preparer's own refusal, not the schema's (R6-i2). Neither root
+       holds such a tracked file today (R5-m2);
      - **the read.** `LegacyReader.read` takes an optional member path. For a root registration it requires one,
        refuses it unless it is a regular file strictly under the root's path (resolved handle-bound, as today), and
        reads it; for every other role it refuses one. The preparer's read and re-read pass `member_path`;
@@ -910,35 +920,72 @@ identity, and a root path that resolves to a regular file, a junction or another
 and at LR-005's re-read. A file path under that role is already refused by the schema, which admits the two
 directory paths only, so it is not the control for O (review of revision 5, R5-i3).
 
-**The identity's encoding.** The directory identity uses the reader's file encoding: `stable_file_id` is
-`str(st_ino)`, with `volume_serial_number` `str(st_dev)`, from `fstat` on the bound handle
-(`_physical_identity`, `legacy/reader.py:124-134`), not the store's
-`DirectoryAnchor.identity` form (`windows-file-id-v1`, `store/anchor.py:407-410`). `_registration_conflicts` compares
-`stable_file_id` strings across registrations, so the two encodings must not mix. `link_count` is recorded and is
-not compared for a directory: on Windows it is stable when entries are added, and on POSIX it moves with
-subdirectories; W11 §7.2 gives it "where applicable" (R5-i2).
+**The identity's encoding.** The directory identity is written in the reader's file encoding
+(`_physical_identity`, `legacy/reader.py:124-134`): `volume_serial_number` is a decimal string and `stable_file_id`
+a decimal string. It cannot come from `fstat` on Windows, where `os.open` on a directory is refused (review of
+revision 6, R6-i1). It comes from the bound directory anchor (`DirectoryIdentity`): `str(volume_or_device)` and
+`str(int.from_bytes(file_id, "little"))`, the conversion `_windows_handle_matches_stat` already uses
+(`store/anchor.py:1561-1573`); the review's probe found both equal `st_dev` and `st_ino`. It is not the anchor's own
+`windows-file-id-v1` form (`store/anchor.py:407-410`): registrations are compared by these strings, so the two
+encodings must not mix. `link_count` is recorded and is not compared for a directory, so `_same_physical_identity`
+(`legacy/preparers.py:143-148`), which LR-003 and LR-005 both call, skips it for this role. On Windows a directory's
+`st_nlink` is stable when entries are added, and on POSIX it moves with subdirectories; W11 §7.2 gives it "where
+applicable" (R5-i2, R6-i1).
 
-**Prefix collisions (R5-M1).** O makes a directory registration recordable for the first time, and with it W11
-§7.2's rule that "registration rejects … resolved-prefix collisions that would allow two writer sets to reach one
-physical target. A directory registration cannot authorize an unregistered nested authority file"
-(`design/11-portfolio-and-discovery-lifecycle.md`; W9 §3.1 repeats the second sentence for paper roots,
-`design/09-migration-compatibility-and-pilot.md:134`). Replay's LR-003 check, `_registration_conflicts`
+**Prefix collisions (R5-M1, R6-M1).** O makes a directory registration recordable for the first time, and with it
+W11 §7.2's rule that "Registration rejects exact, case-folded, Unicode-normalized, 8.3-name, symlink, reparse-point,
+or resolved-prefix collisions that would allow two writer sets to reach one physical target. A directory registration
+cannot authorize an unregistered nested authority file" (`design/11-portfolio-and-discovery-lifecycle.md:1174`; W9
+§3.1 repeats the second sentence for paper roots, `design/09-migration-compatibility-and-pilot.md:134`). W11 §7.3
+adds that "string prefix checks are not proof" (step 2, `:1193`) and asks to reject a "physical-prefix collision even
+when path strings differ" (step 3, `:1196`). Revision 6 quoted §7.2 with an ellipsis over "case-folded" and then left
+case-folding out (R6-M1). Replay's LR-003 check, `_registration_conflicts`
 (`replay/reducers.py:401-420`), compares `(root_kind, root_id, normalized_path)` and
 `(canonical_target, stable_file_id)` for equality only, and the schema confines no other role's path away from the
 roots. So today a file under a recorded root could be registered under another role, for example
 `papers/P01-A-JRSSA/_project.md` as `legacy_coordination`. After LR-054 it would be a member of a `successor_owned`
 root and a `legacy_owned` registration of its own: two writer sets on one file.
 
-So, as part of O's reading, replay's LR-003 check (and LR-003's preparer, before append) also refuses a
-resolved-prefix collision with a `legacy_manuscript_root` registration, recorded or in an open proposal, as
-`_registration_conflicts` already reads both today:
-- a registration whose `normalized_path` is strictly under a root's path is refused;
-- a root registration is refused when a recorded or proposed registration's path is strictly under its path.
-The comparison is on `normalized_path`, at a path-component boundary. `_registration_conflicts` applies no
-case-folding of its own; it relies on the schema's normalized form, and so does this check. The physical-identity
-half needs no prefix form: a member file and its root have different identities. That makes option 1's "no member has a registration" a replay
-invariant, not a consequence that only Stephen's LR-004 Decision protects. It is one more check in WP9.4-2, with two
-tests (§15). It changes no accepted byte.
+**Letter case survives to LR-003.** The schema's `relPath` does not fold case, so `papers/p01-a-jrssa/_project.md` is
+schema-valid. `handle_bound_read` compares each parent with `os.path.normcase` (`legacy/reader.py:161`), so on Windows
+a parent spelled in another case passes, and LR-003's preparer reads the file. A `git_tracked` registration of the
+variant fails at the Git read, which is case-sensitive, but an `untracked_file` registration is read, and nothing at
+LR-003 checks that an untracked path is untracked. The review of revision 6 ran this: the variant passes today's
+`_registration_conflicts` and revision 6's prefix rule alike. The other aliases W11 names are closed by the read
+already: an 8.3 name by `relPath`, a junction or symlink parent at `reader.py:161`, a symlink leaf at `:165`, a hard
+link by `st_nlink != 1` at `:170`, and a Unicode-normalization variant because NTFS does not normalize names, so the
+variant names no file.
+
+So, as part of O's reading, replay's LR-003 check (and LR-003's preparer, before append) also refuses a collision
+with a `legacy_manuscript_root` registration, recorded or in an open proposal, as `_registration_conflicts` already
+reads both today. The comparison is made twice, and either one refuses:
+- **on the path:** `normalized_path` case-folded with `str.casefold`, at a path-component boundary, within one
+  `(root_kind, root_id)`. A registration whose folded path is strictly under a root's folded path is refused, and a
+  root is refused when a recorded or proposed registration's folded path is strictly under its own;
+- **on the physical target:** `canonical_target` case-folded with `/` separators. A registration whose target lies
+  strictly under a root's target is refused, and the converse for a root (W11 §7.3 step 3). This form is sound while
+  every registration is made under one binding's repository root, which v1 assumes.
+Replay folds with `casefold`, not `os.path.normcase`, so that it gives one answer on every platform. Both checks are
+scoped to pairs that include a `legacy_manuscript_root` registration, so a `vault_root` path that happens to begin
+`papers/P01-A-JRSSA/` is not refused. That makes option 1's "no member has a registration" a replay invariant, not a
+consequence that only Stephen's LR-004 Decision protects. It changes no accepted byte.
+
+**The equality half, for every role (R6-M2).** `_registration_conflicts` compares `(canonical_target,
+stable_file_id)` for exact equality (`replay/reducers.py:409-413`) and does not compare `volume_serial_number`. The
+preparer accepts a declared `canonical_target` in any letter case (`_same_physical_identity`, `preparers.py:143-148`,
+`os.path.normcase` on both sides). So one file can be registered twice, for any role, by declaring its target in
+another case: the review's probe gave `False` for that pair and `True` for its control. W11 §7.3 step 3 names the
+identity to compare: "every opened volume/file ID". So replay's equality half compares `(volume_serial_number,
+stable_file_id)` and `normalized_path` case-folded, and no longer treats the declared `canonical_target` string as an
+identity. This changes WP9.3's LR-003 check for every role, not only the root.
+
+*Stephen's scope decision* (chat, 2026-11-20, "WP9.4-2 under O"): the fix is built in WP9.4-2, as an extension of O's
+reading to every role, not in a separate WP9.3 follow-up PR. It is recorded as a correction to WP9.3's accepted
+LR-003 replay check (P-081, P-084), with a forged-ledger test of one file registered twice in two cases. It enters
+the register with WP9.4-2's dispatch (R6-i3). No real store exists before WP9.4-2, so the gap cannot be used before
+the fix lands.
+
+All three checks are in WP9.4-2, with the tests in §15.
 
 *The alternative* is to register the root under a file that stands for it, such as its `_project.md`. That
 contradicts the schema's fixed directory paths, so it needs a catalogue revision.
@@ -1043,7 +1090,7 @@ project to.
 - With braces as separators no token holds `{` or `}`. A directory placeholder therefore splits a templated path:
   `results/trajectory_tda_{survey}/post_audit/04_nulls.json` gives `results/trajectory_tda_`, `survey` and
   `/post_audit/04_nulls.json`. The first has no extension and is `not_a_file`; the second is not a candidate; the
-  third is classed as a partial path under item 3 (review of revision 5, R5-m1).
+  third is a tail, which is never a cited file by itself (after item 3's table; R5-m1, R6-m2).
 
 **2. Candidates.** A token is a candidate when it contains `results/`, or ends in a registered result's basename,
 or is a bare name with a result extension: `.json`, `.npy`, `.npz`, `.csv` or `.pkl`.
@@ -1064,9 +1111,15 @@ registered, so testing cited files first changes nothing for templates. Revision
 `results/trajectory_tda_{survey}/post_audit/04_nulls.json` an `unregistered` blocker that nothing could clear
 (R4-m4). Revision 5 said that testing every component made it a template, which its own tokenizer does not do
 (R5-m1). Under item 1 a directory placeholder splits the token: the part before it ends without an extension and is
-`not_a_file`; the part after it is a partial path, cited when exactly one registered path ends in it and `ambiguous`
-(cleared by a disambiguation row) when several do. A template therefore blocks only when its tail names a shared
-basename, and a disambiguation row can always clear that block. The partial-path rows also close the other R4-m4 gap:
+`not_a_file`; the part after it is a tail.
+
+**A tail is never a cited file by itself** (review of revision 6, R6-m2). A tail is a token produced by a brace split,
+and so begins with `/`. Matched alone, it drops the head that said which directory the draft meant:
+`results/x_{survey}/a.json` with only `results/zzz/a.json` registered would cite `results/zzz/a.json`, and the
+cited-file class never consults the disambiguation file, so no row could undo it. So a tail is `ambiguous` when any
+registered path ends in it, and a disambiguation row names its set; otherwise it is reported as `not_a_file`. A
+template therefore blocks when its tail ends in a registered path and no disambiguation row covers it, and a row can
+always clear it. No token in either root begins with `/` today. The partial-path rows also close the other R4-m4 gap:
 such a token had no class.
 
 **"A suffix of" is read at a path-component boundary** (R5-i4): `audit/x.json` is not a suffix of
@@ -1077,12 +1130,13 @@ Nothing is dropped silently: every candidate is in the set, in a blocker entry o
 
 **Why templates are `not_a_file`.** Revision 3's bare-name rule made a filename template a blocker that nothing could
 clear (confirmation C-M2). P01-A's `drafts/sections/compute_table1_effects.py:205` names its own output as
-`f"table1_effects_{date_suffix}.json"`. The tokenizer splits on `"`, which leaves `table1_effects_{date_suffix}.json`:
-a bare name with a result extension that no registered result has. A template cannot be registered (W9 §3.1: "per
-exact file"), it is not ambiguous, and a new status changes nothing, so the only routes were a draft write or an
-extractor change. A template is not a citation of a file, so it is reported to the reviewer and does not block.
-Outside `drafts/`, the same rule reports `.json`, `8000}.json`, `ladder_{survey}_L{landmarks}_B{B}_{date}.json` and
-`level1_comparison_YYYYMMDD.json`, which would otherwise block under the whole-root alternative.
+`f"table1_effects_{date_suffix}.json"`. Revision 3's tokenizer split on `"`, which left
+`table1_effects_{date_suffix}.json`: a bare name with a result extension that no registered result has. A template
+cannot be registered (W9 §3.1: "per exact file"), it is not ambiguous, and a new status changes nothing, so the only
+routes were a draft write or an extractor change. A template is not a citation of a file, so it is reported to the
+reviewer and does not block. Under item 1, which splits on braces, the same text gives the empty-stem token `.json`.
+Outside `drafts/`, the rule reports `.json` and `level1_comparison_YYYYMMDD.json` as `not_a_file`; the brace pieces of
+`ladder_{survey}_L{landmarks}_B{B}_{date}.json` are not candidates (review of revision 6, R6-m3).
 
 **4. The cited-family set.** For each cited file: every family of its accepted membership table, as
 `(observation ID, family name)` pairs; or, for a file with no JSON family (§6.1), the one pair
@@ -1271,11 +1325,12 @@ extractor from a Python prompt, and the two bindings still need the authority fi
 | W9-T17 at LR-044 | 2 | integration | An inventory that omits a tracked file under the root is refused (m-9) |
 | W9-T17 at LR-039, LR-054 | 2 | integration | A status omitting a family; a draft citing a result outside the set; unequal derivation hashes; the citation reviewer as the ownership proposal's creator, the mapping's analyst or the inventory's observer (M-9); **a status derived from another inventory than the mapping's** |
 | LR-054's other refusals | 2 | forged ledger and preparer | A superseded mapping or inventory (R-m3); an open item feeding the paper with no discharge, at the preparer (R-m1) |
-| The extractor | 2 | unit, on fixture bytes | A path literal; a JSON-escaped Windows path; a unique basename; an ambiguous basename, with and without a disambiguation entry; an unregistered `results/` file and a bare unregistered `new_result.json`, each a blocker; a directory and a trailing-`/` path as `not_a_file`; an ordinary word that is not a candidate; a LaTeX-wrapped path `\texttt{results/…/ph_L5000.json}` as a cited file (R4-m3); a registered result whose name holds `YYYYMMDD` as a cited file; a partial path that is a suffix of one registered path as cited and of two as `ambiguous`; `results/x_{survey}/a.json` giving `results/x_` as `not_a_file` and `/a.json` as cited when `results/x_bhps/a.json` alone is registered, and as `ambiguous` when `results/x_usoc/a.json` is registered too (R4-m4, R5-m1); `x/a.json` not matched as a suffix of `results/xx/a.json` (R5-i4); two tokens with one basename in one citing file, resolved by two token-keyed rows; `table1_effects_{date_suffix}.json`, `level1_comparison_YYYYMMDD.json` and a lone `.json` as `not_a_file` (C-M2); a disambiguation row giving two paths for one basename in one citing file (C-m2); `notes/data.json` with `results/x/data.json` registered as `ambiguous`, and cleared by a `not_a_result` row; a PNG as `not_text`; a cited `.npy` projected as `whole_file`; a citation outside `drafts/` reported and not hashed; the backtick and table-pipe separators (M-5, R-M6) |
+| The extractor | 2 | unit, on fixture bytes | A path literal; a JSON-escaped Windows path; a unique basename; an ambiguous basename, with and without a disambiguation entry; an unregistered `results/` file and a bare unregistered `new_result.json`, each a blocker; a directory and a trailing-`/` path as `not_a_file`; an ordinary word that is not a candidate; a LaTeX-wrapped path `\texttt{results/…/ph_L5000.json}` as a cited file (R4-m3); a registered result whose name holds `YYYYMMDD` as a cited file; a partial path that is a suffix of one registered path as cited and of two as `ambiguous`; `results/x_{survey}/a.json` giving `results/x_` as `not_a_file` and the tail `/a.json` as `ambiguous`, never cited, whether one registered path ends in it or two (R4-m4, R5-m1, R6-m2); the same with only `results/zzz/a.json` registered, still `ambiguous`, and cleared only by a disambiguation row; a tail no registered path ends in, reported as `not_a_file`; `x/a.json` not matched as a suffix of `results/xx/a.json`, then classed `ambiguous` by the third ambiguous clause (R5-i4); two tokens with one basename in one citing file, resolved by two token-keyed rows; `table1_effects_{date_suffix}.json`, `level1_comparison_YYYYMMDD.json` and a lone `.json` as `not_a_file` (C-M2); a disambiguation row giving two paths for one basename in one citing file (C-m2); `notes/data.json` with `results/x/data.json` registered as `ambiguous`, and cleared by a `not_a_result` row; a PNG as `not_text`; a cited `.npy` projected as `whole_file`; a citation outside `drafts/` reported and not hashed; the backtick and table-pipe separators (M-5, R-M6) |
 | W9-T21, graph half | 2 | unit | A cycle among root, inventory, mapping and transition; a P01-A mapping used to transition the P01-B registration (M-10) |
 | The root registration | 2 | unit | Under K's option 1: a member observation under the root is accepted and closes nothing at LR-020; two member observations do not mark each other stale; **two members with one blob are both accepted, and a batch holding both passes `check_acceptance`** (C-M1); observing an unchanged member `b.npy` leaves a whole-file adoption of member `a.npy` active; an observation of the root directory itself is refused at LR-015 (m-4, R-M7); **a member is read by its `member_path`, a member path outside the root or not a regular file is refused, and `member_path` on a non-root registration is refused** (R4-M1); the acceptance re-read reads a member by its recorded path. For a non-root registration each of the five readings is today's check, **including two observations of one `legacy_decision_log_entry` registration with two paths, where the later still marks the earlier stale** (R4-m1) |
-| The root registration's identity | 2 | integration | Under owner point O: a `legacy_manuscript_root` registration records a directory identity, in the reader's `fstat` encoding, at LR-003 and re-reads it unchanged at LR-005 (R4-M2, R5-i2); a root path that resolves to a regular file, a junction or another reparse point is refused at LR-003 and at LR-005's re-read (R5-i3); a root registration of a kind other than `git_tracked` is refused at LR-003, and a member with a D-9 suffix is refused at LR-015 (R5-m2) |
-| Prefix collisions | 2 | unit and forged ledger | With a root registration recorded, a registration of `papers/P01-A-JRSSA/_project.md` under any role is refused at LR-003, in replay and at the preparer; with that file registration recorded, a root registration over it is refused; each also with the other side in an open proposal. Controls: `papers/P01-A-JRSSA-old/x.md` is not under the root (component boundary), and every non-root registration pair keeps today's equality check (R5-M1) |
+| The root registration's identity | 2 | integration | Under owner point O: a `legacy_manuscript_root` registration records a directory identity, in the reader's `fstat` encoding, at LR-003 and re-reads it unchanged at LR-005 (R4-M2, R5-i2); a root path that resolves to a regular file, a junction or another reparse point is refused at LR-003 and at LR-005's re-read (R5-i3); a root registration of a kind other than `git_tracked` is refused at LR-003, at the preparer and in replay on a forged ledger (R5-m2, R6-m1); a member with a D-9 suffix is refused at LR-015 by the preparer's own check, asserted by its message, not by the schema's refusal (R6-i2); a directory's `link_count` is not compared at LR-005's re-read (R6-i1) |
+| Prefix collisions | 2 | unit and forged ledger | With a root registration recorded, a registration of `papers/P01-A-JRSSA/_project.md` under any role is refused at LR-003, in replay and at the preparer; with that file registration recorded, a root registration over it is refused; each also with the other side in an open proposal. Controls: `papers/P01-A-JRSSA-old/x.md` is not under the root (component boundary). **Case variants** (R6-M1): `papers/p01-a-jrssa/_project.md` as `untracked_file` is refused in both directions, by the folded path and by the physical-target prefix; a `vault_root` registration whose vault path begins `papers/P01-A-JRSSA/` is not refused (root scope) (R5-M1, R6-M1) |
+| One file registered twice | 2 | forged ledger | For a non-root role: one file registered at two paths that differ in case, the second declaring its `canonical_target` in another case, is refused by the `(volume_serial_number, stable_file_id)` comparison even with the path half disabled in the test; two distinct files at two distinct paths are admitted. This corrects WP9.3's accepted LR-003 check, under Stephen's 2026-11-20 scope decision (R6-M2) |
 | W9-C11, W9-C20 to W9-C25 | both | integration | Per row, as the annex binds them |
 | The route partition | both | unit | The routed and deferred counts after each PR; a deferred row is still refused before append |
 | The import seam | 1 | unit | §9's allowlist (m-2) |
@@ -1366,9 +1421,10 @@ revision 3 wrote them.
 15. **The root registration** (R4-M2): a directory handle-bound read under W11 §7.3 can produce every field the
     registration schema's physical identity requires, and nothing else on LR-003's or LR-005's route assumes a file.
     Revision 6 adds the converse found by the review of revision 5 (R5-M1): replay's LR-003 check was too weak for a
-    directory, and the prefix-collision check of §10.2 is the only change it needs. Is any other site that compares
-    registrations (for example LR-005's re-read, LR-020's closure or LR-054's subject check) also equality-only where
-    a root needs a prefix?
+    directory. The review of revision 6 walked every site that compares registrations (its §3) and found LR-003's
+    conflict check the only one that needs a prefix form; it needs revision 7's case-folded path and physical-target
+    forms (R6-M1). Do those two forms, with the `(volume_serial_number, stable_file_id)` equality (R6-M2), close every
+    alias W11 §7.2 lists on Windows and on a case-sensitive filesystem?
 16. **The extractor's order** (R4-m3, R4-m4, CodeRabbit): with braces as separators and cited files tested first, no
     candidate falls in no class on fixtures of every form §11.1 lists, and the real roots still give four ambiguous
     names in P01-A's drafts and none in P01-B's.
@@ -1404,7 +1460,7 @@ revision 3 wrote them.
 | L | Fixture refs | `w9-fixture:` entries in the resolving Decision; the applicable set fixed in the review request; F-019 required for claim uses; recorded as an extension of P-084 item 3's i-3 reading (§5.4) | A recorded departure from P-072 item 4 and W9 §12.3 |
 | M | The boundary | Extend P-085's to `cli.py` and `authority.py`, as P-081 item 10 did (§13) | No CLI verbs |
 | N | G4 for WP9.4's rows | Extend P-081 item 12 to the five proposal rows and to LR-024; derive LR-039's record ID from its three hashes (§5.6) | LR-039's grant binds the record ID only |
-| O | The root registration's identity | For `legacy_manuscript_root` only, LR-003 and LR-005 read the directory handle-bound under W11 §7.3 and record its identity in the existing fields; a recorded reading of annex LR-003 and LR-005, built in WP9.4-2 (§10.2). Revision 6 adds, within O's decided scope: LR-003 refuses a resolved-prefix collision with a root (R5-M1), and a root is `git_tracked` (R5-m2) | Register the root under a file that stands for it, by catalogue revision |
+| O | The root registration's identity | For `legacy_manuscript_root` only, LR-003 and LR-005 read the directory handle-bound under W11 §7.3 and record its identity in the existing fields; a recorded reading of annex LR-003 and LR-005, built in WP9.4-2 (§10.2). Revisions 6 and 7 add, within O's decided scope: LR-003 refuses a collision with a root, by case-folded path and by physical-target prefix (R5-M1, R6-M1); a root is `git_tracked`, in replay and at the preparer (R5-m2, R6-m1); and, by Stephen's 2026-11-20 scope decision, LR-003's equality half compares `(volume_serial_number, stable_file_id)` for every role (R6-M2). These additions enter the register with WP9.4-2's dispatch (R6-i3) | Register the root under a file that stands for it, by catalogue revision |
 
 **What each asks of Stephen.**
 - A, C, D, G, J and M: confirm a recommendation both reviews support.
@@ -1593,8 +1649,11 @@ disagreement with any of them and placed every finding inside a decided owner po
 owner point. The review judged that none of its findings blocks WP9.4-1's code, and its plan put them in WP9.4-2's
 note. Stephen asked for them folded in now, so that WP9.4-2 inherits one note. The author re-read
 `_registration_conflicts` (`replay/reducers.py:401-420`), `_physical_identity` (`legacy/reader.py:124-134`) and
-`LegacyReader.read`'s source kinds (`:317-325`) at `53ac0d64`. Two of the review's statements were narrowed:
-`_registration_conflicts` applies no case-folding of its own, and it reads open proposals, not a batch.
+`LegacyReader.read`'s source kinds (`:317-325`) at `53ac0d64`. Two points of the code were stated precisely:
+`_registration_conflicts` applies no case-folding of its own, and it reads open proposals, not a batch. (Revision 6
+called these narrowings of the review's statements. The review made neither statement; both came from the author's
+own draft. Revision 7 corrects the attribution, R6-i4. The first point was then used to leave out a case-folding
+that W11 §7.2 requires, which R6-M1 found.)
 
 | Finding | Disposition | Where |
 |---|---|---|
@@ -1609,3 +1668,29 @@ note. Stephen asked for them folded in now, so that WP9.4-2 inherits one note. T
 | R5-i5 | **Fixed.** §4.2 and §19 E state P-086 item 5's choice | §4.2, §19 E |
 
 This revision has not been reviewed. Its changes add checks and wording inside decided scope, and add no owner point.
+
+## 25. Change log: revision 6 to revision 7 (the review of revision 6)
+
+The review of revision 6 (`7a0c6b11`, on `claude/review-w9-wp9-4-note-r6-d51c67`) gave confirm with residuals:
+0 Blocking, 2 Major, 3 Minor, 6 Info. It ran every code claim; its probes are in its artifacts directory. It confirmed
+§11.1 on both roots (P01-A's drafts four ambiguous names, P01-B's none; all 22 §15 extractor fixtures as written) and
+the addendum rows against the note and P-086. The author re-read `_same_physical_identity` (`legacy/preparers.py:143-148`),
+`handle_bound_read`'s parent check (`legacy/reader.py:161`), `_registration_conflicts` (`replay/reducers.py:409-413`)
+and W11 §7.2 and §7.3 (`design/11-…:1174`, `:1193`, `:1196`) at `642c56d3`. No finding is disputed. Stephen decided
+R6-M2's scope in chat on 2026-11-20: "WP9.4-2 under O".
+
+| Finding | Disposition | Where |
+|---|---|---|
+| R6-M1 | **Fixed.** The prefix check compares the case-folded path and the case-folded physical-target prefix, root-scoped; "the physical-identity half needs no prefix form" is withdrawn; the W11 §7.2 quotation is given in full | §10.2 (O), §15, §17 claim 15 |
+| R6-M2 | **Fixed, in WP9.4-2 under O (Stephen, 2026-11-20).** LR-003's equality half compares `(volume_serial_number, stable_file_id)` and the case-folded path for every role; recorded as a correction to WP9.3's accepted LR-003 check, with a forged-ledger test | §10.2 (O), §15, §19 O |
+| R6-m1 | **Fixed.** The root's `git_tracked` rule is checked in replay as well as at the preparer | §10.2 item 5, §15, §19 O |
+| R6-m2 | **Fixed.** A tail from a brace split is never a cited file by itself: `ambiguous` when any registered path ends in it, else reported | §11.1 items 1 and 3, §15 |
+| R6-m3 | **Fixed.** The "Why templates" paragraph states what item 1 now yields | §11.1 |
+| R6-i1 | **Fixed.** The directory identity comes from the bound directory anchor, written in the reader's encoding; `_same_physical_identity` skips `link_count` for the role | §10.2 (O), §15 |
+| R6-i2 | **Fixed.** The observation schema's D-9 refusal is named; the control asserts the preparer's own refusal | §10.2 item 5, §15 |
+| R6-i3 | **Recorded.** O's added checks, and R6-M2's scope, enter the register with WP9.4-2's dispatch | §19 O |
+| R6-i4 | **Fixed.** §24 attributes the two code points to the author's draft, not to the review | §24 |
+| R6-i5 | **Fixed** in the addendum (`06v-addendum-2026-11-10-w9-paths.md`): exact reader rows, the reviewer's derivation, the header's scope. P-086 item 8 names LR-034 and LR-054, the resolution rows of the Decisions whose proposals (LR-033, LR-053) carry the blob entry; a one-line note goes to the register at its next edit | the addendum |
+| R6-i6 | **Carried.** `successor_results_root` gets the same checks from the package that makes it recordable | §3 row 17 |
+
+This revision has not been reviewed. The review of revision 6 judged that nothing in it blocks WP9.4-1.

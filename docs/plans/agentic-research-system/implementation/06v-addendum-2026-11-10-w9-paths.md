@@ -11,7 +11,8 @@
 
 06v names "the W9 evidence area" six times (lines 212, 434, 471, 495, 567 and 570), as the home of files that three
 packages write or read, and never gives its path. WP9.3 had to propose one as an owner point. This table is the one place
-a W9 package looks up a shared location. A package that adds a shared location adds a row here in the same PR.
+a W9 package looks up a shared location. A package that adds a shared location adds a row here in the same PR. From
+2026-11-20 the table also gives paths to files that a W9 design note adds and 06v does not name (amendment below).
 
 ## The W9 evidence area
 
@@ -27,8 +28,8 @@ whose file is absent refuses (note §11.1).
 | Shared-surface change list | O-32 (line 212) | `.research-system/evidence/w9/shared-surface-changes.json` (`SHARED_SURFACE_CHANGES`, `evidence.py:39`; fixed by WP9.3-2) | each PR that changes a shared surface | WP9.3, LR-016 and LR-020 | WP9.3-2: `w9-shared-surface-changes/1` (`evidence.py:42`) |
 | Computational-Log export and its retained copy | D-7 (line 434) | in the evidence area; file name not yet fixed. Each accepted export's paths are pinned in its `ACCEPTED_CL_EXPORT` entry (note §11.3) | `tools/w9_segmentation.py` at L-0b (segmentation contract §6.1) | WP9.3, LR-011 and LR-015; WP9.3-2's recheck | the segmentation contract (P-068), note §11.3, and WP9.3-2's `w9-cl-export/1` (`evidence.py:43`; amended 2026-11-11, below) |
 | D-9 restricted-suffix list and exemptions | D-9 (line 570) | in the evidence area; file name not yet fixed | WP9.7 | the RegisterArtefact guard, at the binding's `git_head` | WP9.7 |
-| Legacy open-item list (added 2026-11-20, below) | none; 06v line 449 names the open item a discharge pairs with, not a file. WP9.4 note §8, owner point H | `.research-system/evidence/w9/legacy-open-items.json` | Stephen, under W0-D1, at the live stage; no package writes it. Its blob is bound in his Decision at LR-033 and LR-053 (`w9-open-items-blob:<sha1>`) | WP9.4's preparers: discharge (LR-030 to LR-034) and LR-053 and LR-054 | WP9.4: `w9-legacy-open-items/1` |
-| Citation disambiguation file (added 2026-11-20, below) | none; it serves D-3's extractor (O-14). WP9.4 note §11.1 item 5, owner point I | `.research-system/evidence/w9/citation-disambiguation.json` | the citation reviewer proposes each row and Stephen accepts it | WP9.4-2's citation extractor, at LR-039 and in LR-054's re-run; its blob is part of the extractor's output | WP9.4-2: `w9-citation-disambiguation/1` |
+| Legacy open-item list (added 2026-11-20, below) | none; 06v line 449 names the open item a discharge pairs with, not a file. WP9.4 note §8, owner point H | `.research-system/evidence/w9/legacy-open-items.json` | Stephen, under W0-D1, at the live stage; no package writes it. Its blob is bound in his Decision at LR-033 and LR-053 (`w9-open-items-blob:<sha1>`) | WP9.4's preparers at LR-030, LR-033, LR-034, LR-053 and LR-054 | WP9.4: `w9-legacy-open-items/1` |
+| Citation disambiguation file (added 2026-11-20, below) | none; it serves D-3's extractor (O-14). WP9.4 note §11.1 item 5, owner point I | `.research-system/evidence/w9/citation-disambiguation.json` | the citation reviewer proposes each row and Stephen accepts it | WP9.4-2's citation extractor, at LR-039 and in LR-054's re-run, and the citation reviewer's derivation; its blob is part of the extractor's output | WP9.4-2: `w9-citation-disambiguation/1` |
 
 **Open rows.** Two file names are not fixed on `main`: the export's and the D-9 list's. (WP9.3-2 fixed the change
 list's, the third.) The package named in the last column fixes each one, and the PR that does so updates its row
@@ -67,3 +68,8 @@ here. Until then, each of those packages reads this table, not 06v's prose, for 
 - **Neither file exists on any branch.** Each package's tests use fixture files under `tmp_path`. The open-item
   list's content is Stephen's, written at the live stage. The disambiguation file's rows wait for a citation review
   of a real root.
+- **Same day, after the review of WP9.4 note revision 6 (R6-i5).** The open-item row's readers are given by row
+  (LR-030, LR-033, LR-034, LR-053, LR-054; LR-031 and LR-032 do not read the file). The disambiguation row adds the
+  citation reviewer's derivation as a reader. The intro states that the table now covers files a W9 note adds. The
+  blob entry is carried in the Decision proposals at LR-033 and LR-053, as the note says; P-086 item 8 names LR-034
+  and LR-054, the resolution rows of the same Decisions.
