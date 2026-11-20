@@ -21,8 +21,8 @@ controls.
 > **The headline: the merge queue may be unreachable after most reviews.** The bypass audit built last week ran for the
 > first time. It reports 6 bypassed updates to `main` in 7 days, against 2 through the queue, and none states a
 > reason. Every bypassed head carries a CANCELLED required `merge-admission` run, and neither queued head does. The
-> open PR #437 is BLOCKED right now with one. If this is the cause, the bypasses were forced rather than chosen, and
-> the fix is in the workflow, not in merge practice. See Group A. A1 is a five-minute check you can run today.
+> open PR #437 is BLOCKED right now with one. This pattern suggests a workflow problem; the reasons for the six
+> bypasses remain unknown. See Group A. A1 is a five-minute check you can run today.
 
 **What this review changed.**
 - **Record (observation log):**
@@ -80,12 +80,12 @@ mechanism with its negative control.
 |---|---:|---|---|
 | A. Cancelled required runs keep PRs out of the queue | 2 | Confirm on #437, then stop `merge-admission` leaving a cancelled context; one check-runs helper for the audit and the register | `[ ]` approve A1–A4 · `[ ]` A1 only, then decide · `[ ]` defer |
 | B. The suite lane is still not required | 2 | Your ruleset edit; fold the duplicate entry | `[ ]` approve B1 + S8 · `[ ]` S8 only · `[ ]` defer |
-| C. The writer-lock release raises after its work is done | 2 | A defect task with the in-process reproduction as its failing test; a flake-verdict line | `[ ]` approve C1+C2 · `[ ]` C2 only · `[ ]` defer |
+| C. The writer-lock release raises after its work is done | 2 | A defect task with a coordinated writer regression test; a flake-verdict line | `[ ]` approve C1+C2 · `[ ]` C2 only · `[ ]` defer |
 | D. W9 census and read-path coverage | 4 | Share the census resolver; cover `show`; rule on one fallback; defer the scope lint | `[ ]` approve D1–D4 · `[ ]` some (name which) · `[ ]` defer |
-| E. Worktree setup that no one runs | 3 | A SessionStart check of hooksPath and the venv; a pre-commit hooksPath refusal | `[ ]` approve E1+E2 · `[ ]` E1 only · `[ ]` defer |
+| E. Worktree setup that no one runs | 3 | A SessionStart check of hooksPath and the venv; a refusal when the selected pre-commit hook includes the guard | `[ ]` approve E1+E2 · `[ ]` E1 only · `[ ]` defer |
 | F. Design-note claim discipline, round 3 | 3 | Two checklist entries; a template line for selector scripts | `[ ]` approve F1–F3 · `[ ]` F1+F2 only · `[ ]` defer |
 | G. Agent guards: fail-opens and other shells | 2 | Keep each fail-open's cause; widen the matchers to the MCP shells | `[ ]` approve G1+G2 · `[ ]` G2 only · `[ ]` defer |
-| H. Commits that reach no PR | 2 | Refuse a push to a merged PR's branch; teach the register lint "pending by content" | `[ ]` approve H1–H3 · `[ ]` H1+H2 only · `[ ]` defer |
+| H. Commits that reach no PR | 2 | Refuse a push when the branch has a merged PR and no open PR; teach the register lint "pending by content" | `[ ]` approve H1–H3 · `[ ]` H1+H2 only · `[ ]` defer |
 | I. zktheoryweb: a forbidden map is tracked | 1 | A content-scan test; your call on the CSV | `[ ]` approve I1, move the CSV out · `[ ]` approve I1, relax the rule · `[ ]` defer |
 | This review's 10 closures | — | Keep them closed | `[ ]` keep · `[ ]` reopen (name which) |
 | The two repo skill edits | — | Merge them with this PR | `[ ]` keep · `[ ]` revert |
@@ -132,9 +132,8 @@ Total: 2 + 2 + 2 + 4 + 3 + 3 + 2 + 2 + 1 = **21**.
 **What is not proved.** The ruleset also requires code-owner review and resolved threads, so I have not shown that the
 cancelled context is what blocks. It is the only difference I found between the bypassed and the queued heads.
 
-**Defect, if confirmed.** The A2 rule (queue by default) is defeated by the gate that serves it. Most reviewed PRs
-cannot enter the queue, so the bypass, which skips every required check, becomes the routine path. The audit cannot
-tell a forced bypass from a chosen one, and last week's packet read #420 as a choice.
+**Suspected defect.** Cancelled required contexts may keep reviewed PRs out of the queue. Even if A1 confirms this
+for #437, the audit cannot establish why earlier merges bypassed the queue.
 
 **Proposed action.**
 - **A1. Confirm.** On #437, re-run its cancelled `merge-admission` run (`gh run rerun <id>`) and read
@@ -144,8 +143,8 @@ tell a forced bypass from a chosen one, and last week's packet read #420 as a ch
   as well as PR; stop cancelling for the review events; or have `merge-admission-sweep.yml` re-run any cancelled
   `merge-admission` run on the current head. The choice is a design call for the fixing session. The Codex-thread
   history in the workflow's header explains why the review triggers exist; they stay.
-- **A3. Make the audit say why.** `check_bypass_merges.py` prints each bypassed head's CANCELLED required contexts, so
-  a forced bypass reads as forced.
+- **A3. Show the check evidence.** `check_bypass_merges.py` prints each bypassed head's CANCELLED required contexts
+  without classifying the bypass as forced or chosen.
 - **A4. One helper for check status** (the 2026-11-13 entry). A small `tools/` command that prints, for a head, every
   run of each check name with its event and conclusion. A3 uses it, and register Evidence lines cite its output rather
   than `gh pr checks` or a single run ID.
@@ -154,12 +153,11 @@ tell a forced bypass from a chosen one, and last week's packet read #420 as a ch
 - A2: a fixture rollup with a CANCELLED required context on one event and SUCCESS on another is acted on (re-run) or
   reported; a rollup with only SUCCESS is not. The confirming evidence is the next CodeRabbit-reviewed PR entering the
   queue without a bypass.
-- A3: the #434 fixture (two cancelled runs, one success) prints both cancelled runs.
+- A3: the #434 fixture (two cancelled runs, one success) prints both cancelled runs without inferring a reason.
 - A4: on `d8cb0514` it lists three `merge-admission` runs: two cancelled, one success.
 
-**Recommended decision:** approve A1–A4, with A1 first, since A2's shape depends on it. Until A2 lands, a bypass whose
-only blocker is a cancelled context could carry `Bypass reason: cancelled merge-admission context`, which A3 would
-then report as forced.
+**Recommended decision:** approve A1–A4, with A1 first, since A2's shape depends on it. State a bypass reason only
+when it is independently established for that merge. If none is established, report the reason as unknown.
 
 **Decision:** `[ ]` approve A1–A4 · `[ ]` A1 only, then decide · `[ ]` defer
 
@@ -217,16 +215,18 @@ writer under contention would see its committed operation reported as a conflict
 its triage method.
 
 **Proposed action.**
-- **C1. A defect task** (`tda-diagnosing-computational-defects`). Turn the in-process repeat into a failing test
-  (contending writers, release under contention, run in one process) and fix the release check. A new lock under the
+- **C1. A defect task** (`tda-diagnosing-computational-defects`). Coordinate two contending writers in one process
+  on Windows. Have the first pause after deleting its lock generation and before the name recheck. Let the second
+  acquire that name and hold its lock until the first finishes releasing. Fix the release check. A new lock under the
   name after the releaser's own generation is gone is a contender's lock, not a replacement of its own. The task
   decides the exact rule. Seam changes in `store/anchor.py` select a large part of the suite, so it runs through the
   queue with the affected selection.
 - **C2. A flake-verdict line** in `tda-diagnosing-computational-defects`. A verdict of "flake" on a red required check
   cites repeats on the head and on the base, run in one process as the shard runs them, with counts.
 
-**Controls.** C1: the repeat test fails on `4312dc63` at a measured rate, and passes the same number of repeats after
-the fix. C2 is text; its evidence is the next flake verdict carrying both counts.
+**Controls.** C1: the forced order must reproduce the release `ConflictError` on `4312dc63`. After the fix, the
+same test must show that the first writer releases successfully and leaves the second writer's lock intact.
+C2 is text; its evidence is the next flake verdict carrying both repeat counts, one for the head and one for the base.
 
 **Recommended decision:** approve C1 and C2. C1 removes the flake that would eject queue entries once B1 is in force.
 
@@ -286,12 +286,14 @@ Each instance is fixed on `main`; each entry's general check is not.
 - **E1.** Extend the SessionStart check (`tools/hook_currency.py` already runs there in every checkout) to report two
   things in the session's checkout: `core.hooksPath` resolves outside the checkout, or the checkout has no venv that
   imports pytest. The second names the provisioning command.
-- **E2.** `.githooks/pre-commit` refuses a commit when `git config core.hooksPath` resolves outside the current
-  worktree. This is the 2026-11-11 entry's own proposal. E2 runs from whichever hooks git reads, so in a worktree
-  pointed at an older checkout's hooks it cannot fire; E1 covers that case.
+- **E2.** Add the refusal to `.githooks/pre-commit`. If Git selects a copy of the hook containing the guard, it
+  refuses when the resolved hook directory is outside the worktree being committed in. If Git selects older hooks
+  without the guard, E1 reports the configuration; E2 provides no commit refusal in that case.
 
 **Controls.** E1: a fixture worktree with an absolute hooksPath to another checkout is reported; one with a
-venv lacking pytest is reported; a provisioned worktree is not. E2: the absolute-hooksPath fixture's commit is refused.
+venv lacking pytest is reported; a provisioned worktree is not. E2: with the guard in the selected foreign hook,
+the absolute-hooksPath fixture's commit is refused with a hooksPath diagnostic. With older foreign hooks that lack
+the guard, assert the E1 report only.
 
 **Recommended decision:** approve E1 and E2.
 
@@ -388,15 +390,17 @@ fails the template line.
   pending. They are the PR's own register text on review branches stacked on it. This review carries them as such.
 
 **Proposed action.**
-- **H1.** `.githooks/pre-push` asks `gh pr list --head <branch> --state merged` and refuses a push to a branch whose
-  PR has merged, naming the follow-up PR to open.
+- **H1.** For the pushed branch, `.githooks/pre-push` first asks `gh pr list --head <branch> --state open` and
+  allows the push under H1 if an open PR exists. Only after confirming there is no open PR does it check
+  `--state merged`. If a merged PR exists, it refuses the push and tells the user to open a follow-up PR.
 - **H2.** `check_register_reachability.py` reports a branch whose register blob equals an open PR head's as pending in
   that PR, and one equal to `origin/main`'s as landed.
 - **H3. Your call:** may a PR under an independent review enter the queue before the review's disposition is on its
   head?
 
-**Controls.** H1: a push to a branch whose fixture PR is MERGED is refused; a push to an open PR's branch passes. H2: a
-fixture branch whose register blob equals an open PR head's is pending; one that differs is still stranded.
+**Controls.** H1: a push passes when the branch has an open PR, including when it also has a merged PR. A push is
+refused when the branch has a merged PR and no open PR. H2: a fixture branch whose register blob equals an open PR
+head's is pending; one that differs is still stranded.
 
 **Recommended decision:** approve H1 and H2, and rule on H3.
 
@@ -526,7 +530,8 @@ review. DEFERRED entries stay in the log, since the `--intake` check reads them.
 - The research-observer edit is to a global skill outside git, with no repo mirror. No pack pins it.
 
 **Cross-check of every OPEN group against the skills.**
-- **A:** no skill change. `tda-agent-safety-guardrails` covers agent bypasses; these were not agent bypasses.
+- **A:** no repo skill change. `tda-agent-safety-guardrails` covers agent bypasses; the audit did not establish
+  whether these merges came from an agent session.
 - **B:** none.
 - **C:** `tda-diagnosing-computational-defects` (C2's line, C1's method).
 - **D:** `contract-first-tdd` already asks for negative controls; D1 and D2 are tests, not skill text.
@@ -543,9 +548,10 @@ logged and applied here, is research-observer's own step 1.
 - Step 7's widened grep follows silent absence: a forward obligation outside the register produced no signal, and now
   the scan reaches it.
 - The per-branch line extends the census principle (name every path) to the branches inside a seam.
-- The research-observer edit removes a dated conditional, and adds a read that distinguishes a forced bypass from a
-  chosen one. That follows "metadata is suspicion, content is verdict": the rule-suite's `bypass` is metadata; the
-  head's contexts are the content.
+- The research-observer edit removes a dated conditional and adds a read of the head's required contexts. The
+  rule-suite's `bypass` records that a bypass occurred; the contexts show the state of the checks. Report the contexts
+  as evidence without classifying the bypass as forced or chosen from them. State a reason only when independently
+  established for that merge; otherwise report it as unknown.
 - Nothing adds, weakens or removes a gate.
 
 ## Gate-liveness spot check
@@ -584,7 +590,7 @@ main checkout's log and every app worktree's.
 
 | What went wrong | Caught by | Observation |
 |---|---|---|
-| 6 of 8 updates to `main` bypassed the queue, with no reason given | the bypass audit, a week after the fact; the cause by this review | `2026-11-17-cancelled-required-check-run-keeps-prs-out-of-the-queue` (A) |
+| 6 of 8 updates to `main` bypassed the queue, with no reason given | the bypass audit, a week after the fact; this review found a check pattern, with reasons still unknown | `2026-11-17-cancelled-required-check-run-keeps-prs-out-of-the-queue` (A) |
 | #425 and #428 merged through the queue with `suite-verdict` red | the next nightly and a fix session | carried by `2026-10-02-full-suite-red-on-main-unseen` (B) |
 | #428's review fixes were pushed after it merged and reached no PR | the review session, by hand; carried by #429 | `2026-11-17-review-fixes-pushed-after-their-pr-merged` (H) |
 | `ars legacy show` had failed on every W9 proposal since WP9.3-1 | WP9.3-2's batch-mode test | `2026-11-11-ars-legacy-show-failed-on-every-proposal-since-wp9-3-1` (D) |
