@@ -77,6 +77,14 @@ def _imported_legacy_modules(source: str, rel_path: str) -> set[str]:
             if mod == LEGACY_PREFIX:
                 for alias in node.names:
                     found.add(LEGACY_PREFIX if alias.name == "*" else f"{LEGACY_PREFIX}.{alias.name}")
+            elif mod == "research_system":
+                for alias in node.names:
+                    if alias.name == "*":
+                        found.add(LEGACY_PREFIX)
+                    else:
+                        candidate = f"research_system.{alias.name}"
+                        if candidate == LEGACY_PREFIX or candidate.startswith(f"{LEGACY_PREFIX}."):
+                            found.add(candidate)
             elif mod.startswith(f"{LEGACY_PREFIX}."):
                 found.add(mod)
     return found
@@ -105,12 +113,18 @@ def test_non_legacy_modules_import_only_projection_read_or_allowlisted_modules()
         ("research_system/command/service.py", "from research_system.legacy import preparers\n"),
         ("research_system/artefacts/use_resolver.py", "import research_system.legacy.identities\n"),
         ("research_system/artefacts/use_resolver.py", "from ..legacy import preparers\n"),
+        ("research_system/artefacts/use_resolver.py", "from research_system import legacy\n"),
+        ("research_system/authority.py", "from . import legacy\n"),
+        ("research_system/authority.py", "from research_system import *\n"),
     ],
     ids=[
         "direct-replay-import",
         "from-package-preparers",
         "unlisted-importer-identities",
         "relative-import-preparers",
+        "from-root-import-legacy",
+        "relative-root-import-legacy",
+        "wildcard-root-import",
     ],
 )
 def test_import_seam_check_refuses_disallowed_legacy_imports(rel_path: str, source: str) -> None:

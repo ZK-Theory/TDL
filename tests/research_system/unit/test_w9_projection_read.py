@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from research_system.canonical import sha256_hex
 from research_system.errors import IntegrityError
 from research_system.ids import new_id
 from research_system.legacy.projection_read import (
@@ -18,7 +19,14 @@ from research_system.legacy.projection_read import (
     legacy_content_matches,
     resolve_adoption_ref,
 )
+from research_system.legacy.reader import git_blob_id
 from research_system.legacy.replay import reducers
+from research_system.legacy.replay.driver import replay_legacy
+from tests.research_system.factories import ACTORS
+from tests.research_system.integration import w9_flows as flows
+from tests.research_system.integration.test_w9_wp9_3_replay import PIN
+from tests.research_system.integration.test_w9_wp9_3_replay import base as base  # noqa: F401
+from tests.research_system.integration.w9_flows import Actors, at
 
 
 def _state_with_family_adoption(
@@ -411,39 +419,52 @@ def test_resolve_adoption_ref_rejects_malformed_or_unknown_refs() -> None:
 # --- family_admissible (§6.2, §9, §15 W9-T1 / W9-T8 / W9-T17) --------------------------------------------------------
 
 
-def test_w9_t1_done_status_word_in_source_yields_no_recorded_adoption() -> None:
-    """W9-T1 at LR-029: a literal Done status word inside observed data grants no adoption."""
-    state = reducers.new_legacy_state()
-    reg_id = new_id("scope_definition")
-    obs_id = new_id("scope_definition")
-    acc_id = new_id("scope_definition")
-    state["records"]["legacy_path_registration"] = {
-        reg_id: {"record_id": reg_id, "role": "legacy_research_result", "normalized_path": "results/x.json"}
-    }
-    state["records"]["legacy_observation"] = {
-        obs_id: {
-            "record_id": obs_id,
-            "registration_ref": {"id": reg_id, "record_revision": 1, "content_hash": "a" * 64},
-            "selector": {"selector_kind": "json_family_set", "family_names": ["headline"]},
-            "source_identity": {
+def test_w9_t1_done_status_word_in_source_yields_no_recorded_adoption(base) -> None:  # noqa: F811
+    """W9-T1 at LR-029: a literal Done status word inside source bytes yields no adoption."""
+    forger, schemas = base
+    actors = Actors(owner=ACTORS["actor-a"])
+    raw = b'{"headline": {"status": "Done", "value": 1}, "other": [1, 2]}\n'
+    digest = sha256_hex(raw)
+    blob = git_blob_id(raw)
+
+    forger, reg = flows.registered(forger, actors, start=0, path="results/done.json")
+    forger, mem = flows.membership_recorded(
+        forger,
+        actors,
+        sha256=digest,
+        size=len(raw),
+        start=10,
+        applies_to=[
+            {
+                "path": "results/done.json",
                 "identity_kind": "git_tracked",
-                "repository_path": "results/x.json",
-                "git_commit": "0" * 40,
-                "git_blob": "1" * 40,
-                "sha256": "a" * 64,
-                "byte_length": 18,
-            },
-            "families": [{"family_name": "headline", "w0_class": "Done"}],
-            "qualifiers": [],
-        }
-    }
-    state["records"]["legacy_closed_reference_acceptance"] = {
-        acc_id: {
-            "record_id": acc_id,
-            "items": [{"observation_ref": {"id": obs_id, "record_revision": 1, "content_hash": "b" * 64}}],
-        }
-    }
-    assert family_admissible(state, obs_id, "headline", "w9-use:claim-evidence/c1") == {
+                "git_blob": blob,
+                "sha256": digest,
+                "size_bytes": len(raw),
+            }
+        ],
+    )
+    obs = flows.observation(
+        forger.project_id,
+        actors.observer,
+        at(15),
+        reg,
+        PIN,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(mem),
+            "family_names": ["headline"],
+        },
+        source=flows.tracked("results/done.json", sha256=digest, size=len(raw), blob=blob),
+        families=[flows.signed_family("headline", PIN, w0_class="authoritative")],
+    )
+    forger = forger.row("LR-015", obs["record_id"], obs, actor=actors.observer, when=at(15))
+    batch = flows.acceptance(forger.project_id, actors.analyst, at(20), [obs])
+    forger = flows.acceptance_recorded(forger, actors, batch, [], start=20)
+    state = replay_legacy(forger.events, schemas=schemas, pinned_signatures=(PIN,))
+
+    assert state["records"].get("legacy_adoption_decision", {}) == {}
+    assert family_admissible(state, obs["record_id"], "headline", "w9-use:claim-evidence/c1") == {
         "admissible": False,
         "reason": "unadopted",
         "adoption_id": None,

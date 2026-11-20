@@ -866,7 +866,6 @@ def adoption_recorded(
     """LR-023 → LR-024 → LR-025 → LR-026 → LR-027 → LR-028 → LR-029 on a forged ledger."""
     tweaks = tweaks or {}
     elig = dict(ELIGIBILITY if eligibility is None else eligibility)
-    fixtures = _default_adoption_fixtures(record) if applicable_fixtures is None else applicable_fixtures
 
     def step(row: str, default_actor: str, offset: float) -> tuple[str, str, dict[str, Any]]:
         tweak = tweaks.get(row, Tweak())
@@ -876,7 +875,13 @@ def adoption_recorded(
             tweak.payload,
         )
 
-    actor, when, _ = step("LR-023", actors.analyst, 0)
+    record = deepcopy(record)
+    actor, when, changes = step("LR-023", actors.analyst, 0)
+    if changes:
+        record.update(changes)
+        if "content_hash" not in changes:
+            record = stamp(record)
+    fixtures = _default_adoption_fixtures(record) if applicable_fixtures is None else applicable_fixtures
     forger = forger.row("LR-023", record["record_id"], record, actor=actor, when=when)
     if stop_after == "LR-023":
         return forger
@@ -982,7 +987,12 @@ def discharge_recorded(
             tweak.payload,
         )
 
-    actor, when, _ = step("LR-030", actors.analyst, 0)
+    record = deepcopy(record)
+    actor, when, changes = step("LR-030", actors.analyst, 0)
+    if changes:
+        record.update(changes)
+        if "content_hash" not in changes:
+            record = stamp(record)
     forger = forger.row("LR-030", record["record_id"], record, actor=actor, when=when)
     if stop_after == "LR-030":
         return forger

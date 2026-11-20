@@ -1127,6 +1127,8 @@ def _check_review_request(
         eligibility = elig_decision["eligibility"]
         if eligible_session != eligibility["session"]:
             raise IntegrityError("W9 adoption review request eligible session differs from the eligibility Decision")
+        if eligible_session in sessions:
+            raise IntegrityError("W9 adoption review request names the analyst session as the eligible session")
     applicable_fixtures: tuple[str, ...] | None = None
     resolution_row = _WP9_4_REQUEST_TO_RESOLUTION.get(row_id)
     if resolution_row is not None:

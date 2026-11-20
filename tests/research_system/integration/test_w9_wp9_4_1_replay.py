@@ -282,6 +282,32 @@ def test_g5_for_adoption_refuses_missing_unsatisfied_or_wrong_review_at_lr028_an
     _refused(tampered_res, schemas, "W9 resolved record is not its Decision's subject")
 
 
+def test_lr029_refuses_unsatisfied_or_missing_review_with_valid_lr028_prefix(accepted_flow, actors) -> None:
+    """Fix 4 (CodeRabbit #439): exercise LR-029's own review_satisfied guard on a valid LR-028 prefix."""
+    forger, records, schemas = accepted_flow
+    adp = flows.adoption(forger.project_id, actors.analyst, at(70), records["family_set"])
+    full = flows.adoption_recorded(forger, actors, adp, start=70)
+    review_id = adoption_review_id(adp["record_id"], adp["created_at"])
+
+    state_at_lr028 = _replay(Forger(full.events[:-2]), schemas)
+    lr029_tx = full.events[-2:]
+
+    # Negative control: exact unmodified LR-028 state + valid LR-029 transaction resolves cleanly.
+    ok_state = deepcopy(state_at_lr028)
+    reducers.reduce_decision_resolution(ok_state, "LR-029", lr029_tx, {})
+    assert adp["record_id"] in ok_state["records"][reducers.ADOPTION]
+
+    unsatisfied_state = deepcopy(state_at_lr028)
+    unsatisfied_state["reviews"][review_id]["verdict"] = "reject"
+    with pytest.raises(IntegrityError, match="W9 resolution's review is not satisfied on the record's hash"):
+        reducers.reduce_decision_resolution(unsatisfied_state, "LR-029", lr029_tx, {})
+
+    missing_review_state = deepcopy(state_at_lr028)
+    missing_review_state["reviews"].pop(review_id)
+    with pytest.raises(IntegrityError, match="W9 resolution's review is not satisfied on the record's hash"):
+        reducers.reduce_decision_resolution(missing_review_state, "LR-029", lr029_tx, {})
+
+
 # --- Analyst rule (§5.3, M-3, §15) ----------------------------------------------------------------------------------
 
 
@@ -868,6 +894,26 @@ def test_lr026_and_lr027_session_profile_model_and_w9c_controls(accepted_flow, a
         wrong_sess_req, schemas, "W9 adoption review request eligible session differs from the eligibility Decision"
     )
 
+    # Fix 1 (CodeRabbit #439): LR-026 refuses analyst_session == eligible_session before reserving review.
+    same_sess_req = flows.adoption_recorded(
+        forger,
+        actors,
+        adp,
+        start=70,
+        tweaks={
+            "LR-026": Tweak(
+                payload={
+                    "required_evidence_refs": [
+                        f"w9-analyst-session:{flows.ELIGIBILITY['session']}",
+                        f"w9-eligible-session:{flows.ELIGIBILITY['session']}",
+                    ]
+                }
+            )
+        },
+        stop_after="LR-026",
+    )
+    _refused(same_sess_req, schemas, "W9 adoption review request names the analyst session as the eligible session")
+
     # C-m1: LR-027 from analyst session refused, from third non-eligible session refused, eligible session passes.
     analyst_sess_verdict = flows.adoption_recorded(
         forger,
@@ -1009,6 +1055,55 @@ def test_discharge_replay_uniqueness_blob_and_w9c_controls(accepted_flow, actors
         schemas,
         "W9 pre-assigned ID is already claimed or reserved",
     )
+
+
+def test_flow_helpers_apply_lr023_and_lr030_payload_tweaks_and_preserve_bad_hash(accepted_flow, actors) -> None:
+    """Fix 6 (CodeRabbit #439): adoption_recorded and discharge_recorded apply first-row payload tweaks."""
+    forger, records, schemas = accepted_flow
+
+    adp = flows.adoption(forger.project_id, actors.analyst, at(70), records["family_set"])
+    bad_consequence = flows.adoption_recorded(
+        forger,
+        actors,
+        adp,
+        start=70,
+        tweaks={"LR-023": Tweak(payload={"w5_consequence": "task_input_with_open_findings"})},
+        stop_after="LR-023",
+    )
+    _refused(bad_consequence, schemas, "W9 adoption w5_consequence must be admissible_for_named_use")
+
+    bad_adp_hash = flows.adoption_recorded(
+        forger,
+        actors,
+        adp,
+        start=70,
+        tweaks={"LR-023": Tweak(payload={"content_hash": "0" * 64})},
+        stop_after="LR-023",
+    )
+    _refused(bad_adp_hash, schemas, "W9 record content_hash is not the hash of its content")
+
+    d1 = flows.discharge(forger.project_id, actors.analyst, at(90), item_kind="a001_item", item_id="A001-01")
+    recorded_d1 = flows.discharge_recorded(forger, actors, d1, start=90)
+    d2 = flows.discharge(forger.project_id, actors.analyst, at(96), item_kind="a001_item", item_id="A001-02")
+    dup_item = flows.discharge_recorded(
+        recorded_d1,
+        actors,
+        d2,
+        start=96,
+        tweaks={"LR-030": Tweak(payload={"legacy_item": {"item_kind": "a001_item", "item_id": "A001-01"}})},
+        stop_after="LR-030",
+    )
+    _refused(dup_item, schemas, "W9 legacy item already has a recorded discharge relation")
+
+    bad_dis_hash = flows.discharge_recorded(
+        forger,
+        actors,
+        d2,
+        start=96,
+        tweaks={"LR-030": Tweak(payload={"content_hash": "0" * 64})},
+        stop_after="LR-030",
+    )
+    _refused(bad_dis_hash, schemas, "W9 record content_hash is not the hash of its content")
 
 
 # --- W9-T9 forged-ledger supersession & LR-061 mismatch (test route set, §7, §15) ------------------------------------

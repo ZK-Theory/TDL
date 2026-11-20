@@ -118,4 +118,8 @@ def test_the_adoption_and_discharge_replay_constants_match_parsed_rows() -> None
     assert reducers.ADOPTION_CONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr029 if when is not None)
     assert reducers.ADOPTION_FIXTURES == {fixture for fixture, _ in lr029}
     assert "LR-034" not in parsed  # LR-034 has an empty pilot_promotion_fixtures list
-    assert reducers.DISCHARGE_FIXTURES == set()
+    assert reducers.DISCHARGE_UNCONDITIONAL_FIXTURES == ()
+    assert reducers.DISCHARGE_CONDITIONAL_FIXTURES == ()
+    assert reducers.DISCHARGE_FIXTURES == (
+        set(reducers.DISCHARGE_UNCONDITIONAL_FIXTURES) | set(reducers.DISCHARGE_CONDITIONAL_FIXTURES)
+    )

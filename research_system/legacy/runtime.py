@@ -489,6 +489,12 @@ class LegacyRuntime:
             rereads = preparation.rereads
             if prepared[0][1] != command.target_stream_id:
                 raise IntegrityError("W9 command target is not the stream its row's first event takes")
+            if (
+                envelope["command_type"] == "RequestW9AuthorityReview"
+                and envelope["payload"].get("reviewer_actor_id")
+                == authority_evidence.administration_context.owner_actor_id
+            ):
+                raise IntegrityError("W9 review request names the owner as reviewer")
             row_id = self._shadow(command, prepared, snapshot, legacy, occurred_at_value)
             self._require_role(command, row_id, authority_evidence)
         else:

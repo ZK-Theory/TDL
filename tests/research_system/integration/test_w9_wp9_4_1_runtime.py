@@ -733,6 +733,14 @@ def test_roles_and_g4_grant_subjects_for_all_twelve_rows(store: W9Store) -> None
         "eligible_session": flows.ELIGIBILITY["session"],
     }
     assert_refused("RequestW9AuthorityReview", OWNER, rev_id, 0, rev_req, "W9 LR-026 refuses the owner")
+    assert_refused(
+        "RequestW9AuthorityReview",
+        store.actors.analyst,
+        rev_id,
+        0,
+        {**rev_req, "analyst_session": flows.ELIGIBILITY["session"]},
+        "W9 adoption review request names the analyst session as the eligible session",
+    )
     assert store.submit("RequestW9AuthorityReview", store.actors.analyst, rev_id, 0, rev_req).status == "accepted"
 
     verdict_body = {
@@ -798,6 +806,14 @@ def test_roles_and_g4_grant_subjects_for_all_twelve_rows(store: W9Store) -> None
         "analyst_session": "session-analyst",
     }
     assert_refused("RequestW9AuthorityReview", OWNER, d_rev, 0, d_req, "W9 LR-031 refuses the owner")
+    assert_refused(
+        "RequestW9AuthorityReview",
+        store.actors.analyst,
+        d_rev,
+        0,
+        {**d_req, "reviewer_actor_id": OWNER},
+        "W9 review request names the owner as reviewer",
+    )
     assert store.submit("RequestW9AuthorityReview", store.actors.analyst, d_rev, 0, d_req).status == "accepted"
 
     d_ver = {
@@ -1313,6 +1329,35 @@ def test_discharge_preparer_controls_from_lr030_to_lr034(store: W9Store, monkeyp
             },
         )
     assert _snapshot(store) == before
+
+    # Fix 5 (CodeRabbit #439): LR-033's own open-item membership check (matching committed blob, omitted item).
+    omitting_items = [
+        {"item_kind": "a001_item", "item_id": "A001-02", "source": "audit/w0.md#L2", "feeds_papers": ["P01-A"]},
+    ]
+    omitting_blob = _commit_open_items(store, omitting_items)
+    loaded_items, loaded_blob = w9_evidence.require_open_items(store.repo, store.head, expected_blob=omitting_blob)
+    assert loaded_blob == omitting_blob
+    assert not w9_evidence.has_open_item(loaded_items, "a001_item", "A001-01")
+    before = _snapshot(store)
+    with pytest.raises(IntegrityError, match="W9 discharge item is not in the open-item list at git_head"):
+        store.submit(
+            "ProposeW9AuthorityDecision",
+            store.actors.analyst,
+            dec_id,
+            0,
+            {
+                "subject_record_id": dis["record_id"],
+                "question": "q",
+                "recommendation": "accept",
+                "consequences": [],
+                "fixture_refs": [],
+                "open_items_blob": omitting_blob,
+            },
+        )
+    assert _snapshot(store) == before
+
+    restored_lr033_blob = _commit_open_items(store, items)
+    assert restored_lr033_blob == blob
 
     # Advance LR-033 cleanly, then test LR-034 refusals.
     assert (
