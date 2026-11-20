@@ -660,11 +660,16 @@ def test_session_start_on_a_shallow_clone_prints_one_warning_line_and_exits_zero
     assert len(lines) == 1 and lines[0].startswith("hook-currency: WARNING - the repository is shallow")
 
 
-def test_the_default_mode_exits_one_on_a_shallow_clone(rig: Rig, tmp_path: Path) -> None:
+def test_the_default_mode_warns_on_a_shallow_clone_without_failing(
+    rig: Rig, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Owner decision 2026-11-20: a shallow repository warns only, so the exit code stays the currency verdict."""
     clone, _tip = _shallow_clone(rig, tmp_path)
 
-    assert hook_currency.main(["--repo", str(clone)]) == 1
+    assert hook_currency.main(["--repo", str(clone)]) == 0
+    assert "WARNING - the repository is shallow" in capsys.readouterr().out
     assert hook_currency.main(["--repo", str(rig.checkout)]) == 0
+    assert "shallow" not in capsys.readouterr().out
 
 
 def test_the_wired_command_warns_on_a_shallow_clone(rig: Rig, tmp_path: Path) -> None:
@@ -678,16 +683,63 @@ def test_the_wired_command_warns_on_a_shallow_clone(rig: Rig, tmp_path: Path) ->
     assert len(lines) == 1 and lines[0].startswith("hook-currency: WARNING - the repository is shallow"), result.stdout
 
 
-def test_the_gate_fails_a_shallow_workspace_and_the_stale_hooks_waiver_does_not_excuse_it(
-    rig: Rig, tmp_path: Path
-) -> None:
+def test_the_gate_warns_on_a_shallow_workspace_without_failing_it(rig: Rig, tmp_path: Path) -> None:
+    """Owner decision 2026-11-20: shallow is an advisory at the dispatch seam, never a failure."""
     clone, _tip = _shallow_clone(rig, tmp_path)
 
-    plain = gate.check_hook_currency(clone, None)
-    waived = gate.check_hook_currency(clone, "stacked on an unmerged prerequisite")
+    shallow = gate.check_hook_currency(clone, None)
     full = gate.check_hook_currency(rig.checkout, None)
 
-    assert plain.name == "hook-currency" and plain.ok is False
-    assert "git fetch --unshallow origin" in plain.detail
-    assert waived.ok is False
-    assert full.ok is True and "shallow" not in full.detail
+    assert shallow.name == "hook-currency"
+    assert shallow.ok is True and shallow.advisory is True
+    assert "WARNING - the repository is shallow" in shallow.detail
+    assert "git fetch --unshallow origin" in shallow.detail
+    assert "dispatch is not blocked" in shallow.detail
+    assert full.ok is True and full.advisory is False, "negative control: a full clone gives no advisory"
+    assert "shallow" not in full.detail
+
+
+def test_a_shallow_workspace_missing_a_hook_commit_still_fails_and_carries_both_findings(
+    rig: Rig, tmp_path: Path
+) -> None:
+    """The shallow advisory must not soften the stale-hooks verdict, and the waiver still applies to it."""
+    clone, _tip = _shallow_clone(rig, tmp_path)
+    _stale(rig)
+    _git(clone, "fetch", "-q", "origin")
+    assert _git(clone, "rev-parse", "--is-shallow-repository") == "true"
+
+    stale = gate.check_hook_currency(clone, None)
+    waived = gate.check_hook_currency(clone, "stacked on an unmerged prerequisite")
+
+    assert stale.ok is False
+    assert "WARNING - the repository is shallow" in stale.detail and ".githooks/pre-commit" in stale.detail
+    assert waived.ok is True and waived.advisory is True
+    assert "WAIVED: stacked on an unmerged prerequisite" in waived.detail
+
+
+def test_main_does_not_fail_a_dispatch_on_a_shallow_workspace_but_shows_the_warning(
+    rig: Rig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Through the dispatch entry point: a shallow, otherwise current workspace dispatches, with the warning."""
+    clone, _tip = _shallow_clone(rig, tmp_path)
+    monkeypatch.setattr(gate, "check_contracts", lambda _workspace: gate.Check("contracts", True, "patched"))
+    monkeypatch.setattr(gate, "check_hook_gate", lambda _workspace: gate.Check("hook-gate", True, "patched"))
+    monkeypatch.setattr(gate, "check_state_manifest", lambda *_args: [gate.Check("state-manifest", True, "patched")])
+    monkeypatch.chdir(clone)
+    argv = [
+        "--agent",
+        "a",
+        "--branch",
+        "main",
+        "--expected-base",
+        "HEAD",
+        "--mode",
+        "sequential",
+        "--state-manifest",
+        "unused.yaml",
+        "--no-brief",
+        "test",
+    ]
+
+    assert gate.main(argv) == 0
+    assert "the repository is shallow" in capsys.readouterr().out

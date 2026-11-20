@@ -300,7 +300,10 @@ def _emit(text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print the finding; exit 1 when stale or shallow, except under ``--session-start``, which never fails."""
+    """Print the finding; exit 1 when stale, except under ``--session-start``, which never fails.
+
+    A shallow repository warns but does not change the exit code (owner decision 2026-11-20: warn only).
+    """
     parser = argparse.ArgumentParser(description="Report whether this checkout runs the merged hooks.")
     parser.add_argument("--repo", default=None, help="Directory to check (default: $CLAUDE_PROJECT_DIR, else cwd).")
     parser.add_argument(
@@ -323,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
 
     result = check(repo, args.ref)
     _emit(result.line)
-    return 1 if result.status == STALE or result.shallow else 0
+    return 1 if result.status == STALE else 0
 
 
 if __name__ == "__main__":
