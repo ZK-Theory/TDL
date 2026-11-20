@@ -27,6 +27,8 @@ whose file is absent refuses (note §11.1).
 | Shared-surface change list | O-32 (line 212) | `.research-system/evidence/w9/shared-surface-changes.json` (`SHARED_SURFACE_CHANGES`, `evidence.py:39`; fixed by WP9.3-2) | each PR that changes a shared surface | WP9.3, LR-016 and LR-020 | WP9.3-2: `w9-shared-surface-changes/1` (`evidence.py:42`) |
 | Computational-Log export and its retained copy | D-7 (line 434) | in the evidence area; file name not yet fixed. Each accepted export's paths are pinned in its `ACCEPTED_CL_EXPORT` entry (note §11.3) | `tools/w9_segmentation.py` at L-0b (segmentation contract §6.1) | WP9.3, LR-011 and LR-015; WP9.3-2's recheck | the segmentation contract (P-068), note §11.3, and WP9.3-2's `w9-cl-export/1` (`evidence.py:43`; amended 2026-11-11, below) |
 | D-9 restricted-suffix list and exemptions | D-9 (line 570) | in the evidence area; file name not yet fixed | WP9.7 | the RegisterArtefact guard, at the binding's `git_head` | WP9.7 |
+| Legacy open-item list (added 2026-11-20, below) | none; 06v line 449 names the open item a discharge pairs with, not a file. WP9.4 note §8, owner point H | `.research-system/evidence/w9/legacy-open-items.json` | Stephen, under W0-D1, at the live stage; no package writes it. Its blob is bound in his Decision at LR-033 and LR-053 (`w9-open-items-blob:<sha1>`) | WP9.4's preparers: discharge (LR-030 to LR-034) and LR-053 and LR-054 | WP9.4: `w9-legacy-open-items/1` |
+| Citation disambiguation file (added 2026-11-20, below) | none; it serves D-3's extractor (O-14). WP9.4 note §11.1 item 5, owner point I | `.research-system/evidence/w9/citation-disambiguation.json` | the citation reviewer proposes each row and Stephen accepts it | WP9.4-2's citation extractor, at LR-039 and in LR-054's re-run; its blob is part of the extractor's output | WP9.4-2: `w9-citation-disambiguation/1` |
 
 **Open rows.** Two file names are not fixed on `main`: the export's and the D-9 list's. (WP9.3-2 fixed the change
 list's, the third.) The package named in the last column fixes each one, and the PR that does so updates its row
@@ -53,3 +55,15 @@ here. Until then, each of those packages reads this table, not 06v's prose, for 
   changes an addendum's text, so the WP9.3-2 record lists it as a departure for the merge entry.
 - **Line references.** The `evidence.py` line numbers in the table moved when WP9.3-2 added its constants. They are
   re-cited at WP9.3-2's head.
+
+**2026-11-20, WP9.4 (PR #437).**
+- **Two rows added: "Legacy open-item list" and "Citation disambiguation file".** The WP9.4 design note asks for each
+  one (§8 for the first, §11.1 item 5 for the second; revision 6, `b13f1592`). Stephen decided both files' paths and
+  formats in P-086 (owner points H and I, 2026-11-19), and asked for these rows in chat on 2026-11-20 ("Addendum
+  rows"). The rows add locations. They change no existing row and no requirement of 06v.
+- **No code constant yet.** Unlike the rows above, neither file has a constant in `research_system/legacy/evidence.py`.
+  WP9.4-1 adds the open-item list's constant and reader, and WP9.4-2 adds the disambiguation file's. Each of those
+  PRs re-cites its row here with the constant and its line, as WP9.3-2 did for the change list.
+- **Neither file exists on any branch.** Each package's tests use fixture files under `tmp_path`. The open-item
+  list's content is Stephen's, written at the live stage. The disambiguation file's rows wait for a citation review
+  of a real root.
