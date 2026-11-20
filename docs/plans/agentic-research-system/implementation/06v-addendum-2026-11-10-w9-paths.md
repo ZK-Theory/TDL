@@ -4,7 +4,7 @@
 |---|---|
 | Date | 2026-11-10 |
 | Status | Dated addendum. It records paths that are already decided and changes no requirement of 06v |
-| Amends | Nothing. `06v-w9-implementation-plan.md` stays as accepted at revision 4 (`7b19e40b`, P-064). This file gives a path to each place 06v names without one |
+| Amends | Nothing. `06v-w9-implementation-plan.md` stays as accepted at revision 4 (`7b19e40b`, P-064). This file gives a path to each place 06v names without one, and, from 2026-11-20, to files a W9 design note adds |
 | Authority | P-081 item 4 (owner point D, accepted 2026-10-29): "The W9 evidence area (D) is `.research-system/evidence/w9/`". WP9.3 design note §11.1 (revision 14, `2d9aeddc`). Written on Stephen's approval of the 2026-11-10 system review, Group C2 |
 | Code base read | origin/main `0e54de75` |
 | Observation | `2026-10-28-shared-location-named-but-never-defined` |
