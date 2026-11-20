@@ -19,6 +19,8 @@ from typing import Any
 from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.ids import new_id
 from research_system.legacy.records import (
+    adoption_eligibility_decision_id,
+    adoption_review_id,
     observation_record_id,
     observation_subject_digest,
     pre_assigned_ref,
@@ -741,3 +743,307 @@ def inventory_recorded(
     )
     forger = forger.row("LR-014", record["record_id"], deepcopy(record), actor=actors.observer, when=at(start + 3))
     return forger, record
+
+
+# --- Adoption and discharge (WP9.4-1; note §5 to §8) ----------------------------------------------------------------
+
+ELIGIBILITY = {
+    "session": "session-eligible-reviewer",
+    "family": "anthropic",
+    "version": "opus-4-6",
+    "profile": "w9-adoption-reviewer",
+    "grade": "independent",
+}
+OPEN_ITEMS_BLOB = "a" * 40
+
+
+def adoption(
+    project_id: str,
+    analyst: str,
+    when: str,
+    observation_record: dict[str, Any],
+    *,
+    subject: dict[str, Any] | None = None,
+    intended_use: dict[str, Any] | None = None,
+    w5_consequence: str = "admissible_for_named_use",
+    qualifiers_to_discharge: list[dict[str, Any]] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    """Build an LR-023 proposal record stamped with pre-assigned ``decision_ref``."""
+    record = {
+        **_header("legacy-adoption-decision", project_id, analyst, when),
+        "observation_ref": record_ref(observation_record),
+        "subject": {"subject_kind": "families", "family_names": ["headline"]} if subject is None else subject,
+        "intended_use": (
+            {"description": "w9-use:claim-evidence/c1", "successor_ref": None} if intended_use is None else intended_use
+        ),
+        "w5_consequence": w5_consequence,
+        "qualifiers_to_discharge": [] if qualifiers_to_discharge is None else qualifiers_to_discharge,
+        **extra,
+    }
+    record["decision_ref"] = pre_assigned_ref("decision", new_id("decision"), record["record_id"])
+    return stamp(record)
+
+
+def eligibility_proposal(
+    record: dict[str, Any], when: str, *, eligibility: dict[str, str] | None = None, **overrides: Any
+) -> dict[str, Any]:
+    """Build an LR-024 reviewer-eligibility ``DecisionProposed`` payload (§5.5)."""
+    elig = ELIGIBILITY if eligibility is None else eligibility
+    decision_id = adoption_eligibility_decision_id(record["record_id"], record["created_at"])
+    payload = decision_proposal("LR-024", record, decision_id, when)
+    payload["question"] = "Is the named reviewer session eligible for this adoption?"
+    payload["consequences"] = ["the named session may review the adoption"]
+    payload["governing_evidence_refs"].extend(
+        [
+            f"w9-eligible-session:{elig['session']}",
+            f"w9-eligible-family:{elig['family']}",
+            f"w9-eligible-version:{elig['version']}",
+            f"w9-eligible-profile:{elig['profile']}",
+            f"w9-eligible-grade:{elig['grade']}",
+        ]
+    )
+    payload.update(overrides)
+    return payload
+
+
+def eligibility_resolution(
+    proposal: dict[str, Any],
+    record: dict[str, Any],
+    actor: str,
+    grant: str,
+    when: str,
+    *,
+    selected_option: str = "accept",
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Build an LR-025 record-less reviewer-eligibility ``DecisionResolved`` payload (§5.5)."""
+    payload = resolution("LR-025", proposal, record, actor, grant, when, [], selected_option=selected_option)
+    payload.update(overrides)
+    return payload
+
+
+def discharge(
+    project_id: str,
+    analyst: str,
+    when: str,
+    successor_result_ref: dict[str, Any] | None = None,
+    *,
+    item_kind: str = "a001_item",
+    item_id: str = "A001-01",
+    **extra: Any,
+) -> dict[str, Any]:
+    """Build an LR-030 proposal record stamped with pre-assigned ``reviewer_ref`` and ``decision_ref``."""
+    artefact_ref = (
+        {"id": new_id("artefact"), "record_revision": 1, "content_hash": "d" * 64}
+        if successor_result_ref is None
+        else successor_result_ref
+    )
+    record = {
+        **_header("legacy-discharge-relation", project_id, analyst, when),
+        "successor_result_ref": artefact_ref,
+        "legacy_item": {"item_kind": item_kind, "item_id": item_id},
+        **extra,
+    }
+    record["reviewer_ref"] = pre_assigned_ref("review", new_id("review"), record["record_id"])
+    record["decision_ref"] = pre_assigned_ref("decision", new_id("decision"), record["record_id"])
+    return stamp(record)
+
+
+def _default_adoption_fixtures(record: dict[str, Any]) -> tuple[str, ...]:
+    desc = str(record.get("intended_use", {}).get("description", ""))
+    if desc.startswith(("w9-use:manuscript-claims/", "w9-use:claim-evidence/")):
+        return ("F-019", "S-017")
+    return ("S-017",)
+
+
+def adoption_recorded(
+    forger: Forger,
+    actors: Actors,
+    record: dict[str, Any],
+    *,
+    start: float = 70,
+    eligibility: dict[str, str] | None = None,
+    applicable_fixtures: tuple[str, ...] | None = None,
+    fixture_refs: list[str] | None = None,
+    tweaks: dict[str, Tweak] | None = None,
+    stop_after: str | None = None,
+) -> Forger:
+    """LR-023 → LR-024 → LR-025 → LR-026 → LR-027 → LR-028 → LR-029 on a forged ledger."""
+    tweaks = tweaks or {}
+    elig = dict(ELIGIBILITY if eligibility is None else eligibility)
+
+    def step(row: str, default_actor: str, offset: float) -> tuple[str, str, dict[str, Any]]:
+        tweak = tweaks.get(row, Tweak())
+        return (
+            tweak.actor or default_actor,
+            at(start + (offset if tweak.minutes is None else tweak.minutes)),
+            tweak.payload,
+        )
+
+    record = deepcopy(record)
+    actor, when, changes = step("LR-023", actors.analyst, 0)
+    if changes:
+        record.update(changes)
+        if "content_hash" not in changes:
+            record = stamp(record)
+    fixtures = _default_adoption_fixtures(record) if applicable_fixtures is None else applicable_fixtures
+    forger = forger.row("LR-023", record["record_id"], record, actor=actor, when=when)
+    if stop_after == "LR-023":
+        return forger
+
+    elig_id = adoption_eligibility_decision_id(record["record_id"], record["created_at"])
+    actor, when, changes = step("LR-024", actors.analyst, 1)
+    elig_prop = {**eligibility_proposal(record, when, eligibility=elig), **changes}
+    forger = forger.row("LR-024", elig_id, elig_prop, actor=actor, when=when)
+    if stop_after == "LR-024":
+        return forger
+
+    elig_grant = new_id("authority_grant")
+    actor, when, changes = step("LR-025", actors.owner, 2)
+    elig_res = {**eligibility_resolution(elig_prop, record, actor, elig_grant, when), **changes}
+    forger = forger.row("LR-025", elig_id, elig_res, actor=actor, when=when, grant=elig_grant)
+    if stop_after == "LR-025":
+        return forger
+
+    review_id = adoption_review_id(record["record_id"], record["created_at"])
+    actor, when, changes = step("LR-026", actors.analyst, 3)
+    request = review_request(
+        "LR-026",
+        record,
+        review_id,
+        actors.reviewer,
+        when,
+        review_questions=[
+            "Is this legacy adoption decision sound?",
+            f"w9-applicable-fixtures:{','.join(fixtures)}",
+        ],
+        required_evidence_refs=[
+            "w9-analyst-session:session-analyst",
+            f"w9-eligible-session:{elig['session']}",
+        ],
+    )
+    request.update(changes)
+    forger = forger.row("LR-026", review_id, request, actor=actor, when=when)
+    if stop_after == "LR-026":
+        return forger
+
+    requested_at = when
+    actor, when, changes = step("LR-027", request["reviewer_capability"][0], 4)
+    answer = {
+        **verdict(
+            request,
+            requested_at,
+            request["reviewer_capability"][0],
+            reviewer_profile=elig["profile"],
+            reviewer_session=elig["session"],
+            reviewer_model_metadata=f"{elig['family']}@{elig['version']}",
+        ),
+        **changes,
+    }
+    forger = forger.row("LR-027", review_id, answer, actor=actor, when=when)
+    if stop_after == "LR-027":
+        return forger
+
+    decision_id = record["decision_ref"]["id"]
+    actor, when, changes = step("LR-028", actors.analyst, 5)
+    f_refs = (
+        [f"w9-fixture:{fid}:{new_id('review')}" for fid in fixtures] if fixture_refs is None else list(fixture_refs)
+    )
+    proposal = decision_proposal("LR-028", record, decision_id, when)
+    proposal["governing_evidence_refs"].extend(f_refs)
+    proposal.update(changes)
+    forger = forger.row("LR-028", decision_id, proposal, actor=actor, when=when)
+    if stop_after == "LR-028":
+        return forger
+
+    grant = new_id("authority_grant")
+    actor, when, changes = step("LR-029", actors.owner, 6)
+    resolved = {**resolution("LR-029", proposal, record, actor, grant, when, [review_id]), **changes}
+    return forger.append(
+        "ResolveW9AuthorityDecision",
+        [
+            ("DecisionResolved", decision_id, resolved),
+            ("LegacyAdoptionDecisionRecorded", record["record_id"], deepcopy(record)),
+        ],
+        actor=actor,
+        when=when,
+        grant=grant,
+    )
+
+
+def discharge_recorded(
+    forger: Forger,
+    actors: Actors,
+    record: dict[str, Any],
+    *,
+    start: float = 90,
+    open_items_blob: str = OPEN_ITEMS_BLOB,
+    tweaks: dict[str, Tweak] | None = None,
+    stop_after: str | None = None,
+) -> Forger:
+    """LR-030 → LR-031 → LR-032 → LR-033 → LR-034 on a forged ledger."""
+    tweaks = tweaks or {}
+
+    def step(row: str, default_actor: str, offset: float) -> tuple[str, str, dict[str, Any]]:
+        tweak = tweaks.get(row, Tweak())
+        return (
+            tweak.actor or default_actor,
+            at(start + (offset if tweak.minutes is None else tweak.minutes)),
+            tweak.payload,
+        )
+
+    record = deepcopy(record)
+    actor, when, changes = step("LR-030", actors.analyst, 0)
+    if changes:
+        record.update(changes)
+        if "content_hash" not in changes:
+            record = stamp(record)
+    forger = forger.row("LR-030", record["record_id"], record, actor=actor, when=when)
+    if stop_after == "LR-030":
+        return forger
+
+    review_id = record["reviewer_ref"]["id"]
+    actor, when, changes = step("LR-031", actors.analyst, 1)
+    request = review_request(
+        "LR-031",
+        record,
+        review_id,
+        actors.reviewer,
+        when,
+        review_questions=["Does this successor result discharge the open item?", "w9-applicable-fixtures:"],
+    )
+    request.update(changes)
+    forger = forger.row("LR-031", review_id, request, actor=actor, when=when)
+    if stop_after == "LR-031":
+        return forger
+
+    requested_at = when
+    actor, when, changes = step("LR-032", request["reviewer_capability"][0], 2)
+    answer = {**verdict(request, requested_at, request["reviewer_capability"][0]), **changes}
+    forger = forger.row("LR-032", review_id, answer, actor=actor, when=when)
+    if stop_after == "LR-032":
+        return forger
+
+    decision_id = record["decision_ref"]["id"]
+    actor, when, changes = step("LR-033", actors.analyst, 3)
+    proposal = decision_proposal("LR-033", record, decision_id, when)
+    proposal["governing_evidence_refs"].append(f"w9-open-items-blob:{open_items_blob}")
+    proposal.update(changes)
+    forger = forger.row("LR-033", decision_id, proposal, actor=actor, when=when)
+    if stop_after == "LR-033":
+        return forger
+
+    grant = new_id("authority_grant")
+    actor, when, changes = step("LR-034", actors.owner, 4)
+    resolved = {**resolution("LR-034", proposal, record, actor, grant, when, [review_id]), **changes}
+    return forger.append(
+        "ResolveW9AuthorityDecision",
+        [
+            ("DecisionResolved", decision_id, resolved),
+            ("LegacyDischargeRelationRecorded", record["record_id"], deepcopy(record)),
+        ],
+        actor=actor,
+        when=when,
+        grant=grant,
+    )

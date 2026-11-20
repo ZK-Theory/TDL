@@ -1975,6 +1975,15 @@ def _legacy_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _legacy_adoption_status(args: argparse.Namespace) -> int:
+    """Print ``active`` or ``suspended`` with the suspension cause for one adoption ID (WP9.4 note §9, §13)."""
+    from research_system.legacy import projection_read
+
+    state, _ = _legacy_projection(args.control_root)
+    _print_json(projection_read.adoption_status(state, args.adoption_id))
+    return 0
+
+
 def _projection_rebuild(args: argparse.Namespace) -> int:
     operator_config = getattr(args, "operator_config", None)
     binding = _load_gate6_binding_context(operator_config).current_binding if operator_config is not None else None
@@ -2895,6 +2904,14 @@ def _parser() -> argparse.ArgumentParser:
     legacy_show.add_argument("id", help="a W9 record, review, Decision or reserved identity")
     legacy_show.add_argument("--control-root", type=Path, required=True, help="local-store administration root")
     legacy_show.set_defaults(handler=_legacy_show)
+    legacy_adoption_status = legacy_actions.add_parser(
+        "adoption-status", help="print an adoption decision's derived status and cause (read-only)"
+    )
+    legacy_adoption_status.add_argument("adoption_id", help="a recorded legacy_adoption_decision record ID")
+    legacy_adoption_status.add_argument(
+        "--control-root", type=Path, required=True, help="local-store administration root"
+    )
+    legacy_adoption_status.set_defaults(handler=_legacy_adoption_status)
     legacy_submit = legacy_actions.add_parser("submit", help="submit one W9 command through the current binding")
     legacy_submit.add_argument("envelope", type=Path, help="the W9 command envelope (JSON)")
     legacy_submit.add_argument("--control-root", type=Path, required=True, help="the target store's control root")

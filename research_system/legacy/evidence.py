@@ -24,14 +24,14 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any
 
 from research_system.errors import IntegrityError
-from research_system.legacy.reader import ReadRefused, _git
+from research_system.legacy.reader import ReadRefused, _git, git_blob_id
 
 EVIDENCE_DIRECTORY = ".research-system/evidence/w9"
 REGISTRATION_MANIFEST = f"{EVIDENCE_DIRECTORY}/registration-manifest.json"
@@ -41,6 +41,10 @@ REGISTRATION_MANIFEST_FORMAT = "w9-registration-manifest/1"
 DETECTOR_CONTROLS_FORMAT = "w9-detector-controls/1"
 SHARED_SURFACE_CHANGES_FORMAT = "w9-shared-surface-changes/1"
 CL_EXPORT_FORMAT = "w9-cl-export/1"
+LEGACY_OPEN_ITEMS = f"{EVIDENCE_DIRECTORY}/legacy-open-items.json"
+LEGACY_OPEN_ITEMS_FORMAT = "w9-legacy-open-items/1"
+OPEN_ITEM_KINDS = frozenset({"a001_item", "audit_hole", "review_finding"})
+OPEN_ITEM_PAPER_KEYS = frozenset({"P01-A", "P01-B"})
 # Note §12.2 and P-068: the export's only admitted producer is the reference implementation at its accepted blob. The
 # runtime segmenter rechecks the export and must never have produced it.
 CL_EXPORT_PRODUCER = MappingProxyType(
@@ -64,6 +68,25 @@ class EvidenceRefused(IntegrityError):
     """A W9 evidence file is absent at the binding's ``git_head``, malformed, or does not show what a row needs."""
 
 
+# Every evidence read ignores local ``refs/replace`` entries, as ``research_system/git_execution.py`` does with
+# ``GIT_NO_REPLACE_OBJECTS``. Otherwise a replaced commit or blob would make ``git show`` and ``rev-parse`` agree on
+# bytes that are not the ones committed at ``git_head``. The flag is passed here, not in ``reader._git``, because
+# ``reader.py``'s blob is part of the importer identity (``IMPORTER_MODULES``).
+_NO_REPLACE = "--no-replace-objects"
+
+
+def _evidence_git(repository_root: Path, *args: str, text: bool = True) -> Any:
+    return _git(repository_root, _NO_REPLACE, *args, text=text)
+
+
+def _parse_evidence_json(raw: bytes, path: str) -> Any:
+    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int ``ValueError``)."""
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
+
+
 def read_evidence(repository_root: Path, git_head: str | None, path: str) -> Any:
     """Read one evidence file from Git at the binding's ``git_head``.
 
@@ -74,13 +97,10 @@ def read_evidence(repository_root: Path, git_head: str | None, path: str) -> Any
     if not git_head:
         raise EvidenceRefused("W9 evidence is read at the binding's git_head")
     try:
-        raw = _git(repository_root, "show", f"{git_head}:{path}", text=False)
+        raw = _evidence_git(repository_root, "show", f"{git_head}:{path}", text=False)
     except ReadRefused as exc:
         raise EvidenceRefused(f"W9 evidence file is absent at git_head: {path}") from exc
-    try:
-        return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
+    return _parse_evidence_json(raw, path)
 
 
 def _closed(value: Any, keys: set[str], what: str) -> Mapping[str, Any]:
@@ -143,7 +163,7 @@ def is_ancestor(repository_root: Path, ancestor: str, descendant: str) -> bool:
 
     try:
         result = subprocess.run(
-            ["git", "-C", str(repository_root), "merge-base", "--is-ancestor", ancestor, descendant],
+            ["git", "-C", str(repository_root), _NO_REPLACE, "merge-base", "--is-ancestor", ancestor, descendant],
             capture_output=True,
             timeout=60,
         )
@@ -158,7 +178,9 @@ def blob_at(repository_root: Path, commit: str, path: str) -> str | None:
     """The Git blob ID of ``path`` at ``commit``, or ``None`` when the commit does not hold it."""
 
     try:
-        return str(_git(repository_root, "rev-parse", "--verify", "--quiet", f"{commit}:{path}")).strip() or None
+        return (
+            str(_evidence_git(repository_root, "rev-parse", "--verify", "--quiet", f"{commit}:{path}")).strip() or None
+        )
     except ReadRefused:
         return None
 
@@ -336,3 +358,84 @@ def require_cl_export(export: Any) -> Mapping[str, Any]:
         raise EvidenceRefused("W9 Computational-Log export classifications do not match its rows")
     _closed(body["producer"], {"repository_path", "git_blob"}, "Computational-Log export producer")
     return body
+
+
+# --- WP9.4-1 (note §8, owner point H) --------------------------------------------------------------------------------
+
+
+def _open_item_entries(raw: Any) -> list[dict[str, Any]]:
+    """Validate and copy a ``w9-legacy-open-items/1`` payload."""
+
+    body = _closed(raw, {"format", "items"}, "open-item list")
+    if body["format"] != LEGACY_OPEN_ITEMS_FORMAT or not isinstance(body["items"], list):
+        raise EvidenceRefused("W9 open-item list does not have the fixed format")
+    seen: set[tuple[str, str]] = set()
+    entries: list[dict[str, Any]] = []
+    for item in body["items"]:
+        row = _closed(item, {"item_kind", "item_id", "source", "feeds_papers"}, "open-item list entry")
+        item_kind = row["item_kind"]
+        item_id = row["item_id"]
+        source = row["source"]
+        feeds_papers = row["feeds_papers"]
+        if (
+            not isinstance(item_kind, str)
+            or item_kind not in OPEN_ITEM_KINDS
+            or not isinstance(item_id, str)
+            or not item_id
+            or not isinstance(source, str)
+            or not source
+            or not isinstance(feeds_papers, list)
+            or any(not isinstance(paper, str) or paper not in OPEN_ITEM_PAPER_KEYS for paper in feeds_papers)
+            or len(feeds_papers) != len(set(feeds_papers))
+        ):
+            raise EvidenceRefused("W9 open-item list entry does not have the fixed format")
+        key = (item_kind, item_id)
+        if key in seen:
+            raise EvidenceRefused("W9 open-item list names an item twice")
+        seen.add(key)
+        entries.append(
+            {
+                "item_kind": item_kind,
+                "item_id": item_id,
+                "source": source,
+                "feeds_papers": list(feeds_papers),
+            }
+        )
+    return entries
+
+
+def require_open_items(
+    repository_root: Path, git_head: str | None, *, expected_blob: str | None = None
+) -> tuple[list[dict[str, Any]], str]:
+    """Read and validate ``legacy-open-items.json`` from Git at ``git_head`` (note §8, owner point H).
+
+    Never reads the working tree. When ``expected_blob`` is given, refuses unless the committed blob at ``git_head``
+    equals it.
+
+    Returns:
+        ``(items, git_blob)``.
+
+    Raises:
+        EvidenceRefused: If ``git_head`` or the file is absent, malformed, or differs from ``expected_blob``.
+    """
+
+    if not git_head:
+        raise EvidenceRefused("W9 evidence is read at the binding's git_head")
+    try:
+        raw = _evidence_git(repository_root, "show", f"{git_head}:{LEGACY_OPEN_ITEMS}", text=False)
+    except ReadRefused as exc:
+        raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}") from exc
+    blob = blob_at(repository_root, str(git_head), LEGACY_OPEN_ITEMS)
+    if blob is None:
+        raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}")
+    if git_blob_id(raw) != blob:
+        raise EvidenceRefused("W9 open-item list bytes do not hash to their blob at git_head")
+    if expected_blob is not None and blob != expected_blob:
+        raise EvidenceRefused("W9 open-item list blob differs from the list at git_head")
+    return _open_item_entries(_parse_evidence_json(raw, LEGACY_OPEN_ITEMS)), blob
+
+
+def has_open_item(items: Sequence[Mapping[str, Any]], item_kind: str, item_id: str) -> bool:
+    """Return whether ``(item_kind, item_id)`` appears in validated ``items``."""
+
+    return any(entry.get("item_kind") == item_kind and entry.get("item_id") == item_id for entry in items)

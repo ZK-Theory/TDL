@@ -38,11 +38,13 @@ from research_system.canonical import sha256_hex
 from research_system.errors import IntegrityError
 from research_system.legacy import evidence as w9_evidence
 from research_system.legacy.json_families import JsonBlocked, assign, parse_strict
+from research_system.legacy.projection_read import legacy_content_matches
 from research_system.legacy.reader import LegacyReader, ReadRefused, git_blob_id, handle_bound_read
 from research_system.legacy.records import (
     OBSERVATION_PREPARER_SET_FIELDS,
     OBSERVATION_READ_DERIVED_FIELDS,
     PREPARER_SET_FIELDS,
+    adoption_eligibility_decision_id,
     observation_record_id,
     observation_subject_digest,
     record_content_hash,
@@ -53,24 +55,38 @@ from research_system.legacy.replay import reducers as r
 from research_system.legacy.routes import record_kind
 from research_system.legacy.segmentation import SegmentationError, resolve_first_anchor_after, segment
 
-# The rows a preparer builds, by what the command names (§2.1). WP9.3-2 adds the acceptance's LR-017, LR-019, LR-020.
+# The rows a preparer builds, by what the command names (§2.1). WP9.3-2 adds acceptance; WP9.4-1 adds adoption,
+# eligibility, and discharge.
 REQUEST_ROWS = {
     "legacy_field_family_membership": "LR-007",
     "legacy_light_inventory": "LR-012",
     "legacy_closed_reference_acceptance": "LR-017",
+    r.ADOPTION: "LR-026",
+    r.DISCHARGE: "LR-031",
 }
 DECISION_ROWS = {
     "legacy_path_registration": "LR-004",
     "legacy_field_family_membership": "LR-009",
     "legacy_closed_reference_acceptance": "LR-019",
+    r.ADOPTION: "LR-028",
+    r.DISCHARGE: "LR-033",
 }
-RESOLUTION_ROWS = {"LR-004": "LR-005", "LR-009": "LR-010", "LR-019": "LR-020"}
+RESOLUTION_ROWS = {
+    "LR-004": "LR-005",
+    "LR-009": "LR-010",
+    "LR-019": "LR-020",
+    "LR-024": "LR-025",
+    "LR-028": "LR-029",
+    "LR-033": "LR-034",
+}
 RECORDED_EVENTS = {
     "LR-005": "LegacyPathRegistrationRecorded",
     "LR-010": "LegacyFieldFamilyMembershipRecorded",
     "LR-020": "LegacyClosedReferenceAcceptanceRecorded",
+    "LR-029": "LegacyAdoptionDecisionRecorded",
+    "LR-034": "LegacyDischargeRelationRecorded",
 }
-RESOLVER_ROWS = frozenset(RECORDED_EVENTS)
+RESOLVER_ROWS = frozenset(RESOLUTION_ROWS.values())
 # The stream version each command expects (§4.5): the claiming steps open a new stream.
 EXPECTED_VERSIONS = {
     "ProposeLegacyRecord": 0,
@@ -311,13 +327,109 @@ def check_resegmentation(raw: bytes, record: Mapping[str, Any]) -> dict[str, Any
     return segmented
 
 
+def _comparable_source(identity: Mapping[str, Any]) -> dict[str, Any]:
+    compared = {key: value for key, value in identity.items() if key != "frozen_copy_ref"}
+    if compared.get("identity_kind") == "git_tracked":
+        compared.pop("git_commit", None)
+    return compared
+
+
+def _check_adoption_source(environment: Environment, legacy: Mapping[str, Any], record: Mapping[str, Any]) -> None:
+    """LR-023 and LR-029 (W9-T6, O-33, §6.1): re-read observed source and verify binary/restricted whole-file."""
+
+    obs_ref = record.get("observation_ref")
+    obs_id = obs_ref.get("id") if isinstance(obs_ref, Mapping) else None
+    observation = _recorded(legacy, "legacy_observation", obs_id)
+    registration = _recorded(legacy, "legacy_path_registration", observation["registration_ref"]["id"])
+    recorded_src = observation["source_identity"]
+    try:
+        read = _need_reader(environment).read(registration)
+    except ReadRefused as exc:
+        raise IntegrityError(f"W9 adoption source cannot be read: {exc}") from exc
+    if _comparable_source(read.source_identity) != _comparable_source(recorded_src):
+        raise IntegrityError("W9 adoption source re-reads differently from its observation")
+    if recorded_src.get("identity_kind") in _FROZEN_COPY_KINDS:
+        check_frozen_copy(
+            environment,
+            recorded_src["frozen_copy_ref"],
+            recorded_src["sha256"],
+            recorded_src["byte_length"],
+        )
+    subject = record.get("subject")
+    if isinstance(subject, Mapping) and subject.get("subject_kind") == "whole_file":
+        _, source_path = r._source_location(recorded_src)
+        is_json = any(
+            isinstance(path, str) and path.lower().endswith(".json")
+            for path in (registration.get("normalized_path"), source_path)
+        )
+        is_restricted = recorded_src.get("identity_kind") == "restricted_untracked_file" or (
+            isinstance(source_path, str) and source_path.lower().endswith(r.RESTRICTED_SUFFIXES)
+        )
+        if not is_json and not is_restricted:
+            try:
+                read.raw.decode("utf-8")
+            except UnicodeDecodeError:
+                pass
+            else:
+                raise IntegrityError("W9 whole-file adoption requires a binary or restricted source")
+
+
+def _check_discharge_artefact(
+    environment: Environment, legacy: Mapping[str, Any], record: Mapping[str, Any]
+) -> Mapping[str, Any]:
+    """LR-030 and LR-034 (§4.2, §4.4, §8): successor artefact is accepted_for_scope and matches no legacy bytes."""
+
+    from research_system.artefacts.runtime import ControlRootArtefactContentReader
+    from research_system.errors import ArsError
+
+    ref = record.get("successor_result_ref")
+    if not isinstance(ref, Mapping):
+        raise IntegrityError("W9 discharge relation carries no successor_result_ref")
+    stream = environment.generic.get("streams", {}).get(ref.get("id"))
+    manifest = stream.get("manifest") if isinstance(stream, Mapping) else None
+    if not isinstance(manifest, Mapping):
+        raise IntegrityError("W9 discharge successor result names no registered artefact")
+    if ref.get("record_revision") != 1 or ref.get("content_hash") != manifest.get("content_sha256"):
+        raise IntegrityError("W9 discharge successor result ref differs from its registered artefact")
+    if stream.get("use_authority") != "accepted_for_scope":
+        raise IntegrityError("W9 discharge successor result is not accepted_for_scope")
+    try:
+        raw = ControlRootArtefactContentReader(environment.control_root).read(
+            root_id=str(manifest.get("root_id")),
+            relative_path=str(manifest.get("relative_path")),
+        )
+    except (ArsError, OSError) as exc:
+        raise IntegrityError(f"W9 discharge successor result cannot be read: {exc}") from exc
+    digest = sha256_hex(raw)
+    if digest != manifest.get("content_sha256") or len(raw) != manifest.get("size_bytes"):
+        raise IntegrityError("W9 discharge successor result bytes differ from its manifest")
+    if legacy_content_matches(legacy, digest, git_blob_id(raw)):
+        raise IntegrityError("W9 discharge successor result matches a recorded legacy observation")
+    return manifest
+
+
+def _check_discharge_open_item(
+    environment: Environment, record: Mapping[str, Any], *, expected_blob: str | None = None
+) -> str:
+    """LR-030 and LR-034 (owner point H, §8): legacy item resolves against legacy-open-items.json at git_head."""
+
+    reader = _need_reader(environment)
+    items, blob = w9_evidence.require_open_items(reader.repository_root, reader.git_head, expected_blob=expected_blob)
+    item = record.get("legacy_item", {})
+    if not isinstance(item, Mapping) or not w9_evidence.has_open_item(
+        items, str(item.get("item_kind")), str(item.get("item_id"))
+    ):
+        raise IntegrityError("W9 discharge item is not in the open-item list at git_head")
+    return blob
+
+
 # --- The seven commands ----------------------------------------------------------------------------------------------
 
 
 def prepare_proposal(
     payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
 ) -> Prepared:
-    """``ProposeLegacyRecord`` (LR-003, LR-006, LR-011): stamp the record (§4.1, §5.1) and check the environment."""
+    """``ProposeLegacyRecord`` (LR-003, LR-006, LR-011, LR-016, LR-023, LR-030): stamp and check the environment."""
 
     _refuse_supplied(payload, PREPARER_SET_FIELDS)
     record = {**deepcopy(dict(payload)), "created_by_actor_id": actor, "created_at": _iso(now)}
@@ -341,6 +453,21 @@ def prepare_proposal(
 
         # LR-016 (§6.2, §7.2, §10.3, §10.4): the window, the anchors and the change list, the window again at commit.
         prepared.rereads.extend(acceptance.check_environment(environment, legacy, record))
+    elif kind == r.ADOPTION:
+        _check_adoption_source(environment, legacy, record)
+
+        def reread_adoption_source() -> None:
+            _check_adoption_source(environment, legacy, record)
+
+        prepared.rereads.append(reread_adoption_source)
+    elif kind == r.DISCHARGE:
+
+        def check_discharge_env() -> None:
+            _check_discharge_open_item(environment, record)
+            _check_discharge_artefact(environment, legacy, record)
+
+        check_discharge_env()
+        prepared.rereads.append(check_discharge_env)
     return prepared
 
 
@@ -371,7 +498,7 @@ def _read_source(
 def prepare_review_request(
     payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
 ) -> Prepared:
-    """``RequestW9AuthorityReview`` (LR-007, LR-012): build ``ReviewRequested`` by §5.2."""
+    """``RequestW9AuthorityReview``: build ``ReviewRequested`` by §5.2 and WP9.4 §5.4 to §5.5."""
 
     proposal = _proposal(legacy, payload.get("subject_record_id"))
     row = REQUEST_ROWS.get(proposal["kind"])
@@ -380,13 +507,25 @@ def prepare_review_request(
     expected = {"subject_record_id", "reviewer_actor_id", "review_questions", "analyst_session"}
     if row == "LR-007":
         expected.add("author_session")
+    elif row == "LR-026":
+        expected.add("eligible_session")
     if set(payload) != expected:
         raise IntegrityError(f"W9 review request payload must carry exactly: {', '.join(sorted(expected))}")
     sessions = [f"{r.ANALYST_SESSION_PREFIX}{payload['analyst_session']}"]
     if row == "LR-007":
         sessions.append(f"{r.AUTHOR_SESSION_PREFIX}{payload['author_session']}")
+    elif row == "LR-026":
+        sessions.append(f"{r.ELIGIBLE_SESSION_PREFIX}{payload['eligible_session']}")
     record = proposal["record"]
-    review_id = record[r._REQUEST_REVIEW_FIELD[row]]["id"]
+    if row == "LR-031":
+        ref_id = record.get("successor_result_ref", {}).get("id")
+        stream = environment.generic.get("streams", {}).get(ref_id)
+        manifest = stream.get("manifest") if isinstance(stream, Mapping) else None
+        if not isinstance(manifest, Mapping):
+            raise IntegrityError("W9 discharge successor result names no registered artefact")
+        if payload["reviewer_actor_id"] == manifest.get("producer_actor_id"):
+            raise IntegrityError("W9 discharge reviewer is the successor result's producer")
+    review_id = r.review_id_for(proposal["kind"], record)
     request = {
         "review_type": r.REVIEW_TYPE,
         "new_review_id": review_id,
@@ -410,7 +549,7 @@ def prepare_review_request(
 def prepare_review_verdict(
     payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
 ) -> Prepared:
-    """``RecordW9AuthorityReview`` (LR-008, LR-013): build ``ReviewVerdictRecorded`` by §5.2."""
+    """``RecordW9AuthorityReview``: build ``ReviewVerdictRecorded`` by §5.2 and WP9.4 §5.5."""
 
     expected = {
         "review_id",
@@ -428,6 +567,7 @@ def prepare_review_verdict(
     if review is None or "subject" not in review:
         raise IntegrityError("W9 verdict names no open W9 review")
     subject_hash = review["subject"][1]
+    profile = review["eligibility"]["profile"] if review.get("request_row") == "LR-026" else r.REVIEWER_PROFILE
     verdict = {
         "review_id": review_id,
         "verdict": payload["verdict"],
@@ -436,7 +576,7 @@ def prepare_review_verdict(
         "conditions": [],
         "required_evidence_refs": list(review["required_evidence_refs"]),
         "reviewer_actor_id": actor,
-        "reviewer_profile": r.REVIEWER_PROFILE,
+        "reviewer_profile": profile,
         "reviewer_session": payload["reviewer_session"],
         "reviewer_model_metadata": payload["reviewer_model_metadata"],
         "context_manifest_id": review_context_manifest_id(review_id, review["requested_at"]),
@@ -452,18 +592,69 @@ def prepare_review_verdict(
 def prepare_decision_proposal(
     payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
 ) -> Prepared:
-    """``ProposeW9AuthorityDecision`` (LR-004, LR-009): build ``DecisionProposed`` by §5.2."""
+    """``ProposeW9AuthorityDecision``: build ``DecisionProposed`` (WP9.3 §5.2; WP9.4 §5.4, §5.5, §8)."""
 
-    if set(payload) != {"subject_record_id", "question", "recommendation", "consequences"}:
+    base = {"subject_record_id", "question", "recommendation", "consequences"}
+    optional = {"eligibility", "fixture_refs", "open_items_blob"}
+    keys = set(payload)
+    if not base <= keys or (keys - base - optional):
         raise IntegrityError(
-            "W9 Decision proposal payload must carry exactly: consequences, question, recommendation, subject_record_id"
+            "W9 Decision proposal payload requires consequences, question, recommendation, subject_record_id "
+            "and allows optional eligibility, fixture_refs, open_items_blob"
         )
     proposal = _proposal(legacy, payload["subject_record_id"])
-    row = DECISION_ROWS.get(proposal["kind"])
-    if row is None:
-        raise IntegrityError("W9 proposal of this kind has no Decision row")
+    kind = proposal["kind"]
     record = proposal["record"]
-    decision_id = record[r._DECISION_PROPOSAL_FIELD[row]]["id"]
+
+    if "eligibility" in payload:
+        if kind != r.ADOPTION:
+            raise IntegrityError("W9 eligibility Decision is admitted for an adoption proposal only")
+        if "fixture_refs" in payload or "open_items_blob" in payload:
+            raise IntegrityError("W9 eligibility Decision accepts no fixture_refs or open_items_blob")
+        elig = payload["eligibility"]
+        elig_keys = ("session", "family", "version", "profile", "grade")
+        if (
+            not isinstance(elig, Mapping)
+            or set(elig) != set(elig_keys)
+            or any(not isinstance(elig[k], str) or not elig[k] for k in elig_keys)
+        ):
+            raise IntegrityError("W9 eligibility payload must carry session, family, version, profile and grade")
+        decision_id = adoption_eligibility_decision_id(record["record_id"], record["created_at"])
+        governing_refs = [
+            "W9:LR-024",
+            f"{r.SUBJECT_PREFIX}{record['record_id']}",
+            f"{r.SUBJECT_HASH_PREFIX}{proposal['content_hash']}",
+            f"{r.ELIGIBLE_SESSION_PREFIX}{elig['session']}",
+            f"{r.ELIGIBLE_FAMILY_PREFIX}{elig['family']}",
+            f"{r.ELIGIBLE_VERSION_PREFIX}{elig['version']}",
+            f"{r.ELIGIBLE_PROFILE_PREFIX}{elig['profile']}",
+            f"{r.ELIGIBLE_GRADE_PREFIX}{elig['grade']}",
+        ]
+    else:
+        row = DECISION_ROWS.get(kind)
+        if row is None:
+            raise IntegrityError("W9 proposal of this kind has no Decision row")
+        if row in r.WP9_3_ROWS and ("fixture_refs" in payload or "open_items_blob" in payload):
+            raise IntegrityError(f"W9 {row} does not accept fixture_refs or open_items_blob")
+        if row == "LR-028" and "open_items_blob" in payload:
+            raise IntegrityError("W9 LR-028 does not accept open_items_blob")
+        fixture_refs = payload.get("fixture_refs", [])
+        if not isinstance(fixture_refs, list) or any(not isinstance(item, str) for item in fixture_refs):
+            raise IntegrityError("W9 Decision fixture_refs must be a list of strings")
+        decision_id = record[r._DECISION_PROPOSAL_FIELD[row]]["id"]
+        governing_refs = [
+            f"W9:{row}",
+            f"{r.SUBJECT_PREFIX}{record['record_id']}",
+            f"{r.SUBJECT_HASH_PREFIX}{proposal['content_hash']}",
+            *fixture_refs,
+        ]
+        if row == "LR-033":
+            blob = payload.get("open_items_blob")
+            if not isinstance(blob, str) or not blob:
+                raise IntegrityError("W9 LR-033 requires open_items_blob")
+            _check_discharge_open_item(environment, record, expected_blob=blob)
+            governing_refs.append(f"{r.OPEN_ITEMS_BLOB_PREFIX}{blob}")
+
     decision = {
         "new_decision_id": decision_id,
         "question": payload["question"],
@@ -471,11 +662,7 @@ def prepare_decision_proposal(
         "options": list(r.DECISION_OPTIONS),
         "decision_revision": 1,
         "decision_kind": r.DECISION_KIND,
-        "governing_evidence_refs": [
-            f"W9:{row}",
-            f"{r.SUBJECT_PREFIX}{record['record_id']}",
-            f"{r.SUBJECT_HASH_PREFIX}{proposal['content_hash']}",
-        ],
+        "governing_evidence_refs": governing_refs,
         "affected_task_ids": [],
         "affected_claim_ids": [],
         "required_authority": r.REQUIRED_AUTHORITY,
@@ -495,12 +682,10 @@ def prepare_resolution(
     environment: Environment,
     grant_id: str,
 ) -> Prepared:
-    """``ResolveW9AuthorityDecision`` (LR-005, LR-010): G5's resolution and the proposal's exact record (§5.2, §6.1)."""
+    """``ResolveW9AuthorityDecision``: G5's resolution and optional record event (§5.2, §5.5, §6.1, §8)."""
 
     if set(payload) != {"decision_id", "selected_option"}:
         raise IntegrityError("W9 Decision resolution payload must carry exactly: decision_id, selected_option")
-    if payload["selected_option"] != "accept":
-        raise IntegrityError("W9 Decision resolution must select accept")
     decision_id = payload["decision_id"]
     decision = legacy["decisions"].get(decision_id)
     if decision is None or "subject" not in decision:
@@ -508,8 +693,32 @@ def prepare_resolution(
     row = RESOLUTION_ROWS[decision["propose_row"]]
     record_id = decision["subject"][0]
     proposal = _proposal(legacy, record_id)
+    selected = payload["selected_option"]
+    if row == "LR-025":
+        if selected not in r.DECISION_OPTIONS:
+            raise IntegrityError("W9 eligibility Decision resolution must select accept or reject")
+        resolution = {
+            "decision_id": decision_id,
+            "selected_option": selected,
+            "effective_scope": f"{r.EFFECTIVE_SCOPE_PREFIX}{record_id}",
+            "decision_revision": 1,
+            "deciding_actor_id": actor,
+            "decision_authority_grant_id": grant_id,
+            "governing_evidence_refs": [f"W9:{row}", *decision["governing_evidence_refs"][1:]],
+            "considered_review_ids": [],
+            "effective_at": _iso(now),
+            "permitted_commands": [],
+            "superseded_decision_ids": [],
+            "conditions": [],
+            "revisit_triggers": [],
+        }
+        return Prepared([("DecisionResolved", decision_id, resolution)])
+
+    if selected != "accept":
+        raise IntegrityError("W9 Decision resolution must select accept")
     record = deepcopy(proposal["record"])
-    review_field = r._FAMILY_REVIEW_FIELD.get(proposal["kind"])
+    review_id = r.review_id_for(proposal["kind"], record)
+    considered = [] if review_id is r.NO_REVIEW_REQUIRED else [review_id]
     resolution = {
         "decision_id": decision_id,
         "selected_option": "accept",
@@ -518,7 +727,7 @@ def prepare_resolution(
         "deciding_actor_id": actor,
         "decision_authority_grant_id": grant_id,
         "governing_evidence_refs": [f"W9:{row}", *decision["governing_evidence_refs"][1:]],
-        "considered_review_ids": [] if review_field is None else [record[review_field]["id"]],
+        "considered_review_ids": considered,
         "effective_at": _iso(now),
         "permitted_commands": [],
         "superseded_decision_ids": [],
@@ -540,6 +749,25 @@ def prepare_resolution(
         # §7.2: the physical identity re-read unchanged, at commit.
         _require_physical_identity(environment, record)
         prepared.rereads.append(lambda: _require_physical_identity(environment, record))
+    elif row == "LR-029":
+        # §6.5, W9-T6, O-33: source re-reads to observed identity at commit.
+        _check_adoption_source(environment, legacy, record)
+        prepared.rereads.append(lambda: _check_adoption_source(environment, legacy, record))
+    elif row == "LR-034":
+        # §8: artefact accepted & no legacy match, open-item blob unchanged & item present, G3 again.
+        expected_blob = decision["governing_evidence_refs"][-1].removeprefix(r.OPEN_ITEMS_BLOB_PREFIX)
+
+        def check_discharge_resolution() -> None:
+            manifest = _check_discharge_artefact(environment, legacy, record)
+            _check_discharge_open_item(environment, record, expected_blob=expected_blob)
+            review = legacy["reviews"].get(record["reviewer_ref"]["id"])
+            if review is None:
+                raise IntegrityError("W9 discharge resolution names no recorded review")
+            if review.get("reviewer") == manifest.get("producer_actor_id"):
+                raise IntegrityError("W9 discharge reviewer is the successor result's producer")
+
+        check_discharge_resolution()
+        prepared.rereads.append(check_discharge_resolution)
     else:
         # Template §3 rule 10: applies_to bytes re-hashed equal, at commit.
         def reread_members() -> None:
