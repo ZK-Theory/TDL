@@ -599,7 +599,8 @@ def prepare_decision_proposal(
     keys = set(payload)
     if not base <= keys or (keys - base - optional):
         raise IntegrityError(
-            "W9 Decision proposal payload must carry exactly: consequences, question, recommendation, subject_record_id"
+            "W9 Decision proposal payload requires consequences, question, recommendation, subject_record_id "
+            "and allows optional eligibility, fixture_refs, open_items_blob"
         )
     proposal = _proposal(legacy, payload["subject_record_id"])
     kind = proposal["kind"]
@@ -760,7 +761,9 @@ def prepare_resolution(
             manifest = _check_discharge_artefact(environment, legacy, record)
             _check_discharge_open_item(environment, record, expected_blob=expected_blob)
             review = legacy["reviews"].get(record["reviewer_ref"]["id"])
-            if review is not None and review.get("reviewer") == manifest.get("producer_actor_id"):
+            if review is None:
+                raise IntegrityError("W9 discharge resolution names no recorded review")
+            if review.get("reviewer") == manifest.get("producer_actor_id"):
                 raise IntegrityError("W9 discharge reviewer is the successor result's producer")
 
         check_discharge_resolution()

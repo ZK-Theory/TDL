@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -21,6 +22,7 @@ from research_system.errors import IntegrityError
 from research_system.ids import new_id
 from research_system.legacy import evidence as w9_evidence
 from research_system.legacy import preparers, projection_read
+from research_system.legacy.reader import LegacyReader
 from research_system.legacy.records import adoption_eligibility_decision_id, adoption_review_id, pre_assigned_ref
 from research_system.legacy.replay import reducers
 from research_system.legacy.replay.driver import replay_legacy
@@ -1404,7 +1406,7 @@ def test_discharge_preparer_controls_from_lr030_to_lr034(store: W9Store, monkeyp
         )
     assert _snapshot(store) == before
 
-    # Restore exact blob at git_head via amending? No, commit exact initial bytes back -> same blob SHA-1!
+    # Commit the initial open-item bytes back so git_head again resolves to the Decision's blob SHA-1.
     restored_blob = _commit_open_items(store, items)
     assert restored_blob == blob
 
@@ -1437,6 +1439,199 @@ def test_discharge_preparer_controls_from_lr030_to_lr034(store: W9Store, monkeyp
             "ResolveW9AuthorityDecision", OWNER, dec_id, 1, {"decision_id": dec_id, "selected_option": "accept"}
         )
     assert _snapshot(store) == before
+
+
+def test_lr034_refuses_successor_matching_legacy_observation_recorded_after_lr033(store: W9Store) -> None:
+    """§15 LR-034's negatives: an artefact clean at LR-030..LR-033 is refused at LR-034 once observed as legacy."""
+    items = [
+        {"item_kind": "a001_item", "item_id": "A001-01", "source": "audit/w0.md#L1", "feeds_papers": ["P01-A"]},
+    ]
+    blob = _commit_open_items(store, items)
+    ok_bytes = b'{"successor_discharge": 99}\n'
+    art_ok, _, _ = _make_generic_artefact(store, ok_bytes, "evidence/successor/late_match.json")
+    dis = _discharge_payload(store, art_ok, item_id="A001-01")
+    _discharge_via_submit(store, dis, open_items_blob=blob, stop_after="LR-033")
+
+    _add_repo_sources(
+        store,
+        {"results/late_legacy.json": ok_bytes},
+        track=("results/late_legacy.json",),
+        manifest_paths=("results/late_legacy.json",),
+    )
+    assert git(store.repo, "rev-parse", f"{store.head}:{w9_evidence.LEGACY_OPEN_ITEMS}") == blob
+    reg_late = store.register("results/late_legacy.json")
+    _, obs_late_id = store.observe(store.observation_payload(reg_late))
+    assert obs_late_id
+
+    dec_id = dis["decision_ref"]["id"]
+    before = _snapshot(store)
+    with pytest.raises(IntegrityError, match="W9 discharge successor result matches a recorded legacy observation"):
+        store.submit(
+            "ResolveW9AuthorityDecision", OWNER, dec_id, 1, {"decision_id": dec_id, "selected_option": "accept"}
+        )
+    assert _snapshot(store) == before
+
+
+def test_lr034_prepare_resolution_refuses_missing_review_and_checks_g3(tmp_path: Path) -> None:
+    """Direct preparer test: replay's G5 makes a missing review unreachable, so check check_discharge_resolution."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init")
+    git(repo, "config", "user.name", "Test")
+    git(repo, "config", "user.email", "test@example.com")
+    open_path = repo / w9_evidence.LEGACY_OPEN_ITEMS
+    open_path.parent.mkdir(parents=True, exist_ok=True)
+    open_path.write_text(
+        json.dumps(
+            {
+                "format": w9_evidence.LEGACY_OPEN_ITEMS_FORMAT,
+                "items": [
+                    {
+                        "item_kind": "a001_item",
+                        "item_id": "A001-01",
+                        "source": "audit/w0.md#L1",
+                        "feeds_papers": ["P01-A"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    git(repo, "add", "-f", w9_evidence.LEGACY_OPEN_ITEMS)
+    git(repo, "commit", "-q", "-m", "init open items")
+    head = git(repo, "rev-parse", "HEAD")
+    blob = git(repo, "rev-parse", f"{head}:{w9_evidence.LEGACY_OPEN_ITEMS}")
+
+    control = tmp_path / "control"
+    ok_bytes = b'{"clean_successor": 1}\n'
+    dest = control / "evidence" / "successor" / "ok.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(ok_bytes)
+
+    art_id = new_id("artefact")
+    art_hash = sha256_hex(ok_bytes)
+    dis_id = new_id("scope_definition")
+    rev_id = new_id("review")
+    dec_id = new_id("decision")
+    grant_id = new_id("authority_grant")
+    now = datetime(2026, 8, 8, 21, 0, tzinfo=UTC)
+    record = {
+        "schema_id": "ars://legacy/legacy-discharge-relation",
+        "schema_version": "1.0.0",
+        "record_id": dis_id,
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": "tdl-test",
+        "successor_result_ref": {"id": art_id, "record_revision": 1, "content_hash": art_hash},
+        "legacy_item": {"item_kind": "a001_item", "item_id": "A001-01"},
+        "reviewer_ref": pre_assigned_ref("review", rev_id, dis_id),
+        "decision_ref": pre_assigned_ref("decision", dec_id, dis_id),
+    }
+    generic_view = {
+        "streams": {
+            art_id: {
+                "use_authority": "accepted_for_scope",
+                "manifest": {
+                    **artefact_manifest(),
+                    "artefact_id": art_id,
+                    "producer_actor_id": ACTORS["actor-b"],
+                    "relative_path": "evidence/successor/ok.json",
+                    "size_bytes": len(ok_bytes),
+                    "content_sha256": art_hash,
+                },
+            }
+        }
+    }
+    env = preparers.Environment(LegacyReader(repository_root=repo, git_head=head), generic_view, control, None)
+    base_legacy: dict[str, Any] = {
+        "proposals": {dis_id: {"kind": "legacy_discharge_relation", "record": deepcopy(record), "recorded": False}},
+        "decisions": {
+            dec_id: {
+                "propose_row": "LR-033",
+                "subject": (dis_id, art_hash),
+                "governing_evidence_refs": [
+                    "W9:LR-033",
+                    f"w9-subject:{dis_id}",
+                    f"w9-subject-sha256:{art_hash}",
+                    f"w9-open-items-blob:{blob}",
+                ],
+            }
+        },
+        "reviews": {rev_id: {"reviewer": ACTORS["actor-a"]}},
+        "records": {},
+    }
+
+    # Negative control: a recorded independent review passes LR-034 preparation and commit rereads.
+    prepared = preparers.prepare_resolution(
+        {"decision_id": dec_id, "selected_option": "accept"},
+        actor=OWNER,
+        now=now,
+        legacy=base_legacy,
+        environment=env,
+        grant_id=grant_id,
+    )
+    assert [event_type for event_type, _, _ in prepared.events] == [
+        "DecisionResolved",
+        "LegacyDischargeRelationRecorded",
+    ]
+    for reread in prepared.rereads:
+        reread()
+
+    missing_legacy = deepcopy(base_legacy)
+    missing_legacy["reviews"].pop(rev_id)
+    with pytest.raises(IntegrityError, match="W9 discharge resolution names no recorded review"):
+        preparers.prepare_resolution(
+            {"decision_id": dec_id, "selected_option": "accept"},
+            actor=OWNER,
+            now=now,
+            legacy=missing_legacy,
+            environment=env,
+            grant_id=grant_id,
+        )
+
+    g3_legacy = deepcopy(base_legacy)
+    g3_legacy["reviews"][rev_id]["reviewer"] = ACTORS["actor-b"]
+    with pytest.raises(IntegrityError, match="W9 discharge reviewer is the successor result's producer"):
+        preparers.prepare_resolution(
+            {"decision_id": dec_id, "selected_option": "accept"},
+            actor=OWNER,
+            now=now,
+            legacy=g3_legacy,
+            environment=env,
+            grant_id=grant_id,
+        )
+
+
+def test_prepare_decision_proposal_key_set_refusal_names_required_and_optional_fields() -> None:
+    """Decision proposal key-set refusal states both the required base keys and the optional keys."""
+    env = preparers.Environment(None, {}, Path("."), None)
+    now = datetime(2026, 8, 8, 21, 0, tzinfo=UTC)
+    expected = (
+        "W9 Decision proposal payload requires consequences, question, recommendation, subject_record_id "
+        "and allows optional eligibility, fixture_refs, open_items_blob"
+    )
+    with pytest.raises(IntegrityError, match=expected):
+        preparers.prepare_decision_proposal(
+            {"subject_record_id": new_id("scope_definition"), "question": "q", "recommendation": "accept"},
+            actor=ACTORS["actor-a"],
+            now=now,
+            legacy={"proposals": {}},
+            environment=env,
+        )
+    with pytest.raises(IntegrityError, match=expected):
+        preparers.prepare_decision_proposal(
+            {
+                "subject_record_id": new_id("scope_definition"),
+                "question": "q",
+                "recommendation": "accept",
+                "consequences": [],
+                "unexpected": 1,
+            },
+            actor=ACTORS["actor-a"],
+            now=now,
+            legacy={"proposals": {}},
+            environment=env,
+        )
 
 
 # --- CLI ars legacy adoption-status (§9, §13) ------------------------------------------------------------------------
