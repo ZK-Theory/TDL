@@ -231,33 +231,67 @@ def test_oversized_integer_in_open_items_file_is_refused(repository: Path) -> No
         require_open_items(repository, head)
 
 
-def test_open_items_bytes_not_matching_blob_via_git_replace_is_refused(repository: Path) -> None:
-    """Installs a real ``git replace`` object in the scratch repo so ``git show`` and ``rev-parse`` diverge."""
+def _hash_object(root: Path, content: bytes) -> str:
+    """Write ``content`` as a loose blob in ``root`` and return its ID."""
+    return (
+        subprocess.run(
+            ["git", "-C", str(root), "hash-object", "-w", "--stdin"], input=content, check=True, capture_output=True
+        )
+        .stdout.decode("utf-8")
+        .strip()
+    )
+
+
+def test_open_items_ignore_a_git_replace_of_the_list_blob(repository: Path) -> None:
+    """A real ``git replace`` of the list's blob: plain ``git show`` returns the replacement, the reader does not."""
+    listed = _commit_file(repository, LEGACY_OPEN_ITEMS, _open_items(_entry("a001_item", "A001-01")), "open items")
+    orig_blob = _git(repository, "rev-parse", f"{listed}:{LEGACY_OPEN_ITEMS}")
+
+    replacement_bytes = _open_items(_entry("a001_item", "A001-99")).encode("utf-8")
+    _git(repository, "replace", orig_blob, _hash_object(repository, replacement_bytes))
+    shown = subprocess.run(
+        ["git", "-C", str(repository), "show", f"{listed}:{LEGACY_OPEN_ITEMS}"], check=True, capture_output=True
+    ).stdout
+    assert shown == replacement_bytes  # the replacement is live for ordinary Git reads
+
+    entries, blob = require_open_items(repository, listed, expected_blob=orig_blob)
+    assert blob == orig_blob
+    assert has_open_item(entries, "a001_item", "A001-01") is True
+    assert has_open_item(entries, "a001_item", "A001-99") is False
+
+
+def test_open_items_ignore_a_git_replace_of_the_recorded_commit(repository: Path) -> None:
+    """CodeRabbit #439 round 3: a commit replacement ``H -> R`` must not make the reader return ``R``'s list."""
+    head = _commit_file(repository, LEGACY_OPEN_ITEMS, _open_items(_entry("a001_item", "A001-01")), "list at H")
+    head_blob = _git(repository, "rev-parse", f"{head}:{LEGACY_OPEN_ITEMS}")
+    other = _commit_file(repository, LEGACY_OPEN_ITEMS, _open_items(_entry("a001_item", "A001-99")), "list at R")
+    _git(repository, "replace", head, other)
+    assert _git(repository, "rev-parse", f"{head}:{LEGACY_OPEN_ITEMS}") != head_blob  # plain Git now reads R's tree
+
+    entries, blob = require_open_items(repository, head)
+    assert blob == head_blob
+    assert has_open_item(entries, "a001_item", "A001-01") is True
+    assert has_open_item(entries, "a001_item", "A001-99") is False
+    assert evidence.blob_at(repository, head, LEGACY_OPEN_ITEMS) == head_blob
+    assert evidence.read_evidence(repository, head, LEGACY_OPEN_ITEMS)["items"][0]["item_id"] == "A001-01"
+
+
+def test_open_items_bytes_not_matching_blob_are_refused(repository: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Monkeypatches the reader's ``git show`` to return bytes that are not the blob ``rev-parse`` names."""
     listed = _commit_file(repository, LEGACY_OPEN_ITEMS, _open_items(_entry("a001_item", "A001-01")), "open items")
     orig_blob = _git(repository, "rev-parse", f"{listed}:{LEGACY_OPEN_ITEMS}")
     entries, blob = require_open_items(repository, listed, expected_blob=orig_blob)
     assert blob == orig_blob
     assert has_open_item(entries, "a001_item", "A001-01") is True
 
-    replacement_bytes = _open_items(_entry("a001_item", "A001-99")).encode("utf-8")
-    replacement_blob = (
-        subprocess.run(
-            ["git", "-C", str(repository), "hash-object", "-w", "--stdin"],
-            input=replacement_bytes,
-            check=True,
-            capture_output=True,
-        )
-        .stdout.decode("utf-8")
-        .strip()
-    )
-    _git(repository, "replace", orig_blob, replacement_blob)
+    real_git = evidence._git
+    other_bytes = _open_items(_entry("a001_item", "A001-99")).encode("utf-8")
 
-    assert _git(repository, "rev-parse", f"{listed}:{LEGACY_OPEN_ITEMS}") == orig_blob
-    shown = subprocess.run(
-        ["git", "-C", str(repository), "show", f"{listed}:{LEGACY_OPEN_ITEMS}"],
-        check=True,
-        capture_output=True,
-    ).stdout
-    assert shown == replacement_bytes
+    def show_other(root: Path, *args: str, text: bool = True) -> object:
+        if "show" in args:
+            return other_bytes
+        return real_git(root, *args, text=text)
+
+    monkeypatch.setattr(evidence, "_git", show_other)
     with pytest.raises(EvidenceRefused, match="W9 open-item list bytes do not hash to their blob at git_head"):
         require_open_items(repository, listed, expected_blob=orig_blob)

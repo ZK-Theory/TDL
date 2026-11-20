@@ -68,6 +68,17 @@ class EvidenceRefused(IntegrityError):
     """A W9 evidence file is absent at the binding's ``git_head``, malformed, or does not show what a row needs."""
 
 
+# Every evidence read ignores local ``refs/replace`` entries, as ``research_system/git_execution.py`` does with
+# ``GIT_NO_REPLACE_OBJECTS``. Otherwise a replaced commit or blob would make ``git show`` and ``rev-parse`` agree on
+# bytes that are not the ones committed at ``git_head``. The flag is passed here, not in ``reader._git``, because
+# ``reader.py``'s blob is part of the importer identity (``IMPORTER_MODULES``).
+_NO_REPLACE = "--no-replace-objects"
+
+
+def _evidence_git(repository_root: Path, *args: str, text: bool = True) -> Any:
+    return _git(repository_root, _NO_REPLACE, *args, text=text)
+
+
 def _parse_evidence_json(raw: bytes, path: str) -> Any:
     """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int ``ValueError``)."""
     try:
@@ -86,7 +97,7 @@ def read_evidence(repository_root: Path, git_head: str | None, path: str) -> Any
     if not git_head:
         raise EvidenceRefused("W9 evidence is read at the binding's git_head")
     try:
-        raw = _git(repository_root, "show", f"{git_head}:{path}", text=False)
+        raw = _evidence_git(repository_root, "show", f"{git_head}:{path}", text=False)
     except ReadRefused as exc:
         raise EvidenceRefused(f"W9 evidence file is absent at git_head: {path}") from exc
     return _parse_evidence_json(raw, path)
@@ -152,7 +163,7 @@ def is_ancestor(repository_root: Path, ancestor: str, descendant: str) -> bool:
 
     try:
         result = subprocess.run(
-            ["git", "-C", str(repository_root), "merge-base", "--is-ancestor", ancestor, descendant],
+            ["git", "-C", str(repository_root), _NO_REPLACE, "merge-base", "--is-ancestor", ancestor, descendant],
             capture_output=True,
             timeout=60,
         )
@@ -167,7 +178,9 @@ def blob_at(repository_root: Path, commit: str, path: str) -> str | None:
     """The Git blob ID of ``path`` at ``commit``, or ``None`` when the commit does not hold it."""
 
     try:
-        return str(_git(repository_root, "rev-parse", "--verify", "--quiet", f"{commit}:{path}")).strip() or None
+        return (
+            str(_evidence_git(repository_root, "rev-parse", "--verify", "--quiet", f"{commit}:{path}")).strip() or None
+        )
     except ReadRefused:
         return None
 
@@ -409,7 +422,7 @@ def require_open_items(
     if not git_head:
         raise EvidenceRefused("W9 evidence is read at the binding's git_head")
     try:
-        raw = _git(repository_root, "show", f"{git_head}:{LEGACY_OPEN_ITEMS}", text=False)
+        raw = _evidence_git(repository_root, "show", f"{git_head}:{LEGACY_OPEN_ITEMS}", text=False)
     except ReadRefused as exc:
         raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}") from exc
     blob = blob_at(repository_root, str(git_head), LEGACY_OPEN_ITEMS)
