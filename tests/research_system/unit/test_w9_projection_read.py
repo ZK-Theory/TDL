@@ -420,7 +420,7 @@ def test_resolve_adoption_ref_rejects_malformed_or_unknown_refs() -> None:
 
 
 def test_w9_t1_done_status_word_in_source_yields_no_recorded_adoption(base) -> None:  # noqa: F811
-    """W9-T1 at LR-029: a literal Done status word inside source bytes yields no adoption."""
+    """Forged-ledger control: recorded observation + acceptance admits nothing without an adoption (preparer tested in runtime)."""
     forger, schemas = base
     actors = Actors(owner=ACTORS["actor-a"])
     raw = b'{"headline": {"status": "Done", "value": 1}, "other": [1, 2]}\n'

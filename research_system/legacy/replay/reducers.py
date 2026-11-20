@@ -907,6 +907,8 @@ def _parse_applicable_fixtures(
     missing = [fixture for fixture in required if fixture not in fixtures]
     if missing:
         raise IntegrityError(f"W9 review request lacks required fixture {missing[0]}")
+    if not any(isinstance(q, str) and not q.startswith(APPLICABLE_FIXTURES_PREFIX) and q.strip() for q in questions):
+        raise IntegrityError("W9 review request carries no review question besides the applicable-fixtures entry")
     return fixtures
 
 

@@ -31,7 +31,7 @@ from types import MappingProxyType
 from typing import Any
 
 from research_system.errors import IntegrityError
-from research_system.legacy.reader import ReadRefused, _git
+from research_system.legacy.reader import ReadRefused, _git, git_blob_id
 
 EVIDENCE_DIRECTORY = ".research-system/evidence/w9"
 REGISTRATION_MANIFEST = f"{EVIDENCE_DIRECTORY}/registration-manifest.json"
@@ -68,6 +68,14 @@ class EvidenceRefused(IntegrityError):
     """A W9 evidence file is absent at the binding's ``git_head``, malformed, or does not show what a row needs."""
 
 
+def _parse_evidence_json(raw: bytes, path: str) -> Any:
+    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int ``ValueError``)."""
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
+
+
 def read_evidence(repository_root: Path, git_head: str | None, path: str) -> Any:
     """Read one evidence file from Git at the binding's ``git_head``.
 
@@ -81,10 +89,7 @@ def read_evidence(repository_root: Path, git_head: str | None, path: str) -> Any
         raw = _git(repository_root, "show", f"{git_head}:{path}", text=False)
     except ReadRefused as exc:
         raise EvidenceRefused(f"W9 evidence file is absent at git_head: {path}") from exc
-    try:
-        return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
+    return _parse_evidence_json(raw, path)
 
 
 def _closed(value: Any, keys: set[str], what: str) -> Mapping[str, Any]:
@@ -401,13 +406,20 @@ def require_open_items(
         EvidenceRefused: If ``git_head`` or the file is absent, malformed, or differs from ``expected_blob``.
     """
 
-    raw = read_evidence(repository_root, git_head, LEGACY_OPEN_ITEMS)
+    if not git_head:
+        raise EvidenceRefused("W9 evidence is read at the binding's git_head")
+    try:
+        raw = _git(repository_root, "show", f"{git_head}:{LEGACY_OPEN_ITEMS}", text=False)
+    except ReadRefused as exc:
+        raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}") from exc
     blob = blob_at(repository_root, str(git_head), LEGACY_OPEN_ITEMS)
     if blob is None:
         raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}")
+    if git_blob_id(raw) != blob:
+        raise EvidenceRefused("W9 open-item list bytes do not hash to their blob at git_head")
     if expected_blob is not None and blob != expected_blob:
         raise EvidenceRefused("W9 open-item list blob differs from the list at git_head")
-    return _open_item_entries(raw), blob
+    return _open_item_entries(_parse_evidence_json(raw, LEGACY_OPEN_ITEMS)), blob
 
 
 def has_open_item(items: Sequence[Mapping[str, Any]], item_kind: str, item_id: str) -> bool:

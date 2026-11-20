@@ -84,3 +84,27 @@ def test_evidence_is_read_from_git_at_git_head_and_an_absent_file_refuses(tmp_pa
         read_evidence(tmp_path, head, evidence.REGISTRATION_MANIFEST)
     with pytest.raises(EvidenceRefused, match="W9 evidence is read at the binding's git_head"):
         read_evidence(tmp_path, None, evidence.DETECTOR_CONTROLS)
+
+
+def test_oversized_integer_in_evidence_file_refuses_as_non_json(tmp_path: Path) -> None:
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), "-c", "user.email=t@t", "-c", "user.name=t", *args],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    manifest_path = tmp_path / evidence.REGISTRATION_MANIFEST
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(MANIFEST), encoding="utf-8")
+    controls_path = tmp_path / evidence.DETECTOR_CONTROLS
+    controls_path.write_text('{"format": "w9-detector-controls/1", "n": ' + ("9" * 5000) + "}", encoding="utf-8")
+    git("init", "-q")
+    git("add", ".")
+    git("commit", "-q", "-m", "oversized integer evidence")
+    head = git("rev-parse", "HEAD")
+
+    assert read_evidence(tmp_path, head, evidence.REGISTRATION_MANIFEST) == MANIFEST
+    with pytest.raises(EvidenceRefused, match=f"W9 evidence file is not JSON: {evidence.DETECTOR_CONTROLS}"):
+        read_evidence(tmp_path, head, evidence.DETECTOR_CONTROLS)

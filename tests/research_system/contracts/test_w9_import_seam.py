@@ -57,6 +57,13 @@ def _resolve_relative_base(rel_path: str, level: int) -> list[str]:
     return parts
 
 
+def _is_legacy_submodule(module_name: str) -> bool:
+    if not module_name.startswith(f"{LEGACY_PREFIX}."):
+        return False
+    base = REPO_ROOT.joinpath(*module_name.split("."))
+    return base.with_suffix(".py").is_file() or (base / "__init__.py").is_file()
+
+
 def _imported_legacy_modules(source: str, rel_path: str) -> set[str]:
     """Return every ``research_system.legacy*`` module imported in ``source``."""
     tree = ast.parse(source)
@@ -86,7 +93,11 @@ def _imported_legacy_modules(source: str, rel_path: str) -> set[str]:
                         if candidate == LEGACY_PREFIX or candidate.startswith(f"{LEGACY_PREFIX}."):
                             found.add(candidate)
             elif mod.startswith(f"{LEGACY_PREFIX}."):
-                found.add(mod)
+                for alias in node.names:
+                    if alias.name != "*" and _is_legacy_submodule(f"{mod}.{alias.name}"):
+                        found.add(f"{mod}.{alias.name}")
+                    else:
+                        found.add(mod)
     return found
 
 
@@ -139,3 +150,15 @@ def test_import_seam_check_admits_projection_read_anywhere() -> None:
         "from research_system.legacy import projection_read\nimport research_system.legacy.projection_read\n",
     )
     assert violations == []
+
+
+def test_import_seam_check_admits_allowlisted_submodule_and_symbol_imports() -> None:
+    sub_src = "from research_system.legacy.replay import reducers\n"
+    assert _imported_legacy_modules(sub_src, "research_system/cli.py") == {"research_system.legacy.replay.reducers"}
+    assert _check_non_legacy_source("research_system/cli.py", sub_src) == []
+
+    sym_src = "from research_system.legacy.replay.driver import replay_legacy\n"
+    assert _imported_legacy_modules(sym_src, "research_system/projection/replay.py") == {
+        "research_system.legacy.replay.driver"
+    }
+    assert _check_non_legacy_source("research_system/projection/replay.py", sym_src) == []

@@ -392,6 +392,17 @@ def test_fixture_entries_at_request_decision_and_wp9_3_rows(accepted_flow, actor
         stop_after="LR-026",
     )
     _refused(unsorted_q, schemas, "W9 review request w9-applicable-fixtures entry is malformed or not sorted")
+    for bare_questions in (["w9-applicable-fixtures:F-019,S-017"], ["   ", "w9-applicable-fixtures:F-019,S-017"]):
+        no_question = flows.adoption_recorded(
+            forger,
+            actors,
+            claim_adp,
+            tweaks={"LR-026": Tweak(payload={"review_questions": bare_questions})},
+            stop_after="LR-026",
+        )
+        _refused(
+            no_question, schemas, "W9 review request carries no review question besides the applicable-fixtures entry"
+        )
 
     # LR-028 fixture set differs from review's applicable set (review approved F-015,F-019,S-017; Decision omits F-015).
     diff_dec = flows.adoption_recorded(
@@ -1044,6 +1055,18 @@ def test_discharge_replay_uniqueness_blob_and_w9c_controls(accepted_flow, actors
         stop_after="LR-031",
     )
     _refused(non_empty_q, schemas, "W9 review request lists a fixture LR-034 does not name: S-017")
+    for bare_questions in (["w9-applicable-fixtures:"], ["\t ", "w9-applicable-fixtures:"]):
+        no_question = flows.discharge_recorded(
+            forger,
+            actors,
+            d2,
+            start=100,
+            tweaks={"LR-031": Tweak(payload={"review_questions": bare_questions})},
+            stop_after="LR-031",
+        )
+        _refused(
+            no_question, schemas, "W9 review request carries no review question besides the applicable-fixtures entry"
+        )
 
     # W9-C25 id collision on discharge pre-assigned ref.
     taken_dec = d1["decision_ref"]["id"]
@@ -1233,3 +1256,41 @@ def test_w9_t9_forged_ledger_supersession_and_mismatch_suspend_adoption(accepted
         "status": "suspended",
         "cause": "use_mismatch",
     }
+
+
+def test_flow_builders_pass_explicit_empty_dicts_to_schema(accepted_flow, actors) -> None:
+    """Fix 8 (CodeRabbit #439 round 2): explicit {} is preserved and refused at schema validation."""
+    forger, records, schemas = accepted_flow
+    obs = records["family_set"]
+
+    # Negative controls: default None fills valid fields that pass LR-023 and LR-030.
+    ok_adp = flows.adoption(forger.project_id, actors.analyst, at(70), obs)
+    assert (
+        ok_adp["record_id"]
+        in _replay(forger.row("LR-023", ok_adp["record_id"], ok_adp, actor=actors.analyst, when=at(70)), schemas)[
+            "proposals"
+        ]
+    )
+    ok_dis = flows.discharge(forger.project_id, actors.analyst, at(90))
+    assert (
+        ok_dis["record_id"]
+        in _replay(forger.row("LR-030", ok_dis["record_id"], ok_dis, actor=actors.analyst, when=at(90)), schemas)[
+            "proposals"
+        ]
+    )
+
+    empty_sub = flows.adoption(forger.project_id, actors.analyst, at(71), obs, subject={})
+    empty_use = flows.adoption(forger.project_id, actors.analyst, at(72), obs, intended_use={})
+    empty_ref = flows.discharge(forger.project_id, actors.analyst, at(91), successor_result_ref={})
+    assert empty_sub["subject"] == {}
+    assert empty_use["intended_use"] == {}
+    assert empty_ref["successor_result_ref"] == {}
+
+    for row, rec, cause_hint in (
+        ("LR-023", empty_sub, "subject:"),
+        ("LR-023", empty_use, "intended_use:"),
+        ("LR-030", empty_ref, "successor_result_ref:"),
+    ):
+        with pytest.raises(IntegrityError, match="W9 event payload does not validate against its record schema") as exc:
+            _replay(forger.row(row, rec["record_id"], rec, actor=actors.analyst, when=at(92)), schemas)
+        assert cause_hint in str(exc.value.__cause__)

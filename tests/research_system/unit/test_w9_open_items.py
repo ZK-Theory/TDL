@@ -218,3 +218,46 @@ def test_same_item_id_with_different_item_kind_is_admitted(repository: Path) -> 
     assert has_open_item(entries, "a001_item", "ID-1") is True
     assert has_open_item(entries, "audit_hole", "ID-1") is True
     assert has_open_item(entries, "review_finding", "ID-1") is False
+
+
+def test_oversized_integer_in_open_items_file_is_refused(repository: Path) -> None:
+    head = _commit_file(
+        repository,
+        LEGACY_OPEN_ITEMS,
+        '{"format": "w9-legacy-open-items/1", "n": ' + ("9" * 5000) + "}",
+        "oversized integer",
+    )
+    with pytest.raises(EvidenceRefused, match=f"W9 evidence file is not JSON: {LEGACY_OPEN_ITEMS}"):
+        require_open_items(repository, head)
+
+
+def test_open_items_bytes_not_matching_blob_via_git_replace_is_refused(repository: Path) -> None:
+    """Installs a real ``git replace`` object in the scratch repo so ``git show`` and ``rev-parse`` diverge."""
+    listed = _commit_file(repository, LEGACY_OPEN_ITEMS, _open_items(_entry("a001_item", "A001-01")), "open items")
+    orig_blob = _git(repository, "rev-parse", f"{listed}:{LEGACY_OPEN_ITEMS}")
+    entries, blob = require_open_items(repository, listed, expected_blob=orig_blob)
+    assert blob == orig_blob
+    assert has_open_item(entries, "a001_item", "A001-01") is True
+
+    replacement_bytes = _open_items(_entry("a001_item", "A001-99")).encode("utf-8")
+    replacement_blob = (
+        subprocess.run(
+            ["git", "-C", str(repository), "hash-object", "-w", "--stdin"],
+            input=replacement_bytes,
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode("utf-8")
+        .strip()
+    )
+    _git(repository, "replace", orig_blob, replacement_blob)
+
+    assert _git(repository, "rev-parse", f"{listed}:{LEGACY_OPEN_ITEMS}") == orig_blob
+    shown = subprocess.run(
+        ["git", "-C", str(repository), "show", f"{listed}:{LEGACY_OPEN_ITEMS}"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert shown == replacement_bytes
+    with pytest.raises(EvidenceRefused, match="W9 open-item list bytes do not hash to their blob at git_head"):
+        require_open_items(repository, listed, expected_blob=orig_blob)

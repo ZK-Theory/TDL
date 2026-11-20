@@ -773,8 +773,10 @@ def adoption(
     record = {
         **_header("legacy-adoption-decision", project_id, analyst, when),
         "observation_ref": record_ref(observation_record),
-        "subject": subject or {"subject_kind": "families", "family_names": ["headline"]},
-        "intended_use": intended_use or {"description": "w9-use:claim-evidence/c1", "successor_ref": None},
+        "subject": {"subject_kind": "families", "family_names": ["headline"]} if subject is None else subject,
+        "intended_use": (
+            {"description": "w9-use:claim-evidence/c1", "successor_ref": None} if intended_use is None else intended_use
+        ),
         "w5_consequence": w5_consequence,
         "qualifiers_to_discharge": [] if qualifiers_to_discharge is None else qualifiers_to_discharge,
         **extra,
@@ -832,7 +834,11 @@ def discharge(
     **extra: Any,
 ) -> dict[str, Any]:
     """Build an LR-030 proposal record stamped with pre-assigned ``reviewer_ref`` and ``decision_ref``."""
-    artefact_ref = successor_result_ref or {"id": new_id("artefact"), "record_revision": 1, "content_hash": "d" * 64}
+    artefact_ref = (
+        {"id": new_id("artefact"), "record_revision": 1, "content_hash": "d" * 64}
+        if successor_result_ref is None
+        else successor_result_ref
+    )
     record = {
         **_header("legacy-discharge-relation", project_id, analyst, when),
         "successor_result_ref": artefact_ref,

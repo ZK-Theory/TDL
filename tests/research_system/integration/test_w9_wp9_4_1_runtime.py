@@ -70,8 +70,14 @@ def store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> W9Store:
     return w9_store(tmp_path, monkeypatch)
 
 
-def _snapshot(store: W9Store) -> tuple[tuple[dict[str, Any], ...], dict[str, bytes]]:
-    return store.events(), _tree_bytes(store.runtime.control_root)
+def _snapshot(
+    store: W9Store,
+) -> tuple[tuple[dict[str, Any], ...], dict[str, bytes | None], dict[str, bytes | None]]:
+    return (
+        store.events(),
+        _tree_bytes(store.runtime.control_root),
+        _tree_bytes(store.harness.ledger.control_root),
+    )
 
 
 def _state(store: W9Store) -> dict[str, Any]:
@@ -632,8 +638,8 @@ def test_positive_discharge_through_submit_and_w9_c11_retries_across_all_twelve_
     before_events = store.events()
     for env, receipt in all_steps:
         retried = store.runtime.submit(deepcopy(env))
-        assert retried.status == receipt.status == "accepted"
-        assert (retried.command_id, retried.event_batch_id) == (receipt.command_id, receipt.event_batch_id)
+        assert receipt.status == "accepted"
+        assert retried == receipt
     assert store.events() == before_events
 
 
@@ -918,7 +924,7 @@ def test_w9_t6_and_o33_adoption_source_window(store: W9Store, monkeypatch: pytes
     bin_path.write_bytes(initial)
 
     # Drive LR-023..LR-028, then mutate before LR-029.
-    _adopt_via_submit(store, adp, fixtures=("S-017",), stop_after="LR-028")
+    proposed, _ = _adopt_via_submit(store, adp, fixtures=("S-017",), stop_after="LR-028")
     dec_id = adp["decision_ref"]["id"]
     bin_path.write_bytes(b"\xff\xfe\x88\x88")
     before = _snapshot(store)
@@ -942,14 +948,24 @@ def test_w9_t6_and_o33_adoption_source_window(store: W9Store, monkeypatch: pytes
     bin_path.write_bytes(initial)
 
     # O-33: change after commit reread (during binding_check) commits cleanly with prior hashes.
+    assert bin_path.read_bytes() == initial
+    post_reread = b"\xff\xfe\xaa\xaa"
     orig_check = store.runtime.binding_check
-    store.runtime.binding_check = lambda: bin_path.write_bytes(b"\xff\xfe\xaa\xaa")
+    store.runtime.binding_check = lambda: bin_path.write_bytes(post_reread)
     receipt = store.submit(
         "ResolveW9AuthorityDecision", OWNER, dec_id, 1, {"decision_id": dec_id, "selected_option": "accept"}
     )
     store.runtime.binding_check = orig_check
+    assert bin_path.read_bytes() == post_reread
     assert receipt.status == "accepted"
-    assert dec_id in _state(store)["decisions"]
+    state = _state(store)
+    assert dec_id in state["decisions"]
+    recorded_adp = state["records"][reducers.ADOPTION][adp["record_id"]]
+    assert recorded_adp["observation_ref"] == adp["observation_ref"]
+    assert recorded_adp["content_hash"] == proposed["content_hash"]
+    recorded_obs = state["records"]["legacy_observation"][adp["observation_ref"]["id"]]
+    assert recorded_obs["source_identity"]["sha256"] == sha256_hex(initial)
+    assert recorded_obs["content_hash"] == adp["observation_ref"]["content_hash"]
 
 
 # --- W9-T9 real scratch-store re-observations (§7, owner point D) -----------------------------------------------------
@@ -1777,3 +1793,51 @@ def test_cli_legacy_adoption_status_active_suspended_unknown_and_gate6(
     assert cli.main(["legacy", "adoption-status", adp_act["record_id"], "--control-root", str(g6_root)]) == 1
     assert GATE6_REASON_CODE in capsys.readouterr().err
     assert _tree_bytes(g6_root) == g6_before
+
+
+def test_w9_t1_done_status_word_in_source_through_observation_preparer(store: W9Store) -> None:
+    """W9-T1: source bytes containing a Done status word go through prepare_observation without creating an adoption."""
+    raw = b'{"status": "Done", "headline": 1.0, "other": [1, 2]}\n'
+    _add_repo_sources(
+        store,
+        {"results/done.json": raw},
+        track=("results/done.json",),
+        manifest_paths=("results/done.json",),
+    )
+    reg = store.register("results/done.json")
+    done_families = [
+        {"name": "meta", "definition_source": "w9 test fixture", "pointers": ["", "/other"]},
+        {"name": "headline", "definition_source": "w9 test fixture", "pointers": ["/status", "/headline"]},
+        {"name": "other", "definition_source": "w9 test fixture", "pointers": ["/other/[*]"]},
+    ]
+    table = store.membership("results/done.json", families=done_families)
+    receipt, obs_id = store.observe(
+        store.observation_payload(
+            reg,
+            selector={
+                "selector_kind": "json_family_set",
+                "membership_ref": flows.record_ref(table),
+                "family_names": ["headline"],
+            },
+            family="headline",
+        )
+    )
+    assert receipt.status == "accepted"
+
+    observed_state = _state(store)
+    assert obs_id in observed_state["records"]["legacy_observation"]
+    assert observed_state["records"].get(reducers.ADOPTION, {}) == {}
+    assert projection_read.family_admissible(observed_state, obs_id, "headline", "w9-use:claim-evidence/c1") == {
+        "admissible": False,
+        "reason": "unadopted",
+        "adoption_id": None,
+    }
+
+    assert store.accept(store.acceptance_payload([obs_id])).status == "accepted"
+    accepted_state = _state(store)
+    assert accepted_state["records"].get(reducers.ADOPTION, {}) == {}
+    assert projection_read.family_admissible(accepted_state, obs_id, "headline", "w9-use:claim-evidence/c1") == {
+        "admissible": False,
+        "reason": "unadopted",
+        "adoption_id": None,
+    }
