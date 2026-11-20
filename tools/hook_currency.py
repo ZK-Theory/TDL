@@ -26,11 +26,20 @@ Limits, stated because they are the ways this check can say less than the truth:
 * The check lives in the tree it checks. A checkout that has not yet pulled the commit that added it
   does not run it, so it protects a checkout against the next hook change, not against this one.
 * The hook tree in force is the working tree, which may carry uncommitted edits; the report names them.
+
+Shallow repositories. Every finding also says whether the repository is shallow (obs 2026-11-20-main-
+checkout-went-shallow-and-reddened-the-06h-smoke-test). On 2026-11-16 one ``git fetch --depth=50`` in a
+worktree made the whole repository shallow, because ``shallow`` lives in the common git dir that every
+worktree shares. Ancestry checks past the boundary then fail (the 06h smoke test's ``_git_is_ancestor``
+went red everywhere) and nothing said why for four days. The check is read-only: it reads
+``git rev-parse --is-shallow-repository`` and the common dir's ``shallow`` file, never fetches and never
+unshallows. The fix it names, ``git fetch --unshallow origin`` from the main checkout, is the owner's to run.
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import subprocess
 import sys
@@ -62,6 +71,9 @@ class Currency:
         files: Sorted hook files touched by those commits.
         in_force: Abbreviated id of the last commit on ``HEAD`` that touched a hook file.
         dirty: Hook files with uncommitted edits, which are part of what actually runs.
+        shallow: Whether git reports the repository as shallow.
+        boundary: Full ids of the shallow boundary commits, read from the common git dir's ``shallow`` file.
+        shallow_warning: The shallow-repository finding, starting ``WARNING``; empty when not shallow.
     """
 
     status: str
@@ -73,10 +85,15 @@ class Currency:
     files: tuple[str, ...] = ()
     in_force: str = ""
     dirty: tuple[str, ...] = ()
+    shallow: bool = False
+    boundary: tuple[str, ...] = ()
+    shallow_warning: str = ""
 
     @property
     def line(self) -> str:
-        """The one-line form printed at session start."""
+        """The one-line form printed at session start; a shallow repository's warning comes first."""
+        if self.shallow_warning:
+            return f"hook-currency: {self.shallow_warning} Hook currency: {self.message}"
         return f"hook-currency: {self.message}"
 
 
@@ -166,12 +183,65 @@ def check(repo: Path | str = ".", ref: str | None = None) -> Currency:
         return _unverified(f"git could not be run ({type(exc).__name__})")
 
 
+def _common_dir(root: Path) -> Path | None:
+    """The git dir every worktree of this repository shares, where ``shallow`` lives."""
+    found = _git(root, "rev-parse", "--git-common-dir")
+    if found.returncode != 0 or not found.stdout.strip():
+        return None
+    common = Path(found.stdout.strip())
+    return (common if common.is_absolute() else root / common).resolve()
+
+
+def _shallow_warning(root: Path) -> tuple[bool, tuple[str, ...], str]:
+    """Return ``(shallow, boundary, warning)``; read-only, so it never fetches or unshallows."""
+    probe = _git(root, "rev-parse", "--is-shallow-repository")
+    if probe.returncode != 0 or probe.stdout.strip() != "true":
+        return False, (), ""
+    common = _common_dir(root)
+    if common is None:
+        return (
+            True,
+            (),
+            (
+                "WARNING - the repository is shallow, and its common git dir could not be found to name the "
+                "boundary commits. Ancestry checks past the boundary fail. Fix: git fetch --unshallow origin, "
+                "run from the main checkout."
+            ),
+        )
+    shallow_file = common / "shallow"
+    try:
+        boundary = tuple(line.strip() for line in shallow_file.read_text(encoding="ascii").splitlines() if line.strip())
+    except OSError:
+        boundary = ()
+    named = (
+        f"{_plural(len(boundary), 'boundary commit')} in {shallow_file.as_posix()}: "
+        f"{_shown(tuple(sha[:12] for sha in boundary))}"
+        if boundary
+        else f"its boundary commits could not be read from {shallow_file.as_posix()}"
+    )
+    main_checkout = common.parent if common.name == ".git" else common
+    warning = (
+        f"WARNING - the repository is shallow, {named}. History past the boundary is missing, so ancestry "
+        f"checks fail (the 06h smoke test's _git_is_ancestor among them) and the comparison below can "
+        f"undercount. Every worktree shares this state. Fix: git fetch --unshallow origin, run from the main "
+        f"checkout ({main_checkout.as_posix()})."
+    )
+    return True, boundary, warning
+
+
 def _check(start: Path, ref: str | None) -> Currency:
     top = _git(start, "rev-parse", "--show-toplevel")
     if top.returncode != 0 or not top.stdout.strip():
         return _unverified("not inside a git work tree")
     root = Path(top.stdout.strip())
+    shallow, boundary, warning = _shallow_warning(root)
+    result = _measure(root, ref)
+    if not shallow:
+        return result
+    return dataclasses.replace(result, shallow=True, boundary=boundary, shallow_warning=warning)
 
+
+def _measure(root: Path, ref: str | None) -> Currency:
     head_log = _git(root, "log", "-1", "--format=%h", "HEAD")
     if head_log.returncode != 0 or not head_log.stdout.strip():
         return _unverified("the repository has no commits yet")
@@ -230,7 +300,10 @@ def _emit(text: str) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print the finding; exit 1 when stale, except under ``--session-start``, which never fails."""
+    """Print the finding; exit 1 when stale, except under ``--session-start``, which never fails.
+
+    A shallow repository warns but does not change the exit code (owner decision 2026-11-20: warn only).
+    """
     parser = argparse.ArgumentParser(description="Report whether this checkout runs the merged hooks.")
     parser.add_argument("--repo", default=None, help="Directory to check (default: $CLAUDE_PROJECT_DIR, else cwd).")
     parser.add_argument(

@@ -361,19 +361,28 @@ def check_hook_currency(workspace: Path, waiver: str | None = None) -> Check:
     ``--allow-stale-hooks '<reason>'`` records as an advisory. A check that cannot reach a verdict
     (no remote, no reference) is an advisory, not a failure. It reads the last-fetched remote ref, so
     ``git fetch`` first for a current answer.
+
+    A shallow repository is an advisory: it warns and does not block the dispatch (owner decision
+    2026-11-20; obs 2026-11-20-main-checkout-went-shallow-and-reddened-the-06h-smoke-test). Ancestry
+    checks past the shallow boundary fail, so a Worker on a shallow repository meets a red 06h smoke
+    test that is not its own, and the currency comparison can undercount. The warning names the fix,
+    ``git fetch --unshallow origin`` from the main checkout. The stale-hooks verdict is unchanged by it.
     """
     from tools.hook_currency import STALE, UNVERIFIED, check
 
     result = check(workspace)
+    shallow = f"{result.shallow_warning} Advisory: dispatch is not blocked. Hook currency: " if result.shallow else ""
     if result.status == STALE:
         if waiver and waiver.strip():
-            return Check("hook-currency", True, f"{result.message} WAIVED: {waiver.strip()}", advisory=True)
+            return Check("hook-currency", True, f"{shallow}{result.message} WAIVED: {waiver.strip()}", advisory=True)
         return Check(
             "hook-currency",
             False,
-            f"{result.message} Fix before dispatch, or record why not with --allow-stale-hooks '<reason>'.",
+            f"{shallow}{result.message} Fix before dispatch, or record why not with --allow-stale-hooks '<reason>'.",
         )
-    return Check("hook-currency", True, result.message, advisory=result.status == UNVERIFIED)
+    return Check(
+        "hook-currency", True, f"{shallow}{result.message}", advisory=result.status == UNVERIFIED or result.shallow
+    )
 
 
 def check_brief_paths(brief: Path, repo_root: Path, ref: str) -> Check:
