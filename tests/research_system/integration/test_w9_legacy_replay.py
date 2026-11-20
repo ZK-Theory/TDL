@@ -305,18 +305,21 @@ def test_c3_a_w9_payload_naming_a_w11_row_is_refused(base) -> None:
 
 
 def test_a_deferred_row_is_refused(base) -> None:
-    """LR-023 stays deferred to WP9.4, though ProposeLegacyRecord is bound (note §2.2). LR-016 is routed by WP9.3-2, so
-    the same forged payload now reaches its schema check instead of the route check."""
+    """LR-040 stays deferred to WP9.4, though ProposeLegacyRecord is bound (note §2.2). LR-016 (WP9.3-2) and
+    LR-023 (WP9.4-1) are routed, so the same forged payload reaches their schema check instead of the route check."""
     events, schemas = base
-    event_type = LEGACY_ROW_ROUTES["LR-023"].events[0].event_type
-    ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": "ars://legacy/legacy-adoption-decision"})
-    with pytest.raises(IntegrityError, match=r"W9 row not routed in this version: LR-023 \(WP9.4\)"):
+    event_type = LEGACY_ROW_ROUTES["LR-040"].events[0].event_type
+    ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": "ars://legacy/legacy-source-inventory"})
+    with pytest.raises(IntegrityError, match=r"W9 row not routed in this version: LR-040 \(WP9.4\)"):
         replay_legacy(ledger, schemas=schemas)
-    event_type = LEGACY_ROW_ROUTES["LR-016"].events[0].event_type
-    acceptance = {"schema_id": "ars://legacy/legacy-closed-reference-acceptance"}
-    ledger = _forge(events, "ProposeLegacyRecord", event_type, acceptance)
-    with pytest.raises(IntegrityError, match="W9 event payload does not validate against its record schema"):
-        replay_legacy(ledger, schemas=schemas)
+    for row_id, schema_id in (
+        ("LR-016", "ars://legacy/legacy-closed-reference-acceptance"),
+        ("LR-023", "ars://legacy/legacy-adoption-decision"),
+    ):
+        forged_type = LEGACY_ROW_ROUTES[row_id].events[0].event_type
+        forged = _forge(events, "ProposeLegacyRecord", forged_type, {"schema_id": schema_id})
+        with pytest.raises(IntegrityError, match="W9 event payload does not validate against its record schema"):
+            replay_legacy(forged, schemas=schemas)
 
 
 def test_a_schema_invalid_payload_is_refused(base) -> None:

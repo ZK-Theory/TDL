@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
@@ -41,6 +41,10 @@ REGISTRATION_MANIFEST_FORMAT = "w9-registration-manifest/1"
 DETECTOR_CONTROLS_FORMAT = "w9-detector-controls/1"
 SHARED_SURFACE_CHANGES_FORMAT = "w9-shared-surface-changes/1"
 CL_EXPORT_FORMAT = "w9-cl-export/1"
+LEGACY_OPEN_ITEMS = f"{EVIDENCE_DIRECTORY}/legacy-open-items.json"
+LEGACY_OPEN_ITEMS_FORMAT = "w9-legacy-open-items/1"
+OPEN_ITEM_KINDS = frozenset({"a001_item", "audit_hole", "review_finding"})
+OPEN_ITEM_PAPER_KEYS = frozenset({"P01-A", "P01-B"})
 # Note §12.2 and P-068: the export's only admitted producer is the reference implementation at its accepted blob. The
 # runtime segmenter rechecks the export and must never have produced it.
 CL_EXPORT_PRODUCER = MappingProxyType(
@@ -336,3 +340,77 @@ def require_cl_export(export: Any) -> Mapping[str, Any]:
         raise EvidenceRefused("W9 Computational-Log export classifications do not match its rows")
     _closed(body["producer"], {"repository_path", "git_blob"}, "Computational-Log export producer")
     return body
+
+
+# --- WP9.4-1 (note §8, owner point H) --------------------------------------------------------------------------------
+
+
+def _open_item_entries(raw: Any) -> list[dict[str, Any]]:
+    """Validate and copy a ``w9-legacy-open-items/1`` payload."""
+
+    body = _closed(raw, {"format", "items"}, "open-item list")
+    if body["format"] != LEGACY_OPEN_ITEMS_FORMAT or not isinstance(body["items"], list):
+        raise EvidenceRefused("W9 open-item list does not have the fixed format")
+    seen: set[tuple[str, str]] = set()
+    entries: list[dict[str, Any]] = []
+    for item in body["items"]:
+        row = _closed(item, {"item_kind", "item_id", "source", "feeds_papers"}, "open-item list entry")
+        item_kind = row["item_kind"]
+        item_id = row["item_id"]
+        source = row["source"]
+        feeds_papers = row["feeds_papers"]
+        if (
+            not isinstance(item_kind, str)
+            or item_kind not in OPEN_ITEM_KINDS
+            or not isinstance(item_id, str)
+            or not item_id
+            or not isinstance(source, str)
+            or not source
+            or not isinstance(feeds_papers, list)
+            or any(not isinstance(paper, str) or paper not in OPEN_ITEM_PAPER_KEYS for paper in feeds_papers)
+            or len(feeds_papers) != len(set(feeds_papers))
+        ):
+            raise EvidenceRefused("W9 open-item list entry does not have the fixed format")
+        key = (item_kind, item_id)
+        if key in seen:
+            raise EvidenceRefused("W9 open-item list names an item twice")
+        seen.add(key)
+        entries.append(
+            {
+                "item_kind": item_kind,
+                "item_id": item_id,
+                "source": source,
+                "feeds_papers": list(feeds_papers),
+            }
+        )
+    return entries
+
+
+def require_open_items(
+    repository_root: Path, git_head: str | None, *, expected_blob: str | None = None
+) -> tuple[list[dict[str, Any]], str]:
+    """Read and validate ``legacy-open-items.json`` from Git at ``git_head`` (note §8, owner point H).
+
+    Never reads the working tree. When ``expected_blob`` is given, refuses unless the committed blob at ``git_head``
+    equals it.
+
+    Returns:
+        ``(items, git_blob)``.
+
+    Raises:
+        EvidenceRefused: If ``git_head`` or the file is absent, malformed, or differs from ``expected_blob``.
+    """
+
+    raw = read_evidence(repository_root, git_head, LEGACY_OPEN_ITEMS)
+    blob = blob_at(repository_root, str(git_head), LEGACY_OPEN_ITEMS)
+    if blob is None:
+        raise EvidenceRefused(f"W9 evidence file is absent at git_head: {LEGACY_OPEN_ITEMS}")
+    if expected_blob is not None and blob != expected_blob:
+        raise EvidenceRefused("W9 open-item list blob differs from the list at git_head")
+    return _open_item_entries(raw), blob
+
+
+def has_open_item(items: Sequence[Mapping[str, Any]], item_kind: str, item_id: str) -> bool:
+    """Return whether ``(item_kind, item_id)`` appears in validated ``items``."""
+
+    return any(entry.get("item_kind") == item_kind and entry.get("item_id") == item_id for entry in items)

@@ -28,14 +28,18 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from research_system.canonical import canonical_bytes
 from research_system.errors import IntegrityError
 from research_system.legacy.accepted_w9 import CATALOGUE_STREAM_ID, RESERVED_IDS, accepted_genesis_payload
 from research_system.legacy.identities import pinned_signature_ids
+from research_system.legacy.projection_read import adoption_suspension_cause
 
 # The reader owns §7.4's fixed strings, and its module blob is in the importer hash (WP9.3-1 record §2), so replay reads
 # them from there rather than from a copy (WP9.3-1b, review i-2).
 from research_system.legacy.reader import NON_INFERENCES
 from research_system.legacy.records import (
+    adoption_eligibility_decision_id,
+    adoption_review_id,
     observation_record_id,
     observation_subject_digest,
     ownership_record_id,
@@ -73,33 +77,60 @@ _RECOVERY_DECISION_FAMILY = "legacy_paper_root_recovery"
 _REPRODUCTION_VERDICT_ROW = "LR-013"
 _POSITIVE_REPRODUCTION_VERDICTS = frozenset({"approve"})
 
-# --- WP9.3 (note §2.3): the rows whose full replay checks this module makes. -----------------------------------------
+# --- WP9.3 and WP9.4-1: the rows whose full replay checks this module makes. -------------------------------------
 WP9_3_1_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 16))
 # WP9.3-2 adds LR-016 to LR-020, the closed-reference acceptance (note §10).
 WP9_3_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 21))
+# WP9.4-1 adds LR-023 to LR-034, adoption, eligibility and discharge (WP9.4 note §2.4, §5.1).
+WP9_4_1_ROWS = frozenset(f"LR-{number:03d}" for number in range(23, 35))
+CHECKED_ROWS = WP9_3_ROWS | WP9_4_1_ROWS
 ACCEPTANCE = "legacy_closed_reference_acceptance"
 OWNERSHIP = "legacy_ownership_transitioned"
-# The pre-assigned refs each proposal kind carries (§4.2), with the ref kind.
+ADOPTION = "legacy_adoption_decision"
+DISCHARGE = "legacy_discharge_relation"
+NO_REVIEW_REQUIRED = object()
+# The pre-assigned refs each proposal kind carries (§4.2; WP9.4 §5.1), with the ref kind.
 PRE_ASSIGNED_REFS: Mapping[str, Mapping[str, str]] = {
     "legacy_path_registration": {"registration_decision_ref": "decision"},
     "legacy_field_family_membership": {"review_ref": "review", "acceptance_decision_ref": "decision"},
     "legacy_light_inventory": {"independent_reproduction_ref": "review"},
     ACCEPTANCE: {"independent_review_ref": "review", "decision_ref": "decision"},
-}
-# The review a WP9.3 request row opens, by the pre-assigned field that names it.
-_REQUEST_REVIEW_FIELD = {
-    "LR-007": "review_ref",
-    "LR-012": "independent_reproduction_ref",
-    "LR-017": "independent_review_ref",
+    ADOPTION: {"decision_ref": "decision"},
+    DISCHARGE: {"reviewer_ref": "review", "decision_ref": "decision"},
 }
 _DECISION_PROPOSAL_FIELD = {
     "LR-004": "registration_decision_ref",
     "LR-009": "acceptance_decision_ref",
     "LR-019": "decision_ref",
+    "LR-028": "decision_ref",
+    "LR-033": "decision_ref",
 }
-# The review a Decision family requires satisfied (§6.1), by the record field that names it. A path registration has
-# none.
-_FAMILY_REVIEW_FIELD = {"legacy_field_family_membership": "review_ref", ACCEPTANCE: "independent_review_ref"}
+_REVIEW_FIELD_BY_KIND = {
+    "legacy_field_family_membership": "review_ref",
+    "legacy_light_inventory": "independent_reproduction_ref",
+    ACCEPTANCE: "independent_review_ref",
+    DISCHARGE: "reviewer_ref",
+}
+
+
+def review_id_for(kind: str, record: Mapping[str, Any]) -> Any:
+    """Resolve the W9 review ID a proposal or Decision kind requires (§5.2, owner point C, M-2).
+
+    Returns the record's pre-assigned field ID for kinds that carry one, the derived adoption review ID for
+    ``legacy_adoption_decision``, and :data:`NO_REVIEW_REQUIRED` for ``legacy_path_registration`` alone. Never
+    defaults to ``None`` for an unlisted kind.
+    """
+
+    if kind == "legacy_path_registration":
+        return NO_REVIEW_REQUIRED
+    if kind == ADOPTION:
+        return adoption_review_id(str(record["record_id"]), str(record["created_at"]))
+    field = _REVIEW_FIELD_BY_KIND.get(kind)
+    if field is None:
+        raise IntegrityError(f"W9 record kind has no review resolver entry: {kind}")
+    return record[field]["id"]
+
+
 # §10.1 and §2.1: the first batch only, which is the integration pilot, of at most 20 items.
 MAX_BATCH_ITEMS = 20
 # §10.2: LR-020's accepted pilot_promotion set (annex lines 729-743 and the catalogue's LR-020 row). The four
@@ -109,6 +140,20 @@ MAX_BATCH_ITEMS = 20
 UNCONDITIONAL_FIXTURES = ("F-018", "F-023", "F-037", "S-014")
 CONDITIONAL_FIXTURES = ("F-017", "S-005", "F-038")
 PILOT_FIXTURES = frozenset((*UNCONDITIONAL_FIXTURES, *CONDITIONAL_FIXTURES))
+# WP9.4 note §5.4 (owner point L): fixture sets for LR-029 (adoption) and LR-034 (discharge).
+ADOPTION_UNCONDITIONAL_FIXTURES = ("S-017",)
+ADOPTION_CONDITIONAL_FIXTURES = ("F-015", "F-019", "F-038")
+ADOPTION_FIXTURES = frozenset((*ADOPTION_UNCONDITIONAL_FIXTURES, *ADOPTION_CONDITIONAL_FIXTURES))
+DISCHARGE_UNCONDITIONAL_FIXTURES: tuple[str, ...] = ()
+DISCHARGE_CONDITIONAL_FIXTURES: tuple[str, ...] = ()
+DISCHARGE_FIXTURES: frozenset[str] = frozenset()
+_WP9_4_REQUEST_TO_RESOLUTION = {"LR-026": "LR-029", "LR-031": "LR-034"}
+_WP9_4_DECISION_TO_RESOLUTION = {"LR-028": "LR-029", "LR-033": "LR-034"}
+_WP9_4_ALLOWED_FIXTURES = {"LR-029": ADOPTION_FIXTURES, "LR-034": DISCHARGE_FIXTURES}
+_WP9_4_UNCONDITIONAL_FIXTURES = {
+    "LR-029": ADOPTION_UNCONDITIONAL_FIXTURES,
+    "LR-034": DISCHARGE_UNCONDITIONAL_FIXTURES,
+}
 PROPOSAL_TERM = timedelta(days=30)
 REVIEW_DEADLINE = timedelta(days=1)
 # §5.2's fixed values.
@@ -125,6 +170,21 @@ DECISION_OPTIONS = ["accept", "reject"]
 REQUIRED_AUTHORITY = "owner"
 ANALYST_SESSION_PREFIX = "w9-analyst-session:"
 AUTHOR_SESSION_PREFIX = "w9-author-session:"
+ELIGIBLE_SESSION_PREFIX = "w9-eligible-session:"
+ELIGIBLE_FAMILY_PREFIX = "w9-eligible-family:"
+ELIGIBLE_VERSION_PREFIX = "w9-eligible-version:"
+ELIGIBLE_PROFILE_PREFIX = "w9-eligible-profile:"
+ELIGIBLE_GRADE_PREFIX = "w9-eligible-grade:"
+APPLICABLE_FIXTURES_PREFIX = "w9-applicable-fixtures:"
+FIXTURE_REF_PREFIX = "w9-fixture:"
+OPEN_ITEMS_BLOB_PREFIX = "w9-open-items-blob:"
+MANUSCRIPT_USE_PREFIX = "w9-use:manuscript-claims/"
+TASK_USE_PREFIX = "w9-use:task-input/"
+CLAIM_USE_PREFIX = "w9-use:claim-evidence/"
+USE_PAPER_KEYS = frozenset({"P01-A", "P01-B"})
+USE_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*\Z")
+_FIXTURE_REF_ID_RE = re.compile(r"^(rev|art|dec)_[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z")
+_SHA1_RE = re.compile(r"^[0-9a-f]{40}\Z")
 SUBJECT_PREFIX = "w9-subject:"
 SUBJECT_HASH_PREFIX = "w9-subject-sha256:"
 EFFECTIVE_SCOPE_PREFIX = "w9-record:"
@@ -688,6 +748,210 @@ def _check_acceptance_resolution(
         raise IntegrityError("W9 acceptance's ownership list recomputed at LR-020 differs from the stored list")
 
 
+# --- Adoption and discharge (WP9.4-1; note §5 to §8) --------------------------------------------------------------------
+
+
+def _is_claim_or_manuscript_use(record: Mapping[str, Any]) -> bool:
+    desc = str(record.get("intended_use", {}).get("description", ""))
+    return desc.startswith((MANUSCRIPT_USE_PREFIX, CLAIM_USE_PREFIX))
+
+
+def _parse_use(intended_use: Mapping[str, Any]) -> str:
+    """Validate §6.2's intended-use forms and ``successor_ref`` rules (owner point F)."""
+
+    desc = intended_use.get("description")
+    succ = intended_use.get("successor_ref")
+    if isinstance(desc, str) and desc.startswith(MANUSCRIPT_USE_PREFIX):
+        key = desc.removeprefix(MANUSCRIPT_USE_PREFIX)
+        if key not in USE_PAPER_KEYS:
+            raise IntegrityError("W9 adoption manuscript-claims key must be P01-A or P01-B")
+        if succ is not None:
+            raise IntegrityError("W9 adoption intended_use successor_ref is not permitted for this use")
+        return "manuscript"
+    if isinstance(desc, str) and desc.startswith(TASK_USE_PREFIX):
+        key = desc.removeprefix(TASK_USE_PREFIX)
+        if not USE_KEY_RE.match(key):
+            raise IntegrityError("W9 adoption use key is malformed")
+        if succ is not None and not (isinstance(succ, Mapping) and str(succ.get("id", "")).startswith("tsk_")):
+            raise IntegrityError("W9 adoption intended_use successor_ref is not permitted for this use")
+        return "task_input"
+    if isinstance(desc, str) and desc.startswith(CLAIM_USE_PREFIX):
+        key = desc.removeprefix(CLAIM_USE_PREFIX)
+        if not USE_KEY_RE.match(key):
+            raise IntegrityError("W9 adoption use key is malformed")
+        if succ is not None:
+            raise IntegrityError("W9 adoption intended_use successor_ref is not permitted for this use")
+        return "claim_evidence"
+    raise IntegrityError("W9 adoption intended_use description is not a permitted use form")
+
+
+def _check_adoption_proposal(state: Mapping[str, Any], record: Mapping[str, Any]) -> None:
+    """LR-023's replay checks (§6.1 to §6.3, §6.5, §7)."""
+
+    obs_ref = record.get("observation_ref")
+    obs = _recorded(state, "legacy_observation", obs_ref)
+    obs_id = obs["record_id"]
+    if obs_id in state["supersessions"]:
+        raise IntegrityError("W9 adoption observation is superseded")
+    matching_acceptances = [
+        acc_id
+        for acc_id, acc in state["records"].get(ACCEPTANCE, {}).items()
+        if any(
+            isinstance(item.get("observation_ref"), Mapping) and item["observation_ref"].get("id") == obs_id
+            for item in acc.get("items", ())
+        )
+    ]
+    if not matching_acceptances:
+        raise IntegrityError("W9 adoption observation has no recorded closed-reference acceptance")
+    if any(acc_id in state["supersessions"] for acc_id in matching_acceptances):
+        raise IntegrityError("W9 adoption observation acceptance is superseded")
+
+    selector = obs.get("selector", {})
+    selector_kind = selector.get("selector_kind")
+    if selector_kind == "inventory_item":
+        raise IntegrityError("W9 inventory item observation cannot be adopted")
+
+    subject = record.get("subject", {})
+    subject_kind = subject.get("subject_kind")
+    if subject_kind == "families":
+        if selector_kind != "json_family_set":
+            raise IntegrityError("W9 family adoption requires a json_family_set observation")
+        obs_families = {family.get("family_name") for family in obs.get("families", ())}
+        if not set(subject.get("family_names", ())) <= obs_families:
+            raise IntegrityError("W9 adoption names a family not in its observation")
+    elif subject_kind == "whole_file":
+        if selector_kind != "whole_file":
+            raise IntegrityError("W9 whole-file adoption requires a whole_file observation")
+        reg = state["records"]["legacy_path_registration"][obs["registration_ref"]["id"]]
+        _, source_path = _source_location(obs["source_identity"])
+        if any(
+            isinstance(path, str) and path.lower().endswith(".json")
+            for path in (reg.get("normalized_path"), source_path)
+        ):
+            raise IntegrityError("W9 whole-file adoption cannot name a .json source")
+
+    use_kind = _parse_use(record.get("intended_use", {}))
+    obs_open = [q for q in obs.get("qualifiers", ()) if q.get("qualifier_kind") == "open_review_finding"]
+    obs_open_canon = {canonical_bytes(q) for q in obs_open}
+    declared = record.get("qualifiers_to_discharge", ())
+    declared_canon = [canonical_bytes(q) for q in declared]
+    if len(declared_canon) != len(set(declared_canon)):
+        raise IntegrityError("W9 adoption qualifiers_to_discharge repeats a qualifier")
+    if use_kind in {"manuscript", "claim_evidence"}:
+        if obs_open_canon:
+            raise IntegrityError("W9 claim-use adoption refused while observation has open review findings")
+        if declared:
+            raise IntegrityError("W9 claim-use adoption must carry no qualifiers_to_discharge")
+        if record.get("w5_consequence") != "admissible_for_named_use":
+            raise IntegrityError("W9 adoption w5_consequence must be admissible_for_named_use")
+    else:
+        if set(declared_canon) != obs_open_canon:
+            raise IntegrityError(
+                "W9 task-input adoption qualifiers_to_discharge must equal observation open review findings"
+            )
+        expected_consequence = "task_input_with_open_findings" if obs_open_canon else "admissible_for_named_use"
+        if record.get("w5_consequence") != expected_consequence:
+            raise IntegrityError(f"W9 adoption w5_consequence must be {expected_consequence}")
+
+    cause = adoption_suspension_cause(state, record)
+    if cause is not None:
+        raise IntegrityError(f"W9 adoption would be suspended at proposal: {cause}")
+
+
+def _check_discharge_proposal(state: Mapping[str, Any], record: Mapping[str, Any], at: datetime) -> None:
+    """LR-030's replay checks (§8): at most one open or non-superseded recorded relation per ``(item_kind, item_id)``."""
+
+    item = record.get("legacy_item", {})
+    key = (item.get("item_kind"), item.get("item_id"))
+    for proposal in state["proposals"].values():
+        if proposal.get("kind") == DISCHARGE and proposal_open(proposal, at):
+            other = proposal["record"].get("legacy_item", {})
+            if (other.get("item_kind"), other.get("item_id")) == key:
+                raise IntegrityError("W9 discharge relation already open for this legacy item")
+    for rec_id, other_record in state["records"].get(DISCHARGE, {}).items():
+        if rec_id in state["supersessions"]:
+            continue
+        other = other_record.get("legacy_item", {})
+        if (other.get("item_kind"), other.get("item_id")) == key:
+            raise IntegrityError("W9 legacy item already has a recorded discharge relation")
+
+
+def _required_fixtures(resolution_row: str, record: Mapping[str, Any]) -> tuple[str, ...]:
+    unconditional = _WP9_4_UNCONDITIONAL_FIXTURES[resolution_row]
+    if resolution_row == "LR-029" and _is_claim_or_manuscript_use(record):
+        return tuple(sorted((*unconditional, "F-019")))
+    return unconditional
+
+
+def _parse_applicable_fixtures(
+    questions: Sequence[Any], resolution_row: str, record: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Validate and parse the ``w9-applicable-fixtures:...`` question entry on LR-026 and LR-031 (§5.4)."""
+
+    matches = [q for q in questions if isinstance(q, str) and q.startswith(APPLICABLE_FIXTURES_PREFIX)]
+    if len(matches) != 1:
+        raise IntegrityError("W9 review request must carry one w9-applicable-fixtures entry")
+    raw = matches[0].removeprefix(APPLICABLE_FIXTURES_PREFIX)
+    if not raw:
+        fixtures: tuple[str, ...] = ()
+    else:
+        parts = raw.split(",")
+        if any(not part for part in parts) or parts != sorted(parts) or len(parts) != len(set(parts)):
+            raise IntegrityError("W9 review request w9-applicable-fixtures entry is malformed or not sorted")
+        fixtures = tuple(parts)
+    allowed = _WP9_4_ALLOWED_FIXTURES[resolution_row]
+    outside = sorted(set(fixtures) - allowed)
+    if outside:
+        raise IntegrityError(f"W9 review request lists a fixture {resolution_row} does not name: {outside[0]}")
+    required = _required_fixtures(resolution_row, record)
+    missing = [fixture for fixture in required if fixture not in fixtures]
+    if missing:
+        raise IntegrityError(f"W9 review request lacks required fixture {missing[0]}")
+    return fixtures
+
+
+def _parse_fixture_refs(entries: Sequence[Any], resolution_row: str, record: Mapping[str, Any]) -> tuple[str, ...]:
+    """Validate sorted ``w9-fixture:<fixture_id>:<ref_id>`` Decision entries against allowed and required fixtures."""
+
+    seen: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, str) or not entry.startswith(FIXTURE_REF_PREFIX):
+            raise IntegrityError("W9 Decision fixture entry is malformed")
+        rest = entry.removeprefix(FIXTURE_REF_PREFIX)
+        fixture_id, sep, ref_id = rest.partition(":")
+        if not sep or not fixture_id or not _FIXTURE_REF_ID_RE.match(ref_id):
+            raise IntegrityError("W9 Decision fixture entry is malformed")
+        seen.append(fixture_id)
+    if len(seen) != len(set(seen)):
+        raise IntegrityError("W9 Decision lists a fixture twice")
+    if seen != sorted(seen):
+        raise IntegrityError("W9 Decision fixture entries are not sorted")
+    allowed = _WP9_4_ALLOWED_FIXTURES[resolution_row]
+    outside = sorted(set(seen) - allowed)
+    if outside:
+        raise IntegrityError(f"W9 Decision lists a fixture {resolution_row} does not name: {outside[0]}")
+    required = _required_fixtures(resolution_row, record)
+    missing = [fixture for fixture in required if fixture not in seen]
+    if missing:
+        raise IntegrityError(f"W9 Decision lacks required fixture {missing[0]}")
+    return tuple(seen)
+
+
+def _parse_decision_tail(resolution_row: str, tail: Sequence[Any], record: Mapping[str, Any]) -> tuple[str, ...]:
+    """Parse post-subject entries of a WP9.4 Decision proposal or resolution (§5.4, §8)."""
+
+    if resolution_row == "LR-034":
+        if (
+            not tail
+            or not isinstance(tail[-1], str)
+            or not tail[-1].startswith(OPEN_ITEMS_BLOB_PREFIX)
+            or not _SHA1_RE.match(tail[-1].removeprefix(OPEN_ITEMS_BLOB_PREFIX))
+        ):
+            raise IntegrityError("W9 discharge Decision must carry one valid w9-open-items-blob entry")
+        return _parse_fixture_refs(tail[:-1], resolution_row, record)
+    return _parse_fixture_refs(tail, resolution_row, record)
+
+
 def reduce_proposal(
     state: dict[str, Any], row_id: str, transaction: Sequence[Mapping[str, Any]], context: Mapping[str, Any]
 ) -> None:
@@ -700,7 +964,7 @@ def reduce_proposal(
     kind = record_kind(record.get("schema_id"))
     record_id = record.get("record_id")
     at = _time(event.get("occurred_at"))
-    if row_id in WP9_3_ROWS:
+    if row_id in CHECKED_ROWS:
         if isinstance(record_id, str):
             _refuse_foreign(record_id, context)
         _require_stream(event, record_id, 1, "proposal")
@@ -714,11 +978,30 @@ def reduce_proposal(
             _check_inventory(state, record, event, context)
         elif kind == ACCEPTANCE:
             check_acceptance(state, record, context)
+        elif kind == ADOPTION:
+            _check_adoption_proposal(state, record)
+        elif kind == DISCHARGE:
+            _check_discharge_proposal(state, record, at)
     claim_identity(state, record_id, "proposal", context)
     ownership: list[dict[str, Any]] = []
-    if row_id in WP9_3_ROWS:
+    if row_id in CHECKED_ROWS:
         for field, ref_kind in PRE_ASSIGNED_REFS.get(kind, {}).items():
             _reserve(state, record[field]["id"], ref_kind, str(record_id), context)
+        if kind == ADOPTION:
+            _reserve(
+                state,
+                adoption_review_id(str(record_id), str(record["created_at"])),
+                "review",
+                str(record_id),
+                context,
+            )
+            _reserve(
+                state,
+                adoption_eligibility_decision_id(str(record_id), str(record["created_at"])),
+                "decision",
+                str(record_id),
+                context,
+            )
         if kind == ACCEPTANCE:
             # §10.5 (owner point E): derived from the proposal and the ledger before it, reserved, and stored with it.
             ownership = derive_ownership(state, record)
@@ -741,37 +1024,49 @@ def reduce_proposal(
 # --- Reviews (§5.2, §5.4, §5.5) --------------------------------------------------------------------------------------
 
 
-def _session_refs(refs: Any, row_id: str) -> list[str]:
-    """``required_evidence_refs``: the analyst's session, and for a membership table the author's, in that order."""
+def _session_refs(refs: Any, row_id: str) -> tuple[list[str], str | None]:
+    """``required_evidence_refs``: excluded sessions and, for LR-026, the separate eligible session (§5.5, C-m1)."""
 
-    prefixes = [ANALYST_SESSION_PREFIX] + ([AUTHOR_SESSION_PREFIX] if row_id == "LR-007" else [])
+    prefixes = [ANALYST_SESSION_PREFIX]
+    if row_id == "LR-007":
+        prefixes.append(AUTHOR_SESSION_PREFIX)
+    elif row_id == "LR-026":
+        prefixes.append(ELIGIBLE_SESSION_PREFIX)
     if not isinstance(refs, list) or len(refs) != len(prefixes):
         raise IntegrityError("W9 review request session refs are not the required count")
-    sessions = []
+    values = []
     for ref, prefix in zip(refs, prefixes, strict=True):
         if not isinstance(ref, str) or not ref.startswith(prefix) or not ref.removeprefix(prefix):
             raise IntegrityError("W9 review request session ref is malformed or empty")
-        sessions.append(ref.removeprefix(prefix))
-    return sessions
+        values.append(ref.removeprefix(prefix))
+    if row_id == "LR-026":
+        return [values[0]], values[1]
+    return values, None
 
 
 def _creator_role_actor(proposal: Mapping[str, Any]) -> Any:
-    """The creator §5.5's analyst rule names: an observer (LR-011) or a membership author (LR-006)."""
+    """The creator §5.5's analyst rule names: an observer (LR-011, LR-040) or a membership author (LR-006)."""
 
     record = proposal["record"]
     if proposal["kind"] == "legacy_field_family_membership":
         return record.get("author_actor_id")
-    if proposal["kind"] == "legacy_light_inventory":
+    if proposal["kind"] in {"legacy_light_inventory", "legacy_source_inventory"}:
         return record.get("observer_actor_id")
     return None
 
 
 def _refuse_analyst_creator(proposal: Mapping[str, Any], analyst: Any) -> None:
-    """§5.5: the analyst who requests a review or proposes a Decision is not the creator, where the creator is an
-    observer (LR-011) or a membership author (LR-006). A path registration (LR-003) and a batch (LR-016) are the
+    """§5.3, §5.5: the analyst who requests a review or proposes a Decision is not the creator, except for the
     analyst's own proposals."""
 
-    if proposal["kind"] not in {"legacy_path_registration", ACCEPTANCE} and analyst in {
+    if proposal["kind"] not in {
+        "legacy_path_registration",
+        ACCEPTANCE,
+        ADOPTION,
+        DISCHARGE,
+        "legacy_transition_mapping",
+        OWNERSHIP,
+    } and analyst in {
         proposal["actor_id"],
         _creator_role_actor(proposal),
     }:
@@ -780,8 +1075,8 @@ def _refuse_analyst_creator(proposal: Mapping[str, Any], analyst: Any) -> None:
 
 def _check_review_request(
     state: dict[str, Any], row_id: str, event: Mapping[str, Any], payload: Mapping[str, Any], at: datetime
-) -> tuple[str, list[str], str]:
-    """LR-007 and LR-012's replay checks (§5.2, §5.5, §6.2)."""
+) -> tuple[str, list[str], str, str | None, Mapping[str, Any] | None, tuple[str, ...] | None]:
+    """Review request replay checks (WP9.3 §5.2, §5.5, §6.2; WP9.4 §5.2 to §5.5)."""
 
     subject_ids, subject_hashes = payload.get("subject_ids"), payload.get("subject_hashes")
     if not isinstance(subject_ids, list) or not isinstance(subject_hashes, list) or len(subject_ids) != 1:
@@ -794,7 +1089,7 @@ def _check_review_request(
     if subject_hashes[0] != proposal["content_hash"]:
         raise IntegrityError("W9 review request subject hash is not the proposal's current hash")
     review_id = payload.get("new_review_id")
-    if review_id != proposal["record"][_REQUEST_REVIEW_FIELD[row_id]]["id"]:
+    if review_id != review_id_for(kind, proposal["record"]):
         raise IntegrityError("W9 review ID is not the proposal's pre-assigned review")
     fixed = {
         "review_type": REVIEW_TYPE,
@@ -811,12 +1106,31 @@ def _check_review_request(
         if payload.get(field) != value:
             raise IntegrityError(f"W9 review request {field} is not the fixed value")
     questions = payload.get("review_questions")
-    if not isinstance(questions, list) or not questions:
+    if not isinstance(questions, list) or not questions or any(not isinstance(q, str) or not q for q in questions):
         raise IntegrityError("W9 review request carries no review question")
     reviewers = payload.get("reviewer_capability")
     if not isinstance(reviewers, list) or len(reviewers) != 1 or not isinstance(reviewers[0], str):
         raise IntegrityError("W9 review request must name exactly one reviewer")
-    sessions = _session_refs(payload.get("required_evidence_refs"), row_id)
+    sessions, eligible_session = _session_refs(payload.get("required_evidence_refs"), row_id)
+    eligibility: Mapping[str, Any] | None = None
+    if row_id == "LR-026":
+        elig_id = adoption_eligibility_decision_id(str(record_id), str(proposal["record"]["created_at"]))
+        elig_decision = state["decisions"].get(elig_id)
+        if (
+            elig_decision is None
+            or elig_decision.get("resolve_row") != "LR-025"
+            or elig_decision.get("selected_option") != "accept"
+        ):
+            raise IntegrityError("W9 adoption review requires an accepted eligibility Decision")
+        if elig_decision.get("subject") != (record_id, proposal["content_hash"]):
+            raise IntegrityError("W9 eligibility Decision does not match the adoption proposal")
+        eligibility = elig_decision["eligibility"]
+        if eligible_session != eligibility["session"]:
+            raise IntegrityError("W9 adoption review request eligible session differs from the eligibility Decision")
+    applicable_fixtures: tuple[str, ...] | None = None
+    resolution_row = _WP9_4_REQUEST_TO_RESOLUTION.get(row_id)
+    if resolution_row is not None:
+        applicable_fixtures = _parse_applicable_fixtures(questions, resolution_row, proposal["record"])
     analyst, reviewer = event.get("actor_id"), reviewers[0]
     creator = proposal["actor_id"]
     _refuse_analyst_creator(proposal, analyst)
@@ -827,7 +1141,7 @@ def _check_review_request(
         raise IntegrityError("W9 acceptance reviewer observed an item of the batch")
     _require_stream(event, review_id, 1, "review request")
     _take_reservation(state, review_id, "review", str(record_id), "review")
-    return str(record_id), sessions, reviewer
+    return str(record_id), sessions, reviewer, eligible_session, eligibility, applicable_fixtures
 
 
 def reduce_review_request(
@@ -844,8 +1158,8 @@ def reduce_review_request(
         "verdict_row": None,
         "verdict": None,
     }
-    if row_id in WP9_3_ROWS:
-        record_id, sessions, reviewer = _check_review_request(
+    if row_id in CHECKED_ROWS:
+        record_id, sessions, reviewer, eligible_session, eligibility, applicable_fixtures = _check_review_request(
             state, row_id, event, payload, _time(event.get("occurred_at"))
         )
         entry.update(
@@ -857,6 +1171,11 @@ def reduce_review_request(
             required_evidence_refs=list(payload["required_evidence_refs"]),
             allowed_verdicts=list(payload["allowed_verdicts"]),
         )
+        if eligible_session is not None and eligibility is not None:
+            entry["eligible_session"] = eligible_session
+            entry["eligibility"] = dict(eligibility)
+        if applicable_fixtures is not None:
+            entry["applicable_fixtures"] = applicable_fixtures
     else:
         claim_identity(state, review_id, "review", context)
     state["reviews"][review_id] = entry
@@ -865,7 +1184,7 @@ def reduce_review_request(
 def _check_verdict(
     state: Mapping[str, Any], review: Mapping[str, Any], event: Mapping[str, Any], payload: Mapping[str, Any]
 ) -> None:
-    """LR-008 and LR-013's replay checks (§5.2; W9-C21, W9-C22)."""
+    """Review verdict replay checks (WP9.3 §5.2; WP9.4 §5.5; W9-C21, W9-C22)."""
 
     if event.get("actor_id") != review["reviewer"] or payload.get("reviewer_actor_id") != review["reviewer"]:
         raise IntegrityError("W9 verdict is not recorded by the reviewer the request named")
@@ -878,10 +1197,12 @@ def _check_verdict(
     )
     if payload.get("unchanged_subject_sha256") != subject_hash or subject_hash != proposal["content_hash"]:
         raise IntegrityError("W9 verdict subject hash is stale")
+    is_adoption = review.get("request_row") == "LR-026"
+    expected_profile = review["eligibility"]["profile"] if is_adoption else REVIEWER_PROFILE
     fixed = {
         "conditions": [],
         "required_evidence_refs": review["required_evidence_refs"],
-        "reviewer_profile": REVIEWER_PROFILE,
+        "reviewer_profile": expected_profile,
         "context_manifest_id": review_context_manifest_id(review_id, review["requested_at"]),
         "producing_attempt_id": review_attempt_id(review_id, review["requested_at"]),
         "trace_visibility_evidence_refs": [subject_hash],
@@ -893,6 +1214,12 @@ def _check_verdict(
     session = payload.get("reviewer_session")
     if not isinstance(session, str) or session in review["sessions"]:
         raise IntegrityError("W9 reviewer session is a session the request records")
+    if is_adoption:
+        if session != review.get("eligible_session"):
+            raise IntegrityError("W9 adoption verdict session differs from the eligible session")
+        expected_model = f"{review['eligibility']['family']}@{review['eligibility']['version']}"
+        if payload.get("reviewer_model_metadata") != expected_model:
+            raise IntegrityError("W9 adoption verdict reviewer_model_metadata differs from the eligibility Decision")
     _require_stream(event, review_id, 2, "review verdict")
 
 
@@ -905,7 +1232,7 @@ def reduce_review_verdict(
     review = state["reviews"].get(payload.get("review_id"))
     if review is None or review["verdict_row"] is not None:
         raise IntegrityError("W9 review verdict has no open W9 review")
-    if row_id in WP9_3_ROWS:
+    if row_id in CHECKED_ROWS:
         _check_verdict(state, review, transaction[0], payload)
     review["verdict_row"] = row_id
     review["verdict"] = payload.get("verdict")
@@ -928,18 +1255,86 @@ def review_satisfied(state: Mapping[str, Any], review_id: Any, record_id: Any, c
 # --- Decisions (§5.2, §6.1) ------------------------------------------------------------------------------------------
 
 
-def _check_decision_proposal(
-    state: dict[str, Any], row_id: str, event: Mapping[str, Any], payload: Mapping[str, Any]
-) -> tuple[str, str, datetime]:
-    """LR-004 and LR-009's replay checks."""
+def _check_eligibility_proposal(
+    state: dict[str, Any], event: Mapping[str, Any], payload: Mapping[str, Any]
+) -> tuple[str, str, datetime, dict[str, str]]:
+    """LR-024's replay checks (§5.5, owner point B): before any review exists."""
 
     at = _time(event.get("occurred_at"))
     refs = payload.get("governing_evidence_refs")
-    if not isinstance(refs, list) or len(refs) != 3 or refs[0] != f"W9:{row_id}":
+    expected_prefixes = (
+        None,
+        SUBJECT_PREFIX,
+        SUBJECT_HASH_PREFIX,
+        ELIGIBLE_SESSION_PREFIX,
+        ELIGIBLE_FAMILY_PREFIX,
+        ELIGIBLE_VERSION_PREFIX,
+        ELIGIBLE_PROFILE_PREFIX,
+        ELIGIBLE_GRADE_PREFIX,
+    )
+    if not isinstance(refs, list) or len(refs) != 8 or refs[0] != "W9:LR-024":
+        raise IntegrityError("W9 eligibility Decision proposal must carry exactly 8 governing_evidence_refs")
+    values: list[str] = []
+    for ref, prefix in zip(refs[1:], expected_prefixes[1:], strict=True):
+        if not isinstance(ref, str) or not ref.startswith(prefix) or not ref.removeprefix(prefix):
+            raise IntegrityError("W9 eligibility Decision proposal governing_evidence_refs are malformed")
+        values.append(ref.removeprefix(prefix))
+    record_id, subject_hash, session, family, version, profile, grade = values
+    if grade != INDEPENDENCE_GRADE:
+        raise IntegrityError("W9 eligibility Decision grade must be independent")
+    proposal = _open_proposal(state, record_id, ADOPTION, at)
+    if subject_hash != proposal["content_hash"]:
+        raise IntegrityError("W9 Decision proposal subject hash is not the proposal's current hash")
+    decision_id = payload.get("new_decision_id")
+    expected_id = adoption_eligibility_decision_id(record_id, str(proposal["record"]["created_at"]))
+    if decision_id != expected_id:
+        raise IntegrityError("W9 eligibility Decision ID is not the derived eligibility Decision ID")
+    fixed = {
+        "decision_revision": 1,
+        "decision_kind": DECISION_KIND,
+        "options": DECISION_OPTIONS,
+        "affected_task_ids": [],
+        "affected_claim_ids": [],
+        "required_authority": REQUIRED_AUTHORITY,
+        "review_date": event.get("occurred_at"),
+        "expires_at": iso_z(at + PROPOSAL_TERM),
+    }
+    for field, value in fixed.items():
+        if payload.get(field) != value:
+            raise IntegrityError(f"W9 Decision proposal {field} is not the fixed value")
+    _refuse_analyst_creator(proposal, event.get("actor_id"))
+    _require_stream(event, decision_id, 1, "Decision proposal")
+    _take_reservation(state, decision_id, "decision", record_id, "decision")
+    expires = at + PROPOSAL_TERM
+    state["proposals"][record_id]["lapse_at"] = max(state["proposals"][record_id]["lapse_at"], expires)
+    return (
+        record_id,
+        subject_hash,
+        expires,
+        {
+            "session": session,
+            "family": family,
+            "version": version,
+            "profile": profile,
+            "grade": grade,
+        },
+    )
+
+
+def _check_decision_proposal(
+    state: dict[str, Any], row_id: str, event: Mapping[str, Any], payload: Mapping[str, Any]
+) -> tuple[str, str, datetime]:
+    """Decision proposal replay checks (WP9.3 §5.2; WP9.4 §5.2, §5.4, §8)."""
+
+    at = _time(event.get("occurred_at"))
+    refs = payload.get("governing_evidence_refs")
+    if not isinstance(refs, list) or len(refs) < 3 or refs[0] != f"W9:{row_id}":
         raise IntegrityError("W9 Decision proposal does not encode its subject")
     if not (isinstance(refs[1], str) and refs[1].startswith(SUBJECT_PREFIX)) or not (
         isinstance(refs[2], str) and refs[2].startswith(SUBJECT_HASH_PREFIX)
     ):
+        raise IntegrityError("W9 Decision proposal does not encode its subject")
+    if row_id in WP9_3_ROWS and len(refs) != 3:
         raise IntegrityError("W9 Decision proposal does not encode its subject")
     record_id, subject_hash = refs[1].removeprefix(SUBJECT_PREFIX), refs[2].removeprefix(SUBJECT_HASH_PREFIX)
     kind = LEGACY_ROW_ROUTES[row_id].record_schema_id.removeprefix("ars://legacy/").replace("-", "_")
@@ -962,11 +1357,16 @@ def _check_decision_proposal(
     for field, value in fixed.items():
         if payload.get(field) != value:
             raise IntegrityError(f"W9 Decision proposal {field} is not the fixed value")
-    review_field = _FAMILY_REVIEW_FIELD.get(kind)
-    if review_field and not review_satisfied(
-        state, proposal["record"][review_field]["id"], record_id, proposal["content_hash"]
+    review_id = review_id_for(kind, proposal["record"])
+    if review_id is not NO_REVIEW_REQUIRED and not review_satisfied(
+        state, review_id, record_id, proposal["content_hash"]
     ):
         raise IntegrityError("W9 Decision proposal has no satisfied review on the current hash")
+    resolution_row = _WP9_4_DECISION_TO_RESOLUTION.get(row_id)
+    if resolution_row is not None:
+        fixture_ids = _parse_decision_tail(resolution_row, refs[3:], proposal["record"])
+        if review_id is not NO_REVIEW_REQUIRED and fixture_ids != state["reviews"][review_id]["applicable_fixtures"]:
+            raise IntegrityError("W9 Decision proposal fixture set differs from the review's applicable fixtures")
     _refuse_analyst_creator(proposal, event.get("actor_id"))
     _require_stream(event, decision_id, 1, "Decision proposal")
     _take_reservation(state, decision_id, "decision", record_id, "decision")
@@ -988,7 +1388,10 @@ def reduce_decision_proposal(
         "resolve_row": None,
         "governing_evidence_refs": list(payload.get("governing_evidence_refs", [])),
     }
-    if row_id in WP9_3_ROWS:
+    if row_id == "LR-024":
+        record_id, subject_hash, expires, eligibility = _check_eligibility_proposal(state, event, payload)
+        entry.update(subject=(record_id, subject_hash), expires_at=expires, eligibility=eligibility)
+    elif row_id in CHECKED_ROWS:
         record_id, subject_hash, expires = _check_decision_proposal(state, row_id, event, payload)
         entry.update(subject=(record_id, subject_hash), expires_at=expires)
     else:
@@ -1077,10 +1480,49 @@ def _apply_supersession(state: dict[str, Any], record: Mapping[str, Any]) -> Non
     chain[superseded] = replacing
 
 
+def _check_eligibility_resolution(
+    state: Mapping[str, Any], decision: Mapping[str, Any], transaction: Sequence[Mapping[str, Any]]
+) -> str:
+    """LR-025's record-less replay checks (§5.5, owner point B, R-M4)."""
+
+    if len(transaction) != 1:
+        raise IntegrityError("W9 eligibility resolution must not emit a record")
+    event, payload = transaction[0], transaction[0]["payload"]
+    at = _time(event.get("occurred_at"))
+    selected = payload.get("selected_option")
+    if selected not in DECISION_OPTIONS:
+        raise IntegrityError("W9 eligibility resolution selected_option is not valid")
+    record_id, _ = decision["subject"]
+    fixed = {
+        "selected_option": selected,
+        "effective_scope": f"{EFFECTIVE_SCOPE_PREFIX}{record_id}",
+        "decision_revision": 1,
+        "deciding_actor_id": event.get("actor_id"),
+        "decision_authority_grant_id": event.get("authority_grant_id"),
+        "governing_evidence_refs": ["W9:LR-025", *decision["governing_evidence_refs"][1:]],
+        "considered_review_ids": [],
+        "effective_at": event.get("occurred_at"),
+        "permitted_commands": [],
+        "superseded_decision_ids": [],
+        "conditions": [],
+        "revisit_triggers": [],
+    }
+    for field, value in fixed.items():
+        if payload.get(field) != value:
+            raise IntegrityError(f"W9 Decision resolution {field} is not the required value")
+    if at > decision["expires_at"]:
+        raise IntegrityError("W9 Decision resolved after it expired")
+    proposal = state["proposals"].get(record_id)
+    if proposal is None or proposal["recorded"] or at >= proposal["lapse_at"]:
+        raise IntegrityError("W9 step names a lapsed proposal")
+    _require_stream(event, payload.get("decision_id"), 2, "Decision resolution")
+    return str(selected)
+
+
 def _check_resolution(
     state: Mapping[str, Any], row_id: str, decision: Mapping[str, Any], transaction: Sequence[Mapping[str, Any]]
 ) -> None:
-    """G5 at LR-005 and LR-010 (§5.2, §6.1), including F-8's first limb."""
+    """G5 at resolution (§5.2, §6.1, §6.5, §8), including F-8's first limb."""
 
     event, payload = transaction[0], transaction[0]["payload"]
     at = _time(event.get("occurred_at"))
@@ -1089,8 +1531,8 @@ def _check_resolution(
     if record.get("record_id") != record_id or record_content_hash(record) != subject_hash:
         raise IntegrityError("W9 resolved record is not its Decision's subject")
     kind = record_kind(record.get("schema_id"))
-    review_field = _FAMILY_REVIEW_FIELD.get(kind)
-    considered = [] if review_field is None else [record[review_field]["id"]]
+    review_id = review_id_for(kind, record)
+    considered = [] if review_id is NO_REVIEW_REQUIRED else [review_id]
     fixed = {
         "selected_option": "accept",
         "effective_scope": f"{EFFECTIVE_SCOPE_PREFIX}{record_id}",
@@ -1115,8 +1557,14 @@ def _check_resolution(
     proposal = state["proposals"].get(record_id)
     if proposal is None or proposal["recorded"] or at >= proposal["lapse_at"]:
         raise IntegrityError("W9 step names a lapsed proposal")
-    if review_field and not review_satisfied(state, considered[0], record_id, subject_hash):
+    if review_id is not NO_REVIEW_REQUIRED and not review_satisfied(state, considered[0], record_id, subject_hash):
         raise IntegrityError("W9 resolution's review is not satisfied on the record's hash")
+    if row_id in _WP9_4_ALLOWED_FIXTURES:
+        _parse_decision_tail(row_id, payload["governing_evidence_refs"][3:], record)
+    if row_id == "LR-029":
+        cause = adoption_suspension_cause(state, record)
+        if cause is not None:
+            raise IntegrityError(f"W9 adoption is suspended at resolution: {cause}")
     _require_stream(event, payload.get("decision_id"), 2, "Decision resolution")
     _require_stream(transaction[1], record_id, 2, "resolved record")
     if kind == ACCEPTANCE:
@@ -1135,7 +1583,11 @@ def reduce_decision_resolution(
         raise IntegrityError("W9 Decision resolution has no open W9 Decision")
     if _decision_family(decision["propose_row"]) != _decision_family(row_id):
         raise IntegrityError("W9 Decision is resolved under another Decision family")
-    if row_id in WP9_3_ROWS:
+    if row_id == "LR-025":
+        decision["selected_option"] = _check_eligibility_resolution(state, decision, transaction)
+        decision["resolve_row"] = row_id
+        return
+    if row_id in CHECKED_ROWS:
         _check_resolution(state, row_id, decision, transaction)
     decision["resolve_row"] = row_id
     if _decision_family(row_id) == _RECOVERY_DECISION_FAMILY:

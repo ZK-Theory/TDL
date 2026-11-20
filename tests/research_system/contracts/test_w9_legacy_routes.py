@@ -58,15 +58,12 @@ def _envelope_pin() -> tuple[str, str, str, str, int]:
     return ENVELOPE_PATH, commit, blob, hashlib.sha256(raw).hexdigest(), len(raw)
 
 
-# Design note §3, written out row by row.
+# Design note §3 (updated by WP9.4 note §2.4 / P-086 item 2): LR-023 to LR-034 are routed by WP9.4-1.
 EXPECTED_TAGS = {
     "LR-002": "catalogue_revision",
     "LR-021": "WP9.7",
     "LR-022": "WP9.7",
-    "LR-023": "WP9.4",
-    "LR-024": "WP9.7",
-    "LR-025": "WP9.7",
-    **{f"LR-{n:03d}": "WP9.4" for n in range(26, 36)},
+    "LR-035": "WP9.4",
     "LR-036": "WP9.6",
     "LR-037": "WP9.6",
     "LR-038": "WP9.6",
@@ -222,10 +219,15 @@ def test_route_registry_refuses_a_changed_catalogue(mutate: Any) -> None:
         routes.validate_legacy_route_registry(catalogue)
 
 
-def test_route_classes_are_nineteen_routed_and_forty_two_deferred_with_the_design_note_tags() -> None:
-    """WP9.3 note §15: the counts are pinned here, per PR, not in genesis guard 8. WP9.3-2: 19 and 42."""
-    assert routes.LEGACY_ROUTED_ROWS == {"LR-001", *(f"LR-{n:03d}" for n in range(3, 21))}
-    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (19, 42)
+def test_route_classes_are_thirty_one_routed_and_thirty_deferred_with_the_design_note_tags() -> None:
+    """WP9.4 note §15: the counts are pinned here, per PR, not in genesis guard 8. WP9.4-1: 31 and 30."""
+    expected_routed = {
+        "LR-001",
+        *(f"LR-{n:03d}" for n in range(3, 21)),
+        *(f"LR-{n:03d}" for n in range(23, 35)),
+    }
+    assert routes.LEGACY_ROUTED_ROWS == expected_routed
+    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (31, 30)
     assert routes.LEGACY_DEFERRED_ROWS == EXPECTED_TAGS
     assert "WP9.3" not in set(routes.LEGACY_DEFERRED_ROWS.values())
 
@@ -234,11 +236,20 @@ def test_route_classes_are_nineteen_routed_and_forty_two_deferred_with_the_desig
     ("routed", "deferred"),
     [
         # A missing row: LR-020 in neither set.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20))}), EXPECTED_TAGS),
+        (
+            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20)), *(f"LR-{n:03d}" for n in range(23, 35))}),
+            EXPECTED_TAGS,
+        ),
         # An overlapping row: LR-020 both routed and deferred.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 21))}), {**EXPECTED_TAGS, "LR-020": "WP9.7"}),
+        (
+            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 21)), *(f"LR-{n:03d}" for n in range(23, 35))}),
+            {**EXPECTED_TAGS, "LR-020": "WP9.7"},
+        ),
         # An untagged row: LR-020 deferred with no valid tag.
-        (frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20))}), {**EXPECTED_TAGS, "LR-020": "WP9.9"}),
+        (
+            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20)), *(f"LR-{n:03d}" for n in range(23, 35))}),
+            {**EXPECTED_TAGS, "LR-020": "WP9.9"},
+        ),
     ],
     ids=["missing", "overlapping", "untagged"],
 )

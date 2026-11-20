@@ -132,12 +132,12 @@ def test_w9_c11_every_wp9_3_command_retried_returns_its_receipt_and_appends_noth
 
 
 def test_a_deferred_row_through_a_bound_command_is_refused_before_any_write(store: W9Store) -> None:
-    """§2.2: ProposeLegacyRecord is bound, but LR-023 (WP9.4) is not routed; assign_row refuses it before append."""
+    """§2.2: ProposeLegacyRecord is bound, but LR-040 (WP9.4) is deferred; assign_row refuses it before append."""
     record_id = new_id("scope_definition")
-    payload = {"schema_id": "ars://legacy/legacy-adoption-decision", "schema_version": "1.0.0", "record_id": record_id}
+    payload = {"schema_id": "ars://legacy/legacy-source-inventory", "schema_version": "1.0.0", "record_id": record_id}
     _refused(
         store,
-        r"W9 row not routed in this version: LR-023 \(WP9.4\)",
+        r"W9 row not routed in this version: LR-040 \(WP9.4\)",
         "ProposeLegacyRecord",
         store.actors.analyst,
         record_id,
