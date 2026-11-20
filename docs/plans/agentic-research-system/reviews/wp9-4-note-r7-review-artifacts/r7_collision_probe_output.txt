@@ -1,0 +1,79 @@
+platform=win32 python=3.13.5
+
+[0] The directory identity's source (R6-i1)
+  os.open on the directory: REFUSED (PermissionError: Permission denied)
+  anchor scheme=windows-file-id-v1
+  anchor vol == st_dev: True; int.from_bytes(file_id,'little') == st_ino: True
+  directory st_nlink before/after adding a subdirectory and a file: 1/1
+
+[1] Case variants of a member path: what LR-003's preparer read admits
+  'papers/P01-A-JRSSA/_project.md': READ; canonical_target tail 't-a/papers/P01-A-JRSSA/_project.md'
+  'papers/p01-a-jrssa/_project.md': READ; canonical_target tail 't-a/papers/P01-A-JRSSA/_project.md'
+  'PAPERS/P01-A-JRSSA/_PROJECT.MD': READ; canonical_target tail 't-a/papers/P01-A-JRSSA/_project.md'
+  'papers/P01-a-JrSsA/drafts/A.TEX': READ; canonical_target tail '-a/papers/P01-A-JRSSA/drafts/a.tex'
+  'papers/P01-A-JRSSA-old/x.md': READ; canonical_target tail 'kout-a/papers/P01-A-JRSSA-old/x.md'
+
+[2] Root recorded first; each member proposed (rev 7 rules; 'today' = _registration_conflicts)
+  papers/P01-A-JRSSA/_project.md: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/p01-a-jrssa/_project.md: path=True, target=True, target_plain_string=True, equality=False, today=False
+  PAPERS/P01-A-JRSSA/_PROJECT.MD: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-a-JrSsA/drafts/A.TEX: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-A-JRSSA-old/x.md: path=False, target=False, target_plain_string=True, equality=False, today=False
+  reverse direction: member recorded (or in an open proposal) first, then the root proposed
+  papers/P01-A-JRSSA/_project.md recorded: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-A-JRSSA/_project.md proposed: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/p01-a-jrssa/_project.md recorded: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/p01-a-jrssa/_project.md proposed: path=True, target=True, target_plain_string=True, equality=False, today=False
+  PAPERS/P01-A-JRSSA/_PROJECT.MD recorded: path=True, target=True, target_plain_string=True, equality=False, today=False
+  PAPERS/P01-A-JRSSA/_PROJECT.MD proposed: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-a-JrSsA/drafts/A.TEX recorded: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-a-JrSsA/drafts/A.TEX proposed: path=True, target=True, target_plain_string=True, equality=False, today=False
+  papers/P01-A-JRSSA-old/x.md recorded: path=False, target=False, target_plain_string=True, equality=False, today=False
+  papers/P01-A-JRSSA-old/x.md proposed: path=False, target=False, target_plain_string=True, equality=False, today=False
+
+[3] The vault_root control: a vault path that begins papers/P01-A-JRSSA/
+  vault note, root recorded: path=False, target=False, target_plain_string=False, equality=False, today=False
+  root proposed, vault note recorded: path=False, target=False, target_plain_string=False, equality=False, today=False
+  legacy_decision_log_entry beside the root and the vault note: path=False, target=False, target_plain_string=False, equality=False, today=False
+
+[4] root_id is a free string: a variant under another root_id, same binding
+  root_id='tdl-2': path=False, target=True, target_plain_string=True, equality=False, today=False
+
+[5] The store's binding moves to another checkout (AdvanceStoreBinding / RepairStoreBinding)
+  root registered at checkout A; _project.md registered at checkout B, root_id='tdl': path=True, target=False, target_plain_string=False, equality=False, today=False
+  root registered at checkout A; _project.md registered at checkout B, root_id='tdl-2': path=False, target=False, target_plain_string=False, equality=False, today=False
+
+[6] One file registered twice (R6-M2): the equality half and the section 15 test
+  preparer admits the upper-cased declared target: True
+  today's _registration_conflicts: False
+  rev 7 equality half, full: True
+  rev 7 equality half, path part disabled: True
+  WRONG impl (folded target + file id, no volume), path disabled: True  <- section 15's test cannot tell it from the decided one
+  discriminating fixture: same (volume, file id), unrelated path and target, no path half needed:
+    decided impl: True; wrong impl: False
+  volume control: same file id, another volume (two distinct files):
+    decided impl: False; today: True
+  control, two distinct files: False
+
+[7] File-ID reuse after delete (false refusal of a later registration?)
+  3000 create/delete cycles: distinct st_ino=3000, reuses=0
+  atomic replace (as Obsidian and git checkout write) changes st_ino: True
+
+[8] str.casefold against what NTFS and os.path.normcase treat as equal
+  pair: NTFS_same, casefold_equal, normcase_equal, lower_equal
+  sharp s: False, True, False, False
+  Kelvin sign: False, True, False, True
+  dotless i: False, False, False, False
+  long s: False, True, False, False
+  dotted capital I: False, False, False, False
+  Greek final sigma: False, True, False, False
+  ASCII case: True, True, True, True
+  NFC/NFD e-acute: False, False, False, False
+  can a parent spelled with an NTFS-equal, casefold-equal but normcase-unequal name pass the read?
+    'paperſ/...': REFUSED (a parent of the registered path is unavailable)
+  BMP code points where casefold != lower: 297
+  unicodedata version: 15.1.0
+
+[9] The other prefix test at LR-003: the legacy projection directory (_check_registration)
+  .research-system/projections/legacy/p.json: READ; replay refuses (W9 legacy role under the legacy projection directory)
+  .Research-System/Projections/Legacy/p.json: READ; replay ADMITS a legacy role here

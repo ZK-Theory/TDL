@@ -1,0 +1,121 @@
+== Section 15 extractor fixtures at revision 7 (and review probes, expected '?') ==
+-- tail_mode=provenance
+  ok   path literal: {'results/a/unique.json': 'cited'}
+  ok   JSON-escaped Windows path: {'results/a/unique.json': 'cited'}
+  ok   unique basename: {'unique.json': 'cited'}
+  ok   ambiguous basename, no row: {'05_analysis.json': 'ambiguous'}
+  ok   ambiguous basename, with row: {'05_analysis.json': 'cited'}
+  ok   unregistered results/ file: {'results/a/missing.json': 'unregistered'}
+  ok   bare unregistered: {'new_result.json': 'unregistered'}
+  ok   directory: {'results/a': 'not_a_file'}
+  ok   trailing slash: {'results/a/': 'not_a_file'}
+  ok   ordinary word: {}
+  ok   LaTeX-wrapped path: {'results/p/ph_L5000.json': 'cited'}
+  ok   registered YYYYMMDD-like name: {'results/x/level1_comparison_20260101.json': 'cited'}
+  ok   partial path, one hit: {'trajectory_tda_integration/post_audit/04_one.json': 'cited'}
+  ok   partial path, two hits: {'post_audit/04_two.json': 'ambiguous'}
+  ok   tail, one registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, two registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, only zzz registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, only zzz, cleared by a row: {'results/x_': 'not_a_file', '/a.json': 'cited'}
+  FAIL tail no registered path ends in (AS WRITTEN; basename unregistered): {'results/x_': 'not_a_file'}  expected {'results/x_': 'not_a_file', '/b.json': 'not_a_file'}
+  ok   tail no registered path ends in (basename registered elsewhere): {'results/x_': 'not_a_file', '/post/a.json': 'not_a_file'}
+  ok   component boundary: {'x/a.json': 'ambiguous'}
+  ok   two tokens one basename, two token-keyed rows: {'alias/05_analysis.json': 'cited', 'notes/05_analysis.json': 'reported_not_a_result'}
+  ok   filename template: {'.json': 'not_a_file'}
+  ok   YYYYMMDD template: {'level1_comparison_YYYYMMDD.json': 'not_a_file'}
+  ok   lone .json: {'.json': 'not_a_file'}
+  ok   row with two paths for one basename: {'05_analysis.json': 'cited'}
+  ok   notes copy, no row: {'notes/data.json': 'ambiguous'}
+  ok   notes copy, not_a_result row: {'notes/data.json': 'reported_not_a_result'}
+  ok   backtick and pipe separators: {'results/a/unique.json': 'cited'}
+  ok   cited .npy: {'results/e/embed.npy': 'cited'}
+  probe PROBE: brace split, tail without '/': {'results/trajectory_tda_': 'not_a_file', '_nulls.json': 'not_a_file'}
+  probe PROBE: absolute path not from a brace split: {'/home/u/TDL/results/a/unique.json': 'cited'}
+  probe PROBE: tail whose basename is registered elsewhere: {'results/x_': 'not_a_file', '/post/a.json': 'not_a_file'}
+-- tail_mode=slash
+  ok   path literal: {'results/a/unique.json': 'cited'}
+  ok   JSON-escaped Windows path: {'results/a/unique.json': 'cited'}
+  ok   unique basename: {'unique.json': 'cited'}
+  ok   ambiguous basename, no row: {'05_analysis.json': 'ambiguous'}
+  ok   ambiguous basename, with row: {'05_analysis.json': 'cited'}
+  ok   unregistered results/ file: {'results/a/missing.json': 'unregistered'}
+  ok   bare unregistered: {'new_result.json': 'unregistered'}
+  ok   directory: {'results/a': 'not_a_file'}
+  ok   trailing slash: {'results/a/': 'not_a_file'}
+  ok   ordinary word: {}
+  ok   LaTeX-wrapped path: {'results/p/ph_L5000.json': 'cited'}
+  ok   registered YYYYMMDD-like name: {'results/x/level1_comparison_20260101.json': 'cited'}
+  ok   partial path, one hit: {'trajectory_tda_integration/post_audit/04_one.json': 'cited'}
+  ok   partial path, two hits: {'post_audit/04_two.json': 'ambiguous'}
+  ok   tail, one registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, two registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, only zzz registered: {'results/x_': 'not_a_file', '/a.json': 'ambiguous'}
+  ok   tail, only zzz, cleared by a row: {'results/x_': 'not_a_file', '/a.json': 'cited'}
+  FAIL tail no registered path ends in (AS WRITTEN; basename unregistered): {'results/x_': 'not_a_file'}  expected {'results/x_': 'not_a_file', '/b.json': 'not_a_file'}
+  ok   tail no registered path ends in (basename registered elsewhere): {'results/x_': 'not_a_file', '/post/a.json': 'not_a_file'}
+  ok   component boundary: {'x/a.json': 'ambiguous'}
+  ok   two tokens one basename, two token-keyed rows: {'alias/05_analysis.json': 'cited', 'notes/05_analysis.json': 'reported_not_a_result'}
+  ok   filename template: {'.json': 'not_a_file'}
+  ok   YYYYMMDD template: {'level1_comparison_YYYYMMDD.json': 'not_a_file'}
+  ok   lone .json: {'.json': 'not_a_file'}
+  ok   row with two paths for one basename: {'05_analysis.json': 'cited'}
+  ok   notes copy, no row: {'notes/data.json': 'ambiguous'}
+  ok   notes copy, not_a_result row: {'notes/data.json': 'reported_not_a_result'}
+  ok   backtick and pipe separators: {'results/a/unique.json': 'cited'}
+  ok   cited .npy: {'results/e/embed.npy': 'cited'}
+  probe PROBE: brace split, tail without '/': {'results/trajectory_tda_': 'not_a_file', '_nulls.json': 'unregistered'}
+  probe PROBE: absolute path not from a brace split: {'/home/u/TDL/results/a/unique.json': 'not_a_file'}
+  probe PROBE: tail whose basename is registered elsewhere: {'results/x_': 'not_a_file', '/post/a.json': 'not_a_file'}
+
+== Real roots at a7485bef, registration set = 506 tracked files under results/ ==
+
+papers/P01-A-JRSSA/ (tail_mode=provenance): 33 files, not_text=0
+  drafts: cited files=23
+  drafts ambiguous: 4 ['04_nulls_wasserstein_w2_20260407.json', '04_nulls_wasserstein_w2_L5000_20260502.json', '05_analysis.json', 'stratified_markov1_W2_L5000_20260502.json']
+  drafts unregistered: 0 []
+  drafts not_a_file: 5 ['.json', 'results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_bhps/stratified_markov/', 'results/trajectory_tda_integration/post_audit/', 'results/trajectory_tda_integration/stratified_markov/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  other (reported): ambiguous=2, cited=33, not_a_file=26, unregistered=8
+  candidate tokens after a brace or starting '/': (scope, file, token, after_brace, starts_slash)
+    ('drafts', 'papers/P01-A-JRSSA/drafts/sections/compute_table1_effects.py', '.json', True, False)
+    ('other', 'papers/P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan copy.md', '.json', True, False)
+    ('other', 'papers/P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan.md', '.json', True, False)
+
+papers/P01-A-JRSSA/ (tail_mode=slash): 33 files, not_text=0
+  drafts: cited files=23
+  drafts ambiguous: 4 ['04_nulls_wasserstein_w2_20260407.json', '04_nulls_wasserstein_w2_L5000_20260502.json', '05_analysis.json', 'stratified_markov1_W2_L5000_20260502.json']
+  drafts unregistered: 0 []
+  drafts not_a_file: 5 ['.json', 'results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_bhps/stratified_markov/', 'results/trajectory_tda_integration/post_audit/', 'results/trajectory_tda_integration/stratified_markov/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  other (reported): ambiguous=2, cited=33, not_a_file=26, unregistered=8
+  candidate tokens after a brace or starting '/': (scope, file, token, after_brace, starts_slash)
+    ('drafts', 'papers/P01-A-JRSSA/drafts/sections/compute_table1_effects.py', '.json', True, False)
+    ('other', 'papers/P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan copy.md', '.json', True, False)
+    ('other', 'papers/P01-A-JRSSA/notes/2026-05-01-reviewer-response-plan.md', '.json', True, False)
+
+papers/P01-B-JRSSB/ (tail_mode=provenance): 22 files, not_text=0
+  drafts: cited files=2
+  drafts ambiguous: 0 []
+  drafts unregistered: 0 []
+  drafts not_a_file: 2 ['results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_integration/post_audit/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  other (reported): ambiguous=2, cited=11, not_a_file=32
+  candidate tokens after a brace or starting '/': (scope, file, token, after_brace, starts_slash)
+    ('other', 'papers/P01-B-JRSSB/notes/2026-05-03-reviewer3-biostatistical-issues.md', '.json', True, False)
+
+papers/P01-B-JRSSB/ (tail_mode=slash): 22 files, not_text=0
+  drafts: cited files=2
+  drafts ambiguous: 0 []
+  drafts unregistered: 0 []
+  drafts not_a_file: 2 ['results/trajectory_tda_bhps/post_audit/', 'results/trajectory_tda_integration/post_audit/']
+  drafts no_class: 0 []
+  drafts reported_not_a_result: 0 []
+  other (reported): ambiguous=2, cited=11, not_a_file=32
+  candidate tokens after a brace or starting '/': (scope, file, token, after_brace, starts_slash)
+    ('other', 'papers/P01-B-JRSSB/notes/2026-05-03-reviewer3-biostatistical-issues.md', '.json', True, False)
+
+fixture failures: 2
