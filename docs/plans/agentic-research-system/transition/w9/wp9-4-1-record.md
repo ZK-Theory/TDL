@@ -1,7 +1,7 @@
 # WP9.4-1: W9 adoption, reviewer eligibility, discharge, suspension projection and read interface (LR-023 to LR-034)
 
 **Date:** 2026-11-20<br>
-**Status:** Built on branch `pipe/w9-wp9-4-1-adoption-discharge` (code commit `0846bdaf`, record commit `fe8fcc71`, review fixes `74ff49d6`, CodeRabbit first-round fixes `d28a05b3`, merge catch-up `cefc7f82`, CodeRabbit second-round fixes `472f800b`, plus a CodeRabbit third-round fix on PR #439), awaiting re-review, CodeRabbit, and Stephen's merge. Not reviewed at this head, accepted, or ready to merge.<br>
+**Status:** Built on branch `pipe/w9-wp9-4-1-adoption-discharge` (code commit `0846bdaf`, record commit `fe8fcc71`, review fixes `74ff49d6`, CodeRabbit first-round fixes `d28a05b3`, merge catch-up `cefc7f82`, CodeRabbit second-round fixes `472f800b`, CodeRabbit third-round fix `83176970`). Stephen merged PR #439 into `main` as `cc81b733` on 2026-11-20. Its acceptance as a work package is not recorded here.<br>
 **Package:** 06v WP9.4, first of two PRs: WP9.4-1 (adoption and discharge; P-086 item 1, owner point A).<br>
 **Authority:**
 - P-085 and P-086 (`docs/plans/agentic-research-system/03-decisions-and-open-questions.md`, owner points A to O);
