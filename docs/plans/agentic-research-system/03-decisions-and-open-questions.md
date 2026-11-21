@@ -6079,7 +6079,9 @@ reader (`member_path` and `--no-replace-objects`); the runtime-binding census (2
 - WP9.7 last.
 
 He chose "Follow-up, then WP9.5". For the follow-up he chose "Limit to drafts/ (Recommended)" for F2 and "Claude, here
-(Recommended)" as its builder. For this entry, drafted by the Claude session: "Approve, open PR".<br>
+(Recommended)" as its builder. For this entry, drafted by the Claude session: "Approve, open PR". For who writes
+the note: "We will try Gemini for the design note and do independent review stages with subagents here this time"
+(item 6).<br>
 **Evidence:** Checked at `1b2cebf7` on 2026-11-21, before this entry:
 - the runtime-binding census is 275 rows, `82eab93a…1d58`;
 - the 06h manifest is blob `1066404a` and its smoke test `3b1eec6e`;
@@ -6116,6 +6118,11 @@ He chose "Follow-up, then WP9.5". For the follow-up he chose "Limit to drafts/ (
 5. **P-088 item 5's deadline is corrected.** Item 5 says the WP9.4-2 follow-up must land "before L-0, where the
    extractor first runs on real roots". L-0 is Stephen's signing of the W0 manifest items. The extractor first runs on
    a real root at L-5, when paper roots are created. So the deadline is **before L-5**. P-088 is otherwise unchanged.
+6. **Who writes the note, and who reviews it.**
+   - A Gemini agent writes the note, from `handoffs/wp9-5-gemini-note-handover-2026-11-21.md`.
+   - Each independent review stage is run by the reviewing Claude session as a fresh subagent, with none of the
+     author's or the session's context.
+   - Stephen decides the owner points, as item 2 says.
 
 **Not authorized:**
 - WP9.6 and WP9.7;
@@ -6127,7 +6134,7 @@ He chose "Follow-up, then WP9.5". For the follow-up he chose "Limit to drafts/ (
 
 Each needs a later decision.<br>
 **Not decided here:**
-- who writes WP9.5's note and code;
+- who writes WP9.5's code;
 - the open items P-084 lists, and the test-runtime escalation;
 - whether a discharge gets a `reject` resolution path (WP9.4-1 record §7).<br>
 **Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
