@@ -28,7 +28,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from research_system.errors import IntegrityError
 from research_system.legacy.reader import ReadRefused, _git, git_blob_id
@@ -45,6 +45,8 @@ LEGACY_OPEN_ITEMS = f"{EVIDENCE_DIRECTORY}/legacy-open-items.json"
 LEGACY_OPEN_ITEMS_FORMAT = "w9-legacy-open-items/1"
 OPEN_ITEM_KINDS = frozenset({"a001_item", "audit_hole", "review_finding"})
 OPEN_ITEM_PAPER_KEYS = frozenset({"P01-A", "P01-B"})
+CITATION_DISAMBIGUATION = f"{EVIDENCE_DIRECTORY}/citation-disambiguation.json"
+CITATION_DISAMBIGUATION_FORMAT = "w9-citation-disambiguation/1"
 # Note §12.2 and P-068: the export's only admitted producer is the reference implementation at its accepted blob. The
 # runtime segmenter rechecks the export and must never have produced it.
 CL_EXPORT_PRODUCER = MappingProxyType(
@@ -70,8 +72,8 @@ class EvidenceRefused(IntegrityError):
 
 # Every evidence read ignores local ``refs/replace`` entries, as ``research_system/git_execution.py`` does with
 # ``GIT_NO_REPLACE_OBJECTS``. Otherwise a replaced commit or blob would make ``git show`` and ``rev-parse`` agree on
-# bytes that are not the ones committed at ``git_head``. The flag is passed here, not in ``reader._git``, because
-# ``reader.py``'s blob is part of the importer identity (``IMPORTER_MODULES``).
+# bytes that are not the ones committed at ``git_head``. ``reader._git`` passes ``--no-replace-objects`` (P-087
+# item 5), ``_evidence_git`` passes it too, and ``reader._git`` does not add it twice.
 _NO_REPLACE = "--no-replace-objects"
 
 
@@ -80,10 +82,10 @@ def _evidence_git(repository_root: Path, *args: str, text: bool = True) -> Any:
 
 
 def _parse_evidence_json(raw: bytes, path: str) -> Any:
-    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int ``ValueError``)."""
+    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int/nesting limits)."""
     try:
         return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
 
 
@@ -439,3 +441,100 @@ def has_open_item(items: Sequence[Mapping[str, Any]], item_kind: str, item_id: s
     """Return whether ``(item_kind, item_id)`` appears in validated ``items``."""
 
     return any(entry.get("item_kind") == item_kind and entry.get("item_id") == item_id for entry in items)
+
+
+def _is_canonical_relpath(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and not value.startswith("/")
+        and not value.endswith("/")
+        and "\\" not in value
+        and ":" not in value
+        and all(part not in {"", ".", ".."} for part in value.split("/"))
+    )
+
+
+# The citation scanner's single-character delimiters (``citations._SINGLE_DELIMITERS``; a unit test pins the two
+# equal). Kept here because ``citations`` imports this module.
+SCANNER_DELIMITERS = frozenset("`'\"()[]{}<>,;|*")
+
+
+def _is_scanner_token(token: str) -> bool:
+    """Return whether ``token`` is already in the form the scanner emits (``citations.tokenize_text``).
+
+    The scanner splits on whitespace and :data:`SCANNER_DELIMITERS`, turns ``\\`` into ``/``, collapses repeated
+    ``/`` and strips trailing ``.`` and ``:``. A disambiguation key in any other spelling could never match a token.
+    """
+
+    return (
+        not any(ch.isspace() or ch in SCANNER_DELIMITERS for ch in token)
+        and "\\" not in token
+        and "//" not in token
+        and token == token.rstrip(".:")
+    )
+
+
+def _disambiguation_entries(
+    data: Any,
+) -> dict[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]]:
+    """Validate ``citation-disambiguation.json`` (``w9-citation-disambiguation/1``, WP9.4 §11.1 item 5)."""
+
+    entries = _closed(data, {"format", "entries"}, CITATION_DISAMBIGUATION)
+    if entries["format"] != CITATION_DISAMBIGUATION_FORMAT or not isinstance(entries["entries"], list):
+        raise EvidenceRefused("W9 citation disambiguation does not have the fixed format")
+    mapping: dict[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]] = {}
+    for entry in entries["entries"]:
+        closed = _closed(entry, {"citing_path", "token", "resolution"}, CITATION_DISAMBIGUATION)
+        citing_path = closed["citing_path"]
+        token = closed["token"]
+        resolution = closed["resolution"]
+        if not _is_canonical_relpath(citing_path) or not isinstance(token, str) or not token or token != token.strip():
+            raise EvidenceRefused("W9 citation disambiguation entry has invalid citing_path or token")
+        if not _is_scanner_token(token):
+            raise EvidenceRefused("W9 citation disambiguation token is not in the scanner's normalised form")
+        key = (citing_path, token)
+        if key in mapping:
+            raise EvidenceRefused("W9 citation disambiguation names a (citing_path, token) twice")
+        if resolution == "not_a_result":
+            mapping[key] = "not_a_result"
+        elif (
+            isinstance(resolution, list)
+            and resolution
+            and all(_is_canonical_relpath(item) for item in resolution)
+            and len(resolution) == len(set(resolution))
+            and resolution == sorted(resolution)
+        ):
+            mapping[key] = tuple(resolution)
+        else:
+            raise EvidenceRefused("W9 citation disambiguation resolution must be sorted paths or 'not_a_result'")
+    return mapping
+
+
+def read_citation_disambiguation(
+    repository_root: Path, git_head: str | None
+) -> tuple[dict[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]], str | None]:
+    """Read and validate optional ``citation-disambiguation.json`` from Git at ``git_head`` (note §11.1 item 5).
+
+    Never reads the working tree. Returns ``({}, None)`` when the file is absent at ``git_head``; raises
+    :class:`EvidenceRefused` when ``git_head`` is missing or the file is present but malformed.
+    """
+
+    if not git_head:
+        raise EvidenceRefused("W9 evidence is read at the binding's git_head")
+    try:
+        listed = _evidence_git(repository_root, "ls-tree", "-z", str(git_head), "--", CITATION_DISAMBIGUATION)
+    except ReadRefused as exc:
+        raise EvidenceRefused("W9 evidence repository cannot be listed at git_head") from exc
+    if not listed:
+        return {}, None
+    try:
+        raw = _evidence_git(repository_root, "show", f"{git_head}:{CITATION_DISAMBIGUATION}", text=False)
+    except ReadRefused as exc:
+        raise EvidenceRefused(f"W9 evidence file cannot be read at git_head: {CITATION_DISAMBIGUATION}") from exc
+    blob = blob_at(repository_root, str(git_head), CITATION_DISAMBIGUATION)
+    if blob is None:
+        raise EvidenceRefused(f"W9 evidence file is absent at git_head: {CITATION_DISAMBIGUATION}")
+    if git_blob_id(raw) != blob:
+        raise EvidenceRefused("W9 citation disambiguation bytes do not hash to their blob at git_head")
+    return _disambiguation_entries(_parse_evidence_json(raw, CITATION_DISAMBIGUATION)), blob

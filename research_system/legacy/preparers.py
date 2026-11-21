@@ -27,6 +27,7 @@ resolution row, so that row assignment finds the resolution row (Stephen, 2026-1
 from __future__ import annotations
 
 import os
+import stat
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -36,15 +37,26 @@ from typing import Any
 
 from research_system.canonical import sha256_hex
 from research_system.errors import IntegrityError
+from research_system.legacy import citations
 from research_system.legacy import evidence as w9_evidence
 from research_system.legacy.json_families import JsonBlocked, assign, parse_strict
 from research_system.legacy.projection_read import legacy_content_matches
-from research_system.legacy.reader import LegacyReader, ReadRefused, git_blob_id, handle_bound_read
+from research_system.legacy.reader import (
+    MANUSCRIPT_ROOT_ROLE,
+    LegacyReader,
+    ReadRefused,
+    _git,
+    canonical_target,
+    git_blob_id,
+    handle_bound_read,
+)
 from research_system.legacy.records import (
+    CITATION_STATUS_PREPARER_SET_FIELDS,
     OBSERVATION_PREPARER_SET_FIELDS,
     OBSERVATION_READ_DERIVED_FIELDS,
     PREPARER_SET_FIELDS,
     adoption_eligibility_decision_id,
+    citation_status_record_id,
     observation_record_id,
     observation_subject_digest,
     record_content_hash,
@@ -54,6 +66,7 @@ from research_system.legacy.records import (
 from research_system.legacy.replay import reducers as r
 from research_system.legacy.routes import record_kind
 from research_system.legacy.segmentation import SegmentationError, resolve_first_anchor_after, segment
+from research_system.store.lock import open_registered_member_directory_anchor, open_registered_root_anchor
 
 # The rows a preparer builds, by what the command names (§2.1). WP9.3-2 adds acceptance; WP9.4-1 adds adoption,
 # eligibility, and discharge.
@@ -63,6 +76,9 @@ REQUEST_ROWS = {
     "legacy_closed_reference_acceptance": "LR-017",
     r.ADOPTION: "LR-026",
     r.DISCHARGE: "LR-031",
+    r.SOURCE_INVENTORY: "LR-041",
+    r.TRANSITION_MAPPING: "LR-046",
+    r.OWNERSHIP: "LR-051",
 }
 DECISION_ROWS = {
     "legacy_path_registration": "LR-004",
@@ -70,6 +86,9 @@ DECISION_ROWS = {
     "legacy_closed_reference_acceptance": "LR-019",
     r.ADOPTION: "LR-028",
     r.DISCHARGE: "LR-033",
+    r.SOURCE_INVENTORY: "LR-043",
+    r.TRANSITION_MAPPING: "LR-048",
+    r.OWNERSHIP: "LR-053",
 }
 RESOLUTION_ROWS = {
     "LR-004": "LR-005",
@@ -78,6 +97,8 @@ RESOLUTION_ROWS = {
     "LR-024": "LR-025",
     "LR-028": "LR-029",
     "LR-033": "LR-034",
+    "LR-043": "LR-044",
+    "LR-048": "LR-049",
 }
 RECORDED_EVENTS = {
     "LR-005": "LegacyPathRegistrationRecorded",
@@ -85,8 +106,12 @@ RECORDED_EVENTS = {
     "LR-020": "LegacyClosedReferenceAcceptanceRecorded",
     "LR-029": "LegacyAdoptionDecisionRecorded",
     "LR-034": "LegacyDischargeRelationRecorded",
+    "LR-044": "LegacySourceInventoryRecorded",
+    "LR-049": "LegacyTransitionMappingRecorded",
+    "LR-054": "LegacyOwnershipTransitionedRecorded",
+    "LR-055": "LegacyOwnershipTransitionedRecorded",
 }
-RESOLVER_ROWS = frozenset(RESOLUTION_ROWS.values())
+RESOLVER_ROWS = frozenset((*RESOLUTION_ROWS.values(), "LR-054", "LR-055"))
 # The stream version each command expects (§4.5): the claiming steps open a new stream.
 EXPECTED_VERSIONS = {
     "ProposeLegacyRecord": 0,
@@ -96,6 +121,8 @@ EXPECTED_VERSIONS = {
     "ResolveW9AuthorityDecision": 1,
     "RecordLegacyLightInventory": 1,
     "ObserveLegacyRecord": 0,
+    "CreateLegacyPaperRoot": 0,
+    "RecordPaperCitationStatus": 0,
 }
 _FROZEN_COPY_KINDS = frozenset({"untracked_file", "vault_file"})
 
@@ -156,25 +183,102 @@ def _root(environment: Environment, root_kind: Any) -> Path:
     return _need_reader(environment).repository_root
 
 
-def _same_physical_identity(observed: Mapping[str, Any], declared: Mapping[str, Any]) -> bool:
+def handle_bound_directory_identity(root: Path, path: str) -> dict[str, Any]:
+    """Read a registered directory's physical identity handle-bound (WP9.4 §10.2, owner point O)."""
+
+    trimmed = path[:-1] if path.endswith("/") else path
+    if not trimmed or trimmed.startswith("/") or "\\" in trimmed or ":" in trimmed:
+        raise ReadRefused("registered directory path is not a canonical relative path")
+    parts = trimmed.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ReadRefused("registered directory path is not a canonical relative path")
+    root_anchor = open_registered_root_anchor(root, delete_protect=True)
+    directory_anchors = []
+    try:
+        try:
+            parent = root_anchor.final_path
+            for part in parts:
+                child = parent / part
+                if child.is_symlink() or child.is_junction():
+                    raise ReadRefused("a component of the registered directory is a link or junction")
+                try:
+                    child_anchor = open_registered_member_directory_anchor(child)
+                except Exception as exc:
+                    raise ReadRefused("the registered directory component is unavailable or not a directory") from exc
+                directory_anchors.append(child_anchor)
+                if os.path.normcase(str(child_anchor.final_path)) != os.path.normcase(str(child)):
+                    raise ReadRefused("the registered directory component resolves through a link or junction")
+                parent = child_anchor.final_path
+            leaf_anchor = directory_anchors[-1]
+            leaf_stat = leaf_anchor.final_path.stat(follow_symlinks=False)
+            if not stat.S_ISDIR(leaf_stat.st_mode):
+                raise ReadRefused("the registered directory path is not a directory")
+            if leaf_anchor.refresh() != (leaf_anchor.identity, leaf_anchor.final_path):
+                raise ReadRefused("the registered directory changed during inspection")
+            for directory_anchor in directory_anchors[:-1]:
+                if directory_anchor.refresh() != (directory_anchor.identity, directory_anchor.final_path):
+                    raise ReadRefused("a parent anchor changed during inspection")
+            if root_anchor.refresh() != (root_anchor.identity, root_anchor.final_path):
+                raise ReadRefused("the registered root changed during inspection")
+            identity = leaf_anchor.identity
+            byteorder = "little" if identity.scheme == "windows-file-id-v1" else "big"
+            return {
+                "canonical_target": canonical_target(leaf_anchor.final_path),
+                "reparse_chain": [],
+                "volume_serial_number": str(identity.volume_or_device),
+                "stable_file_id": str(int.from_bytes(identity.file_id, byteorder)),
+                "link_count": int(leaf_stat.st_nlink),
+                "case_aliases": [],
+                "unicode_aliases": [],
+                "short_name_aliases": [],
+            }
+        except ReadRefused:
+            raise
+        except OSError as exc:
+            raise ReadRefused("the registered directory cannot be read handle-bound") from exc
+    finally:
+        for directory_anchor in reversed(directory_anchors):
+            directory_anchor.close()
+        root_anchor.close()
+
+
+def _same_physical_identity(
+    observed: Mapping[str, Any], declared: Mapping[str, Any], *, skip_link_count: bool = False
+) -> bool:
+    keys = (
+        ("volume_serial_number", "stable_file_id")
+        if skip_link_count
+        else ("volume_serial_number", "stable_file_id", "link_count")
+    )
     return os.path.normcase(str(observed.get("canonical_target"))) == os.path.normcase(
         str(declared.get("canonical_target"))
-    ) and all(
-        observed.get(key) == declared.get(key) for key in ("volume_serial_number", "stable_file_id", "link_count")
-    )
+    ) and all(observed.get(key) == declared.get(key) for key in keys)
 
 
 def _require_physical_identity(environment: Environment, registration: Mapping[str, Any]) -> None:
-    """LR-003 and LR-005: a handle-bound read shows the path resolves to the declared physical identity (§7.1)."""
+    """LR-003 and LR-005: a handle-bound read shows the path resolves to the declared physical identity (§7.1; O)."""
 
     root_kind = registration.get("root_kind")
+    role = registration.get("role")
+    if role == MANUSCRIPT_ROOT_ROLE:
+        if registration.get("source_identity_kind") != "git_tracked":
+            raise IntegrityError("W9 legacy_manuscript_root registration must be git_tracked")
+        try:
+            physical = handle_bound_directory_identity(
+                _root(environment, root_kind), str(registration.get("normalized_path"))
+            )
+        except ReadRefused as exc:
+            raise IntegrityError(f"W9 registration path cannot be read handle-bound: {exc}") from exc
+        if not _same_physical_identity(physical, registration.get("physical_identity", {}), skip_link_count=True):
+            raise IntegrityError("W9 registration path does not resolve to its declared physical identity")
+        return
     try:
         _, physical, file_key = handle_bound_read(
             _root(environment, root_kind), str(registration.get("normalized_path"))
         )
     except ReadRefused as exc:
         raise IntegrityError(f"W9 registration path cannot be read handle-bound: {exc}") from exc
-    if root_kind == "vault_root" and registration.get("role") != "conventions_lock":
+    if root_kind == "vault_root" and role != "conventions_lock":
         conventions = _need_reader(environment).repository_root / "CONVENTIONS.md"
         try:
             observed = conventions.stat()
@@ -342,8 +446,9 @@ def _check_adoption_source(environment: Environment, legacy: Mapping[str, Any], 
     observation = _recorded(legacy, "legacy_observation", obs_id)
     registration = _recorded(legacy, "legacy_path_registration", observation["registration_ref"]["id"])
     recorded_src = observation["source_identity"]
+    member_path = recorded_src.get("repository_path") if registration.get("role") == MANUSCRIPT_ROOT_ROLE else None
     try:
-        read = _need_reader(environment).read(registration)
+        read = _read_source_member(_need_reader(environment), registration, member_path)
     except ReadRefused as exc:
         raise IntegrityError(f"W9 adoption source cannot be read: {exc}") from exc
     if _comparable_source(read.source_identity) != _comparable_source(recorded_src):
@@ -423,6 +528,148 @@ def _check_discharge_open_item(
     return blob
 
 
+def list_tracked_root_files(repository_root: Path, git_head: str | None, root_path: str) -> dict[str, str]:
+    """Return ``{repository_path: git_blob}`` for every tracked file under ``root_path`` at ``git_head`` (§10.3)."""
+
+    if not git_head:
+        raise IntegrityError("W9 source inventory listing needs the binding's git_head")
+    root_trimmed = root_path.rstrip("/")
+    root_prefix = f"{root_trimmed}/"
+    try:
+        listed = _git(repository_root, "ls-tree", "-r", "-z", str(git_head), "--", root_trimmed)
+    except ReadRefused as exc:
+        raise IntegrityError(f"W9 source inventory root cannot be listed at git_head: {exc}") from exc
+    tracked: dict[str, str] = {}
+    for entry in listed.split("\0"):
+        if not entry or "\t" not in entry:
+            continue
+        meta, path = entry.split("\t", 1)
+        parts = meta.split()
+        if len(parts) < 3 or parts[1] != "blob":
+            continue
+        if path.startswith(root_prefix) and not path.endswith("/"):
+            tracked[path] = parts[2]
+    return tracked
+
+
+def _latest_inventory_for_root_path(legacy: Mapping[str, Any], root_path: str) -> Mapping[str, Any]:
+    registrations = legacy["records"].get("legacy_path_registration", {})
+    supersessions = legacy.get("supersessions", {})
+    inventories = legacy["records"].get(r.SOURCE_INVENTORY, {})
+    for inv_id, inv in reversed(list(inventories.items())):
+        if inv_id in supersessions:
+            continue
+        reg = registrations.get(inv.get("root_registration_ref", {}).get("id"))
+        if reg is not None and reg.get("normalized_path") == root_path:
+            return inv
+    raise IntegrityError("W9 citation status names no recorded source inventory for this paper root")
+
+
+def _check_source_inventory_env(environment: Environment, legacy: Mapping[str, Any], record: Mapping[str, Any]) -> None:
+    """LR-040, LR-044, LR-054, LR-055: inventory matches tracked root tree and every row re-reads unchanged."""
+
+    reader = _need_reader(environment)
+    reg = _recorded(legacy, "legacy_path_registration", record.get("root_registration_ref", {}).get("id"))
+    tracked = list_tracked_root_files(reader.repository_root, reader.git_head, str(reg.get("normalized_path")))
+    rows = record.get("rows", ())
+    declared = {str(row.get("repository_path")): str(row.get("git_blob")) for row in rows}
+    if len(declared) != len(rows) or declared != tracked:
+        raise IntegrityError("W9 source inventory does not match tracked files under the root at git_head")
+    for row in rows:
+        repo_path = str(row.get("repository_path"))
+        try:
+            read = reader.read(reg, member_path=repo_path)
+        except ReadRefused as exc:
+            raise IntegrityError(f"W9 source inventory row cannot be read: {exc}") from exc
+        if read.source_identity.get("git_blob") != row.get("git_blob"):
+            raise IntegrityError("W9 source inventory row blob changed within the window")
+
+
+def _check_paper_open_items_discharged(
+    environment: Environment, legacy: Mapping[str, Any], paper_key: str, *, expected_blob: str | None = None
+) -> str:
+    """LR-054 (§10.5): open-item list blob matches and every item feeding the paper is discharged."""
+
+    reader = _need_reader(environment)
+    items, blob = w9_evidence.require_open_items(reader.repository_root, reader.git_head, expected_blob=expected_blob)
+    supersessions = legacy.get("supersessions", {})
+    discharged = {
+        (dis.get("legacy_item", {}).get("item_kind"), dis.get("legacy_item", {}).get("item_id"))
+        for dis_id, dis in legacy["records"].get(r.DISCHARGE, {}).items()
+        if dis_id not in supersessions
+    }
+    for entry in items:
+        if paper_key in entry["feeds_papers"] and (entry["item_kind"], entry["item_id"]) not in discharged:
+            raise IntegrityError(
+                f"W9 open item {entry['item_kind']}:{entry['item_id']} feeding {paper_key} has no recorded discharge"
+            )
+    return blob
+
+
+def _prior_lr054_inventory_for_registration(
+    legacy: Mapping[str, Any], registration_id: str
+) -> Mapping[str, Any] | None:
+    """Find the prior LR-054 mapped inventory of ``registration_id`` (WP9.4-2 record §3.1 item 5)."""
+
+    supersessions = legacy.get("supersessions", {})
+    ownerships = legacy["records"].get(r.OWNERSHIP, {})
+    for trans_id, trans in reversed(list(ownerships.items())):
+        if trans_id in supersessions:
+            continue
+        if (
+            trans.get("subject_registration_ref", {}).get("id") == registration_id
+            and (trans.get("from_mode"), trans.get("to_mode")) == ("legacy_owned", "successor_owned")
+            and isinstance(trans.get("mapping_ref"), Mapping)
+        ):
+            mapping = _recorded(legacy, r.TRANSITION_MAPPING, trans["mapping_ref"].get("id"))
+            return _recorded(legacy, r.SOURCE_INVENTORY, mapping.get("source_inventory_ref", {}).get("id"))
+    return None
+
+
+def _check_ownership_transition_env(
+    environment: Environment,
+    legacy: Mapping[str, Any],
+    record: Mapping[str, Any],
+    *,
+    expected_open_items_blob: str | None = None,
+    at_resolution: bool = True,
+) -> None:
+    """LR-050, LR-054, and LR-055 environment and window checks (§10.5, §11.3; WP9.4-2 record §3.1 item 5)."""
+
+    res_row = r.ownership_resolution_row(record)
+    subject_reg = _recorded(legacy, "legacy_path_registration", record.get("subject_registration_ref", {}).get("id"))
+    if res_row == "LR-054":
+        mapping = _recorded(legacy, r.TRANSITION_MAPPING, record.get("mapping_ref", {}).get("id"))
+        inv = _recorded(legacy, r.SOURCE_INVENTORY, mapping.get("source_inventory_ref", {}).get("id"))
+        if at_resolution:
+            root = _recorded(legacy, r.PAPER_ROOT, record.get("paper_root_ref", {}).get("id"))
+            root_id = str(root["record_id"])
+            status_id = legacy.get("current_citation_status_by_root", {}).get(root_id)
+            if not status_id or status_id in legacy.get("supersessions", {}):
+                raise IntegrityError("W9 LR-054 requires a current citation status for the paper root")
+            status = _recorded(legacy, r.CITATION_STATUS, status_id)
+            reader = _need_reader(environment)
+            extracted = citations.extract_citations(reader.repository_root, reader.git_head, inv, legacy)
+            if (
+                extracted["blockers"]
+                or extracted["extractor_output_sha256"] != status["derivation"]["extractor_output_sha256"]
+            ):
+                raise IntegrityError("W9 citation status does not cover the mapping's inventory")
+            _check_paper_open_items_discharged(
+                environment, legacy, str(root["paper_key"]), expected_blob=expected_open_items_blob
+            )
+        _check_source_inventory_env(environment, legacy, inv)
+        return
+    # LR-055 (WP9.4-2 record §3.1 item 5): re-read the subject registration's handle-bound identity and, for a root,
+    # the prior LR-054 transition's mapped inventory against git_head.
+    _require_physical_identity(environment, subject_reg)
+    if subject_reg.get("role") == MANUSCRIPT_ROOT_ROLE:
+        inv = _prior_lr054_inventory_for_registration(legacy, str(subject_reg["record_id"]))
+        if inv is None:
+            raise IntegrityError("W9 LR-055 root transition has no prior LR-054 mapped inventory")
+        _check_source_inventory_env(environment, legacy, inv)
+
+
 # --- The seven commands ----------------------------------------------------------------------------------------------
 
 
@@ -442,10 +689,14 @@ def prepare_proposal(
             w9_evidence.read_evidence(reader.repository_root, reader.git_head, w9_evidence.DETECTOR_CONTROLS)
         )
         _require_physical_identity(environment, record)
+        if "records" in legacy and "proposals" in legacy:
+            r._check_registration(legacy, record, now)
     elif kind == "legacy_field_family_membership":
         _check_membership_bytes(environment, record)
     elif kind == "legacy_light_inventory":
         registration = _recorded(legacy, "legacy_path_registration", record.get("registration_ref", {}).get("id"))
+        if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+            raise IntegrityError("W9 light inventory cannot target a legacy_manuscript_root registration")
         read = _read_source(environment, registration, record.get("source_identity", {}), record)
         check_resegmentation(read, record)
     elif kind == "legacy_closed_reference_acceptance":
@@ -468,6 +719,21 @@ def prepare_proposal(
 
         check_discharge_env()
         prepared.rereads.append(check_discharge_env)
+    elif kind == r.SOURCE_INVENTORY:
+
+        def check_inventory_env() -> None:
+            _check_source_inventory_env(environment, legacy, record)
+
+        check_inventory_env()
+        prepared.rereads.append(check_inventory_env)
+    elif kind == r.OWNERSHIP:
+        r._check_ownership_proposal(legacy, record)
+
+        def check_ownership_env() -> None:
+            _check_ownership_transition_env(environment, legacy, record, at_resolution=False)
+
+        check_ownership_env()
+        prepared.rereads.append(check_ownership_env)
     return prepared
 
 
@@ -631,13 +897,13 @@ def prepare_decision_proposal(
             f"{r.ELIGIBLE_GRADE_PREFIX}{elig['grade']}",
         ]
     else:
-        row = DECISION_ROWS.get(kind)
+        row = "LR-053" if kind == r.OWNERSHIP else DECISION_ROWS.get(kind)
         if row is None:
             raise IntegrityError("W9 proposal of this kind has no Decision row")
         if row in r.WP9_3_ROWS and ("fixture_refs" in payload or "open_items_blob" in payload):
             raise IntegrityError(f"W9 {row} does not accept fixture_refs or open_items_blob")
-        if row == "LR-028" and "open_items_blob" in payload:
-            raise IntegrityError("W9 LR-028 does not accept open_items_blob")
+        if row in {"LR-028", "LR-043", "LR-048"} and "open_items_blob" in payload:
+            raise IntegrityError(f"W9 {row} does not accept open_items_blob")
         fixture_refs = payload.get("fixture_refs", [])
         if not isinstance(fixture_refs, list) or any(not isinstance(item, str) for item in fixture_refs):
             raise IntegrityError("W9 Decision fixture_refs must be a list of strings")
@@ -654,6 +920,18 @@ def prepare_decision_proposal(
                 raise IntegrityError("W9 LR-033 requires open_items_blob")
             _check_discharge_open_item(environment, record, expected_blob=blob)
             governing_refs.append(f"{r.OPEN_ITEMS_BLOB_PREFIX}{blob}")
+        elif row == "LR-053":
+            res_row = r.ownership_resolution_row(record)
+            if res_row == "LR-054":
+                blob = payload.get("open_items_blob")
+                if not isinstance(blob, str) or not blob:
+                    raise IntegrityError("W9 LR-053 for LR-054 requires open_items_blob")
+                w9_evidence.require_open_items(
+                    _need_reader(environment).repository_root, _need_reader(environment).git_head, expected_blob=blob
+                )
+                governing_refs.append(f"{r.OPEN_ITEMS_BLOB_PREFIX}{blob}")
+            elif "open_items_blob" in payload:
+                raise IntegrityError("W9 LR-055 does not accept open_items_blob")
 
     decision = {
         "new_decision_id": decision_id,
@@ -690,9 +968,13 @@ def prepare_resolution(
     decision = legacy["decisions"].get(decision_id)
     if decision is None or "subject" not in decision:
         raise IntegrityError("W9 resolution names no open W9 Decision")
-    row = RESOLUTION_ROWS[decision["propose_row"]]
     record_id = decision["subject"][0]
     proposal = _proposal(legacy, record_id)
+    row = (
+        r.ownership_resolution_row(proposal["record"])
+        if decision["propose_row"] == "LR-053"
+        else RESOLUTION_ROWS[decision["propose_row"]]
+    )
     selected = payload["selected_option"]
     if row == "LR-025":
         if selected not in r.DECISION_OPTIONS:
@@ -768,6 +1050,25 @@ def prepare_resolution(
 
         check_discharge_resolution()
         prepared.rereads.append(check_discharge_resolution)
+    elif row == "LR-044":
+
+        def check_inventory_resolution() -> None:
+            _check_source_inventory_env(environment, legacy, record)
+
+        check_inventory_resolution()
+        prepared.rereads.append(check_inventory_resolution)
+    elif row == "LR-049":
+        pass
+    elif row in {"LR-054", "LR-055"}:
+        expected_blob = (
+            decision["governing_evidence_refs"][-1].removeprefix(r.OPEN_ITEMS_BLOB_PREFIX) if row == "LR-054" else None
+        )
+
+        def check_ownership_resolution() -> None:
+            _check_ownership_transition_env(environment, legacy, record, expected_open_items_blob=expected_blob)
+
+        check_ownership_resolution()
+        prepared.rereads.append(check_ownership_resolution)
     else:
         # Template §3 rule 10: applies_to bytes re-hashed equal, at commit.
         def reread_members() -> None:
@@ -777,6 +1078,82 @@ def prepare_resolution(
         reread_members()
         prepared.rereads.append(reread_members)
     return prepared
+
+
+def prepare_paper_root(
+    payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
+) -> Prepared:
+    """``CreateLegacyPaperRoot`` (LR-035): ordinary paper root recorded directly by the analyst (§10.1)."""
+
+    _refuse_supplied(payload, PREPARER_SET_FIELDS)
+    record = {**deepcopy(dict(payload)), "created_by_actor_id": actor, "created_at": _iso(now)}
+    record["content_hash"] = record_content_hash(record)
+    return Prepared([("LegacyPaperRootCreated", str(record.get("record_id")), record)])
+
+
+def prepare_citation_status(
+    payload: Mapping[str, Any], *, actor: str, now: datetime, legacy: Mapping[str, Any], environment: Environment
+) -> Prepared:
+    """``RecordPaperCitationStatus`` (LR-039): run extractor, stamp hashes & derived ID (§5.6, §11)."""
+
+    _refuse_supplied(payload, CITATION_STATUS_PREPARER_SET_FIELDS)
+    derivation = payload.get("derivation")
+    if not isinstance(derivation, Mapping):
+        raise IntegrityError("W9 citation status derivation must be an object")
+    if "extractor_output_sha256" in derivation:
+        raise IntegrityError("W9 command payload supplies preparer-set field: derivation.extractor_output_sha256")
+    root_ref = payload.get("root_ref")
+    if not isinstance(root_ref, Mapping):
+        raise IntegrityError("W9 citation status root_ref must be an object")
+    reader = _need_reader(environment)
+    root = _recorded(legacy, r.PAPER_ROOT, root_ref.get("id"))
+    root_id = str(root["record_id"])
+    inventory = _latest_inventory_for_root_path(legacy, str(root["manuscript_root_path"]))
+
+    def run_extractor() -> dict[str, Any]:
+        extracted = citations.extract_citations(reader.repository_root, reader.git_head, inventory, legacy)
+        if extracted["blockers"]:
+            raise IntegrityError("W9 citation extractor has blocker entries; cannot record citation status")
+        return extracted
+
+    extracted = run_extractor()
+    families = payload.get("families")
+    if not isinstance(families, list) or not families:
+        raise IntegrityError("W9 citation status carries no families")
+    supplied_pairs = []
+    for entry in families:
+        if not isinstance(entry, Mapping) or not isinstance(entry.get("observation_ref"), Mapping):
+            raise IntegrityError("W9 citation status family entry must carry an observation_ref object")
+        supplied_pairs.append([str(entry["observation_ref"].get("id")), str(entry.get("family_name"))])
+    supplied_pairs.sort()
+    if supplied_pairs != extracted["cited_family_set"]:
+        raise IntegrityError("W9 citation status families differ from the extractor's cited-family set")
+
+    supersedes_id = legacy.get("current_citation_status_by_root", {}).get(root_id)
+    record = deepcopy(dict(payload))
+    record["derivation"] = {
+        **dict(record["derivation"]),
+        "extractor_output_sha256": extracted["extractor_output_sha256"],
+    }
+    record["cited_family_set_sha256"] = extracted["cited_family_set_sha256"]
+    record["created_by_actor_id"] = actor
+    record["created_at"] = _iso(now)
+    record["record_id"] = citation_status_record_id(
+        root_id,
+        supersedes_id,
+        record["cited_family_set_sha256"],
+        extracted["extractor_output_sha256"],
+        str(record["derivation"].get("reviewer_derivation_sha256")),
+        str(root["created_at"]),
+    )
+    record["content_hash"] = record_content_hash(record)
+
+    def reread() -> None:
+        final = run_extractor()
+        if final["extractor_output_sha256"] != record["derivation"]["extractor_output_sha256"]:
+            raise IntegrityError("W9 citation extractor output changed within the window")
+
+    return Prepared([("LegacyPaperCitationStatusRecorded", record["record_id"], record)], [reread])
 
 
 def prepare_light_inventory(
@@ -799,6 +1176,27 @@ def prepare_light_inventory(
     return Prepared([("LegacyLightInventoryRecorded", record["record_id"], record)], [reread])
 
 
+def _observation_member_path(registration: Mapping[str, Any], payload: Mapping[str, Any]) -> str | None:
+    """Validate and return the member path for a root observation, or refuse it on any other role (K reading 5)."""
+
+    member_path = payload.get("member_path")
+    if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+        if not isinstance(member_path, str) or not member_path:
+            raise IntegrityError("W9 observation of a legacy_manuscript_root requires member_path")
+        if r._restricted_path(member_path):
+            raise IntegrityError("W9 manuscript root member has a restricted D-9 suffix")
+        return member_path
+    if "member_path" in payload:
+        raise IntegrityError("W9 member_path is admitted only for a legacy_manuscript_root registration")
+    return None
+
+
+def _read_source_member(reader: LegacyReader, registration: Mapping[str, Any], member_path: str | None) -> Any:
+    """Keep the single-argument reader call for non-root registrations (compatibility with patched test readers)."""
+
+    return reader.read(registration) if member_path is None else reader.read(registration, member_path=member_path)
+
+
 def prepare_observation(
     payload: Mapping[str, Any],
     *,
@@ -811,15 +1209,16 @@ def prepare_observation(
 
     _refuse_supplied(payload, OBSERVATION_PREPARER_SET_FIELDS | OBSERVATION_READ_DERIVED_FIELDS | {"non_inferences"})
     reader = _need_reader(environment)
-    body = {key: deepcopy(value) for key, value in payload.items() if key != "frozen_copy_ref"}
+    body = {key: deepcopy(value) for key, value in payload.items() if key not in {"frozen_copy_ref", "member_path"}}
     registration_id = body.get("registration_ref", {}).get("id")
     registration = _recorded(legacy, "legacy_path_registration", registration_id)
     w9_evidence.require_registered(
         w9_evidence.read_evidence(reader.repository_root, reader.git_head, w9_evidence.REGISTRATION_MANIFEST),
         registration,
     )
+    member_path = _observation_member_path(registration, payload)
     try:
-        read = reader.read(registration)
+        read = _read_source_member(reader, registration, member_path)
     except ReadRefused as exc:
         raise IntegrityError(f"W9 source cannot be read: {exc}") from exc
     source = dict(read.source_identity)
@@ -858,7 +1257,7 @@ def prepare_observation(
         # The final re-read (§7.2): the recorded hashes and frozen copy are those of these bytes, so any change up to
         # it aborts with no event and no receipt.
         try:
-            final = reader.read(registration)
+            final = _read_source_member(reader, registration, member_path)
         except ReadRefused as exc:
             raise IntegrityError(f"W9 source cannot be re-read: {exc}") from exc
         if final.raw != read.raw:
@@ -872,12 +1271,13 @@ def observation_id(
 ) -> str:
     """The derived ``record_id`` the LR-015 preparer will compute for an envelope (§5.3, §13). Reads; writes nothing."""
 
-    body = {key: deepcopy(value) for key, value in payload.items() if key != "frozen_copy_ref"}
+    body = {key: deepcopy(value) for key, value in payload.items() if key not in {"frozen_copy_ref", "member_path"}}
     registration_id = body.get("registration_ref", {}).get("id")
     registration = _recorded(legacy, "legacy_path_registration", registration_id)
     reader = _need_reader(environment)
+    member_path = _observation_member_path(registration, payload)
     try:
-        read = reader.read(registration)
+        read = _read_source_member(reader, registration, member_path)
     except ReadRefused as exc:
         raise IntegrityError(f"W9 source cannot be read: {exc}") from exc
     source = dict(read.source_identity)

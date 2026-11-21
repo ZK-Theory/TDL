@@ -48,8 +48,9 @@ def adoption_suspension_cause(state: Mapping[str, Any], adoption: Mapping[str, A
     3. **Stale observation** (its own observation in ``stale_observations``, M-1) or a **later observation** of its
        source: for a whole-file adoption, any later observation of the registration (or, for a
        ``legacy_manuscript_root``, any later observation with the same source path); for a family adoption, any later
-       ``json_family_set`` observation naming an adopted family; for an item observation (forward-compatible), any later
-       matching item selector.
+       ``json_family_set`` observation of the registration naming an adopted family (or, for a
+       ``legacy_manuscript_root``, any later such observation with the same source path); for an item observation
+       (forward-compatible), any later matching item selector.
     """
 
     adoption_id = adoption.get("record_id")
@@ -119,7 +120,8 @@ def adoption_suspension_cause(state: Mapping[str, Any], adoption: Mapping[str, A
             if other_sel.get("selector_kind") == "json_family_set" and (
                 set(other_sel.get("family_names", ())) & adopted_families
             ):
-                return "later_observation"
+                if reg.get("role") != _ROOT_ROLE or _source_path(other.get("source_identity", {})) == obs_path:
+                    return "later_observation"
         elif obs_sel.get("selector_kind") == "inventory_item":
             if other_sel.get("selector_kind") == "inventory_item" and _item_selector_key(
                 other_sel

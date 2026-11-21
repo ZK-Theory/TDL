@@ -58,17 +58,12 @@ def _envelope_pin() -> tuple[str, str, str, str, int]:
     return ENVELOPE_PATH, commit, blob, hashlib.sha256(raw).hexdigest(), len(raw)
 
 
-# Design note §3 (updated by WP9.4 note §2.4 / P-086 item 2): LR-023 to LR-034 are routed by WP9.4-1.
+# Design note §3 (updated by WP9.4 note §2.4 / P-087): LR-035, LR-039, and LR-040 to LR-055 are routed by WP9.4-2.
 EXPECTED_TAGS = {
     "LR-002": "catalogue_revision",
     "LR-021": "WP9.7",
     "LR-022": "WP9.7",
-    "LR-035": "WP9.4",
-    "LR-036": "WP9.6",
-    "LR-037": "WP9.6",
-    "LR-038": "WP9.6",
-    "LR-039": "WP9.4",
-    **{f"LR-{n:03d}": "WP9.4" for n in range(40, 56)},
+    **{f"LR-{n:03d}": "WP9.6" for n in range(36, 39)},
     **{f"LR-{n:03d}": "WP9.6" for n in range(56, 61)},
     "LR-061": "WP9.7",
 }
@@ -178,12 +173,17 @@ WP9_3_PRODUCERS = {
 }
 
 
+WP9_4_2_COMMANDS = {
+    "CreateLegacyPaperRoot",
+    "RecordPaperCitationStatus",
+}
+BOUND_COMMANDS = WP9_3_COMMANDS | WP9_4_2_COMMANDS
+
+
 def test_genesis_and_the_seven_wp9_3_commands_have_runtime_binding_rows() -> None:
     bound = {binding.command_type for binding in _RUNTIME_BINDINGS if binding.command_type in LEGACY_COMMAND_TYPES}
-    assert bound == {"ImportAcceptedW9CatalogueGenesis", *WP9_3_COMMANDS}
+    assert bound == {"ImportAcceptedW9CatalogueGenesis", *BOUND_COMMANDS}
     assert LEGACY_COMMAND_TYPES - bound == {
-        "CreateLegacyPaperRoot",
-        "RecordPaperCitationStatus",
         "RecordAdoptionUseMismatch",
         "ImportAcceptedW9CatalogueRevision",
     }
@@ -193,9 +193,9 @@ def test_genesis_and_the_seven_wp9_3_commands_have_runtime_binding_rows() -> Non
         if binding.producer_command_type in LEGACY_COMMAND_TYPES
     }
     assert producers == WP9_3_PRODUCERS
-    rows = [binding for binding in _RUNTIME_BINDINGS if binding.command_type in WP9_3_COMMANDS]
+    rows = [binding for binding in _RUNTIME_BINDINGS if binding.command_type in BOUND_COMMANDS]
     assert {(binding.schema_id, binding.schema_version) for binding in rows} == {("ars://core/command", "1.0.0")}
-    assert len(rows) == 7
+    assert len(rows) == 9
 
 
 def test_route_registry_is_exact_to_the_accepted_catalogue() -> None:
@@ -219,37 +219,35 @@ def test_route_registry_refuses_a_changed_catalogue(mutate: Any) -> None:
         routes.validate_legacy_route_registry(catalogue)
 
 
-def test_route_classes_are_thirty_one_routed_and_thirty_deferred_with_the_design_note_tags() -> None:
-    """WP9.4 note §15: the counts are pinned here, per PR, not in genesis guard 8. WP9.4-1: 31 and 30."""
-    expected_routed = {
+_EXPECTED_ROUTED = frozenset(
+    {
         "LR-001",
         *(f"LR-{n:03d}" for n in range(3, 21)),
-        *(f"LR-{n:03d}" for n in range(23, 35)),
+        *(f"LR-{n:03d}" for n in range(23, 36)),
+        *(f"LR-{n:03d}" for n in range(39, 56)),
     }
-    assert routes.LEGACY_ROUTED_ROWS == expected_routed
-    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (31, 30)
+)
+_BROKEN_ROUTED = _EXPECTED_ROUTED - {"LR-020"}
+
+
+def test_route_classes_are_forty_nine_routed_and_twelve_deferred_with_the_design_note_tags() -> None:
+    """WP9.4 note §15: the counts are pinned here, per PR, not in genesis guard 8. WP9.4-2: 49 and 12."""
+    assert routes.LEGACY_ROUTED_ROWS == _EXPECTED_ROUTED
+    assert (len(routes.LEGACY_ROUTED_ROWS), len(routes.LEGACY_DEFERRED_ROWS)) == (49, 12)
     assert routes.LEGACY_DEFERRED_ROWS == EXPECTED_TAGS
     assert "WP9.3" not in set(routes.LEGACY_DEFERRED_ROWS.values())
+    assert "WP9.4" not in set(routes.LEGACY_DEFERRED_ROWS.values())
 
 
 @pytest.mark.parametrize(
     ("routed", "deferred"),
     [
         # A missing row: LR-020 in neither set.
-        (
-            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20)), *(f"LR-{n:03d}" for n in range(23, 35))}),
-            EXPECTED_TAGS,
-        ),
+        (_BROKEN_ROUTED, EXPECTED_TAGS),
         # An overlapping row: LR-020 both routed and deferred.
-        (
-            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 21)), *(f"LR-{n:03d}" for n in range(23, 35))}),
-            {**EXPECTED_TAGS, "LR-020": "WP9.7"},
-        ),
+        (_EXPECTED_ROUTED, {**EXPECTED_TAGS, "LR-020": "WP9.7"}),
         # An untagged row: LR-020 deferred with no valid tag.
-        (
-            frozenset({"LR-001", *(f"LR-{n:03d}" for n in range(3, 20)), *(f"LR-{n:03d}" for n in range(23, 35))}),
-            {**EXPECTED_TAGS, "LR-020": "WP9.9"},
-        ),
+        (_BROKEN_ROUTED, {**EXPECTED_TAGS, "LR-020": "WP9.9"}),
     ],
     ids=["missing", "overlapping", "untagged"],
 )

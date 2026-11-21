@@ -36,9 +36,7 @@ from tests.research_system.contracts.test_w9_contract_materialization import (
     _header,
     _load_tool,
     _observation,
-    _paper_root,
     _tracked,
-    _transition,
 )
 from tests.research_system.integration import w9_flows as flows
 from tests.research_system.integration.test_w9_legacy_runtime import _genesis_command, _store
@@ -305,16 +303,18 @@ def test_c3_a_w9_payload_naming_a_w11_row_is_refused(base) -> None:
 
 
 def test_a_deferred_row_is_refused(base) -> None:
-    """LR-040 stays deferred to WP9.4, though ProposeLegacyRecord is bound (note §2.2). LR-016 (WP9.3-2) and
-    LR-023 (WP9.4-1) are routed, so the same forged payload reaches their schema check instead of the route check."""
+    """LR-056 stays deferred to WP9.6, though ProposeLegacyRecord is bound (note §2.2). LR-016 (WP9.3-2),
+    LR-023 (WP9.4-1), and LR-040 (WP9.4-2) are routed, so the same forged payload reaches their schema check instead of
+    the route check."""
     events, schemas = base
-    event_type = LEGACY_ROW_ROUTES["LR-040"].events[0].event_type
-    ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": "ars://legacy/legacy-source-inventory"})
-    with pytest.raises(IntegrityError, match=r"W9 row not routed in this version: LR-040 \(WP9.4\)"):
+    event_type = LEGACY_ROW_ROUTES["LR-056"].events[0].event_type
+    ledger = _forge(events, "ProposeLegacyRecord", event_type, {"schema_id": "ars://legacy/legacy-record-supersession"})
+    with pytest.raises(IntegrityError, match=r"W9 row not routed in this version: LR-056 \(WP9\.6\)"):
         replay_legacy(ledger, schemas=schemas)
     for row_id, schema_id in (
         ("LR-016", "ars://legacy/legacy-closed-reference-acceptance"),
         ("LR-023", "ars://legacy/legacy-adoption-decision"),
+        ("LR-040", "ars://legacy/legacy-source-inventory"),
     ):
         forged_type = LEGACY_ROW_ROUTES[row_id].events[0].event_type
         forged = _forge(events, "ProposeLegacyRecord", forged_type, {"schema_id": schema_id})
@@ -433,8 +433,11 @@ def _resolve(row_id: str, decision_id: str) -> dict[str, Any]:
     return {"decision_id": decision_id, "governing_evidence_refs": [f"W9:{row_id}"]}
 
 
-def _replay_all(ledger: tuple, schemas: Any) -> dict[str, Any]:
-    return replay_legacy(ledger, schemas=schemas, routed_rows=ALL_ROWS)
+def _replay_all(ledger: tuple, schemas: Any, *, pin: Any = None) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"routed_rows": ALL_ROWS}
+    if pin is not None:
+        kwargs["pinned_signatures"] = (pin,)
+    return replay_legacy(ledger, schemas=schemas, **kwargs)
 
 
 def _owner(events: tuple) -> str:
@@ -451,17 +454,27 @@ def _registered(events: tuple) -> tuple[tuple, dict[str, Any], str]:
     return forger.events, record, record["registration_decision_ref"]["id"]
 
 
-def _transition_record(registration_id: str, decision_id: str, from_mode: str, to_mode: str) -> dict[str, Any]:
-    record = _transition(from_mode, to_mode, mapping=to_mode == "successor_owned")
-    record.update(record_id=_obj(), subject_registration_ref=_ref(registration_id), decision_ref=_ref(decision_id))
-    return flows.stamp(record)
+def _supersession(superseded: str, replacing: str, decision_id: str) -> dict[str, Any]:
+    return flows.stamp(
+        {
+            **_header("legacy-record-supersession"),
+            "record_id": _obj(),
+            "superseded_ref": _ref(superseded),
+            "replacing_ref": _ref(replacing),
+            "reason": "test supersession",
+            "reviewer_ref": _ref(new_id("review")),
+            "decision_ref": _ref(decision_id),
+        }
+    )
 
 
-def _transitioned(ledger: tuple, row_id: str, record: dict[str, Any], decision_id: str) -> tuple:
-    """LR-050 → LR-053 → ``row_id``. The Decision names the transition it governs as evidence."""
-    ledger = _row(ledger, "LR-050", record)
-    ledger = _propose_decision(ledger, "LR-053", decision_id, record["record_id"])
-    return _row(ledger, row_id, _resolve(row_id, decision_id), deepcopy(record))
+def _superseded(ledger: tuple, superseded: str, replacing: str) -> tuple:
+    """LR-056 → LR-059 → LR-060."""
+    decision_id = new_id("decision")
+    record = _supersession(superseded, replacing, decision_id)
+    ledger = _row(ledger, "LR-056", record)
+    ledger = _propose_decision(ledger, "LR-059", decision_id, record["record_id"])
+    return _row(ledger, "LR-060", _resolve("LR-060", decision_id), deepcopy(record))
 
 
 def test_g5_a_resolved_record_is_bound_to_its_proposal_and_decision(base) -> None:
@@ -479,7 +492,7 @@ def test_g5_a_resolved_record_is_bound_to_its_proposal_and_decision(base) -> Non
     ("mutate", "message"),
     [
         (
-            lambda record, _: record.update(paper_root_ref={**record["paper_root_ref"], "content_hash": "1" * 64}),
+            lambda record, _: record.update(superseded_ref={**record["superseded_ref"], "content_hash": "1" * 64}),
             "differs from its open proposal",
         ),
         (lambda record, _: record.update(record_id=_obj()), "differs from its open proposal"),
@@ -488,20 +501,23 @@ def test_g5_a_resolved_record_is_bound_to_its_proposal_and_decision(base) -> Non
     ids=["other-content", "no-proposal", "other-decision"],
 )
 def test_g5_a_resolved_record_other_than_its_proposal_is_refused(base, mutate: Any, message: str) -> None:
-    """G5's equality in ``_record_resolved``, on a row WP9.3 leaves with WP9.2's rules (LR-050 → LR-053 → LR-054).
+    """G5's equality in ``_record_resolved``, on a row WP9.4-2 leaves with WP9.2's rules (LR-056 → LR-059 → LR-060).
 
-    On WP9.3's own rows F-8's subject check refuses first (``test_w9_wp9_3_replay``), so a WP9.6 row reaches this one.
+    On WP9.3 and WP9.4 rows earlier subject/content checks refuse first, so WP9.6's supersession row reaches this one.
     """
     events, schemas = base
-    ledger, registration, _ = _registered(events)
+    actors = flows.Actors(owner=_owner(events))
+    forger = flows.pilot_outcome_passed(flows.Forger(events), actors, start=5)
+    forger, first = flows.paper_root_created(forger, actors, start=10, paper_key="P01-A")
+    forger, second = flows.paper_root_created(forger, actors, start=12, paper_key="P01-B")
     decision_id = new_id("decision")
-    record = _transition_record(registration["record_id"], decision_id, "legacy_owned", "successor_owned")
-    ledger = _row(ledger, "LR-050", record)
-    ledger = _propose_decision(ledger, "LR-053", decision_id, record["record_id"])
+    record = _supersession(first["record_id"], second["record_id"], decision_id)
+    ledger = _row(forger.events, "LR-056", record)
+    ledger = _propose_decision(ledger, "LR-059", decision_id, record["record_id"])
     recorded = deepcopy(record)
     mutate(recorded, decision_id)
     flows.stamp(recorded)
-    ledger = _row(ledger, "LR-054", _resolve("LR-054", decision_id), recorded)
+    ledger = _row(ledger, "LR-060", _resolve("LR-060", decision_id), recorded)
     with pytest.raises(IntegrityError, match=message):
         _replay_all(ledger, schemas)
 
@@ -513,7 +529,7 @@ def test_a_decision_is_resolved_only_under_its_own_family(base) -> None:
     record = flows.registration(forger.project_id, actors.analyst, flows.at(0))
     ledger = forger.row("LR-003", record["record_id"], record, actor=actors.analyst, when=flows.at(0)).events
     decision_id = new_id("decision")
-    ledger = _propose_decision(ledger, "LR-053", decision_id)
+    ledger = _propose_decision(ledger, "LR-059", decision_id)
     ledger = _row(ledger, "LR-005", _resolve("LR-005", decision_id), record)
     with pytest.raises(IntegrityError, match="resolved under another Decision family"):
         _replay_all(ledger, schemas)
@@ -521,43 +537,76 @@ def test_a_decision_is_resolved_only_under_its_own_family(base) -> None:
 
 def test_w9_t5_ownership_moves_legacy_to_successor_to_closed(base) -> None:
     events, schemas = base
-    ledger, registration, _ = _registered(events)
-    registration_id = registration["record_id"]
-    to_successor = _transition_record(registration_id, (first := new_id("decision")), "legacy_owned", "successor_owned")
-    ledger = _transitioned(ledger, "LR-054", to_successor, first)
-    to_closed = _transition_record(
-        registration_id, (second := new_id("decision")), "successor_owned", "closed_reference"
+    forger, ctx = flows.full_path_prerequisites(events)
+    actors = ctx["actors"]
+    registration_id = ctx["reg_root"]["record_id"]
+    to_successor = flows.ownership_record(
+        forger.project_id,
+        actors.analyst,
+        flows.at(120),
+        ctx["reg_root"],
+        from_mode="legacy_owned",
+        to_mode="successor_owned",
+        mapping=ctx["mapping"],
+        paper_root=ctx["paper_root"],
     )
-    ledger = _transitioned(ledger, "LR-055", to_closed, second)
-    state = _replay_all(ledger, schemas)
-    assert state["ownership"] == {registration_id: "closed_reference"}
+    forger = flows.ownership_recorded(forger, actors, to_successor, start=120)
+    to_closed = flows.ownership_record(
+        forger.project_id,
+        actors.analyst,
+        flows.at(130),
+        ctx["reg_root"],
+        from_mode="successor_owned",
+        to_mode="closed_reference",
+        mapping=None,
+        paper_root=None,
+    )
+    forger = flows.ownership_recorded(forger, actors, to_closed, start=130)
+    state = _replay_all(forger.events, schemas, pin=ctx["pin"])
+    assert state["ownership"][registration_id] == "closed_reference"
     assert state["row_counts"]["LR-054"] == state["row_counts"]["LR-055"] == 1
 
 
 @pytest.mark.parametrize(
-    ("first", "second", "message"),
+    ("steps", "message"),
     [
         # A from_mode other than the registration's current mode (current-mode check).
-        (("LR-054", "legacy_owned", "successor_owned"), ("LR-054", "legacy_owned", "successor_owned"), "current mode"),
-        # An allowed W9 transition under a row that admits another direction (_ROW_DIRECTIONS).
-        (None, ("LR-055", "legacy_owned", "closed_reference"), "differs from accepted LR-055"),
+        (
+            [("legacy_owned", "successor_owned"), ("legacy_owned", "successor_owned")],
+            "current mode",
+        ),
+        # Disallowed direct legacy_owned -> closed_reference refused at LR-050.
+        (
+            [("legacy_owned", "closed_reference")],
+            "W9 LR-050 refuses legacy_owned to closed_reference",
+        ),
         # Closing a registration that never left legacy ownership, under LR-055.
-        (None, ("LR-055", "successor_owned", "closed_reference"), "current mode"),
+        (
+            [("successor_owned", "closed_reference")],
+            "current mode",
+        ),
     ],
     ids=["stale-from-mode", "wrong-row-direction", "not-yet-successor"],
 )
-def test_w9_t5_an_ownership_transition_other_than_allowed_is_refused(base, first, second, message: str) -> None:
+def test_w9_t5_an_ownership_transition_other_than_allowed_is_refused(base, steps, message: str) -> None:
     events, schemas = base
-    ledger, registration, _ = _registered(events)
-    for step in (first, second):
-        if step is None:
-            continue
-        row_id, from_mode, to_mode = step
-        decision_id = new_id("decision")
-        record = _transition_record(registration["record_id"], decision_id, from_mode, to_mode)
-        ledger = _transitioned(ledger, row_id, record, decision_id)
+    forger, ctx = flows.full_path_prerequisites(events)
+    actors = ctx["actors"]
+    for idx, (from_mode, to_mode) in enumerate(steps):
+        is_successor = (from_mode, to_mode) == ("legacy_owned", "successor_owned")
+        record = flows.ownership_record(
+            forger.project_id,
+            actors.analyst,
+            flows.at(120 + idx * 10),
+            ctx["reg_root"],
+            from_mode=from_mode,
+            to_mode=to_mode,
+            mapping=ctx["mapping"] if is_successor else None,
+            paper_root=ctx["paper_root"] if is_successor else None,
+        )
+        forger = flows.ownership_recorded(forger, actors, record, start=120 + idx * 10)
     with pytest.raises(IntegrityError, match=message):
-        _replay_all(ledger, schemas)
+        _replay_all(forger.events, schemas, pin=ctx["pin"])
 
 
 # LR-020's acceptance and ownership transitions, which this file forged bare under WP9.2, are WP9.3-2's: routed with
@@ -663,28 +712,47 @@ def test_lr_014_reducer_refuses_an_approval_under_another_review_row() -> None:
     reducers.reduce_light_inventory(state, "LR-099", transaction, {})
 
 
-def _root(predecessor_id: str | None = None, decision_id: str | None = None) -> dict[str, Any]:
+def _root(
+    actors: flows.Actors,
+    project_id: str,
+    when: str,
+    *,
+    paper_key: str = "P01-A",
+    predecessor_id: str | None = None,
+    decision_id: str | None = None,
+    record_id: str | None = None,
+) -> dict[str, Any]:
     recovery = None
     if predecessor_id is not None:
         recovery = {"predecessor_root_ref": _ref(predecessor_id), "recovery_decision_ref": _ref(decision_id or "")}
-    return flows.stamp({**_paper_root(), "record_id": _obj(), "recovery": recovery})
+    extra = {"record_id": record_id} if record_id is not None else {}
+    return flows.paper_root_record(project_id, actors.analyst, when, paper_key=paper_key, recovery=recovery, **extra)
 
 
-def _recovery(events: tuple, *, evidence: tuple[str, ...] = (), resolve: bool = True) -> tuple[tuple, dict, str]:
-    """LR-035 → LR-036 → LR-037: an ordinary root and its resolved recovery Decision."""
-    predecessor = _root()
+def _recovery(
+    events: tuple, *, evidence: tuple[str, ...] = (), resolve: bool = True
+) -> tuple[tuple, flows.Actors, dict, str]:
+    """LR-022 -> LR-035 -> LR-036 -> LR-037: an ordinary root and its resolved recovery Decision."""
+    actors = flows.Actors(owner=_owner(events))
+    forger = flows.pilot_outcome_passed(flows.Forger(events), actors, start=5)
+    forger, predecessor = flows.paper_root_created(forger, actors, start=10, paper_key="P01-A")
     decision_id = new_id("decision")
-    ledger = _row(events, "LR-035", predecessor)
-    ledger = _propose_decision(ledger, "LR-036", decision_id, predecessor["record_id"], *evidence)
+    ledger = _propose_decision(forger.events, "LR-036", decision_id, predecessor["record_id"], *evidence)
     if resolve:
         ledger = _row(ledger, "LR-037", _resolve("LR-037", decision_id))
-    return ledger, predecessor, decision_id
+    return ledger, actors, predecessor, decision_id
 
 
 def test_w9_t21_a_recovery_root_follows_its_resolved_recovery_decision(base) -> None:
     events, schemas = base
-    ledger, predecessor, decision_id = _recovery(events)
-    root = _root(predecessor["record_id"], decision_id)
+    ledger, actors, predecessor, decision_id = _recovery(events)
+    root = _root(
+        actors,
+        predecessor["project_id"],
+        flows.at(20),
+        predecessor_id=predecessor["record_id"],
+        decision_id=decision_id,
+    )
     state = _replay_all(_row(ledger, "LR-038", root), schemas)
     assert set(state["records"]["legacy_paper_root"]) == {predecessor["record_id"], root["record_id"]}
     assert state["reference_edges"][decision_id] == [predecessor["record_id"]]
@@ -693,68 +761,118 @@ def test_w9_t21_a_recovery_root_follows_its_resolved_recovery_decision(base) -> 
 def test_w9_t21_a_recovery_decision_naming_its_recovery_root_is_refused(base) -> None:
     events, schemas = base
     root_id = _obj()
-    ledger, predecessor, decision_id = _recovery(events, evidence=(root_id,))
-    root = flows.stamp({**_root(predecessor["record_id"], decision_id), "record_id": root_id})
+    ledger, actors, predecessor, decision_id = _recovery(events, evidence=(root_id,))
+    root = _root(
+        actors,
+        predecessor["project_id"],
+        flows.at(20),
+        predecessor_id=predecessor["record_id"],
+        decision_id=decision_id,
+        record_id=root_id,
+    )
     with pytest.raises(IntegrityError, match="W9 recovery Decision names its recovery root"):
         _replay_all(_row(ledger, "LR-038", root), schemas)
 
 
 def test_w9_t21_a_recovery_root_needs_a_resolved_decision_and_a_recorded_predecessor(base) -> None:
     events, schemas = base
-    ledger, predecessor, decision_id = _recovery(events, resolve=False)
+    ledger, actors, predecessor, decision_id = _recovery(events, resolve=False)
     with pytest.raises(IntegrityError, match="names no resolved recovery Decision"):
-        _replay_all(_row(ledger, "LR-038", _root(predecessor["record_id"], decision_id)), schemas)
-    ledger, _, decision_id = _recovery(events)
+        _replay_all(
+            _row(
+                ledger,
+                "LR-038",
+                _root(
+                    actors,
+                    predecessor["project_id"],
+                    flows.at(20),
+                    predecessor_id=predecessor["record_id"],
+                    decision_id=decision_id,
+                ),
+            ),
+            schemas,
+        )
+    ledger, actors, predecessor, decision_id = _recovery(events)
     with pytest.raises(IntegrityError, match="names no recorded predecessor root"):
-        _replay_all(_row(ledger, "LR-038", _root(_obj(), decision_id)), schemas)
+        _replay_all(
+            _row(
+                ledger,
+                "LR-038",
+                _root(
+                    actors,
+                    predecessor["project_id"],
+                    flows.at(20),
+                    predecessor_id=_obj(),
+                    decision_id=decision_id,
+                ),
+            ),
+            schemas,
+        )
 
 
 def test_w9_t21_a_cycle_through_a_root_a_transition_and_a_recovery_decision_is_refused(base) -> None:
     """The recovery Decision names a transition, the transition names the recovery root, the root names the Decision."""
     events, schemas = base
-    ledger, registration, _ = _registered(events)
-    transition_decision = new_id("decision")
-    transition = _transition_record(registration["record_id"], transition_decision, "legacy_owned", "successor_owned")
-    ledger, predecessor, recovery_decision = _recovery(ledger, evidence=(transition["record_id"],))
-    root = _root(predecessor["record_id"], recovery_decision)
-    ledger = _row(ledger, "LR-038", root)
-    transition["paper_root_ref"] = _ref(root["record_id"])
-    flows.stamp(transition)
-    ledger = _transitioned(ledger, "LR-054", transition, transition_decision)
-    with pytest.raises(IntegrityError, match="W9 reference cycle"):
-        _replay_all(ledger, schemas)
-
-
-def _supersession(superseded: str, replacing: str, decision_id: str) -> dict[str, Any]:
-    return flows.stamp(
-        {
-            **_header("legacy-record-supersession"),
-            "record_id": _obj(),
-            "superseded_ref": _ref(superseded),
-            "replacing_ref": _ref(replacing),
-            "reason": "test supersession",
-            "reviewer_ref": _ref(new_id("review")),
-            "decision_ref": _ref(decision_id),
-        }
+    forger, ctx = flows.full_path_prerequisites(events, include_root_creation=False)
+    actors = ctx["actors"]
+    transition_id = _obj()
+    forger, predecessor = flows.paper_root_created(forger, actors, start=70, paper_key="P01-A")
+    recovery_decision = new_id("decision")
+    ledger = _propose_decision(forger.events, "LR-036", recovery_decision, predecessor["record_id"], transition_id)
+    ledger = _row(ledger, "LR-037", _resolve("LR-037", recovery_decision))
+    recovery_root = _root(
+        actors,
+        forger.project_id,
+        flows.at(80),
+        paper_key="P01-A",
+        predecessor_id=predecessor["record_id"],
+        decision_id=recovery_decision,
     )
-
-
-def _superseded(ledger: tuple, superseded: str, replacing: str) -> tuple:
-    """LR-056 → LR-059 → LR-060."""
-    decision_id = new_id("decision")
-    record = _supersession(superseded, replacing, decision_id)
-    ledger = _row(ledger, "LR-056", record)
-    ledger = _propose_decision(ledger, "LR-059", decision_id, record["record_id"])
-    return _row(ledger, "LR-060", _resolve("LR-060", decision_id), deepcopy(record))
+    forger = flows.Forger(_row(ledger, "LR-038", recovery_root))
+    mapping = flows.transition_mapping_record(
+        forger.project_id, actors.analyst, flows.at(95), ctx["inventory"], recovery_root, (1,)
+    )
+    forger = flows.transition_mapping_recorded(forger, actors, mapping, start=95)
+    status = flows.citation_status_record(
+        forger.project_id,
+        actors.reviewer,
+        flows.at(105),
+        recovery_root,
+        [
+            {
+                "observation_ref": flows.record_ref(ctx["obs_res"]),
+                "family_name": "headline",
+                "status": "adopted",
+                "adoption_ref": flows.record_ref(ctx["adoption"]),
+            }
+        ],
+    )
+    forger = forger.row("LR-039", status["record_id"], status, actor=actors.reviewer, when=flows.at(105))
+    transition = flows.ownership_record(
+        forger.project_id,
+        actors.analyst,
+        flows.at(120),
+        ctx["reg_root"],
+        from_mode="legacy_owned",
+        to_mode="successor_owned",
+        mapping=mapping,
+        paper_root=recovery_root,
+        record_id=transition_id,
+    )
+    forger = flows.ownership_recorded(forger, actors, transition, start=120)
+    with pytest.raises(IntegrityError, match="W9 reference cycle"):
+        _replay_all(forger.events, schemas, pin=ctx["pin"])
 
 
 def test_supersession_through_lr_060_is_acyclic(base) -> None:
     """Two recorded paper roots (LR-035) supersede each other: once, then never back (WP9.3 note §3 row 5)."""
     events, schemas = base
-    first, second = _root(), _root()
-    ledger = _row(_row(events, "LR-035", first), "LR-035", second)
-    first, second = first["record_id"], second["record_id"]
-    ledger = _superseded(ledger, first, second)
+    actors = flows.Actors(owner=_owner(events))
+    forger = flows.pilot_outcome_passed(flows.Forger(events), actors, start=5)
+    forger, first_rec = flows.paper_root_created(forger, actors, start=10, paper_key="P01-A")
+    forger, second_rec = flows.paper_root_created(forger, actors, start=12, paper_key="P01-B")
+    first, second = first_rec["record_id"], second_rec["record_id"]
+    ledger = _superseded(forger.events, first, second)
     assert _replay_all(ledger, schemas)["supersessions"] == {first: second}
     with pytest.raises(IntegrityError, match="W9 supersession cycle"):
         _replay_all(_superseded(ledger, second, first), schemas)
@@ -763,7 +881,8 @@ def test_supersession_through_lr_060_is_acyclic(base) -> None:
 def test_supersession_of_a_record_that_does_not_exist_is_refused(base) -> None:
     """WP9.3 note §3 row 5: replay refuses a superseded ref naming no recorded record, with WP9.6's rows routed."""
     events, schemas = base
-    replacing = _root()
-    ledger = _row(events, "LR-035", replacing)
+    actors = flows.Actors(owner=_owner(events))
+    forger = flows.pilot_outcome_passed(flows.Forger(events), actors, start=5)
+    forger, replacing = flows.paper_root_created(forger, actors, start=10, paper_key="P01-A")
     with pytest.raises(IntegrityError, match="W9 supersession names no recorded record"):
-        _replay_all(_superseded(ledger, _obj(), replacing["record_id"]), schemas)
+        _replay_all(_superseded(forger.events, _obj(), replacing["record_id"]), schemas)
