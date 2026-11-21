@@ -668,6 +668,8 @@ def _check_inventory(state: Mapping[str, Any], record: Mapping[str, Any], event:
     """LR-011's replay checks (§6.2)."""
 
     registration = _recorded(state, "legacy_path_registration", record.get("registration_ref"))
+    if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+        raise IntegrityError("W9 light inventory cannot target a legacy_manuscript_root registration")
     _source_matches_registration(record.get("source_identity", {}), registration, context)
     if event.get("actor_id") != record.get("observer_actor_id"):
         raise IntegrityError("W9 inventory observer is not the event's actor")
@@ -1343,6 +1345,16 @@ def _check_citation_status_lr039(
         if obs_id in supersessions or obs_id not in accepted_obs_ids:
             raise IntegrityError("W9 citation status cites a superseded or unaccepted observation")
         fname = str(entry.get("family_name"))
+        sel = obs.get("selector", {})
+        sel_kind = sel.get("selector_kind")
+        if sel_kind == "whole_file":
+            family_in_obs = fname == "whole_file"
+        else:
+            family_in_obs = (
+                sel_kind == "json_family_set" and fname != "whole_file" and fname in sel.get("family_names", ())
+            )
+        if not family_in_obs:
+            raise IntegrityError("W9 citation status family does not belong to the cited observation")
         if entry.get("status") == "adopted":
             adoption = _recorded(state, ADOPTION, entry.get("adoption_ref"))
             if not _adoption_covers_cited_family(adoption, obs_id, fname, expected_use):

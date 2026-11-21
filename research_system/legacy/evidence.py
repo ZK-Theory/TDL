@@ -82,10 +82,10 @@ def _evidence_git(repository_root: Path, *args: str, text: bool = True) -> Any:
 
 
 def _parse_evidence_json(raw: bytes, path: str) -> Any:
-    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int ``ValueError``)."""
+    """Decode strict UTF-8 JSON bytes or raise ``EvidenceRefused`` (catching oversized-int/nesting limits)."""
     try:
         return json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise EvidenceRefused(f"W9 evidence file is not JSON: {path}") from exc
 
 

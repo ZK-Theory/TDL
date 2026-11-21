@@ -21,6 +21,7 @@ from research_system.legacy.records import (
 from research_system.legacy.replay import reducers
 from research_system.legacy.replay.driver import replay_legacy
 from research_system.legacy.routes import LEGACY_ROUTED_ROWS, LEGACY_ROW_ROUTES
+from research_system.legacy.segmentation import segment
 from tests.research_system.integration import w9_flows as flows
 from tests.research_system.integration.test_w9_legacy_runtime import _genesis_command, _store
 from tests.research_system.integration.w9_flows import Actors, Forger, Tweak, at
@@ -210,6 +211,74 @@ def test_lr039_positive_unequal_hashes_chain_and_controls(base, actors: Actors) 
     f_unequal = forger_b.row("LR-039", unequal["record_id"], unequal, actor=actors.reviewer, when=at(107))
     st_unequal = _replay(f_unequal, schemas, pin=ctx_b["pin"])
     assert st_unequal["current_citation_status_by_root"][ctx_b["paper_root"]["record_id"]] == unequal["record_id"]
+    assert ctx_b["citation_status"]["record_id"] in st_unequal["reference_edges"][unequal["record_id"]]
+
+    # T6: stale supersedes_status_ref naming older status after unequal is current, with unequal's revision and hash.
+    stale_id_ref = flows.citation_status_record(
+        f_unequal.project_id,
+        actors.reviewer,
+        at(108),
+        ctx_b["paper_root"],
+        [
+            {
+                "observation_ref": flows.record_ref(ctx_b["obs_res"]),
+                "family_name": "headline",
+                "status": "adopted",
+                "adoption_ref": flows.record_ref(ctx_b["adoption"]),
+            }
+        ],
+        supersedes_status=unequal,
+    )
+    stale_id_ref["supersedes_status_ref"]["id"] = ctx_b["citation_status"]["record_id"]
+    stale_id_ref = flows.stamp(stale_id_ref)
+    _refused(
+        f_unequal.row("LR-039", stale_id_ref["record_id"], stale_id_ref, actor=actors.reviewer, when=at(108)),
+        schemas,
+        "W9 citation status supersedes_status_ref must name the root's current citation status",
+        pin=ctx_b["pin"],
+    )
+
+    # F3: forged family_name not in the cited observation (adopted or unadopted) refuses at LR-039.
+    for bad_entry in (
+        {
+            "observation_ref": flows.record_ref(ctx_b["obs_res"]),
+            "family_name": "forged_unknown",
+            "status": "unadopted",
+            "adoption_ref": None,
+        },
+        {
+            "observation_ref": flows.record_ref(obs_mem),
+            "family_name": "headline",
+            "status": "unadopted",
+            "adoption_ref": None,
+        },
+        {
+            "observation_ref": flows.record_ref(ctx_b["obs_res"]),
+            "family_name": "whole_file",
+            "status": "unadopted",
+            "adoption_ref": None,
+        },
+        {
+            "observation_ref": flows.record_ref(ctx_b["obs_res"]),
+            "family_name": "other",
+            "status": "adopted",
+            "adoption_ref": flows.record_ref(ctx_b["adoption"]),
+        },
+    ):
+        forged_fam = flows.citation_status_record(
+            f_unequal.project_id,
+            actors.reviewer,
+            at(108),
+            ctx_b["paper_root"],
+            [bad_entry],
+            supersedes_status=unequal,
+        )
+        _refused(
+            f_unequal.row("LR-039", forged_fam["record_id"], forged_fam, actor=actors.reviewer, when=at(108)),
+            schemas,
+            "W9 citation status family does not belong to the cited observation",
+            pin=ctx_b["pin"],
+        )
 
     # Supersession chain errors: null supersedes when prior status exists, or pointing to stale status.
     no_sup = flows.citation_status_record(
@@ -765,6 +834,52 @@ def test_lr050_to_lr055_w9t5_w9t17_ruling3_and_owner_point_l(base, actors: Actor
         pin=pin,
     )
 
+    # T2: full positive LR-054 -> LR-055 replay asserts recorded reference_edges on all WP9.4-2 edge-writing rows.
+    ok_closed = flows.ownership_recorded(ok_succ, actors, to_closed, start=130, open_items_blob=None)
+    st_done = _replay(ok_closed, schemas, pin=pin)
+    assert st_done["ownership"][ctx["reg_root"]["record_id"]] == "closed_reference"
+    edges = st_done["reference_edges"]
+    assert edges[ctx["paper_root"]["record_id"]] == []
+    assert edges[ctx["inventory"]["record_id"]] == sorted(
+        {
+            ctx["reg_root"]["record_id"],
+            ctx["obs_member"]["record_id"],
+            ctx["inventory"]["reviewer_ref"]["id"],
+            ctx["inventory"]["decision_ref"]["id"],
+        }
+    )
+    assert edges[ctx["mapping"]["record_id"]] == sorted(
+        {
+            ctx["inventory"]["record_id"],
+            ctx["paper_root"]["record_id"],
+            ctx["mapping"]["reviewer_ref"]["id"],
+            ctx["mapping"]["decision_ref"]["id"],
+        }
+    )
+    assert edges[ctx["citation_status"]["record_id"]] == sorted(
+        {
+            ctx["paper_root"]["record_id"],
+            ctx["obs_res"]["record_id"],
+            ctx["adoption"]["record_id"],
+        }
+    )
+    assert edges[to_succ["record_id"]] == sorted(
+        {
+            ctx["mapping"]["record_id"],
+            ctx["reg_root"]["record_id"],
+            ctx["paper_root"]["record_id"],
+            to_succ["reviewer_ref"]["id"],
+            to_succ["decision_ref"]["id"],
+        }
+    )
+    assert edges[to_closed["record_id"]] == sorted(
+        {
+            ctx["reg_root"]["record_id"],
+            to_closed["reviewer_ref"]["id"],
+            to_closed["decision_ref"]["id"],
+        }
+    )
+
     # Unconditional fixture missing on LR-054 refuses; conditional F-038 admitted.
     _refused(
         flows.ownership_recorded(
@@ -1051,6 +1166,22 @@ def test_owner_point_k_readings_1_to_4_and_non_root_controls(base, actors: Actor
         forger, actors, path="papers/P01-A-JRSSA/", role="legacy_manuscript_root", start=10
     )
 
+    # F1: LR-011 must refuse a legacy_manuscript_root registration before checking the source.
+    root_light_inv = flows.inventory(
+        forger.project_id,
+        actors.observer,
+        at(14),
+        reg_root,
+        segment(b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.1 | a |\n", "tracker_task_row"),
+        source=flows.tracked("papers/P01-A-JRSSA/drafts/main.tex"),
+    )
+    _refused(
+        forger.row("LR-011", root_light_inv["record_id"], root_light_inv, actor=actors.observer, when=at(14)),
+        schemas,
+        "W9 light inventory cannot target a legacy_manuscript_root registration",
+        pin=pin,
+    )
+
     # K1: root directory itself (with or without trailing '/') or path outside root refused at LR-015.
     for bad_path in ("papers/P01-A-JRSSA/", "papers/P01-A-JRSSA", "papers/P01-A-JRSSA-old/x.tex"):
         bad_obs = flows.observation(
@@ -1144,6 +1275,89 @@ def test_owner_point_k_readings_1_to_4_and_non_root_controls(base, actors: Actor
         "cause": None,
     }
 
+    # F2 (K reading 3): family adoption on root/a.json stays ACTIVE when root/b.json shares family 'headline';
+    # observing root/a.json again with 'headline' suspends it; non-root family adoption suspends across export paths.
+    fa_path = "papers/P01-A-JRSSA/data/fa.json"
+    fb_path = "papers/P01-A-JRSSA/data/fb.json"
+    fa_sha, fb_sha = "4" * 64, "5" * 64
+    fa_blob, fb_blob = "4" * 40, "5" * 40
+    forger_f, reg_root_f = flows.registered(
+        Forger(events), actors, path="papers/P01-A-JRSSA/", role="legacy_manuscript_root", start=10
+    )
+    forger_f, tbl_fa = flows.membership_recorded(forger_f, actors, path=fa_path, sha256=fa_sha, size=10, start=12)
+    forger_f, tbl_fb = flows.membership_recorded(forger_f, actors, path=fb_path, sha256=fb_sha, size=10, start=18)
+    obs_fa = flows.observation(
+        forger_f.project_id,
+        actors.observer,
+        at(25),
+        reg_root_f,
+        pin,
+        count=0,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(tbl_fa),
+            "family_names": ["headline"],
+        },
+        families=[flows.signed_family("headline", pin)],
+        source=flows.tracked(fa_path, sha256=fa_sha, size=10, blob=fa_blob),
+    )
+    forger_f = forger_f.row("LR-015", obs_fa["record_id"], obs_fa, actor=actors.observer, when=at(25))
+    batch_fa = flows.acceptance(forger_f.project_id, actors.analyst, at(30), [obs_fa])
+    forger_f = flows.acceptance_recorded(forger_f, actors, batch_fa, [], start=30)
+    adp_fa = flows.adoption(
+        forger_f.project_id,
+        actors.analyst,
+        at(45),
+        obs_fa,
+        subject={"subject_kind": "families", "family_names": ["headline"]},
+        intended_use={"description": "w9-use:manuscript-claims/P01-A", "successor_ref": None},
+    )
+    forger_f = flows.adoption_recorded(forger_f, actors, adp_fa, applicable_fixtures=("F-019", "S-017"), start=45)
+    obs_fb = flows.observation(
+        forger_f.project_id,
+        actors.observer,
+        at(55),
+        reg_root_f,
+        pin,
+        count=1,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(tbl_fb),
+            "family_names": ["headline"],
+        },
+        families=[flows.signed_family("headline", pin)],
+        source=flows.tracked(fb_path, sha256=fb_sha, size=10, blob=fb_blob),
+    )
+    forger_fb = forger_f.row("LR-015", obs_fb["record_id"], obs_fb, actor=actors.observer, when=at(55))
+    st_fb = _replay(forger_fb, schemas, pin=pin)
+    assert projection_read.adoption_status(st_fb, adp_fa["record_id"]) == {
+        "adoption_id": adp_fa["record_id"],
+        "status": "active",
+        "cause": None,
+    }
+    obs_fa_2 = flows.observation(
+        forger_fb.project_id,
+        actors.observer,
+        at(60),
+        reg_root_f,
+        pin,
+        count=2,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(tbl_fa),
+            "family_names": ["headline"],
+        },
+        families=[flows.signed_family("headline", pin)],
+        source=flows.tracked(fa_path, sha256=fa_sha, size=10, blob=fa_blob),
+    )
+    forger_fa_2 = forger_fb.row("LR-015", obs_fa_2["record_id"], obs_fa_2, actor=actors.observer, when=at(60))
+    st_fa_2 = _replay(forger_fa_2, schemas, pin=pin)
+    assert projection_read.adoption_status(st_fa_2, adp_fa["record_id"]) == {
+        "adoption_id": adp_fa["record_id"],
+        "status": "suspended",
+        "cause": "later_observation",
+    }
+
     # Control (R4-m1): non-root legacy_decision_log_entry with two different export paths STILL marks earlier stale.
     forger_cl, reg_cl = flows.registered(
         Forger(events), actors, path="exports/cl-main.json", role="legacy_decision_log_entry", start=10, file_id="99"
@@ -1178,6 +1392,85 @@ def test_owner_point_k_readings_1_to_4_and_non_root_controls(base, actors: Actor
     forger_cl = forger_cl.row("LR-015", cl_2["record_id"], cl_2, actor=actors.observer, when=at(25))
     st_cl = _replay(forger_cl, schemas, pin=pin, accepted_cl_export=exports)
     assert st_cl["stale_observations"] == [cl_1["record_id"]]
+
+    # Non-root family adoption control for F2: later json_family_set observation on another CL export path suspends it.
+    cl_same_blob = "5" * 40
+    cl_same_sha = "5" * 64
+    exports_fam = (
+        {
+            "retained_copy": {
+                "repository_path": "exports/cl-f1.json",
+                "git_commit": flows.SHA1,
+                "git_blob": cl_same_blob,
+            }
+        },
+        {
+            "retained_copy": {
+                "repository_path": "exports/cl-f2.json",
+                "git_commit": flows.SHA1,
+                "git_blob": cl_same_blob,
+            }
+        },
+    )
+    forger_cl_f, reg_cl_f = flows.registered(
+        Forger(events), actors, path="exports/cl-fam.json", role="legacy_decision_log_entry", start=10, file_id="98"
+    )
+    forger_cl_f, tbl_cl_1 = flows.membership_recorded(
+        forger_cl_f, actors, path="exports/cl-f1.json", sha256=cl_same_sha, size=10, start=12
+    )
+    forger_cl_f, tbl_cl_2 = flows.membership_recorded(
+        forger_cl_f, actors, path="exports/cl-f2.json", sha256=cl_same_sha, size=10, start=18
+    )
+    cl_fam_1 = flows.observation(
+        forger_cl_f.project_id,
+        actors.observer,
+        at(25),
+        reg_cl_f,
+        pin,
+        count=0,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(tbl_cl_1),
+            "family_names": ["headline"],
+        },
+        families=[flows.signed_family("headline", pin)],
+        source=flows.tracked("exports/cl-f1.json", sha256=cl_same_sha, size=10, blob=cl_same_blob),
+    )
+    forger_cl_f = forger_cl_f.row("LR-015", cl_fam_1["record_id"], cl_fam_1, actor=actors.observer, when=at(25))
+    batch_cl = flows.acceptance(forger_cl_f.project_id, actors.analyst, at(30), [cl_fam_1])
+    forger_cl_f = flows.acceptance_recorded(forger_cl_f, actors, batch_cl, [], start=30)
+    adp_cl = flows.adoption(
+        forger_cl_f.project_id,
+        actors.analyst,
+        at(45),
+        cl_fam_1,
+        subject={"subject_kind": "families", "family_names": ["headline"]},
+        intended_use={"description": "w9-use:claim-evidence/c1", "successor_ref": None},
+    )
+    forger_cl_f = flows.adoption_recorded(forger_cl_f, actors, adp_cl, applicable_fixtures=("F-019", "S-017"), start=45)
+    cl_fam_2 = flows.observation(
+        forger_cl_f.project_id,
+        actors.observer,
+        at(55),
+        reg_cl_f,
+        pin,
+        count=1,
+        selector={
+            "selector_kind": "json_family_set",
+            "membership_ref": flows.record_ref(tbl_cl_2),
+            "family_names": ["headline"],
+        },
+        families=[flows.signed_family("headline", pin)],
+        source=flows.tracked("exports/cl-f2.json", sha256=cl_same_sha, size=10, blob=cl_same_blob),
+    )
+    forger_cl_f = forger_cl_f.row("LR-015", cl_fam_2["record_id"], cl_fam_2, actor=actors.observer, when=at(55))
+    st_cl_f = _replay(forger_cl_f, schemas, pin=pin, accepted_cl_export=exports_fam)
+    assert st_cl_f["stale_observations"] == []
+    assert projection_read.adoption_status(st_cl_f, adp_cl["record_id"]) == {
+        "adoption_id": adp_cl["record_id"],
+        "status": "suspended",
+        "cause": "later_observation",
+    }
 
 
 def test_p087_item6_second_registration_refused_with_active_whole_file_adoption(base, actors: Actors) -> None:
@@ -1217,11 +1510,9 @@ def test_p087_item6_second_registration_refused_with_active_whole_file_adoption(
     for variant_kwargs in (
         {"path": "DATA/raw.npy", "file_id": "999", "target": "C:/scratch/DATA/raw.npy"},
         {"path": "data/alias.npy", "file_id": "401", "target": "C:/other/alias.npy"},
-        {
-            "path": "papers/P01-A-JRSSA/drafts/a.npy",
-            "file_id": "998",
-            "target": "C:/scratch/papers/P01-A-JRSSA/drafts/a.npy",
-        },
+        # T1: isolate folded-path prefix collision vs physical canonical_target prefix collision.
+        {"path": "papers/P01-A-JRSSA/drafts/a.npy", "file_id": "998", "target": "D:/outside/drafts/a.npy"},
+        {"path": "external/aliased_a.npy", "file_id": "997", "target": "C:/scratch/papers/P01-A-JRSSA/drafts/a.npy"},
     ):
         dup = flows.registration(forger.project_id, actors.analyst, at(60), **variant_kwargs)
         _refused(

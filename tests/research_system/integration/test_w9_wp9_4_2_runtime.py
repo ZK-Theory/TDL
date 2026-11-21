@@ -31,6 +31,7 @@ from research_system.legacy.records import (
 from research_system.legacy.replay.driver import replay_legacy
 from research_system.legacy.replay.reducers import iso_z
 from research_system.legacy.runtime import GATE6_REASON_CODE
+from research_system.legacy.segmentation import segment
 from tests.research_system.integration import w9_flows as flows
 from tests.research_system.integration.test_w9_legacy_runtime import (
     GATE6,
@@ -835,6 +836,38 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
         )
     assert _snapshot(store) == snap_inv_win
     main_file.write_bytes(draft_bytes)
+
+    def check_commit_reread(dec_id: str, grant_id: str, label: str) -> None:
+        snap_win = _snapshot(store)
+        orig_read = store.runtime.reader.read
+        main_calls: list[int] = []
+
+        def mutate_after_first_read(reg: Any, *, member_path: str | None = None) -> Any:
+            if member_path == "papers/P01-A-JRSSA/drafts/main.tex":
+                main_calls.append(1)
+            out = orig_read(reg) if member_path is None else orig_read(reg, member_path=member_path)
+            if member_path == "papers/P01-A-JRSSA/drafts/main.tex" and len(main_calls) == 1:
+                main_file.write_bytes(f"Changed in {label} commit window!\n".encode())
+            return out
+
+        with monkeypatch.context() as mp:
+            mp.setattr(store.runtime.reader, "read", mutate_after_first_read)
+            with pytest.raises(IntegrityError, match="W9 source inventory row cannot be read"):
+                store.runtime.submit(
+                    store.envelope(
+                        "ResolveW9AuthorityDecision",
+                        OWNER,
+                        dec_id,
+                        1,
+                        {"decision_id": dec_id, "selected_option": "accept"},
+                        authority_grant_id=grant_id,
+                    )
+                )
+        assert len(main_calls) == 2
+        assert _snapshot(store) == snap_win
+        main_file.write_bytes(draft_bytes)
+
+    check_commit_reread(dec_inv, grant_dec_inv, "LR-044")
     inv_res_env = store.envelope(
         "ResolveW9AuthorityDecision",
         OWNER,
@@ -897,6 +930,53 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
     )
     assert cli_derived["derived_record_id"] == expected_status_id
     assert _tree_bytes(control_root) == before_bytes
+
+    # F6: unequal reviewer hash on non-empty blocker-free set still prints derived_record_id;
+    # blockers present or empty cited_family_set omit derived_record_id.
+    assert (
+        cli.main(
+            [
+                "legacy",
+                "cited-families",
+                "--root",
+                paper_root["record_id"],
+                "--reviewer-sha256",
+                "d" * 64,
+                "--control-root",
+                str(control_root),
+            ]
+        )
+        == 0
+    )
+    assert "derived_record_id" in json.loads(capsys.readouterr().out)
+
+    orig_extract = citations.extract_citations
+    for override in (
+        {"blockers": [{"kind": "unregistered", "citing_path": "p", "token": "x.json"}]},
+        {"blockers": [], "cited_family_set": [], "cited_family_set_sha256": sha256_hex(canonical_bytes([]))},
+    ):
+        with monkeypatch.context() as mp:
+            mp.setattr(
+                citations,
+                "extract_citations",
+                lambda *a, _ov=override, **kw: {**orig_extract(*a, **kw), **_ov},
+            )
+            assert (
+                cli.main(
+                    [
+                        "legacy",
+                        "cited-families",
+                        "--root",
+                        paper_root["record_id"],
+                        "--reviewer-sha256",
+                        ext_hash,
+                        "--control-root",
+                        str(control_root),
+                    ]
+                )
+                == 0
+            )
+            assert "derived_record_id" not in json.loads(capsys.readouterr().out)
 
     # Owner point N on LR-039 + record LR-039 citation status, then LR-050..054 (successor_owned), then LR-050..055 (closed_reference).
     families_payload = [
@@ -1061,6 +1141,7 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
     assert _snapshot(store) == snap_succ_win
     main_file.write_bytes(draft_bytes)
 
+    check_commit_reread(dec_succ, grant_res_succ, "LR-054")
     succ_res_env = store.envelope(
         "ResolveW9AuthorityDecision",
         OWNER,
@@ -1177,6 +1258,7 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
     finally:
         a_backup.rename(a_dir)
 
+    check_commit_reread(dec_close, grant_res_close, "LR-055")
     close_res_env = store.envelope(
         "ResolveW9AuthorityDecision",
         OWNER,
@@ -1191,26 +1273,19 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
     close_steps.append((close_res_env, close_res_rec))
     assert _state(store)["ownership"][reg_root["record_id"]] == "closed_reference"
 
-    # W9-C11 idempotency retries on every new / full-path step return identical receipt & append 0 events.
+    # W9-C11 idempotency retries on every full-path step return identical receipt & append 0 events (T4).
     snap_done = _snapshot(store)
     retry_pairs = [
         (root_env, root_rec),
         (status_env, status_receipt),
-        inv_steps[0],
-        inv_steps[-1],
-        map_steps[0],
-        map_steps[-1],
-        succ_steps[0],
-        succ_steps[-1],
-        close_steps[0],
-        close_steps[-1],
+        *inv_steps,
+        *map_steps,
+        *succ_steps,
+        *close_steps,
     ]
     for env, expected_rec in retry_pairs:
         retried = store.runtime.submit(deepcopy(env))
-        if expected_rec is not None:
-            assert retried == expected_rec
-        else:
-            assert retried.status == "accepted"
+        assert retried == expected_rec
     assert _snapshot(store) == snap_done
 
     # Gate 6 CLI refusal before binding on `ars legacy cited-families`.
@@ -1408,7 +1483,49 @@ def test_store_b_production_routes_owner_point_o_k5_and_g4_grants(
     finally:
         a_backup.rename(a_dir)
 
-    # 3. Owner point K reading 5 & D-9 suffix check at preparer (R6-i2).
+    # 3. F1 preparer control (LR-011 must refuse a legacy_manuscript_root registration) + K5 & D-9 suffix checks.
+    bad_light_id = new_id("scope_definition")
+    grant_light = store.grant("ProposeLegacyRecord", "scope_definition", bad_light_id, store.actors.observer)
+    snap_f1 = _snapshot(store)
+    seg_light = segment(b"## Task Tracking\n| Task | S |\n|---|---|\n| 1.1 | a |\n", "tracker_task_row")
+    read_member = store.runtime.reader.read(reg_a, member_path="papers/P01-A-JRSSA/drafts/.gitkeep")
+    bad_light_payload = {
+        "schema_id": "ars://legacy/legacy-light-inventory",
+        "schema_version": "1.0.0",
+        "record_id": bad_light_id,
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": store.harness.ledger.project_id,
+        "registration_ref": flows.record_ref(reg_a),
+        "source_identity": read_member.source_identity,
+        "segmentation_contract": "w9-segmentation/1.0.0",
+        "selector_kind": "tracker_task_row",
+        "heading_level": None,
+        "covered_region": {"form": "fixed_by_selector"},
+        "structural_ranges": [],
+        "suppressed_anchors": seg_light["suppressed_anchors"],
+        "file_facts": seg_light["file_facts"],
+        "read_started_at": read_member.read_started_at,
+        "read_ended_at": read_member.read_ended_at,
+        "path_form": read_member.path_form,
+        "observer_actor_id": store.actors.observer,
+        "rows": preparers.inventory_rows(seg_light, "tracker_task_row"),
+        "independent_reproduction_ref": pre_assigned_ref("review", new_id("review"), bad_light_id),
+    }
+    with pytest.raises(IntegrityError, match="W9 light inventory cannot target a legacy_manuscript_root registration"):
+        store.runtime.submit(
+            store.envelope(
+                "ProposeLegacyRecord",
+                store.actors.observer,
+                bad_light_id,
+                0,
+                bad_light_payload,
+                authority_grant_id=grant_light,
+            )
+        )
+    assert _snapshot(store) == snap_f1
+
+    # Owner point K reading 5 & D-9 suffix check at preparer (R6-i2).
     bad_obs_id = new_id("scope_definition")
     grant_obs = store.grant("ObserveLegacyRecord", "scope_definition", bad_obs_id, store.actors.observer)
     snap = _snapshot(store)

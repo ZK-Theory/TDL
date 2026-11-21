@@ -271,20 +271,21 @@ def test_manuscript_root_read_takes_a_member_path_and_refuses_non_members(tmp_pa
     assert read.source_identity["git_blob"] == git_blob_id(member_bytes)
     assert read.path_form["path_as_given"] == "papers/P01-A-JRSSA/drafts/v1.md"
 
-    for bad_member in (
-        None,
-        "",
-        "papers/P01-A-JRSSA",
-        "papers/P01-A-JRSSA/",
-        "papers/P01-A-JRSSA/drafts/",
-        "papers/P01-A-JRSSA/drafts",
-        "papers/P01-A-JRSSA-extra/trap.md",
-        "papers/P01-B-JRSSB/main.tex",
-        "papers/p01-a-jrssa/drafts/v1.md",
-        "papers/P01-A-JRSSA/../P01-B-JRSSB/main.tex",
+    for bad_member, expected_msg in (
+        (None, "a legacy_manuscript_root read requires a member path"),
+        ("", "a legacy_manuscript_root read requires a member path"),
+        ("papers/P01-A-JRSSA", "member path is not strictly under the registered root"),
+        ("papers/P01-A-JRSSA/", "registered path is not a canonical relative path"),
+        ("papers/P01-A-JRSSA/drafts/", "registered path is not a canonical relative path"),
+        ("papers/P01-A-JRSSA/drafts", "the registered path is not a regular file"),
+        ("papers/P01-A-JRSSA-extra/trap.md", "member path is not strictly under the registered root"),
+        ("papers/P01-B-JRSSB/main.tex", "member path is not strictly under the registered root"),
+        ("papers/p01-a-jrssa/drafts/v1.md", "member path is not strictly under the registered root"),
+        ("papers/P01-A-JRSSA/../P01-B-JRSSB/main.tex", "registered path is not a canonical relative path"),
     ):
-        with pytest.raises(ReadRefused):
+        with pytest.raises(ReadRefused) as exc_info:
             reader.read(root_reg, member_path=bad_member)
+        assert str(exc_info.value) == expected_msg
 
     with pytest.raises(ReadRefused, match="git_tracked"):
         reader.read(

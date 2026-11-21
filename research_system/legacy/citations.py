@@ -87,7 +87,7 @@ def scan_file_tokens(repository_path: str, raw: bytes) -> tuple[list[tuple[str, 
     if repository_path.lower().endswith(".json"):
         try:
             parsed = json.loads(text)
-        except ValueError:
+        except (ValueError, RecursionError):
             parsed = None
         if parsed is not None:
             for item in _iter_json_strings(parsed):
@@ -297,7 +297,7 @@ def extract_citations_from_files(
     inventory_files: Sequence[tuple[str, bytes]],
     registered_results: Mapping[str, Mapping[str, Any]],
     result_directories: set[str] | frozenset[str] = frozenset(),
-    disambiguation: Mapping[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]] = (),
+    disambiguation: Mapping[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]] | None = None,
     disambiguation_blob: str | None = None,
 ) -> dict[str, Any]:
     """Pure citation extractor over inventory file bytes (§11.1 items 1–7, §11.2)."""
@@ -310,7 +310,9 @@ def extract_citations_from_files(
         by_basename.setdefault(path.rsplit("/", 1)[-1], []).append(path)
     registered_basenames = set(by_basename)
     directories = {d.rstrip("/") for d in result_directories}
-    disambiguation_map = dict(disambiguation) if not isinstance(disambiguation, Mapping) else disambiguation
+    disambiguation_map: Mapping[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]] = (
+        {} if disambiguation is None else disambiguation
+    )
 
     cited_files: set[str] = set()
     blocker_map: dict[tuple[str, ...], dict[str, Any]] = {}
@@ -423,8 +425,8 @@ def extract_citations_from_files(
 def _git_result_directories(repository_root: Path, git_head: str) -> set[str]:
     try:
         raw = _git(repository_root, "ls-tree", "-r", "-t", "-z", git_head, "--", "results")
-    except ReadRefused:
-        return set()
+    except ReadRefused as exc:
+        raise IntegrityError(f"W9 citation extractor cannot list results directories at git_head: {exc}") from exc
     dirs: set[str] = set()
     for entry in raw.split("\0"):
         if not entry or "\t" not in entry:

@@ -695,6 +695,8 @@ def prepare_proposal(
         _check_membership_bytes(environment, record)
     elif kind == "legacy_light_inventory":
         registration = _recorded(legacy, "legacy_path_registration", record.get("registration_ref", {}).get("id"))
+        if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+            raise IntegrityError("W9 light inventory cannot target a legacy_manuscript_root registration")
         read = _read_source(environment, registration, record.get("source_identity", {}), record)
         check_resegmentation(read, record)
     elif kind == "legacy_closed_reference_acceptance":

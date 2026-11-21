@@ -2020,15 +2020,16 @@ def _legacy_cited_families(args: argparse.Namespace) -> int:
     if args.reviewer_sha256 is not None:
         if not re.match(r"^[0-9a-f]{64}\Z", args.reviewer_sha256):
             raise IntegrityError("W9 --reviewer-sha256 must be a 64-character lowercase hex SHA-256")
-        supersedes_id = state.get("current_citation_status_by_root", {}).get(args.root_id)
-        output["derived_record_id"] = citation_status_record_id(
-            args.root_id,
-            supersedes_id,
-            result["cited_family_set_sha256"],
-            result["extractor_output_sha256"],
-            args.reviewer_sha256,
-            str(root["created_at"]),
-        )
+        if not result["blockers"] and result["cited_family_set"]:
+            supersedes_id = state.get("current_citation_status_by_root", {}).get(args.root_id)
+            output["derived_record_id"] = citation_status_record_id(
+                args.root_id,
+                supersedes_id,
+                result["cited_family_set_sha256"],
+                result["extractor_output_sha256"],
+                args.reviewer_sha256,
+                str(root["created_at"]),
+            )
     _print_json(output)
     return 0
 

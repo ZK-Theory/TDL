@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from research_system.canonical import canonical_bytes, sha256_hex
+from research_system.errors import IntegrityError
 from research_system.legacy import citations, evidence
 from research_system.legacy.reader import git_blob_id
 
@@ -181,6 +182,12 @@ def test_extractor_covers_every_design_note_fixture_and_five_class_boundary() ->
     )
     assert output3["extractor_output_sha256"] != output["extractor_output_sha256"]
 
+    # Deeply nested JSON hits json.loads RecursionError -> treated like parse failure, raw-text tokens kept (F4).
+    deep_json = b"[" * 5000 + b'"results/a/unique.json"' + b"]" * 5000
+    deep_tokens, deep_is_text = citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/deep.json", deep_json)
+    assert deep_is_text is True and deep_tokens is not None
+    assert ("results/a/unique.json", False) in deep_tokens
+
 
 def test_extractor_clears_single_reg_tail_with_disambiguation_and_checks_same_file_tokens() -> None:
     """Two tokens with one basename in the same file resolve cleanly by token-keyed rows (C-m2, R7-m3)."""
@@ -310,34 +317,76 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
         ):
             evidence.read_citation_disambiguation(root, h2)
 
-    # Bad formats raise EvidenceRefused.
-    for bad in (
-        {"format": "wrong/1", "entries": []},
-        {"format": evidence.CITATION_DISAMBIGUATION_FORMAT, "entries": [], "extra": 1},
-        {
-            "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
-            "entries": [{"citing_path": "papers/s.md", "token": "a.json", "resolution": []}],
-        },
-        {
-            "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
-            "entries": [
-                {"citing_path": "papers/s.md", "token": "a.json", "resolution": ["results/b.json", "results/a.json"]}
-            ],
-        },
-        {
-            "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
-            "entries": [
-                {"citing_path": "papers/s.md", "token": "a.json", "resolution": "not_a_result"},
-                {"citing_path": "papers/s.md", "token": "a.json", "resolution": ["results/a.json"]},
-            ],
-        },
+    # Bad formats raise EvidenceRefused with each guard's own message (keeping citing_path valid outside path tests).
+    disambig_valid_path = "papers/P01-A-JRSSA/drafts/s.md"
+    for bad, expected_msg in (
+        ({"format": "wrong/1", "entries": []}, "W9 citation disambiguation does not have the fixed format"),
+        (
+            {"format": evidence.CITATION_DISAMBIGUATION_FORMAT, "entries": [], "extra": 1},
+            f"W9 {evidence.CITATION_DISAMBIGUATION} does not have the fixed format",
+        ),
+        (
+            {
+                "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                "entries": [{"citing_path": "../bad.md", "token": "05_analysis.json", "resolution": "not_a_result"}],
+            },
+            "W9 citation disambiguation entry has invalid citing_path or token",
+        ),
+        (
+            {
+                "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                "entries": [{"citing_path": disambig_valid_path, "token": "05_analysis.json", "resolution": []}],
+            },
+            "W9 citation disambiguation resolution must be sorted paths or 'not_a_result'",
+        ),
+        (
+            {
+                "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                "entries": [
+                    {
+                        "citing_path": disambig_valid_path,
+                        "token": "05_analysis.json",
+                        "resolution": ["results/b/05_analysis.json", "results/a/05_analysis.json"],
+                    }
+                ],
+            },
+            "W9 citation disambiguation resolution must be sorted paths or 'not_a_result'",
+        ),
+        (
+            {
+                "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                "entries": [
+                    {"citing_path": disambig_valid_path, "token": "05_analysis.json", "resolution": "not_a_result"},
+                    {
+                        "citing_path": disambig_valid_path,
+                        "token": "05_analysis.json",
+                        "resolution": ["results/a/05_analysis.json"],
+                    },
+                ],
+            },
+            "W9 citation disambiguation names a (citing_path, token) twice",
+        ),
     ):
         dis_file.write_bytes((json.dumps(bad) + "\n").encode("utf-8"))
         _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
         _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "bad")
         bad_head = _git(root, "rev-parse", "HEAD")
-        with pytest.raises(evidence.EvidenceRefused):
+        with pytest.raises(evidence.EvidenceRefused) as exc_info:
             evidence.read_citation_disambiguation(root, bad_head)
+        assert str(exc_info.value) == expected_msg
+
+    # F4: deeply nested JSON triggers RecursionError -> EvidenceRefused.
+    dis_file.write_bytes(b"[" * 5000 + b"]" * 5000)
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "deep-json")
+    deep_head = _git(root, "rev-parse", "HEAD")
+    with pytest.raises(evidence.EvidenceRefused, match="W9 evidence file is not JSON"):
+        evidence.read_citation_disambiguation(root, deep_head)
+
+    # F5: empty results listing returns set(); failed git ls-tree raises IntegrityError.
+    assert citations._git_result_directories(root, h1) == set()
+    with pytest.raises(IntegrityError, match="W9 citation extractor cannot list results directories at git_head"):
+        citations._git_result_directories(root, "0" * 40)
 
 
 def test_extract_citations_reads_git_blobs_at_git_head_and_ignores_live_edits(tmp_path: Path) -> None:
