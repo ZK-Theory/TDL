@@ -181,6 +181,15 @@ def test_lr039_positive_unequal_hashes_chain_and_controls(base, actors: Actors) 
     state = _replay(forger, schemas, pin=pin)
     assert state["current_citation_status_by_root"] == {root["record_id"]: first_status["record_id"]}
 
+    # A JSON family may itself be named ``whole_file`` (the membership name pattern allows it). Citing it, adopted,
+    # from its json_family_set observation replays clean: the selector and subject kinds decide, not the name.
+    forger_wf, ctx_wf = flows.full_path_prerequisites(events, family="whole_file")
+    state_wf = _replay(forger_wf, schemas, pin=ctx_wf["pin"])
+    assert ctx_wf["citation_status"]["families"][0]["family_name"] == "whole_file"
+    assert state_wf["current_citation_status_by_root"] == {
+        ctx_wf["paper_root"]["record_id"]: ctx_wf["citation_status"]["record_id"]
+    }
+
     # Unequal derivation hashes ARE admitted at LR-039 (and blocked later at LR-054), as is an unadopted family.
     forger_b, ctx_b = flows.full_path_prerequisites(events, actors=actors, paper_key="P01-B")
     # Build status manually with unequal hashes & an extra unadopted observation of whole-file member.

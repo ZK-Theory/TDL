@@ -182,11 +182,24 @@ def test_extractor_covers_every_design_note_fixture_and_five_class_boundary() ->
     )
     assert output3["extractor_output_sha256"] != output["extractor_output_sha256"]
 
-    # Deeply nested JSON hits json.loads RecursionError -> treated like parse failure, raw-text tokens kept (F4).
-    deep_json = b"[" * 5000 + b'"results/a/unique.json"' + b"]" * 5000
-    deep_tokens, deep_is_text = citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/deep.json", deep_json)
-    assert deep_is_text is True and deep_tokens is not None
-    assert ("results/a/unique.json", False) in deep_tokens
+    # Deeply nested JSON hits json.loads RecursionError. Its decoded strings cannot be scanned, so a fully
+    # \u-escaped result path would go unseen: the scan refuses, for the escaped and the plain spelling alike.
+    escaped = "".join(f"\\u{ord(ch):04x}" for ch in "results/a/unique.json").encode("ascii")
+    for inner in (b'"results/a/unique.json"', b'"' + escaped + b'"'):
+        deep_json = b"[" * 5000 + inner + b"]" * 5000
+        with pytest.raises(IntegrityError, match="JSON nested too deeply to scan"):
+            citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/deep.json", deep_json)
+    # Control: the same escaped path at shallow depth is decoded and scanned.
+    shallow_tokens, _ = citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/s.json", b'["' + escaped + b'"]')
+    assert shallow_tokens is not None and ("results/a/unique.json", False) in shallow_tokens
+
+    # An unpaired surrogate in a decoded JSON string refuses (it cannot be hashed as UTF-8); a paired one is kept.
+    with pytest.raises(IntegrityError, match="unpaired surrogate"):
+        citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/u.json", b'["results/\\ud800.json"]')
+    paired_tokens, _ = citations.scan_file_tokens(
+        "papers/P01-A-JRSSA/drafts/p.json", b'["results/\\ud83d\\ude00.json"]'
+    )
+    assert paired_tokens is not None and ("results/\U0001f600.json", False) in paired_tokens
 
 
 def test_extractor_clears_single_reg_tail_with_disambiguation_and_checks_same_file_tokens() -> None:
@@ -366,6 +379,16 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
             },
             "W9 citation disambiguation names a (citing_path, token) twice",
         ),
+        *(
+            (
+                {
+                    "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                    "entries": [{"citing_path": disambig_valid_path, "token": token, "resolution": "not_a_result"}],
+                },
+                "W9 citation disambiguation token is not in the scanner's normalised form",
+            )
+            for token in ("old\\x.npy", "old//x.npy", "old/x.npy.", "old/x.npy:", "old x.npy", "(old/x.npy)")
+        ),
     ):
         dis_file.write_bytes((json.dumps(bad) + "\n").encode("utf-8"))
         _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
@@ -387,6 +410,27 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
     assert citations._git_result_directories(root, h1) == set()
     with pytest.raises(IntegrityError, match="W9 citation extractor cannot list results directories at git_head"):
         citations._git_result_directories(root, "0" * 40)
+
+
+def test_disambiguation_token_rule_agrees_with_the_scanner() -> None:
+    """The reader admits a token exactly when the scanner would emit that token unchanged."""
+
+    assert evidence.SCANNER_DELIMITERS == citations._SINGLE_DELIMITERS
+    for token in (
+        "old/x.npy",
+        "05_analysis.json",
+        "results/a/b.csv",
+        "old\\x.npy",
+        "old//x.npy",
+        "old/x.npy.",
+        "old/x.npy:",
+        "old x.npy",
+        "(old/x.npy)",
+        "a|b.json",
+        "x\ty.npy",
+    ):
+        assert evidence._is_scanner_token(token) is (citations.tokenize_text(token) == [(token, False)]), token
+    assert evidence._is_scanner_token("old/x.npy") is True
 
 
 def test_extract_citations_reads_git_blobs_at_git_head_and_ignores_live_edits(tmp_path: Path) -> None:

@@ -1533,8 +1533,12 @@ def full_path_prerequisites(
     include_root_creation: bool = True,
     root_recovery: dict[str, Any] | None = None,
     citation_status_reviewer: str | None = None,
+    family: str = "headline",
 ) -> tuple[Forger, dict[str, Any]]:
-    """Build a valid forged-ledger prerequisite state up through citation status for WP9.4-2 transitions."""
+    """Build a valid forged-ledger prerequisite state up through citation status for WP9.4-2 transitions.
+
+    ``family`` names the result's cited JSON family (default ``headline``).
+    """
     if actors is None:
         owner = next(e["actor_id"] for e in events if e["command_type"] == "ImportAcceptedW9CatalogueGenesis")
         actors = Actors(owner=owner)
@@ -1545,7 +1549,15 @@ def full_path_prerequisites(
     forger = pilot_outcome_passed(forger, actors, start=5)
     forger, reg_root = registered(forger, actors, path=root_dir, role="legacy_manuscript_root", start=10)
     forger, reg_res = registered(forger, actors, path=result_path, role="legacy_research_result", start=20)
-    forger, table = membership_recorded(forger, actors, path=result_path, sha256=result_digest, size=10, start=30)
+    table_families = {}
+    if family != "headline":
+        table_families["families"] = [
+            {"name": family, "definition_source": "w9 test", "pointers": [f"/{family}"]},
+            {"name": "other", "definition_source": "w9 test", "pointers": ["/other"]},
+        ]
+    forger, table = membership_recorded(
+        forger, actors, path=result_path, sha256=result_digest, size=10, start=30, **table_families
+    )
     obs_res = observation(
         forger.project_id,
         actors.observer,
@@ -1555,9 +1567,9 @@ def full_path_prerequisites(
         selector={
             "selector_kind": "json_family_set",
             "membership_ref": record_ref(table),
-            "family_names": ["headline"],
+            "family_names": [family],
         },
-        families=[signed_family("headline", pin)],
+        families=[signed_family(family, pin)],
         source=tracked(result_path, sha256=result_digest, size=10),
     )
     obs_member = observation(
@@ -1580,7 +1592,7 @@ def full_path_prerequisites(
         actors.analyst,
         at(60),
         obs_res,
-        subject={"subject_kind": "families", "family_names": ["headline"]},
+        subject={"subject_kind": "families", "family_names": [family]},
         intended_use={"description": f"w9-use:manuscript-claims/{paper_key}", "successor_ref": None},
     )
     forger = adoption_recorded(forger, actors, adp_rec, applicable_fixtures=("F-019", "S-017"), start=60)
@@ -1615,7 +1627,7 @@ def full_path_prerequisites(
             [
                 {
                     "observation_ref": record_ref(obs_res),
-                    "family_name": "headline",
+                    "family_name": family,
                     "status": "adopted",
                     "adoption_ref": record_ref(adp_rec),
                 }

@@ -87,10 +87,18 @@ def scan_file_tokens(repository_path: str, raw: bytes) -> tuple[list[tuple[str, 
     if repository_path.lower().endswith(".json"):
         try:
             parsed = json.loads(text)
-        except (ValueError, RecursionError):
+        except RecursionError as exc:
+            # Too deep to decode, so a fully ``\u``-escaped path in a string value would go unseen (note §11.1 item 1
+            # scans decoded values). Refuse rather than return a citation set that may omit it.
+            raise IntegrityError(f"W9 citation draft is JSON nested too deeply to scan: {repository_path}") from exc
+        except ValueError:
             parsed = None
         if parsed is not None:
             for item in _iter_json_strings(parsed):
+                if any(0xD800 <= ord(ch) <= 0xDFFF for ch in item):
+                    raise IntegrityError(
+                        f"W9 citation draft has an unpaired surrogate in a JSON string: {repository_path}"
+                    )
                 tokens.extend(tokenize_text(item))
     return tokens, True
 

@@ -1285,10 +1285,13 @@ def _adoption_covers_cited_family(
         return False
     if adoption.get("intended_use", {}).get("description") != expected_use:
         return False
+    # Keyed on the subject kind, as ``projection_read._covers_family`` is: a JSON family may itself be named
+    # ``whole_file`` (the membership name pattern allows it), so the name alone does not mean a whole-file subject.
     subject = adoption.get("subject", {})
-    if family_name == "whole_file":
-        return subject.get("subject_kind") == "whole_file"
-    return subject.get("subject_kind") == "families" and family_name in subject.get("family_names", ())
+    kind = subject.get("subject_kind")
+    if kind == "whole_file":
+        return family_name == "whole_file"
+    return kind == "families" and family_name in subject.get("family_names", ())
 
 
 def _check_citation_status_lr039(
@@ -1347,12 +1350,11 @@ def _check_citation_status_lr039(
         fname = str(entry.get("family_name"))
         sel = obs.get("selector", {})
         sel_kind = sel.get("selector_kind")
+        # The selector kind, not the name, decides: ``whole_file`` is the sentinel only for a whole-file observation.
         if sel_kind == "whole_file":
             family_in_obs = fname == "whole_file"
         else:
-            family_in_obs = (
-                sel_kind == "json_family_set" and fname != "whole_file" and fname in sel.get("family_names", ())
-            )
+            family_in_obs = sel_kind == "json_family_set" and fname in sel.get("family_names", ())
         if not family_in_obs:
             raise IntegrityError("W9 citation status family does not belong to the cited observation")
         if entry.get("status") == "adopted":

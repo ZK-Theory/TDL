@@ -455,6 +455,26 @@ def _is_canonical_relpath(value: Any) -> bool:
     )
 
 
+# The citation scanner's single-character delimiters (``citations._SINGLE_DELIMITERS``; a unit test pins the two
+# equal). Kept here because ``citations`` imports this module.
+SCANNER_DELIMITERS = frozenset("`'\"()[]{}<>,;|*")
+
+
+def _is_scanner_token(token: str) -> bool:
+    """Return whether ``token`` is already in the form the scanner emits (``citations.tokenize_text``).
+
+    The scanner splits on whitespace and :data:`SCANNER_DELIMITERS`, turns ``\\`` into ``/``, collapses repeated
+    ``/`` and strips trailing ``.`` and ``:``. A disambiguation key in any other spelling could never match a token.
+    """
+
+    return (
+        not any(ch.isspace() or ch in SCANNER_DELIMITERS for ch in token)
+        and "\\" not in token
+        and "//" not in token
+        and token == token.rstrip(".:")
+    )
+
+
 def _disambiguation_entries(
     data: Any,
 ) -> dict[tuple[str, str], tuple[str, ...] | Literal["not_a_result"]]:
@@ -471,6 +491,8 @@ def _disambiguation_entries(
         resolution = closed["resolution"]
         if not _is_canonical_relpath(citing_path) or not isinstance(token, str) or not token or token != token.strip():
             raise EvidenceRefused("W9 citation disambiguation entry has invalid citing_path or token")
+        if not _is_scanner_token(token):
+            raise EvidenceRefused("W9 citation disambiguation token is not in the scanner's normalised form")
         key = (citing_path, token)
         if key in mapping:
             raise EvidenceRefused("W9 citation disambiguation names a (citing_path, token) twice")
