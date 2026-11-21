@@ -630,7 +630,7 @@ def test_lr040_to_lr049_checks_fixtures_and_analyst_rule(base, actors: Actors) -
     assert good_map["record_id"] in state["records"][reducers.TRANSITION_MAPPING]
 
 
-# --- LR-050 to LR-055, W9-T5, W9-T17, Ruling 3 & Owner Point L ------------------------------------------------------
+# --- LR-050 to LR-055, W9-T5, W9-T17, departure 4 (§3.1 item 4) & Owner Point L ------------------------------------
 
 
 def _supersede_record(
@@ -724,7 +724,7 @@ def test_lr050_to_lr055_w9t5_w9t17_ruling3_and_owner_point_l(base, actors: Actor
     with pytest.raises(IntegrityError, match="W9 ownership transition differs from accepted LR-055"):
         reducers._check_ownership_resolution(st_pre, "LR-055", to_succ)
 
-    # Ruling 3: LR-053 for LR-054 without w9-open-items-blob refuses; LR-053 for LR-055 WITH w9-open-items-blob refuses.
+    # WP9.4-2 record §3.1 item 4: LR-053 for LR-054 requires w9-open-items-blob; LR-053 for LR-055 refuses it.
     _refused(
         flows.ownership_recorded(forger, actors, to_succ, start=120, open_items_blob=None),
         schemas,

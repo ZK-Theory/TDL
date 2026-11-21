@@ -1067,7 +1067,7 @@ def _parse_fixture_refs(entries: Sequence[Any], resolution_row: str, record: Map
 
 
 def _parse_decision_tail(resolution_row: str, tail: Sequence[Any], record: Mapping[str, Any]) -> tuple[str, ...]:
-    """Parse post-subject entries of a WP9.4 Decision proposal or resolution (§5.4, §8, §10.5; Ruling 3)."""
+    """Parse post-subject entries of a WP9.4 Decision (§5.4, §8, §10.5; WP9.4-2 record §3.1 item 4)."""
 
     if resolution_row in {"LR-034", "LR-054"}:
         if (

@@ -609,7 +609,7 @@ def _check_paper_open_items_discharged(
 def _prior_lr054_inventory_for_registration(
     legacy: Mapping[str, Any], registration_id: str
 ) -> Mapping[str, Any] | None:
-    """Find the mapped source inventory from the prior LR-054 transition of ``registration_id`` (Ruling 4)."""
+    """Find the prior LR-054 mapped inventory of ``registration_id`` (WP9.4-2 record §3.1 item 5)."""
 
     supersessions = legacy.get("supersessions", {})
     ownerships = legacy["records"].get(r.OWNERSHIP, {})
@@ -634,7 +634,7 @@ def _check_ownership_transition_env(
     expected_open_items_blob: str | None = None,
     at_resolution: bool = True,
 ) -> None:
-    """LR-050, LR-054, and LR-055 environment and window checks (§10.5, §11.3; Ruling 4)."""
+    """LR-050, LR-054, and LR-055 environment and window checks (§10.5, §11.3; WP9.4-2 record §3.1 item 5)."""
 
     res_row = r.ownership_resolution_row(record)
     subject_reg = _recorded(legacy, "legacy_path_registration", record.get("subject_registration_ref", {}).get("id"))
@@ -660,8 +660,8 @@ def _check_ownership_transition_env(
             )
         _check_source_inventory_env(environment, legacy, inv)
         return
-    # LR-055 (Ruling 4): re-read the subject registration's handle-bound physical identity and, for a root, the
-    # prior LR-054 transition's mapped inventory against git_head.
+    # LR-055 (WP9.4-2 record §3.1 item 5): re-read the subject registration's handle-bound identity and, for a root,
+    # the prior LR-054 transition's mapped inventory against git_head.
     _require_physical_identity(environment, subject_reg)
     if subject_reg.get("role") == MANUSCRIPT_ROOT_ROLE:
         inv = _prior_lr054_inventory_for_registration(legacy, str(subject_reg["record_id"]))

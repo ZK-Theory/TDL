@@ -1,5 +1,5 @@
 # Research context: docs/plans/agentic-research-system/transition/w9/wp9-4-design-note.md (revision 8, §§10–15, §19 O/K/I/N; P-086, P-087)
-# Purpose: submit-level scratch-store tests for WP9.4-2 (full path LR-035..055, CLI cited-families, O/K5/G4, W9-T6/T17, Rulings 3 & 4).
+# Purpose: submit-level tests for WP9.4-2 (LR-035..055, CLI, O/K5/G4, W9-T6/T17, WP9.4-2 record §3.1 items 4 & 5).
 """WP9.4-2 runtime and CLI tests against consolidated scratch stores under ``tmp_path``."""
 
 from __future__ import annotations
@@ -1075,7 +1075,7 @@ def test_store_a_full_path_cli_idempotency_and_gate6(
     succ_steps.append((succ_res_env, succ_res_rec))
     assert _state(store)["ownership"][reg_root["record_id"]] == "successor_owned"
 
-    # LR-050..055 (closed_reference): Ruling 3 at LR-053 + Ruling 4 window checks at LR-055.
+    # LR-050..055 (closed_reference): WP9.4-2 record §3.1 item 4 at LR-053 + §3.1 item 5 window checks at LR-055.
     prop_close, close_steps = _ownership_propose_to_decision(
         store,
         reg_root,
