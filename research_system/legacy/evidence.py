@@ -72,8 +72,8 @@ class EvidenceRefused(IntegrityError):
 
 # Every evidence read ignores local ``refs/replace`` entries, as ``research_system/git_execution.py`` does with
 # ``GIT_NO_REPLACE_OBJECTS``. Otherwise a replaced commit or blob would make ``git show`` and ``rev-parse`` agree on
-# bytes that are not the ones committed at ``git_head``. The flag is passed here, not in ``reader._git``, because
-# ``reader.py``'s blob is part of the importer identity (``IMPORTER_MODULES``).
+# bytes that are not the ones committed at ``git_head``. ``reader._git`` passes ``--no-replace-objects`` (P-087
+# item 5), ``_evidence_git`` passes it too, and ``reader._git`` does not add it twice.
 _NO_REPLACE = "--no-replace-objects"
 
 
