@@ -6068,6 +6068,75 @@ one; any legacy write; any paper-root transition.<br>
 reader (`member_path` and `--no-replace-objects`); the runtime-binding census (275 rows).<br>
 **Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
 
+### P-089 - W9 implementation authorized for WP9.5, design note first; P-088 item 5's deadline corrected
+
+**Date:** 2026-11-21<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-21). WP9.4 is complete (P-088, PR #445).<br>
+**Authority:** Stephen, in chat, 2026-11-21, after PR #445 merged: "what's after WP9.4?". The options set out were:
+- the WP9.4-2 follow-up first;
+- then WP9.5, design note first, because it adds no command and gates L-1;
+- WP9.6 alongside;
+- WP9.7 last.
+
+He chose "Follow-up, then WP9.5". For the follow-up he chose "Limit to drafts/ (Recommended)" for F2 and "Claude, here
+(Recommended)" as its builder. For this entry, drafted by the Claude session: "Approve, open PR".<br>
+**Evidence:** Checked at `1b2cebf7` on 2026-11-21, before this entry:
+- the runtime-binding census is 275 rows, `82eab93a…1d58`;
+- the 06h manifest is blob `1066404a` and its smoke test `3b1eec6e`;
+- `tools/w9_segmentation.py` is unchanged at `43e1454d`;
+- no legacy-write workflow exists under `.github/workflows/`.<br>
+**Decision:**
+1. **WP9.5** (06v §5, "Detectors (W9-D5)") is authorized as one package. It covers:
+   - the registration manifest export and its test (M-6);
+   - the post-merge first-parent detector `tools/check_legacy_writes.py` and its workflow;
+   - the `CONVENTIONS.md` lock check;
+   - the vault Computational-Log detector;
+   - their negative controls (O-13);
+   - W9-T7 and W9-T19.
+
+   It adds no command, so no D-4 is expected. If it changes a protected identity, D-4 applies as for any package.
+2. **Order.**
+   1. A WP9.5 design note comes first. It gets an independent adversarial review in a fresh session, and Stephen
+      decides its owner points.
+   2. Then the code, with its own independent review, CodeRabbit and Stephen's merge.
+3. **Carried obligations.** The design note addresses each one:
+   - **U-3 and U-4** (06v §2.8). U-3 asks whether the CI token can read ruleset 20822054 and its rule-suites history;
+     D-8 applies if not. U-4 is the operator machine's path to the vault. Each is recorded from a probe or dry run
+     before any code;
+   - **O-9 to O-13 and the detector half of O-32** (06v §3), including the rule that a merged shared-surface change
+     with no entry in `shared-surface-changes.json`, or no W9 §4.3 owner note, fails the detector;
+   - **the evidence-area formats WP9.3 fixed:** the registration manifest, the detector control-output hashes and the
+     shared-surface change list (P-081 item 4, D). WP9.5 writes to them unchanged, or the note names any change for an
+     owner decision;
+   - **merging is not going live.** L-1, the detectors live on real `main` and on the vault, is a separate owner
+     decision (06v §7). So the note says how WP9.5's workflow and scheduled runs stay inactive on `main` until L-1, for
+     example dispatch-only triggers, and how that is tested.
+4. **Where its controls run.** Every negative control runs on a scratch clone or a byte copy, never by writing `main`
+   or the vault (06v O-13). U-4's dry run may read the vault; it writes nothing there.
+5. **P-088 item 5's deadline is corrected.** Item 5 says the WP9.4-2 follow-up must land "before L-0, where the
+   extractor first runs on real roots". L-0 is Stephen's signing of the W0 manifest items. The extractor first runs on
+   a real root at L-5, when paper roots are created. So the deadline is **before L-5**. P-088 is otherwise unchanged.
+
+**Not authorized:**
+- WP9.6 and WP9.7;
+- any live operation L-0 to L-5, L-1 included: the detectors live on `main` or the vault, and the first registration
+  batch;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file, to `main` by a detector, or to the vault;
+- any paper-root transition.
+
+Each needs a later decision.<br>
+**Not decided here:**
+- who writes WP9.5's note and code;
+- the open items P-084 lists, and the test-runtime escalation;
+- whether a discharge gets a `reject` resolution path (WP9.4-1 record §7).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** WP9.5's tools under `tools/`, its workflow under `.github/workflows/`, the writers for its formats in the
+W9 evidence area, its tests and its docs. Nothing under `research_system/legacy/` changes except a reader WP9.5 needs,
+and the note names it.<br>
+**Affected specifications:** 06v WP9.5 (started); P-088 item 5 (deadline corrected).<br>
+**Migration consequence:** None. Nothing runs live until L-1.
+
 ## Decision protocol
 
 Each future decision entry must record:
