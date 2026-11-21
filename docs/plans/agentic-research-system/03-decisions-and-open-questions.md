@@ -5700,6 +5700,374 @@ the WP9.3 note §5.5, §7.2, §10.1 to §10.4 and §12.2 to §12.4 (read as item
 WP9.3-2 record (merged and accepted).<br>
 **Migration consequence:** None.
 
+### P-085 - W9 implementation authorized for WP9.4, design note first
+
+**Date:** 2026-11-16<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-16). WP9.3 is complete (P-084, PR #436).<br>
+**Authority:** Stephen, in chat, 2026-11-16, after PR #436 merged: "close 9.3 a nd move on to the next stages". Asked
+which package comes next, he chose "WP9.4, note first (Recommended)". The option read: "Adoption, discharge and
+citation status. A design note comes first with an independent review, then the code. It adds commands, so it carries a
+D-4 re-acceptance. Scratch stores only; L-0 to L-5 stay unauthorized. Same shape as P-080 for WP9.3."<br>
+**Evidence:** Checked at `4312dc63` on 2026-11-16, before this entry: the runtime-binding census is 273 rows,
+`0cca0414…4712`; the 06h manifest is blob `4c895042`, the smoke test blob `559d684a` and `tools/w9_segmentation.py`
+blob `43e1454d`; `research_system/`, `.research-system/`, `tools/` and `tests/research_system/smoke/` have the tree IDs
+they had at `baea2c13`. The census contract tests and the 06h smoke tests gave 110 passed.<br>
+**Decision:**
+1. **WP9.4** (06v §5, "Adoption, discharge and citation status") is authorized as one package, with the split 06v D-6
+   allows if its note or its review asks for one. Its rows are the ones the legacy route table tags `WP9.4`
+   (`research_system/legacy/routes.py:450-454`): LR-023, LR-026 to LR-035 and LR-039 to LR-055. A row moves between
+   packages only by a later owner decision on the note.
+2. **Order.**
+   1. A WP9.4 design note comes first. It gets an independent adversarial review in a fresh session, and Stephen
+      decides its owner points.
+   2. Then the code, with its own independent review, CodeRabbit, D-4 for the command rows it adds, and Stephen's
+      merge.
+3. **Carried obligations.** The design note addresses each one:
+   - U-5, U-6 and U-9 (06v §2.8), each recorded with `path:line` before any code;
+   - F-8's first limb at every WP9.4 resolution: the resolving Decision's proposal named the record by its
+     pre-assigned ID and exact content hash (WP9.2-2 record §7);
+   - adoption suspension, including what follows from an observation that WP9.3 projects as stale (P-081 item 12's
+     O-33 addition; WP9.3 note §7.2);
+   - the kind of an adoption's successor use (stage B note §7; WP9.3 note §3 row 9);
+   - O-31 as Stephen read it in P-073 item 4: the full-path rows are built and tested, and refuse until their W9 §4.5
+     gate.
+4. **Scratch stores** only, as P-076 item 3 defines them. No existing store is written, including
+   `C:/Users/steph/TDL-ARS-G6-Control` and the named scratch stores.
+
+**Not authorized:**
+- WP9.5 to WP9.7;
+- any live operation L-0 to L-5, including the D-7 baseline export and the real adoptions, discharges, citation
+  statuses and transitions WP9.4's commands will later run;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file, and any paper-root transition (P-073 item 4).
+
+Each needs a later decision.<br>
+**Not decided here:** the open items P-084 lists (the T2 `WriterLock` flake, the test-runtime escalation, and the
+segmentation readings R-1 to R-8).<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** WP9.4's code under `research_system/legacy/`, its runtime-binding rows, tests and docs. Census, manifest
+and append-site changes go to D-4.<br>
+**Affected specifications:** 06v WP9.4 (started).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
+### P-086 - WP9.4 design note owner points A to O: two PRs, the eligibility rows, derived IDs, the evidence rule, the uses, members under the root, and the root's directory identity
+
+**Date:** 2026-11-19<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-19), each owner point at its recommended option.<br>
+**Authority:** Stephen, in chat, 2026-11-19, answering the owner points of the WP9.4 design note one by one. His
+answers: A "Two PRs (Recommended)"; B "Move to WP9.4-1 (Recommended)"; C "Derive it (Recommended)"; D "Stay with
+WP9.7 (Recommended)"; E "At use and promotion (Recommended)"; F "Three named forms (Recommended)"; G "Block claim uses
+(Recommended)"; H "Committed file, blob bound (Recommended)"; I "Drafts block (Recommended)"; J "WP9.7
+(Recommended)"; K "Observe under root (Recommended)"; L "Extension of i-3 (Recommended)"; M "Extend to both
+(Recommended)"; N "Extend + derived ID (Recommended)"; O "Directory read (Recommended)".<br>
+**Evidence:** The note, `transition/w9/wp9-4-design-note.md`, revision 5 at `32755276` (PR #437). Its reviews, each in
+a fresh session and each on its own branch:
+- `reviews/wp9-4-design-note-review-3c10de9a-2026-11-16.md` (`review/w9-wp9-4-note`, `a9935c0b`): accept with required
+  changes, 1 Blocking, 13 Major, 12 Minor, 4 Info;
+- `reviews/wp9-4-design-note-re-review-4629d1fd-2026-11-16.md` (`review/w9-wp9-4-note-re-review`, `a704d9b3`): return
+  for revision 3, 0 Blocking, 9 Major, 5 Minor, 4 Info;
+- `reviews/wp9-4-design-note-confirmation-ede231e5-2026-11-19.md` (`review/w9-wp9-4-note-confirmation`, `3499dd21`):
+  confirm with residuals, 0 Blocking, 2 Major, 4 Minor, 5 Info;
+- `reviews/wp9-4-design-note-r4-review-7bd7d6a6-2026-11-19.md` (`review/w9-wp9-4-note-r4`, `0a84ce83`): confirm with
+  residuals, 0 Blocking, 2 Major, 4 Minor, 5 Info.
+
+Revision 5 folds in the last review and every CodeRabbit thread on PR #437; its §20 to §23 map each finding. No review
+disagreed with any owner point. Revision 5 itself has not been reviewed. The reviewers are one model family with the
+author (P-058).<br>
+**Decision:** The note's §19, as revision 5 states it:
+1. **A, the split.** WP9.4 ships as two PRs. WP9.4-1: adoption and discharge, with no new command and no D-4.
+   WP9.4-2: the paper-root path, binding `CreateLegacyPaperRoot` and `RecordPaperCitationStatus`, with D-4. WP9.4-2 is
+   cut from WP9.4-1's main commit.
+2. **B, LR-024 and LR-025 move from WP9.7 to WP9.4-1**, with the note's §5.5 encoding: a derived eligibility Decision
+   ID, a proposal branch with no review requirement, a record-less resolution, the eligible session bound at the
+   request and the verdict, and the kind `migration_authority`. The annex's (a) to (c) stay Stephen's check at LR-025.
+   This changes the legacy route table's tags, as the WP9.2 note §3 allows.
+3. **C, the adoption's review ID is derived**, behind one resolver with no "no review needed" default (note §5.2). This
+   is a reading of P-072 item 1, annex LR-023 and G5: the ID is fixed by fields the content hash covers. No schema
+   changes.
+4. **D, LR-021 and LR-022 stay with WP9.7.** LR-035 and LR-054 refuse on every store until WP9.7 routes LR-022, as
+   P-073 item 4 asks.
+5. **E, legacy copies in evidence.** WP9.4 builds `family_admissible` and `legacy_content_matches`, and its LR-030 and
+   LR-034 preparers refuse a successor result whose bytes match a recorded legacy observation. WP9.7 applies the
+   content rule at use for claim, manuscript, result and review evidence, **and at promotion**
+   (`SetArtefactUseAuthority` to `accepted_for_scope`); compares current blobs of registered paths; and inherits a
+   binding test per consumer kind, the manuscript case with no Decision. W9-T17's last clause is complete when WP9.7's
+   test passes. The known limit stays: a re-serialized or partly copied result is for the artefact's own review.
+6. **F, the intended use** is one of `w9-use:manuscript-claims/<P01-A|P01-B>`, `w9-use:task-input/<key>` and
+   `w9-use:claim-evidence/<key>`. A task-input key is the value of a Task alias in the reserved namespace
+   `w9-use-key`. This is narrower than the schema.
+7. **G, qualifiers.** A claim or manuscript use with an open `open_review_finding` is refused at LR-023. A task-input
+   use keeps the observation's findings attached, exactly. This is the reading of LR-023's "no blocking qualifier".
+8. **H, the open-item list** is a committed `w9-legacy-open-items/1` file in the W9 evidence area, with a
+   `feeds_papers` column. Its content is Stephen's under W0-D1, written at the live stage. Its blob is named in the
+   Decision at LR-034 and LR-054, and every check that reads it is the preparer's. It adds one row to the W9 paths
+   addendum, as a dated amendment.
+9. **I, the citation comparison.** The note's §11.1 rule: a defined tokenizer, four classes with cited files tested
+   first, templates and empty stems non-blocking, whole-file results projected, and a token-keyed
+   `w9-citation-disambiguation/1` file whose rows Stephen accepts. **The drafts block, and the rest of the root is
+   reported.** That reads 06v's "every file in the root's inventory" as the extractor's scan, following W9 §12.1's
+   "every result family its drafts cite". The extractor projects through membership tables only, a recorded departure
+   from 06v's "and the audit's artifact map".
+10. **J, the W9-T8 guard moves to WP9.7.** It runs on CreateTask and AmendTask, with a binding test for an unknown,
+    suspended or wrong-use adoption, a wrong-key Task and two amendments.
+11. **K, a paper root's member files are observed under the root's registration** (option 1) and listed by its
+    inventory, never registered themselves. That needs five recorded readings of WP9.3's checks, each gated on the
+    role `legacy_manuscript_root`: LR-015's path rule; `_whole_file`; the stale rule; `_batch_rules`' "latest for its
+    source and selector"; and the observation preparer and reader reading a member by a `member_path` payload key. No
+    accepted byte changes. After LR-054 the whole root is `successor_owned`.
+12. **L, fixture refs** travel in the resolving Decision as `w9-fixture:` entries; F-019 is required for claim uses;
+    the applicable set is fixed in the review request before the verdict. This is recorded as **an extension of P-084
+    item 3's i-3 reading** to WP9.4's five families, not as literal compliance with W9 §12.3's "proposed by the item's
+    independent reviewer". It changes, for WP9.4's rows only, the three-ref encoding P-081 fixed.
+13. **M, the boundary.** P-085's Boundary line is extended, by name, to `research_system/cli.py` (two read-only verbs)
+    and `research_system/authority.py` (WP9.4-2's two subject-kind entries), as P-081 item 10 did for WP9.3.
+14. **N, G4 for WP9.4's rows.** P-081 item 12's reading extends to the five proposal rows (LR-023, LR-030, LR-040,
+    LR-045, LR-050) and to LR-024. LR-039's record ID is derived from the root, the superseded status and its three
+    hashes, so a grant on it binds the cited-family set.
+15. **O, the root registration's identity.** For role `legacy_manuscript_root` only, LR-003 and LR-005 read the
+    directory handle-bound under W11 §7.3 and record its identity in the existing schema fields. This is a reading of
+    annex LR-003's "read handle-bound" and LR-005's re-read for a directory, built in WP9.4-2.
+
+**Carried to later packages:**
+- WP9.7: the content rule at use and at promotion, with its binding tests (item 5); the CreateTask and AmendTask guard
+  (item 10); the use-time re-hash for both adoption kinds; the later-batch branch at LR-016; the writer guard's reading
+  that a path under a `successor_owned` root is writable.
+- WP9.6 and WP9.7: a binding test each that a real LR-060 and a real LR-061 suspend an adoption.
+
+**Not decided here:**
+- Whether revision 5 gets a further review before the code. It has not been reviewed.
+- The open items P-084 lists (the T2 `WriterLock` flake, the test-runtime escalation, and the segmentation readings
+  R-1 to R-8).
+
+**Not authorized:** as P-085. WP9.5 to WP9.7; L-0 to L-5; any real store, genesis or grant on one; any legacy write;
+any paper-root transition. WP9.4-1's code is authorized under P-085 item 2 now that the owner points are decided; it
+gets its own independent review, CodeRabbit and Stephen's merge.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** P-085's, extended by item 13.<br>
+**Affected specifications:** 06v WP9.4 (note decided); the legacy route table (LR-024, LR-025 retagged `WP9.4`); 06v
+WP9.7 (items 5 and 10 carried); P-081 item 12 (extended); P-084 item 3 (i-3 extended); the W9 paths addendum (two rows
+to add: the open-item list and the disambiguation file).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
+### P-087 - WP9.4-1 accepted at `cc81b733`, and WP9.4-2 dispatched at the note's revision 8 with O's additions, the `root_id` choice, the reader fix and a test-time budget
+
+**Date:** 2026-11-20<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-20). WP9.4-1, the first of WP9.4's two PRs (P-086 item 1), is merged
+and accepted. It carries no D-4. WP9.4-2 is dispatched.<br>
+**Authority:** Stephen, in chat, 2026-11-20:
+- he merged PR #439, then PR #441 ("Merged as is, no need for review");
+- for the reader's replacement-ref fix: "Fold into WP9.4-2";
+- asked for the next task: "Let's hand off to a Gemini agent for code again since that went well this time";
+- for the four dispatch questions: "Dispatch at r8 (Recommended)", "Accept the drop (Recommended)", "One entry, P-087
+  (Recommended)" and "Budget and profile (Recommended)".<br>
+**Evidence:**
+- **The merges.** PR #439 merged at 20:29 UTC as `cc81b73387ee8e743bdfeff6a8cb98fab1768bd0`, from head
+  `83176970504683e6c81a2b51a56c850d7a56dccd`. The merge tree equals the head's (`c8ac7980`; `git diff --quiet 83176970
+  cc81b733`). PR #441 (the record's follow-up docs, no code) merged at 20:34 UTC as `fe257163`.
+- **How WP9.4-1 was built and checked.** A Gemini agent built it from
+  `handoffs/wp9-4-1-gemini-handover-2026-11-20.md`. A Claude session reviewed each handback against the note and the
+  code, and sent back three rounds of fixes (`handoffs/wp9-4-1-gemini-review-fixes-2026-11-20.md`,
+  `-coderabbit-fixes-` and `-coderabbit-round2-`). CodeRabbit reviewed PR #439 three times, and the Claude session
+  fixed its third-round point itself (`83176970`). The record is `transition/w9/wp9-4-1-record.md`: §6 has the runs and
+  75 of 75 mutations caught; §8 to §11 list each round's fixes.
+- **The runs at the final heads,** by the Claude session, `--no-cov`, serial unless stated:
+  - at `472f800b`: import seam 10, open items 22, evidence 9, evidence acceptance 38, projection read 19, WP9.4-1
+    replay 36, WP9.4-1 runtime 13, and the two WP9.3 runtime files 42, all passed;
+  - at `83176970`: open items 24, evidence 9 and evidence acceptance 38 passed; the WP9.3 runtime files (42) and the
+    WP9.4-1 runtime file (13) passed, run side by side.
+- **No D-4.** Checked on `main` at `fe257163`: the 06h manifest is blob `4c895042` (count 273, SHA-256
+  `0cca0414…4712`), the smoke test blob `559d684a` and `tools/w9_segmentation.py` blob `43e1454d`. The 06h smoke test
+  and `test_schema_registry.py` gave 101 passed.<br>
+**Decision:**
+1. **WP9.4-1 is accepted at `cc81b733`.** What it records stands as the record states it:
+   - **Departure 2:** `RequestW9AuthorityReview` refuses the owner as named reviewer on every W9 review-request row,
+     WP9.3's LR-007, LR-012 and LR-017 included (`research_system/legacy/runtime.py:492-497`; record §3);
+   - **Readings R1 to R5** (record §3). R4 turns a parse `ValueError` into the documented evidence refusal. R5 makes
+     every Git call in `research_system/legacy/evidence.py` pass `--no-replace-objects`. Both reach WP9.3's evidence
+     reads;
+   - **the known limits** in record §7: the suspension projection reads one registration (closed by item 6 below);
+     the discharge recovers from open-item drift only by its 30-day lapse; and the checks that run only at the
+     preparer.
+2. **WP9.4-2 is dispatched at the note's revision 8, which has not been reviewed.** The note's §26 gives the reason:
+   three reviews in a row each found a smaller gap in LR-003's collision handling, and WP9.4-2's tests settle code
+   behaviour better than another note-only round. WP9.4-2 is cut from `main` at or after this entry's merge. It gets
+   its own independent review, CodeRabbit, D-4 and Stephen's merge, as P-085 item 2 requires. As for WP9.4-1, a Gemini
+   agent builds it from a handover in `handoffs/`, and a Claude session reviews its handbacks.
+3. **O's additions enter the register** (note §19 O; R6-i3, R7-i1). Within O's decided scope, for role
+   `legacy_manuscript_root`:
+   - LR-003 refuses a collision with a root, by the case-folded path scoped by `root_kind` and by the physical target's
+     prefix at a component boundary (R5-M1, R6-M1, R7-M1, R7-m2);
+   - a root is `git_tracked`, in replay and at the preparer (R5-m2, R6-m1).
+
+   Outside O's role scope, by Stephen's two 2026-11-20 scope decisions ("WP9.4-2 under O"; "Fold into WP9.4-2 under
+   O"):
+   - LR-003's equality half compares `(volume_serial_number, stable_file_id)` and the case-folded
+     `(root_kind, normalized_path)` for every role (R6-M2, R7-M1);
+   - the projection prefix test compares case-folded paths (R7-M2).
+4. **`root_id` leaves the every-role equality key.** The key is scoped by `root_kind` alone (note §26, "For Stephen at
+   WP9.4-2's dispatch"). So a second registration of one path under another `root_id` of the same `root_kind` is
+   refused. No legitimate v1 case was found.
+5. **The reader ignores Git replacement refs, in WP9.4-2.** `reader._git` (`research_system/legacy/reader.py:79-89`)
+   passes `--no-replace-objects`, as `evidence.py` does under R5. A binding test with `git replace H R` installed shows
+   that the reader still reads the source and importer blobs committed at `H`. `reader.py` is one of
+   `IMPORTER_MODULES` (`reader.py:41`), so observations made after the change carry a new `tool_sha256`. No file fixes
+   the reader's blob, and no real observation exists before L-0. The WP9.4-2 record lists the change to WP9.3's
+   accepted reader.
+6. **The second-registration binding test, in WP9.4-2** (WP9.4-1 record §7). With a whole-file adoption recorded, a
+   second registration of the same file is refused at LR-003, so the adoption cannot stay active past a re-observation
+   under another registration.
+7. **A test-time budget for WP9.4-2.**
+   - **The budget:** WP9.4-2's new and changed test files may add at most **5 minutes**, measured serially with
+     `--no-cov` on Stephen's machine, against the same files' time at the base commit.
+   - **Before adding a scratch-store flow,** the implementer profiles one slow test alone.
+   - **Over budget is a Partial with the measurements,** not a known limit (the escalation open since P-082).
+8. **D-4 at WP9.4-2's merge.** Under 06v D-4 and note §14, Stephen re-accepts at exact bytes, as they stand in the
+   merge-queue entry, the census row set and digest (expected 275 rows), the 06h manifest YAML, the append-site
+   classification and any changed tree ID. WP9.4-2 must not be in the merge queue with another command-adding package.
+
+**Not decided here:**
+- whether a discharge gets a `reject` resolution path (WP9.4-1 record §7);
+- the open items P-084 lists: the T2 `WriterLock` flake, and the segmentation readings R-1 to R-8. The test-runtime
+  escalation stays open beyond item 7's budget.
+
+**Not authorized:** as P-085. WP9.5 to WP9.7; L-0 to L-5, the D-7 export included; a real store, genesis or a grant on
+one; any legacy write; any paper-root transition.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** P-085's, as P-086 item 13 extends it. WP9.4-2 may also change `research_system/legacy/reader.py` for
+item 5 only.<br>
+**Affected specifications:** 06v WP9.4 (WP9.4-1 accepted, WP9.4-2 dispatched); the WP9.4 design note §10.2 and §19 O
+(O's additions recorded); WP9.3's accepted reader (item 5).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
+### P-088 - WP9.4-2 accepted at `95871b38`, D-4 re-accepted at 275 rows, and WP9.4 complete
+
+**Date:** 2026-11-21<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-21). WP9.4-2, the second of WP9.4's two PRs (P-086 item 1), is merged
+and accepted, and D-4 is re-accepted. WP9.4 is complete.<br>
+**Authority:** Stephen, in chat, 2026-11-21:
+- for the reader's new parameter: "The member_path change is fine, go ahead";
+- for the three departures put to him at the first handback: "Accept (Recommended)" for the two
+  `SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES` lines, "Accept (Recommended)" for LR-053's open-items blob, and "Keep,
+  record the limit (Recommended)" for LR-055's window;
+- for CodeRabbit's rounds: "You can go ahead and do the coderabbit replies without needing my review", then "we can
+  probably just quickfix here and move on";
+- at the merge: "D-4 is accepted and 443 has been squash merged";
+- for this entry, drafted by the Claude session: "Accept, open PR";
+- for closing the review gap CodeRabbit raised on #445: "Independent review now (Recommended)", then, for item 5,
+  which was added after that review: "Approve and push".<br>
+**Evidence:**
+- **The merges.** PR #443 was squash-merged at 15:03:40 UTC as `95871b38e53a2c1099a876ca5174a830c0f6de47`, from head
+  `9a510065cc2ad065da1c425e35f78b8b724ce381`. The merge tree equals the head's (`2946a9a4`; `git diff --quiet 9a510065
+  95871b38`). PR #444 (the record's status and the Gemini prompts, no code) merged as `3fa12b5f`.
+- **How WP9.4-2 was built and checked.**
+  - **The build.** A Gemini agent built it from `handoffs/wp9-4-2-gemini-handover-2026-11-20.md`. A Claude session
+    reviewed its handbacks at `707cbe0d`, `ecd08a1b`, `e1fd58eb` and `7de9224c`, and sent three follow-ups
+    (`handoffs/wp9-4-2-gemini-review-fixes-2026-11-21.md`, `-review-fixes-2-` and `-coderabbit-fixes-`).
+  - **CodeRabbit's first round** (review `6003745058`, at `e1fd58eb`) had 23 findings: 17 were fixed by the agent at
+    `7de9224c`, and 6 were not taken, with reasons.
+  - **CodeRabbit's second round** (review `6005898065`, at `7de9224c`) had 6 items: 5 were fixed by the Claude session
+    itself at `9a510065`, and 1 was not taken.
+  - **The record** is `transition/w9/wp9-4-2-record.md`, with each round in §8.1 to §8.3.
+- **Reviewer coverage of the last commit.** CodeRabbit did not review `9a510065`: its review at `7de9224c` reported
+  no review allowance left for the hour, and it posted nothing after the second-round replies. The code in
+  `9a510065` was written by the reviewing session, so it had no review by another party before the merge. It changes
+  `citations.py`, `evidence.py` and LR-039's replay checks (record §8.3).
+- **The independent review of `9a510065`, after the merge.** CodeRabbit raised the gap on this entry's PR (#445), and
+  Stephen chose an independent review rather than a waiver ("Independent review now (Recommended)"). A fresh agent
+  with none of the authoring session's context reviewed `git diff 85c21e53 9a510065` adversarially:
+  `reviews/wp9-4-2-9a510065-independent-review-2026-11-21.md`.
+  - **Verdict: CONFIRM WITH FINDINGS.** No Blocking or Major finding. Each of the four code fixes closes the finding
+    CodeRabbit stated, and no wrong-admission path was found. `_is_scanner_token` agrees with `tokenize_text` on all
+    1,727,604 strings it tried, the one exception being the empty string. The test helper's default output is
+    byte-identical to its parent's. M57 to M67 are each caught. 43 runtime and legacy-replay tests passed.
+  - **Six Minor findings,** carried as a follow-up (item 5):
+    - F1: a fully `\u`-escaped path in a `.json` draft that `json.loads` rejects with `ValueError` (a BOM, an integer
+      over 4300 digits, malformed JSON) is still not seen, and record §7 does not say so;
+    - F2: the new refusals apply to every inventory file, though note §11.1 item 7 says files outside `drafts/` are
+      reported without blocking. The departure is not recorded;
+    - F3: a lone surrogate in a disambiguation resolution path still reaches `canonical_bytes` as a non-domain error;
+    - F4: the surrogate test covers U+D800 only, and `_is_scanner_token("")` returns true;
+    - F5: seven other disambiguation conditions survive removal, so "a mutation for each guard" overstates;
+    - F6: stale statements and line anchors in the record (§1.6 line 92, §8.1's F3 row, test counts).
+  - **Four Info items:** the duplicated delimiter set, the depth-5000 tests' dependence on CPython's Windows recursion
+    limit, a missing `Raises:` docstring, and four scratch `whole_file` controls worth promoting.
+- **The runs,** `--no-cov` and serial unless stated:
+  - at `707cbe0d`, by the Claude session: 1,289 passed and 1 failed across 38 files (record §6.4). The failure is
+    `test_the_output_guard_requires_a_vault_root`, which fails only inside an `.apm/worktrees/` checkout;
+  - at `7de9224c`, by the Claude session: citations 5, reader 20, WP9.4-2 replay 8, WP9.3 replay 104 and WP9.4-2
+    runtime 4, all passed. By the agent: legacy replay 39, WP9.3 replay 104 and WP9.3-2 runtime 21, all passed;
+  - at `9a510065`, by the Claude session: citations 6, evidence 9 and WP9.4-2 replay 8 passed. WP9.4-2 runtime,
+    evidence acceptance and open items gave 66 passed, run together.
+- **CI at the merge.** On `9a510065`, CI passed. The Research System Suite run (`44916122259`) was still in progress
+  when the PR merged at 15:03 UTC. Both runs finished after Stephen accepted this entry:
+  - the suite on `9a510065` passed at 16:54 UTC: all eight shards, `ci-tools` and `suite-verdict` succeeded
+    (`nightly-verdict` was skipped);
+  - CI on `95871b38` (`44917144986`) passed at 15:13 UTC: `lint`, `admission-controls`, `windows-store-lock` and
+    `watchdog-schedule-liveness`.
+
+  So no required check was red at the merge, but the suite's verdict came 1 h 51 min after it.
+- **Mutations.** 66 single-guard mutations were caught (record §6.2 and §8.3). M04 is equivalent: `reader._git`
+  passes `--no-replace-objects` itself, and M04b, which removes the flag in both places, is caught. M48 survives
+  because the preparer's `git_tracked` check runs again two lines later, so no test can tell the two apart.
+- **The test-time budget (P-087 item 7): met.** The branch added 182.7 s at `707cbe0d` and about 230 s at `7de9224c`,
+  against 300 s (record §6.3). `9a510065` changed two test files (and the `w9_flows.py` helper they share). They were
+  re-timed serially with `--no-cov` on Stephen's machine on 2026-11-21, alternating `7de9224c` and `9a510065` twice
+  (pytest's own times):
+  - `test_w9_citations.py`: 2.64 s and 2.36 s at `7de9224c`, 3.28 s and 3.28 s at `9a510065`, so 0.8 s more;
+  - `test_w9_wp9_4_2_replay.py`: 14.84 s and 13.61 s at `7de9224c`, 12.94 s and 12.99 s at `9a510065`, so 1.3 s
+    less, which is within the machine's noise.
+
+  So `9a510065` adds no measurable time, and the total stays about 230 s.
+- **D-4, at exact bytes on `main` at `95871b38`:**
+  - the 06h manifest is blob `1066404a`, count 275, SHA-256
+    `82eab93a1b2ac81dd564581237f35e3dff19fee9e824ffff317d0f202b451d58`;
+  - `research_system/schema_registry.py` is `e32cb408`, `research_system/authority.py` `9b56b322`, the 06h smoke test
+    `3b1eec6e` and `test_schema_registry.py` `3cc21815`;
+  - `tools/w9_segmentation.py` is unchanged at `43e1454d`.<br>
+**Decision:**
+1. **WP9.4-2 is accepted at `95871b38`.** What it records stands as the record states it:
+   - **the departures** in record §3.1, items 1 to 6. Stephen decided items 1, 3, 4 and 5 in chat (Authority above).
+     Item 2 is the refusal text of `reader._git`. Item 6, that the extractor projects through accepted membership
+     tables only, is the note's own (§11.1 item 4);
+   - **the readings** in record §3.2;
+   - **P-087 items 3 to 7** as built, with the guards and mutations record §1.5 and §6.2 list.
+2. **D-4 is re-accepted** at the bytes above: 275 rows, the digest above and the five files' blobs. The append sites are
+   unchanged.
+3. **WP9.4 is complete.** Both of its PRs are merged and accepted: WP9.4-1 at `cc81b733` (P-087) and WP9.4-2 at
+   `95871b38`. 49 rows are routed and 12 stay deferred, to WP9.6, WP9.7 and LR-002.
+4. **The known limits carried forward** (record §7):
+   - **to WP9.6, LR-055's window:** for a paper root, LR-055 refuses when the tracked file set under the root changes,
+     when a mapped inventory row's blob changes, or when the root's physical identity changes. WP9.6 must make LR-055
+     resolve the replacement inventory, because `_prior_lr054_inventory_for_registration` follows the original LR-054
+     mapping;
+   - **to WP9.7, one acceptance batch:** LR-016 admits only the first batch of at most 20 items, so a paper root whose
+     inventory needs more than 20 accepted observations cannot reach LR-054 until WP9.7 routes LR-022 (note §10.2,
+     "Timing");
+   - **the note's scan rule (§11.1 item 1):** an escaped string in a `.json` draft's raw text can cause a false
+     blocker, which refuses. A draft that is not valid JSON is scanned as raw text only;
+   - **the reader's `tool_sha256`:** `reader.py` is one of `IMPORTER_MODULES`, so observations made after WP9.4-2 carry
+     a new `tool_sha256`. No real observation exists before L-0.
+5. **The independent review's six Minor findings are a WP9.4-2 follow-up,** not a bar to this acceptance. None admits
+   a wrong status: F1 is covered by the reviewer's derivation (note §11.1), and F2 and F3 refuse, though F3 refuses
+   with a non-domain error. The follow-up fixes F3 to F6 and records F1. F2 needs an owner choice: limit the new
+   refusals to `drafts/`, or record them as a departure from note §11.1 item 7. It must land before L-0, where the
+   extractor first runs on real roots. All 55 tracked files of the two real roots scan today without raising.
+
+**Not decided here:**
+- what comes after WP9.4, and whether it is dispatched;
+- F2's choice (item 5), and whether the WP9.4-2 follow-up is its own PR or part of the next package;
+- whether a discharge gets a `reject` resolution path (WP9.4-1 record §7);
+- the open items P-084 lists: the T2 `WriterLock` flake and the segmentation readings R-1 to R-8. The test-runtime
+  escalation stays open.
+
+**Not authorized:** as P-085. WP9.5 to WP9.7; L-0 to L-5, the D-7 export included; a real store, genesis or a grant on
+one; any legacy write; any paper-root transition.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** P-085's, as P-086 item 13 extends it.<br>
+**Affected specifications:** 06v WP9.4 (complete); the WP9.4 design note (as built, record §3); WP9.3's accepted
+reader (`member_path` and `--no-replace-objects`); the runtime-binding census (275 rows).<br>
+**Migration consequence:** None until a live store runs W9 commands, which is not authorized here.
+
 ## Decision protocol
 
 Each future decision entry must record:

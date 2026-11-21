@@ -28,7 +28,7 @@ from typing import Any
 
 from research_system.errors import IntegrityError
 from research_system.legacy import evidence
-from research_system.legacy.reader import ReadRefused, _git
+from research_system.legacy.reader import MANUSCRIPT_ROOT_ROLE, ReadRefused, _git
 
 _FROZEN_COPY_KINDS = frozenset({"untracked_file", "vault_file"})
 _ANCHORED_FIELDS = {
@@ -65,8 +65,11 @@ def reread_items(environment: Any, legacy: Mapping[str, Any], record: Mapping[st
     reader = _need_reader(environment)
     for registration, observation in batch_sources(legacy, record):
         recorded = observation["source_identity"]
+        member_path = recorded.get("repository_path") if registration.get("role") == MANUSCRIPT_ROOT_ROLE else None
         try:
-            read = reader.read(registration)
+            read = (
+                reader.read(registration) if member_path is None else reader.read(registration, member_path=member_path)
+            )
         except ReadRefused as exc:
             raise IntegrityError(f"W9 acceptance item's source cannot be read: {exc}") from exc
         if _comparable(read.source_identity) != _comparable(recorded):

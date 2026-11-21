@@ -108,3 +108,35 @@ def test_the_acceptance_replay_constants_are_lr020s_parsed_row() -> None:
     assert reducers.UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr020 if when is None)
     assert reducers.CONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr020 if when is not None)
     assert reducers.PILOT_FIXTURES == {fixture for fixture, _ in lr020}
+
+
+def test_the_adoption_and_discharge_replay_constants_match_parsed_rows() -> None:
+    """WP9.4-1's reducer holds LR-029 and LR-034 fixture sets as constants; they equal the parsed catalogue rows."""
+    parsed = _parsed()
+    lr029 = parsed["LR-029"]
+    assert reducers.ADOPTION_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr029 if when is None)
+    assert reducers.ADOPTION_CONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr029 if when is not None)
+    assert reducers.ADOPTION_FIXTURES == {fixture for fixture, _ in lr029}
+    assert "LR-034" not in parsed  # LR-034 has an empty pilot_promotion_fixtures list
+    assert reducers.DISCHARGE_UNCONDITIONAL_FIXTURES == ()
+    assert reducers.DISCHARGE_CONDITIONAL_FIXTURES == ()
+    assert reducers.DISCHARGE_FIXTURES == (
+        set(reducers.DISCHARGE_UNCONDITIONAL_FIXTURES) | set(reducers.DISCHARGE_CONDITIONAL_FIXTURES)
+    )
+
+
+def test_the_wp9_4_2_replay_constants_match_parsed_rows() -> None:
+    """WP9.4-2's reducer holds LR-044, LR-049, LR-054, and LR-055 fixture sets equal to parsed catalogue rows."""
+    parsed = _parsed()
+    lr044 = parsed["LR-044"]
+    assert reducers.SOURCE_INVENTORY_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr044 if when is None)
+    assert reducers.SOURCE_INVENTORY_FIXTURES == {fixture for fixture, _ in lr044}
+    assert "LR-049" not in parsed
+    assert reducers.MAPPING_UNCONDITIONAL_FIXTURES == ()
+    assert reducers.MAPPING_FIXTURES == set()
+    lr054 = parsed["LR-054"]
+    assert reducers.OWNERSHIP_54_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr054 if when is None)
+    assert reducers.OWNERSHIP_54_FIXTURES == {fixture for fixture, _ in lr054}
+    lr055 = parsed["LR-055"]
+    assert reducers.OWNERSHIP_55_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr055 if when is None)
+    assert reducers.OWNERSHIP_55_FIXTURES == {fixture for fixture, _ in lr055}

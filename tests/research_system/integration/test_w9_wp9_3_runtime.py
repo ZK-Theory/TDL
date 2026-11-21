@@ -132,12 +132,16 @@ def test_w9_c11_every_wp9_3_command_retried_returns_its_receipt_and_appends_noth
 
 
 def test_a_deferred_row_through_a_bound_command_is_refused_before_any_write(store: W9Store) -> None:
-    """§2.2: ProposeLegacyRecord is bound, but LR-023 (WP9.4) is not routed; assign_row refuses it before append."""
+    """§2.2: ProposeLegacyRecord is bound, but LR-056 (WP9.6) is deferred; assign_row refuses it before append."""
     record_id = new_id("scope_definition")
-    payload = {"schema_id": "ars://legacy/legacy-adoption-decision", "schema_version": "1.0.0", "record_id": record_id}
+    payload = {
+        "schema_id": "ars://legacy/legacy-record-supersession",
+        "schema_version": "1.0.0",
+        "record_id": record_id,
+    }
     _refused(
         store,
-        r"W9 row not routed in this version: LR-023 \(WP9.4\)",
+        r"W9 row not routed in this version: LR-056 \(WP9.6\)",
         "ProposeLegacyRecord",
         store.actors.analyst,
         record_id,
@@ -485,3 +489,62 @@ def test_w9_t4_the_superseded_lines_record_a_stale_projection_resolved_at_tier_1
     record = store.recorded("legacy_observation", observation_id)
     assert record["families"][0]["w0_class"] == "stale_projection"
     assert record["conflicts"][0]["precedence_tier"] == 1
+
+
+def test_lr007_review_request_refuses_owner_as_named_reviewer(store: W9Store) -> None:
+    """Fix 2 (CodeRabbit #439): RequestW9AuthorityReview refuses OWNER as reviewer before shadow or writes."""
+    from research_system.canonical import sha256_hex
+    from research_system.legacy.records import pre_assigned_ref
+    from tests.research_system.integration.w9_runtime_harness import RESULT_FAMILIES, git
+
+    store.register("results/x.json")
+    raw = (store.repo / "results/x.json").read_bytes()
+    record_id = new_id("scope_definition")
+    record = {
+        "schema_id": "ars://legacy/legacy-field-family-membership",
+        "schema_version": "1.0.0",
+        "record_id": record_id,
+        "record_revision": 1,
+        "supersedes_revision": None,
+        "project_id": store.harness.ledger.project_id,
+        "file_schema_id": "w9-test-result/1",
+        "applies_to": [
+            {
+                "path": "results/x.json",
+                "identity_kind": "git_tracked",
+                "git_blob": git(store.repo, "rev-parse", f"{store.head}:results/x.json"),
+                "sha256": sha256_hex(raw),
+                "size_bytes": len(raw),
+            }
+        ],
+        "table_sha256": "c" * 64,
+        "families": deepcopy(RESULT_FAMILIES),
+        "unassigned": [],
+        "author_actor_id": store.actors.author,
+        "review_ref": pre_assigned_ref("review", new_id("review"), record_id),
+        "acceptance_decision_ref": pre_assigned_ref("decision", new_id("decision"), record_id),
+    }
+    assert store.submit("ProposeLegacyRecord", store.actors.author, record_id, 0, record).status == "accepted"
+
+    rev_id = record["review_ref"]["id"]
+    request = {
+        "subject_record_id": record_id,
+        "reviewer_actor_id": OWNER,
+        "review_questions": ["Is it right?"],
+        "analyst_session": "session-analyst",
+        "author_session": "session-author",
+    }
+    _refused(
+        store,
+        "W9 review request names the owner as reviewer",
+        "RequestW9AuthorityReview",
+        store.actors.analyst,
+        rev_id,
+        0,
+        request,
+    )
+
+    control_request = {**request, "reviewer_actor_id": store.actors.reviewer}
+    assert (
+        store.submit("RequestW9AuthorityReview", store.actors.analyst, rev_id, 0, control_request).status == "accepted"
+    )

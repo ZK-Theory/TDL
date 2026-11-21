@@ -102,9 +102,9 @@ _EXPECTED_ACCEPTED_AUTHORITIES = {
     "event_schema_tree": "058c1d5ddcb9d249916977f12b11768b6d15de0f",
 }
 _EXPECTED_RUNTIME_BINDINGS = {
-    "count": 273,
+    "count": 275,
     "canonical_row_format": "schema_id|schema_version|command_type|event_type|producer_command_type|policy_action_type\n",
-    "sha256": "0cca0414641bf4fbed32b5f42d7c3753a8c47dcdd09d815dcba0658ef8814712",
+    "sha256": "82eab93a1b2ac81dd564581237f35e3dff19fee9e824ffff317d0f202b451d58",
 }
 _EXPECTED_HISTORICAL_EVIDENCE = {
     "pre_06h_freeze": _PRE_06H_FREEZE,

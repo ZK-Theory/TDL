@@ -275,6 +275,9 @@ _RUNTIME_BINDINGS = (
     SchemaBinding("ars://core/command", "1.0.0", command_type="ResolveW9AuthorityDecision"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="RecordLegacyLightInventory"),
     SchemaBinding("ars://core/command", "1.0.0", command_type="ObserveLegacyRecord"),
+    # WP9.4-2 binds the ordinary paper-root creation and citation-status commands (§2.3, §14; P-087).
+    SchemaBinding("ars://core/command", "1.0.0", command_type="CreateLegacyPaperRoot"),
+    SchemaBinding("ars://core/command", "1.0.0", command_type="RecordPaperCitationStatus"),
     # C2 (WP9.2 note §2.3): a W9 command that emits a W2 event type carries its producer binding.
     SchemaBinding(
         "ars://core/event/ReviewRequested",

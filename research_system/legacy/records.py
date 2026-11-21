@@ -26,6 +26,7 @@ from research_system.errors import IntegrityError
 # The preparer-set fields of a record a command creates (§5.1). A payload that supplies one is refused.
 PREPARER_SET_FIELDS = frozenset({"created_by_actor_id", "created_at", "content_hash"})
 OBSERVATION_PREPARER_SET_FIELDS = PREPARER_SET_FIELDS | {"observed_at"}
+CITATION_STATUS_PREPARER_SET_FIELDS = PREPARER_SET_FIELDS | {"record_id", "cited_family_set_sha256"}
 # The read-derived fields of an observation (§5.1): a function of the bytes, filled by the preparer from its own read.
 OBSERVATION_READ_DERIVED_FIELDS = frozenset({"source_identity", "file_facts", "importer", "record_id"})
 
@@ -142,6 +143,22 @@ def ownership_record_id(acceptance_id: str, registration_id: str, acceptance_cre
     return derived_id("obj", f"w9-ownership:{acceptance_id}:{registration_id}", utc_milliseconds(acceptance_created_at))
 
 
+def adoption_review_id(adoption_id: str, created_at: str) -> str:
+    """Derive an adoption proposal's review ID (WP9.4 note §5.2; owner point C).
+
+    An adoption record carries no ``reviewer_ref`` field, so its review ID is derived from its ``record_id`` and
+    ``created_at``, which are both covered by its content hash.
+    """
+
+    return derived_id("rev", f"w9-adoption-review:{adoption_id}", utc_milliseconds(created_at))
+
+
+def adoption_eligibility_decision_id(adoption_id: str, created_at: str) -> str:
+    """Derive an adoption proposal's reviewer-eligibility Decision ID (WP9.4 note §5.5; owner point B)."""
+
+    return derived_id("dec", f"w9-adoption-eligibility:{adoption_id}", utc_milliseconds(created_at))
+
+
 def review_context_manifest_id(review_id: str, requested_at: str) -> str:
     """The verdict's ``context_manifest_id``: ``ctx_`` from ``w9-review-context:<review ID>`` (§5.2)."""
 
@@ -199,6 +216,26 @@ def observation_record_id(
         "obj",
         f"w9-observation:{registration_id}:{subject_digest}:{observation_count}",
         utc_milliseconds(registration_created_at),
+    )
+
+
+def citation_status_record_id(
+    root_id: str,
+    supersedes_id: str | None,
+    cited_family_set_sha256: str,
+    extractor_output_sha256: str,
+    reviewer_derivation_sha256: str,
+    root_created_at: str,
+) -> str:
+    """Return a citation status record's derived ``record_id`` (WP9.4 note §5.6)."""
+
+    return derived_id(
+        "obj",
+        (
+            f"w9-citation-status:{root_id}:{supersedes_id or 'none'}:"
+            f"{cited_family_set_sha256}:{extractor_output_sha256}:{reviewer_derivation_sha256}"
+        ),
+        utc_milliseconds(root_created_at),
     )
 
 

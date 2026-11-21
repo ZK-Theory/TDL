@@ -80,15 +80,19 @@ _WP9_3_PREPARERS: dict[str, Callable[..., preparers.Prepared]] = {
     "ResolveW9AuthorityDecision": preparers.prepare_resolution,
     "RecordLegacyLightInventory": preparers.prepare_light_inventory,
     "ObserveLegacyRecord": preparers.prepare_observation,
+    "CreateLegacyPaperRoot": preparers.prepare_paper_root,
+    "RecordPaperCitationStatus": preparers.prepare_citation_status,
 }
 _EXPECTED_VERSIONS = preparers.EXPECTED_VERSIONS
-# WP9.3 note §5.3: each grant names one exact subject, of these kinds, on the command's target stream.
+# WP9.3 note §5.3 & WP9.4 note §5.6: each grant names one exact subject, of these kinds, on the command's target stream.
 _SUBJECT_KINDS = {
     "ImportAcceptedW9CatalogueGenesis": "scope_definition",
     "ImportAcceptedW9CatalogueRevision": "scope_definition",
     "ProposeLegacyRecord": "scope_definition",
     "RecordLegacyLightInventory": "scope_definition",
     "ObserveLegacyRecord": "scope_definition",
+    "CreateLegacyPaperRoot": "scope_definition",
+    "RecordPaperCitationStatus": "scope_definition",
     "RequestW9AuthorityReview": "review",
     "RecordW9AuthorityReview": "review",
     "ProposeW9AuthorityDecision": "decision",
@@ -489,6 +493,12 @@ class LegacyRuntime:
             rereads = preparation.rereads
             if prepared[0][1] != command.target_stream_id:
                 raise IntegrityError("W9 command target is not the stream its row's first event takes")
+            if (
+                envelope["command_type"] == "RequestW9AuthorityReview"
+                and envelope["payload"].get("reviewer_actor_id")
+                == authority_evidence.administration_context.owner_actor_id
+            ):
+                raise IntegrityError("W9 review request names the owner as reviewer")
             row_id = self._shadow(command, prepared, snapshot, legacy, occurred_at_value)
             self._require_role(command, row_id, authority_evidence)
         else:
