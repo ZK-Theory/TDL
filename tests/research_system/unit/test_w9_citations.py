@@ -458,7 +458,8 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
                 },
                 "W9 citation disambiguation resolution must be sorted paths or 'not_a_result'",
             )
-            for resolution in (["../x.npy"], ["results/a/x.npy", "results/a/x.npy"])
+            # A non-string item reaches this guard, not a TypeError in the surrogate check before it.
+            for resolution in (["../x.npy"], ["results/a/x.npy", "results/a/x.npy"], [7], [None])
         ),
         # F3 of the 9a510065 review: a lone surrogate in any of the entry's strings.
         *(
@@ -471,6 +472,7 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
             )
             for citing, token, resolution in (
                 (disambig_valid_path, "x.npy", ["results/\ud800.npy"]),
+                (disambig_valid_path, "x.npy", ["results/a.npy", "results/\ud800.npy"]),
                 (disambig_valid_path, "x\udc00.npy", "not_a_result"),
                 ("papers/P01-A-JRSSA/drafts/s\ud800.md", "x.npy", "not_a_result"),
             )
@@ -502,6 +504,11 @@ def test_disambiguation_token_rule_agrees_with_the_scanner() -> None:
     """The reader admits a token exactly when the scanner would emit that token unchanged."""
 
     assert citations._SINGLE_DELIMITERS is evidence.SCANNER_DELIMITERS
+    # The set's content is note §11.1 item 1's list, and the scanner splits on each one.
+    note_delimiters = "`'\"()[]{}<>,;|*"
+    assert evidence.SCANNER_DELIMITERS == frozenset(note_delimiters)
+    for delimiter in note_delimiters:
+        assert citations.tokenize_text(f"x{delimiter}y") == [("x", False), ("y", delimiter == "}")], delimiter
     for token in (
         "",
         "old/x.npy",
