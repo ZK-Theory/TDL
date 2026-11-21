@@ -18,11 +18,12 @@ OPEN entry targets zktheoryweb (Group I), and no tree outside the five appears i
 branch. It does not authorize direct changes to `main`, silent gate weakening, or acceptance without the named
 controls.
 
-> **The headline: the merge queue may be unreachable after most reviews.** The bypass audit built last week ran for the
-> first time. It reports 6 bypassed updates to `main` in 7 days, against 2 through the queue, and none states a
-> reason. Every bypassed head carries a CANCELLED required `merge-admission` run, and neither queued head does. The
-> open PR #437 is BLOCKED right now with one. This pattern suggests a workflow problem; the reasons for the six
-> bypasses remain unknown. See Group A. A1 is a five-minute check you can run today.
+> **Updated 2026-11-21: the bypasses were deliberate.** The bypass audit's first run reported 6 bypassed updates to
+> `main` in 7 days, against 2 through the queue, none stating a reason. This packet first read them as possibly forced
+> by cancelled required `merge-admission` runs. You have since said the overridden merges "were manual and mine to
+> speed up work in progress", and the data agrees: of the 8 bypasses from 2026-11-20 to 2026-11-21 (#437, #439 to
+> #445), 5 heads had no cancelled run and no unresolved thread. Group A is now about two smaller things: stale
+> CANCELLED contexts misreport check status, and whether a deliberate bypass still states a reason.
 
 **What this review changed.**
 - **Record (observation log):**
@@ -40,8 +41,9 @@ controls.
     grep. "Enforcement claims" checks "X always requires Y" per branch of the enforcing function.
   - Mirrored to `.claude/skills/` by `tools/sync_agent_skills.py`; `--check` reports every skill IDENTICAL and
     `pack pins: 12 checked, 0 drifted`. Neither skill is pinned by a pack.
-- **research-observer (applied, outside git):** step 1's bypass audit loses its "once #425 is on `main`" conditional
-  and gains a read of each bypassed head's required contexts. Backup:
+- **research-observer (applied, outside git):** step 1's bypass audit loses its "once #425 is on `main`" conditional.
+  As revised on 2026-11-21, it reports owner bypasses as counts rather than defects, since they are often deliberate,
+  and says to read check runs before citing a status, because a CANCELLED context prints as `fail`. Backup:
   `~/.claude/skill-updates/2026-11-17/research-observer/SKILL.md.before`.
 - **Not changed:** anything on the GATE, INVARIANT or PROCESS lanes, and nothing in the other trees. Everything below
   is a recommendation.
@@ -78,7 +80,7 @@ mechanism with its negative control.
 
 | Group | OPEN | Recommended resolution | Decision |
 |---|---:|---|---|
-| A. Cancelled required runs keep PRs out of the queue | 2 | Confirm on #437, then stop `merge-admission` leaving a cancelled context; one check-runs helper for the audit and the register | `[ ]` approve A1–A4 · `[ ]` A1 only, then decide · `[ ]` defer |
+| A. Stale cancelled contexts and the bypass reason line | 2 | One check-runs helper for status citations; your call on the reason line. A2 declined (2026-11-21) | `[ ]` approve A4, rule on A5 · `[ ]` A5 only · `[ ]` defer |
 | B. The suite lane is still not required | 2 | Your ruleset edit; fold the duplicate entry | `[ ]` approve B1 + S8 · `[ ]` S8 only · `[ ]` defer |
 | C. The writer-lock release raises after its work is done | 2 | A defect task with a coordinated writer regression test; a flake-verdict line | `[ ]` approve C1+C2 · `[ ]` C2 only · `[ ]` defer |
 | D. W9 census and read-path coverage | 4 | Share the census resolver; cover `show`; rule on one fallback; defer the scope lint | `[ ]` approve D1–D4 · `[ ]` some (name which) · `[ ]` defer |
@@ -95,71 +97,52 @@ Total: 2 + 2 + 2 + 4 + 3 + 3 + 2 + 2 + 1 = **21**.
 
 ---
 
-## A — Cancelled required runs keep PRs out of the queue (2)
+## A — Stale cancelled contexts and the bypass reason line (2)
 
 `2026-11-17-cancelled-required-check-run-keeps-prs-out-of-the-queue` (new),
 `2026-11-13-gh-pr-checks-rollup-misstates-a-rerun-check`.
 
+**Revised 2026-11-21.** This group first read the week's bypasses as possibly forced by cancelled required runs. You
+have said they were manual and deliberate, to speed up work in progress. The original hypothesis is withdrawn, and A1
+(re-run #437's cancelled run to test it) is dropped: #437 had merged by then, and no open PR carried a cancelled
+required run.
+
 **What the audit found.**
-- `tools/check_bypass_merges.py --days 7` reports 6 bypassed updates to `main`, 2026-11-11 to 2026-11-14: #429, #430,
-  #432, #433, #434 and #436. All are by the owner account, and none has a `Bypass reason:` line. The rule-suite API
-  agrees: 6 `bypass` and 2 `pass` (#431, #435) since 2026-11-11.
-- #429 and #430 merged while `suite-verdict` was red on their heads. In both the only red job was `ci-tools`, #425's
-  control bug that #431 fixed; all eight shards passed.
-- No agent receipt shows a refused bypass, so the merges were probably made outside an agent session. I did not
-  establish that.
+- `tools/check_bypass_merges.py --days 7` reported 6 bypassed updates to `main`, 2026-11-11 to 2026-11-14: #429, #430,
+  #432, #433, #434 and #436, against 2 through the queue (#431, #435). None has a `Bypass reason:` line.
+- #429 and #430 merged while `suite-verdict` was red on their heads, through `ci-tools` alone (#425's control bug,
+  fixed by #431); all eight shards passed.
+- From 2026-11-20 to 2026-11-21 all 8 updates to `main` were bypasses (#437, #439 to #445). 5 of those heads (#437,
+  #440, #441, #442, #444) had no cancelled `merge-admission` run and no unresolved thread, which fits your account.
 
-**The pattern.** I compared the four required checks on all eight heads:
-
-| PR | Route | `merge-admission` runs on the head | `gh pr checks` |
-|---|---|---|---|
-| #429, #430, #432, #434, #436 | bypass | 1 success, 1 to 4 cancelled | `merge-admission` `fail` |
-| #433 | bypass | 1 success, 1 cancelled, 1 failure | `merge-admission` `fail` |
-| #431, #435 | queue | 1 success, none cancelled | all `pass` |
-
-**The mechanism.**
-- `merge-admission` runs on `pull_request`, `pull_request_review` and `pull_request_review_comment`, all in one
-  concurrency group per PR with `cancel-in-progress: true` (`.github/workflows/merge-admission.yml`). A review that
-  lands within a minute or two of a push, as CodeRabbit's does, cancels the run before it.
-- The PR's status rollup keeps one context per triggering event. The cancelled event's context therefore stays
-  CANCELLED after another event's run succeeds. For #434's head `d8cb0514`: run 43338626471 (`pull_request`) and run
-  43338660384 were cancelled; run 43338692755 (`pull_request_review_comment`) succeeded. The rollup shows the
-  `pull_request` context CANCELLED, and `gh pr checks` prints it as `fail`. That is the "three readings disagree"
-  puzzle in the 2026-11-13 entry.
-- **Live now:** PR #437 is `mergeStateStatus: BLOCKED`. Its `merge-admission` context is CANCELLED on
-  `pull_request_review` and SUCCESS on `pull_request`, and both are `isRequired: true`.
-
-**What is not proved.** The ruleset also requires code-owner review and resolved threads, so I have not shown that the
-cancelled context is what blocks. It is the only difference I found between the bypassed and the queued heads.
-
-**Suspected defect.** Cancelled required contexts may keep reviewed PRs out of the queue. Even if A1 confirms this
-for #437, the audit cannot establish why earlier merges bypassed the queue.
+**What still holds: cancelled runs misreport status.**
+- `merge-admission` runs on `pull_request`, `pull_request_review` and `pull_request_review_comment`, in one concurrency
+  group per PR with `cancel-in-progress: true`. A review that lands soon after a push cancels the earlier run.
+- The status rollup keeps one context per triggering event, so the cancelled one stays CANCELLED after another event's
+  run succeeds, and `gh pr checks` prints it as `fail`. For #434's head `d8cb0514`: runs 43338626471 (`pull_request`)
+  and 43338660384 were cancelled, and run 43338692755 succeeded. That is the "three readings disagree" puzzle in the
+  2026-11-13 entry, where a handoff and a register line each cited a different reading.
 
 **Proposed action.**
-- **A1. Confirm.** On #437, re-run its cancelled `merge-admission` run (`gh run rerun <id>`) and read
-  `mergeStateStatus` again. If it leaves BLOCKED, the mechanism is confirmed. This is a write to CI, so it is yours or
-  a session's on your word.
-- **A2. Fix the workflow.** Stop it leaving a cancelled required context. Options: key the concurrency group by event
-  as well as PR; stop cancelling for the review events; or have `merge-admission-sweep.yml` re-run any cancelled
-  `merge-admission` run on the current head. The choice is a design call for the fixing session. The Codex-thread
-  history in the workflow's header explains why the review triggers exist; they stay.
-- **A3. Show the check evidence.** `check_bypass_merges.py` prints each bypassed head's CANCELLED required contexts
-  without classifying the bypass as forced or chosen.
-- **A4. One helper for check status** (the 2026-11-13 entry). A small `tools/` command that prints, for a head, every
-  run of each check name with its event and conclusion. A3 uses it, and register Evidence lines cite its output rather
-  than `gh pr checks` or a single run ID.
+- **A2. Change the workflow. Declined (2026-11-21).** You judged it unneeded: the cancelled contexts are not what drove
+  the bypasses, and A4 handles the misreading.
+- **A4. One helper for check status.** A small `tools/` command that prints, for a head, every run of each check name
+  with its event and conclusion. Register Evidence lines and handoffs cite its output rather than `gh pr checks` or a
+  single run ID, and the bypass audit can print it for each bypassed head as status, not as a reason.
+- **A5. Your call on the reason line.** CONVENTIONS (2026-11-08) says a bypass states its reason, and no bypass since
+  has. Options:
+  - keep the rule, with a short form for deliberate work in progress (`Bypass reason: wip`);
+  - drop it for owner bypasses, and have the audit report counts only;
+  - leave it as written.
 
 **Controls.**
-- A2: a fixture rollup with a CANCELLED required context on one event and SUCCESS on another is acted on (re-run) or
-  reported; a rollup with only SUCCESS is not. The confirming evidence is the next CodeRabbit-reviewed PR entering the
-  queue without a bypass.
-- A3: the #434 fixture (two cancelled runs, one success) prints both cancelled runs without inferring a reason.
-- A4: on `d8cb0514` it lists three `merge-admission` runs: two cancelled, one success.
+- A4: on `d8cb0514` it lists three `merge-admission` runs, two cancelled and one success.
+- A5: if a short form is kept, the audit accepts `Bypass reason: wip` and still reports a bypass with no line.
 
-**Recommended decision:** approve A1–A4, with A1 first, since A2's shape depends on it. State a bypass reason only
-when it is independently established for that merge. If none is established, report the reason as unknown.
+**Recommended decision:** approve A4, and on A5 keep the rule with the `wip` short form. That keeps the audit's report
+readable at one word per merge.
 
-**Decision:** `[ ]` approve A1–A4 · `[ ]` A1 only, then decide · `[ ]` defer
+**Decision:** `[ ]` approve A4, rule on A5 · `[ ]` A5 only · `[ ]` defer
 
 ---
 
@@ -490,7 +473,11 @@ edits, and the table is checked with `tools/observation_log_lint.py <log> --pack
 | G | 2 | 2026-11-17-commit-state-guard-fails-open-and-discards-the-cause · 2026-11-17-shell-guards-do-not-match-the-mcp-shell-tools |
 | H | 2 | 2026-11-17-review-fixes-pushed-after-their-pr-merged · 2026-11-17-register-lint-flags-branches-carrying-an-open-prs-register-bytes |
 | I | 1 | 2026-11-17-zktheoryweb-org-to-link-map-tracked-despite-rule |
-| **Total** | **21** | |
+| Next review (logged 2026-11-17 to 11-20, after this review) | 7 | 2026-11-17-edge-bundle-passed-locally-but-manifest-validation-failed-on-netlify · 2026-11-19-fix-to-one-rule-made-another-clause-unreachable · 2026-11-19-snapshot-retire-needs-netlify-creds-not-provisioned · 2026-11-19-vault-bound-session-ran-in-a-cloud-container · 2026-11-20-ellipsis-over-governing-rule-dropped-a-requirement · 2026-11-20-ellipsis-quote-dropped-the-qualifier-the-fix-needed · 2026-11-20-main-checkout-went-shallow-and-reddened-the-06h-smoke-test |
+| **Total** | **28** | |
+
+The last row was added on 2026-11-21, when this packet was updated for the bypass statement. Those seven entries were
+logged by other sessions after the review ran, so they are not dispositioned here; the 2026-11-24 review takes them.
 
 ---
 
@@ -548,10 +535,9 @@ logged and applied here, is research-observer's own step 1.
 - Step 7's widened grep follows silent absence: a forward obligation outside the register produced no signal, and now
   the scan reaches it.
 - The per-branch line extends the census principle (name every path) to the branches inside a seam.
-- The research-observer edit removes a dated conditional and adds a read of the head's required contexts. The
-  rule-suite's `bypass` records that a bypass occurred; the contexts show the state of the checks. Report the contexts
-  as evidence without classifying the bypass as forced or chosen from them. State a reason only when independently
-  established for that merge; otherwise report it as unknown.
+- The research-observer edit removes a dated conditional. As revised on 2026-11-21, it reports owner bypasses as
+  counts, since they are often deliberate, and says to read check runs before citing a status. That follows
+  "metadata is suspicion, content is verdict": `gh pr checks` is a rollup; the check runs are the content.
 - Nothing adds, weakens or removes a gate.
 
 ## Gate-liveness spot check
@@ -590,7 +576,7 @@ main checkout's log and every app worktree's.
 
 | What went wrong | Caught by | Observation |
 |---|---|---|
-| 6 of 8 updates to `main` bypassed the queue, with no reason given | the bypass audit, a week after the fact; this review found a check pattern, with reasons still unknown | `2026-11-17-cancelled-required-check-run-keeps-prs-out-of-the-queue` (A) |
+| 6 of 8 updates to `main` bypassed the queue, with no reason given | the bypass audit; deliberate, per your 2026-11-21 statement, so only the missing reason line remains | `2026-11-17-cancelled-required-check-run-keeps-prs-out-of-the-queue` (A) |
 | #425 and #428 merged through the queue with `suite-verdict` red | the next nightly and a fix session | carried by `2026-10-02-full-suite-red-on-main-unseen` (B) |
 | #428's review fixes were pushed after it merged and reached no PR | the review session, by hand; carried by #429 | `2026-11-17-review-fixes-pushed-after-their-pr-merged` (H) |
 | `ars legacy show` had failed on every W9 proposal since WP9.3-1 | WP9.3-2's batch-mode test | `2026-11-11-ars-legacy-show-failed-on-every-proposal-since-wp9-3-1` (D) |
