@@ -64,7 +64,7 @@ at your base commit, **read by you**, not taken from this handover. This handove
    - §7.3 (the shared-writer exception: what is legacy in the Computational-Log and `CONVENTIONS.md`);
    - §16.1 rows W9-D5, W9-D9, W9-D13 and W9-D14.
 5. **The evidence-area formats WP9.3 already fixed,** which WP9.5 writes to:
-   - `implementation/06v-addendum-2026-11-10-w9-paths.md` (the path table);
+   - `docs/plans/agentic-research-system/implementation/06v-addendum-2026-11-10-w9-paths.md` (the path table);
    - `research_system/legacy/evidence.py`: the constants (around `:36-64`, including `REQUIRED_DETECTOR_CONTROLS`),
      `require_registered`, `require_detector_controls`, `require_change_list` and `_change_entries`, and
      `require_cl_export`;
@@ -76,7 +76,8 @@ at your base commit, **read by you**, not taken from this handover. This handove
    - `tools/check_bypass_merges.py` (it already reads bypass use on `main` with the owner's `gh`);
    - `.github/workflows/` (every workflow, for triggers, permissions and the token each uses);
    - `.claude/hooks/admin-bypass-guard.sh` (it allows `gh api` GETs of rulesets and blocks mutations).
-7. **Templates for a W9 design note:** `transition/w9/wp9-4-design-note.md` and `wp9-3-design-note.md`. Copy their
+7. **Templates for a W9 design note:** `docs/plans/agentic-research-system/transition/w9/wp9-4-design-note.md` and
+   `docs/plans/agentic-research-system/transition/w9/wp9-3-design-note.md`. Copy their
    shape: a header table, what the note settles, scope, carried obligations, interface findings with `path:line`,
    one section per mechanism, tests, research assurance, claims for review, stop rules, owner points, change log.
 
@@ -98,6 +99,11 @@ control, and its test.
    ruleset, with bypass actor `RepositoryRole` 5 in `pull_request` mode, and
    `gh api "repos/ZK-Theory/TDL/rulesets/rule-suites"` returns entries such as `result: "bypass"` for pushes to
    `refs/heads/main`. Re-run those two GETs yourself and cite what you see.
+
+   P-089 item 3 requires U-3 to be recorded **before any code**. So the note names the probe as an open gap with an
+   owner and a step: it gives the exact steps to run it, says that Stephen authorizes the run and that the reviewing
+   session runs it and records the result in the note, and makes "U-3 recorded" a precondition of the code package in
+   its stop rules (item 16). The code is not dispatched until that result is in the note.
 4. **The post-merge first-parent detector** (`tools/check_legacy_writes.py` and
    `.github/workflows/legacy-write-detector.yml`, 06v §5). Settle:
    - the recorded baseline commit it walks from, and why;
@@ -125,8 +131,10 @@ control, and its test.
    export, and say exactly what changes when the real one is accepted. Also settle D-5: it runs before every batch
    and weekly on the operator machine, each run files an output hash in the evidence area, and a missed run blocks
    the next batch. Say how "a missed run blocks" is enforced, and by what.
-9. **U-4.** The operator machine's path to the vault. Record it from a read-only check (§4 says exactly what you may
-   do), and say what the full dry run at L-1 must add.
+9. **U-4.** The operator machine's path to the vault. Record what you can from a read-only check (§4 says exactly
+   what you may do). P-089 item 3 also requires U-4 to be recorded before any code, so if the full dry run needs more
+   than §4 allows you, the note names that remaining step as an open gap with an owner and a step, as for U-3, and
+   makes it a precondition of the code package in its stop rules.
 10. **The detector-controls file.** How each detector's negative control is run, how its output hash is produced, and
     how it is written to `detector-controls.json` in the WP9.3 format with the control kinds
     `REQUIRED_DETECTOR_CONTROLS` names. WP9.3's LR-003 refuses the first registration without it.
@@ -143,7 +151,8 @@ control, and its test.
     artifact for each machine-checkable one.
 15. **Claims for review.** A numbered list of the note's load-bearing claims, each with the evidence that supports
     it, for the reviewer to attack.
-16. **Stop rules** for the code package.
+16. **Stop rules** for the code package. They include its preconditions: U-3 and U-4 recorded in the note (items 3
+    and 9), and Stephen's decisions on the owner points.
 17. **Owner points.** Every decision the note needs from Stephen, each with options and your recommendation. Do not
     decide them yourself.
 
