@@ -212,6 +212,9 @@ SCOPED_GRANT_ACTOR_CLASS_COMMAND_TYPES = frozenset(
         "ResolveW9AuthorityDecision",
         "RecordLegacyLightInventory",
         "ObserveLegacyRecord",
+        # WP9.4-2 (WP9.4 note §5.6, §13, §14).
+        "CreateLegacyPaperRoot",
+        "RecordPaperCitationStatus",
     }
 )
 _SCOPED_COMMAND_SUBJECT_KINDS = {
@@ -250,6 +253,9 @@ _SCOPED_COMMAND_SUBJECT_KINDS = {
     "ResolveW9AuthorityDecision": "decision",
     "RecordLegacyLightInventory": "scope_definition",
     "ObserveLegacyRecord": "scope_definition",
+    # WP9.4-2: the subject kinds of WP9.4 note §5.6.
+    "CreateLegacyPaperRoot": "scope_definition",
+    "RecordPaperCitationStatus": "scope_definition",
     "CreateScopeDefinition": "scope_definition",
     "AmendScopeDefinition": "scope_definition",
     "SupersedeScopeDefinition": "scope_definition",

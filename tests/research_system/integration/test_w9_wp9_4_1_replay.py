@@ -226,7 +226,7 @@ def test_review_id_for_dispatches_explicitly_and_refuses_unlisted_kinds() -> Non
         adp_id, when
     )
     assert reducers.review_id_for(reducers.DISCHARGE, {"reviewer_ref": {"id": "rev_1"}}) == "rev_1"
-    for unlisted in ("legacy_paper_root", "legacy_source_inventory", "unknown_kind"):
+    for unlisted in ("legacy_paper_root", "legacy_paper_citation_status", "legacy_record_supersession", "unknown_kind"):
         with pytest.raises(IntegrityError, match="W9 record kind has no review resolver entry"):
             reducers.review_id_for(unlisted, {"record_id": reg_id, "created_at": when})
 

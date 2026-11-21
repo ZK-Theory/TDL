@@ -29,6 +29,7 @@ def repo(tmp_path: Path) -> tuple[Path, str]:
     (root / "results" / "x.json").write_bytes(b'{"a": 1}\n')
     (root / "CONVENTIONS.md").write_bytes(b"# Conventions\n")
     _git(root, "init", "-q")
+    _git(root, "config", "core.autocrlf", "false")
     _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
     _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "fixture")
     return root, _git(root, "rev-parse", "HEAD")
@@ -194,3 +195,102 @@ def test_the_importer_identity_hashes_the_reader_and_segmenter_blobs_at_git_head
         "tool_version": "1.0.0",
         "tool_sha256": sha256_hex(canonical_bytes(blobs)),
     }
+
+
+def test_the_reader_ignores_git_replacement_refs(tmp_path: Path) -> None:
+    """P-087 item 5: LegacyReader passes --no-replace-objects so git replace affects neither source nor tool blobs."""
+    from research_system.canonical import canonical_bytes, sha256_hex
+
+    root = tmp_path / "replace_repo"
+    (root / "results").mkdir(parents=True)
+    source_h = b'{"source": "H"}\n'
+    source_r = b'{"source": "R"}\n'
+    (root / "results" / "x.json").write_bytes(source_h)
+    blobs_h: dict[str, str] = {}
+    for rel in reader_module.IMPORTER_MODULES:
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        raw_h = f"# {rel} @ H\n".encode()
+        (root / rel).write_bytes(raw_h)
+        blobs_h[rel] = git_blob_id(raw_h)
+    _git(root, "init", "-q")
+    _git(root, "config", "core.autocrlf", "false")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "commit-h")
+    commit_h = _git(root, "rev-parse", "HEAD")
+
+    (root / "results" / "x.json").write_bytes(source_r)
+    for rel in reader_module.IMPORTER_MODULES:
+        (root / rel).write_bytes(f"# {rel} @ R\n".encode())
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "commit-r")
+    commit_r = _git(root, "rev-parse", "HEAD")
+
+    _git(root, "checkout", "-q", commit_h)
+    _git(root, "replace", commit_h, commit_r)
+
+    plain_source = subprocess.run(
+        ["git", "-C", str(root), "show", f"{commit_h}:results/x.json"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    plain_reader_blob = _git(root, "rev-parse", f"{commit_h}:{reader_module.IMPORTER_MODULES[0]}")
+    assert plain_source == source_r
+    assert plain_reader_blob == git_blob_id(f"# {reader_module.IMPORTER_MODULES[0]} @ R\n".encode())
+
+    reader = LegacyReader(repository_root=root, git_head=commit_h, clock=CLOCK)
+    read = reader.read(_registration("results/x.json"))
+    assert read.raw == source_h
+    assert read.source_identity["git_blob"] == git_blob_id(source_h)
+    identity = reader.importer_identity("act_x")
+    assert identity["tool_sha256"] == sha256_hex(canonical_bytes(blobs_h))
+
+
+def test_manuscript_root_read_takes_a_member_path_and_refuses_non_members(tmp_path: Path) -> None:
+    """WP9.4 note §10.2 item 5 (K reading 5): root reads require member_path strictly under the root."""
+    root = tmp_path / "paper_repo"
+    (root / "papers" / "P01-A-JRSSA" / "drafts").mkdir(parents=True)
+    (root / "papers" / "P01-B-JRSSB").mkdir(parents=True)
+    (root / "papers" / "P01-A-JRSSA-extra").mkdir(parents=True)
+    (root / "results").mkdir(parents=True)
+    member_bytes = b"# Draft v1\n"
+    (root / "papers" / "P01-A-JRSSA" / "drafts" / "v1.md").write_bytes(member_bytes)
+    (root / "papers" / "P01-B-JRSSB" / "main.tex").write_bytes(b"% B\n")
+    (root / "papers" / "P01-A-JRSSA-extra" / "trap.md").write_bytes(b"trap\n")
+    (root / "results" / "x.json").write_bytes(b"{}\n")
+    _git(root, "init", "-q")
+    _git(root, "config", "core.autocrlf", "false")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init")
+    head = _git(root, "rev-parse", "HEAD")
+
+    reader = LegacyReader(repository_root=root, git_head=head, clock=CLOCK)
+    root_reg = _registration("papers/P01-A-JRSSA/", kind="git_tracked", role="legacy_manuscript_root")
+    read = reader.read(root_reg, member_path="papers/P01-A-JRSSA/drafts/v1.md")
+    assert read.raw == member_bytes
+    assert read.source_identity["repository_path"] == "papers/P01-A-JRSSA/drafts/v1.md"
+    assert read.source_identity["git_blob"] == git_blob_id(member_bytes)
+    assert read.path_form["path_as_given"] == "papers/P01-A-JRSSA/drafts/v1.md"
+
+    for bad_member in (
+        None,
+        "",
+        "papers/P01-A-JRSSA",
+        "papers/P01-A-JRSSA/",
+        "papers/P01-A-JRSSA/drafts/",
+        "papers/P01-A-JRSSA/drafts",
+        "papers/P01-A-JRSSA-extra/trap.md",
+        "papers/P01-B-JRSSB/main.tex",
+        "papers/p01-a-jrssa/drafts/v1.md",
+        "papers/P01-A-JRSSA/../P01-B-JRSSB/main.tex",
+    ):
+        with pytest.raises(ReadRefused):
+            reader.read(root_reg, member_path=bad_member)
+
+    with pytest.raises(ReadRefused, match="git_tracked"):
+        reader.read(
+            _registration("papers/P01-A-JRSSA/", kind="untracked_file", role="legacy_manuscript_root"),
+            member_path="papers/P01-A-JRSSA/drafts/v1.md",
+        )
+
+    with pytest.raises(ReadRefused, match="member path"):
+        reader.read(_registration("results/x.json"), member_path="results/x.json")

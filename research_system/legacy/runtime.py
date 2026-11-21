@@ -80,15 +80,19 @@ _WP9_3_PREPARERS: dict[str, Callable[..., preparers.Prepared]] = {
     "ResolveW9AuthorityDecision": preparers.prepare_resolution,
     "RecordLegacyLightInventory": preparers.prepare_light_inventory,
     "ObserveLegacyRecord": preparers.prepare_observation,
+    "CreateLegacyPaperRoot": preparers.prepare_paper_root,
+    "RecordPaperCitationStatus": preparers.prepare_citation_status,
 }
 _EXPECTED_VERSIONS = preparers.EXPECTED_VERSIONS
-# WP9.3 note §5.3: each grant names one exact subject, of these kinds, on the command's target stream.
+# WP9.3 note §5.3 & WP9.4 note §5.6: each grant names one exact subject, of these kinds, on the command's target stream.
 _SUBJECT_KINDS = {
     "ImportAcceptedW9CatalogueGenesis": "scope_definition",
     "ImportAcceptedW9CatalogueRevision": "scope_definition",
     "ProposeLegacyRecord": "scope_definition",
     "RecordLegacyLightInventory": "scope_definition",
     "ObserveLegacyRecord": "scope_definition",
+    "CreateLegacyPaperRoot": "scope_definition",
+    "RecordPaperCitationStatus": "scope_definition",
     "RequestW9AuthorityReview": "review",
     "RecordW9AuthorityReview": "review",
     "ProposeW9AuthorityDecision": "decision",

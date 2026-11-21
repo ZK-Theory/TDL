@@ -48,6 +48,7 @@ CONVENTIONS_LOCK = {
     "sha256": "d04fe97e4a318f4a3c3dae00650419c13d6e7077ac54acda0b738c1608698589",
 }
 CL_ROLE = "legacy_decision_log_entry"
+MANUSCRIPT_ROOT_ROLE = "legacy_manuscript_root"
 _GIT_TIMEOUT_SECONDS = 30
 # §7.4: fixed per identity kind, so every observer writes the same ones.
 NON_INFERENCES = {
@@ -77,16 +78,18 @@ def git_blob_id(raw: bytes) -> str:
 
 
 def _git(repository: Path, *args: str, text: bool = True) -> Any:
+    command_args = args if args and args[0] == "--no-replace-objects" else ("--no-replace-objects", *args)
+    subcommand = next((arg for arg in command_args if not arg.startswith("-")), "git")
     try:
         return subprocess.run(
-            ["git", "-C", str(repository), *args],
+            ["git", "-C", str(repository), *command_args],
             check=True,
             capture_output=True,
             text=text,
             timeout=_GIT_TIMEOUT_SECONDS,
         ).stdout
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
-        raise ReadRefused(f"git {args[0]} failed") from exc
+        raise ReadRefused(f"git {subcommand} failed") from exc
 
 
 @dataclass(frozen=True)
@@ -272,8 +275,8 @@ class LegacyReader:
             return None
         return observed.st_dev, observed.st_ino
 
-    def read(self, registration: Mapping[str, Any]) -> SourceRead:
-        """Read the source a registration names, by its kind and role (§7.1).
+    def read(self, registration: Mapping[str, Any], *, member_path: str | None = None) -> SourceRead:
+        """Read the source a registration names, by its kind and role (§7.1; WP9.4 §10.2 K reading 5).
 
         Raises:
             ReadRefused: If the source cannot be read as the registration requires.
@@ -283,8 +286,23 @@ class LegacyReader:
         role = registration.get("role")
         kind = registration.get("source_identity_kind")
         path = str(registration.get("normalized_path"))
+        if role == MANUSCRIPT_ROOT_ROLE:
+            if kind != "git_tracked":
+                raise ReadRefused("a legacy_manuscript_root registration must be git_tracked")
+            if not member_path:
+                raise ReadRefused("a legacy_manuscript_root read requires a member path")
+            _relative(member_path)
+            root_trimmed = path[:-1] if path.endswith("/") else path
+            _relative(root_trimmed)
+            if not member_path.startswith(f"{root_trimmed}/"):
+                raise ReadRefused("member path is not strictly under the registered root")
+            read_path = member_path
+        else:
+            if member_path is not None:
+                raise ReadRefused("only a legacy_manuscript_root registration admits a member path")
+            read_path = path
         physical: dict[str, Any] | None = None
-        path_form = {"path_as_given": path, "resolved_through_link": False, "resolved_target": None}
+        path_form = {"path_as_given": read_path, "resolved_through_link": False, "resolved_target": None}
         if role == CL_ROLE:
             if not self.accepted_cl_export:
                 raise ReadRefused("no accepted Computational-Log export")
@@ -310,23 +328,23 @@ class LegacyReader:
         elif kind == "git_tracked":
             if not self.git_head:
                 raise ReadRefused("a git_tracked read needs the binding's git_head")
-            raw, physical, _ = handle_bound_read(self.repository_root, path)
-            committed, blob = self._git_object(self.git_head, path)
+            raw, physical, _ = handle_bound_read(self.repository_root, read_path)
+            committed, blob = self._git_object(self.git_head, read_path)
             if committed != raw:
                 raise ReadRefused("the working tree differs from the bytes at the binding's git_head")
             identity = {
                 "identity_kind": "git_tracked",
-                "repository_path": path,
+                "repository_path": read_path,
                 "git_commit": self.git_head,
                 "git_blob": blob,
             }
         elif kind in {"untracked_file", "restricted_untracked_file"}:
-            raw, physical, _ = handle_bound_read(self.repository_root, path)
-            identity = {"identity_kind": kind, "path": path}
+            raw, physical, _ = handle_bound_read(self.repository_root, read_path)
+            identity = {"identity_kind": kind, "path": read_path}
         elif kind == "vault_file":
             if self.vault_root is None:
                 raise ReadRefused("no vault root is configured")
-            raw, physical, file_key = handle_bound_read(self.vault_root, path)
+            raw, physical, file_key = handle_bound_read(self.vault_root, read_path)
             target = registration.get("physical_identity", {}).get("canonical_target")
             conventions = self._repository_conventions_identity()
             if (
@@ -336,7 +354,7 @@ class LegacyReader:
                 raise ReadRefused("the vault source resolves to the repository's CONVENTIONS.md")
             if os.path.normcase(physical["canonical_target"]) != os.path.normcase(str(target)):
                 raise ReadRefused("the vault source does not resolve to the registration's canonical target")
-            identity = {"identity_kind": "vault_file", "vault_path": path}
+            identity = {"identity_kind": "vault_file", "vault_path": read_path}
         else:
             raise ReadRefused(f"unknown source kind: {kind}")
         identity["sha256"] = sha256_hex(raw)

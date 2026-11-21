@@ -1984,6 +1984,55 @@ def _legacy_adoption_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _legacy_cited_families(args: argparse.Namespace) -> int:
+    """Run WP9.4-2's citation extractor at the binding's ``git_head`` (WP9.4 note §5.6, §13). Read-only."""
+    import re
+
+    from research_system.legacy import citations
+    from research_system.legacy.records import citation_status_record_id
+
+    binding = _legacy_current_binding(args.control_root)
+    state, _ = _legacy_projection(args.control_root)
+    root = state["records"].get("legacy_paper_root", {}).get(args.root_id)
+    if root is None:
+        raise IntegrityError(f"no recorded legacy_paper_root: {args.root_id}")
+    root_path = str(root["manuscript_root_path"])
+    registrations = state["records"].get("legacy_path_registration", {})
+    supersessions = state.get("supersessions", {})
+    inventories = state["records"].get("legacy_source_inventory", {})
+    inventory = None
+    for inv_id, cand in reversed(list(inventories.items())):
+        if inv_id in supersessions:
+            continue
+        reg = registrations.get(cand.get("root_registration_ref", {}).get("id"))
+        if reg is not None and reg.get("normalized_path") == root_path:
+            inventory = cand
+            break
+    if inventory is None:
+        raise IntegrityError(f"no recorded legacy_source_inventory for paper root {args.root_id}")
+    result = citations.extract_citations(binding.repository_root, binding.binding["git_head"], inventory, state)
+    output: dict[str, Any] = {
+        "root_id": args.root_id,
+        "inventory_id": inventory["record_id"],
+        "git_head": binding.binding["git_head"],
+        **result,
+    }
+    if args.reviewer_sha256 is not None:
+        if not re.match(r"^[0-9a-f]{64}\Z", args.reviewer_sha256):
+            raise IntegrityError("W9 --reviewer-sha256 must be a 64-character lowercase hex SHA-256")
+        supersedes_id = state.get("current_citation_status_by_root", {}).get(args.root_id)
+        output["derived_record_id"] = citation_status_record_id(
+            args.root_id,
+            supersedes_id,
+            result["cited_family_set_sha256"],
+            result["extractor_output_sha256"],
+            args.reviewer_sha256,
+            str(root["created_at"]),
+        )
+    _print_json(output)
+    return 0
+
+
 def _projection_rebuild(args: argparse.Namespace) -> int:
     operator_config = getattr(args, "operator_config", None)
     binding = _load_gate6_binding_context(operator_config).current_binding if operator_config is not None else None
@@ -2912,6 +2961,17 @@ def _parser() -> argparse.ArgumentParser:
         "--control-root", type=Path, required=True, help="local-store administration root"
     )
     legacy_adoption_status.set_defaults(handler=_legacy_adoption_status)
+    legacy_cited_families = legacy_actions.add_parser(
+        "cited-families", help="run the citation extractor for a paper root (read-only)"
+    )
+    legacy_cited_families.add_argument("--root", required=True, dest="root_id", help="a recorded legacy_paper_root ID")
+    legacy_cited_families.add_argument(
+        "--reviewer-sha256", help="optional reviewer derivation SHA-256 to derive the LR-039 record_id"
+    )
+    legacy_cited_families.add_argument(
+        "--control-root", type=Path, required=True, help="local-store administration root"
+    )
+    legacy_cited_families.set_defaults(handler=_legacy_cited_families)
     legacy_submit = legacy_actions.add_parser("submit", help="submit one W9 command through the current binding")
     legacy_submit.add_argument("envelope", type=Path, help="the W9 command envelope (JSON)")
     legacy_submit.add_argument("--control-root", type=Path, required=True, help="the target store's control root")

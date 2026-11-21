@@ -28,7 +28,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from research_system.canonical import canonical_bytes
+from research_system.canonical import canonical_bytes, sha256_hex
 from research_system.errors import IntegrityError
 from research_system.legacy.accepted_w9 import CATALOGUE_STREAM_ID, RESERVED_IDS, accepted_genesis_payload
 from research_system.legacy.identities import pinned_signature_ids
@@ -36,10 +36,11 @@ from research_system.legacy.projection_read import adoption_suspension_cause
 
 # The reader owns §7.4's fixed strings, and its module blob is in the importer hash (WP9.3-1 record §2), so replay reads
 # them from there rather than from a copy (WP9.3-1b, review i-2).
-from research_system.legacy.reader import NON_INFERENCES
+from research_system.legacy.reader import MANUSCRIPT_ROOT_ROLE, NON_INFERENCES
 from research_system.legacy.records import (
     adoption_eligibility_decision_id,
     adoption_review_id,
+    citation_status_record_id,
     observation_record_id,
     observation_subject_digest,
     ownership_record_id,
@@ -83,11 +84,18 @@ WP9_3_1_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 16))
 WP9_3_ROWS = frozenset(f"LR-{number:03d}" for number in range(3, 21))
 # WP9.4-1 adds LR-023 to LR-034, adoption, eligibility and discharge (WP9.4 note §2.4, §5.1).
 WP9_4_1_ROWS = frozenset(f"LR-{number:03d}" for number in range(23, 35))
-CHECKED_ROWS = WP9_3_ROWS | WP9_4_1_ROWS
+# WP9.4-2 adds LR-035, LR-039, and LR-040 to LR-055, the full path (WP9.4 note §2.4, §10 to §12).
+WP9_4_2_ROWS = frozenset({"LR-035", "LR-039", *(f"LR-{number:03d}" for number in range(40, 56))})
+WP9_4_ROWS = WP9_4_1_ROWS | WP9_4_2_ROWS
+CHECKED_ROWS = WP9_3_ROWS | WP9_4_ROWS
 ACCEPTANCE = "legacy_closed_reference_acceptance"
 OWNERSHIP = "legacy_ownership_transitioned"
 ADOPTION = "legacy_adoption_decision"
 DISCHARGE = "legacy_discharge_relation"
+PAPER_ROOT = "legacy_paper_root"
+CITATION_STATUS = "legacy_paper_citation_status"
+SOURCE_INVENTORY = "legacy_source_inventory"
+TRANSITION_MAPPING = "legacy_transition_mapping"
 NO_REVIEW_REQUIRED = object()
 # The pre-assigned refs each proposal kind carries (§4.2; WP9.4 §5.1), with the ref kind.
 PRE_ASSIGNED_REFS: Mapping[str, Mapping[str, str]] = {
@@ -97,6 +105,9 @@ PRE_ASSIGNED_REFS: Mapping[str, Mapping[str, str]] = {
     ACCEPTANCE: {"independent_review_ref": "review", "decision_ref": "decision"},
     ADOPTION: {"decision_ref": "decision"},
     DISCHARGE: {"reviewer_ref": "review", "decision_ref": "decision"},
+    SOURCE_INVENTORY: {"reviewer_ref": "review", "decision_ref": "decision"},
+    TRANSITION_MAPPING: {"reviewer_ref": "review", "decision_ref": "decision"},
+    OWNERSHIP: {"reviewer_ref": "review", "decision_ref": "decision"},
 }
 _DECISION_PROPOSAL_FIELD = {
     "LR-004": "registration_decision_ref",
@@ -104,12 +115,18 @@ _DECISION_PROPOSAL_FIELD = {
     "LR-019": "decision_ref",
     "LR-028": "decision_ref",
     "LR-033": "decision_ref",
+    "LR-043": "decision_ref",
+    "LR-048": "decision_ref",
+    "LR-053": "decision_ref",
 }
 _REVIEW_FIELD_BY_KIND = {
     "legacy_field_family_membership": "review_ref",
     "legacy_light_inventory": "independent_reproduction_ref",
     ACCEPTANCE: "independent_review_ref",
     DISCHARGE: "reviewer_ref",
+    SOURCE_INVENTORY: "reviewer_ref",
+    TRANSITION_MAPPING: "reviewer_ref",
+    OWNERSHIP: "reviewer_ref",
 }
 
 
@@ -131,6 +148,19 @@ def review_id_for(kind: str, record: Mapping[str, Any]) -> Any:
     return record[field]["id"]
 
 
+def ownership_resolution_row(record: Mapping[str, Any]) -> str:
+    """Return ``LR-054`` or ``LR-055`` from an ownership proposal's transition direction (§5.1, §10.5)."""
+
+    direction = (record.get("from_mode"), record.get("to_mode"))
+    if direction == ("legacy_owned", "successor_owned"):
+        return "LR-054"
+    if direction == ("successor_owned", "closed_reference"):
+        return "LR-055"
+    raise IntegrityError(
+        "W9 ownership proposal direction must be legacy_owned -> successor_owned or successor_owned -> closed_reference"
+    )
+
+
 # §10.1 and §2.1: the first batch only, which is the integration pilot, of at most 20 items.
 MAX_BATCH_ITEMS = 20
 # §10.2: LR-020's accepted pilot_promotion set (annex lines 729-743 and the catalogue's LR-020 row). The four
@@ -140,20 +170,57 @@ MAX_BATCH_ITEMS = 20
 UNCONDITIONAL_FIXTURES = ("F-018", "F-023", "F-037", "S-014")
 CONDITIONAL_FIXTURES = ("F-017", "S-005", "F-038")
 PILOT_FIXTURES = frozenset((*UNCONDITIONAL_FIXTURES, *CONDITIONAL_FIXTURES))
-# WP9.4 note §5.4 (owner point L): fixture sets for LR-029 (adoption) and LR-034 (discharge).
+# WP9.4 note §5.4 (owner point L): fixture sets for LR-029, LR-034, LR-044, LR-049, LR-054, and LR-055.
 ADOPTION_UNCONDITIONAL_FIXTURES = ("S-017",)
 ADOPTION_CONDITIONAL_FIXTURES = ("F-015", "F-019", "F-038")
 ADOPTION_FIXTURES = frozenset((*ADOPTION_UNCONDITIONAL_FIXTURES, *ADOPTION_CONDITIONAL_FIXTURES))
 DISCHARGE_UNCONDITIONAL_FIXTURES: tuple[str, ...] = ()
 DISCHARGE_CONDITIONAL_FIXTURES: tuple[str, ...] = ()
 DISCHARGE_FIXTURES: frozenset[str] = frozenset()
-_WP9_4_REQUEST_TO_RESOLUTION = {"LR-026": "LR-029", "LR-031": "LR-034"}
-_WP9_4_DECISION_TO_RESOLUTION = {"LR-028": "LR-029", "LR-033": "LR-034"}
-_WP9_4_ALLOWED_FIXTURES = {"LR-029": ADOPTION_FIXTURES, "LR-034": DISCHARGE_FIXTURES}
+SOURCE_INVENTORY_UNCONDITIONAL_FIXTURES = ("F-018", "F-023", "F-037")
+SOURCE_INVENTORY_FIXTURES = frozenset(SOURCE_INVENTORY_UNCONDITIONAL_FIXTURES)
+MAPPING_UNCONDITIONAL_FIXTURES: tuple[str, ...] = ()
+MAPPING_FIXTURES: frozenset[str] = frozenset()
+OWNERSHIP_54_UNCONDITIONAL_FIXTURES = ("F-006", "F-019", "F-023", "F-037")
+OWNERSHIP_54_FIXTURES = frozenset((*OWNERSHIP_54_UNCONDITIONAL_FIXTURES, "F-038"))
+OWNERSHIP_55_UNCONDITIONAL_FIXTURES = ("F-006", "F-019", "F-037")
+OWNERSHIP_55_FIXTURES = frozenset((*OWNERSHIP_55_UNCONDITIONAL_FIXTURES, "F-038"))
+_WP9_4_REQUEST_TO_RESOLUTION = {
+    "LR-026": "LR-029",
+    "LR-031": "LR-034",
+    "LR-041": "LR-044",
+    "LR-046": "LR-049",
+}
+_WP9_4_DECISION_TO_RESOLUTION = {
+    "LR-028": "LR-029",
+    "LR-033": "LR-034",
+    "LR-043": "LR-044",
+    "LR-048": "LR-049",
+}
+_WP9_4_ALLOWED_FIXTURES = {
+    "LR-029": ADOPTION_FIXTURES,
+    "LR-034": DISCHARGE_FIXTURES,
+    "LR-044": SOURCE_INVENTORY_FIXTURES,
+    "LR-049": MAPPING_FIXTURES,
+    "LR-054": OWNERSHIP_54_FIXTURES,
+    "LR-055": OWNERSHIP_55_FIXTURES,
+}
 _WP9_4_UNCONDITIONAL_FIXTURES = {
     "LR-029": ADOPTION_UNCONDITIONAL_FIXTURES,
     "LR-034": DISCHARGE_UNCONDITIONAL_FIXTURES,
+    "LR-044": SOURCE_INVENTORY_UNCONDITIONAL_FIXTURES,
+    "LR-049": MAPPING_UNCONDITIONAL_FIXTURES,
+    "LR-054": OWNERSHIP_54_UNCONDITIONAL_FIXTURES,
+    "LR-055": OWNERSHIP_55_UNCONDITIONAL_FIXTURES,
 }
+
+
+def _resolution_row_for(row_id: str, record: Mapping[str, Any]) -> str | None:
+    if row_id in {"LR-051", "LR-053"}:
+        return ownership_resolution_row(record)
+    return _WP9_4_REQUEST_TO_RESOLUTION.get(row_id) or _WP9_4_DECISION_TO_RESOLUTION.get(row_id)
+
+
 PROPOSAL_TERM = timedelta(days=30)
 REVIEW_DEADLINE = timedelta(days=1)
 # §5.2's fixed values.
@@ -209,6 +276,7 @@ def new_legacy_state() -> dict[str, Any]:
         "reviews": {},
         "decisions": {},
         "ownership": {},
+        "current_citation_status_by_root": {},
         "supersessions": {},
         "reference_edges": {},
         "observations_by_registration": {},
@@ -458,19 +526,47 @@ def _recorded(state: Mapping[str, Any], kind: str, ref: Any) -> Mapping[str, Any
     return record
 
 
+def _folded_path(record: Mapping[str, Any]) -> str:
+    return str(record.get("normalized_path", "")).rstrip("/").casefold()
+
+
+def _normalized_target(record: Mapping[str, Any]) -> str:
+    target = str(record.get("physical_identity", {}).get("canonical_target", "")).replace("\\", "/")
+    while "//" in target:
+        target = target.replace("//", "/")
+    return target.rstrip("/").casefold()
+
+
 def _registration_conflicts(state: Mapping[str, Any], record: Mapping[str, Any], at: datetime) -> bool:
+    mine = record.get("physical_identity", {})
+    mine_vol_id = (mine.get("volume_serial_number"), mine.get("stable_file_id"))
+    mine_has_vol_id = mine_vol_id[0] is not None and mine_vol_id[1] is not None
+    mine_is_root = record.get("role") == MANUSCRIPT_ROOT_ROLE
+    mine_path = _folded_path(record)
+    mine_target = _normalized_target(record)
+
     def same(other: Mapping[str, Any]) -> bool:
-        if (other.get("root_kind"), other.get("root_id"), other.get("normalized_path")) == (
-            record.get("root_kind"),
-            record.get("root_id"),
-            record.get("normalized_path"),
-        ):
+        other_path = _folded_path(other)
+        if (other.get("root_kind"), other_path) == (record.get("root_kind"), mine_path):
             return True
-        mine, theirs = record.get("physical_identity", {}), other.get("physical_identity", {})
-        return (mine.get("canonical_target"), mine.get("stable_file_id")) == (
-            theirs.get("canonical_target"),
-            theirs.get("stable_file_id"),
-        )
+        theirs = other.get("physical_identity", {})
+        if mine_has_vol_id and mine_vol_id == (theirs.get("volume_serial_number"), theirs.get("stable_file_id")):
+            return True
+        theirs_is_root = other.get("role") == MANUSCRIPT_ROOT_ROLE
+        if mine_is_root or theirs_is_root:
+            same_kind = other.get("root_kind") == record.get("root_kind")
+            if same_kind and mine_path and other_path:
+                if theirs_is_root and mine_path.startswith(f"{other_path}/"):
+                    return True
+                if mine_is_root and other_path.startswith(f"{mine_path}/"):
+                    return True
+            other_target = _normalized_target(other)
+            if mine_target and other_target:
+                if theirs_is_root and mine_target.startswith(f"{other_target}/"):
+                    return True
+                if mine_is_root and other_target.startswith(f"{mine_target}/"):
+                    return True
+        return False
 
     if any(same(other) for other in state["records"].get("legacy_path_registration", {}).values()):
         return True
@@ -481,12 +577,14 @@ def _registration_conflicts(state: Mapping[str, Any], record: Mapping[str, Any],
 
 
 def _check_registration(state: Mapping[str, Any], record: Mapping[str, Any], at: datetime) -> None:
-    """LR-003's replay checks (§6.2)."""
+    """LR-003's replay checks (§6.2; WP9.4 §10.2 owner point O)."""
 
+    if record.get("role") == MANUSCRIPT_ROOT_ROLE and record.get("source_identity_kind") != "git_tracked":
+        raise IntegrityError("W9 legacy_manuscript_root registration must be git_tracked")
     if _registration_conflicts(state, record, at):
         raise IntegrityError("W9 registration of a path or physical identity already registered or proposed")
     path = str(record.get("normalized_path", ""))
-    if path.startswith(_PROJECTION_PREFIX) and record.get("role") != "legacy_read_only_projection":
+    if path.casefold().startswith(_PROJECTION_PREFIX) and record.get("role") != "legacy_read_only_projection":
         raise IntegrityError("W9 legacy role under the legacy projection directory")
     target = str(record.get("physical_identity", {}).get("canonical_target", ""))
     if record.get("role") != "conventions_lock" and (_CONVENTIONS.search(target) or _CONVENTIONS.search(path)):
@@ -544,6 +642,20 @@ def _source_matches_registration(
         return
     kind, path = _source_location(source)
     root_kind = registration.get("root_kind")
+    if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+        root_path = str(registration.get("normalized_path", ""))
+        root_prefix = root_path if root_path.endswith("/") else f"{root_path}/"
+        if (
+            kind != "git_tracked"
+            or kind != registration.get("source_identity_kind")
+            or root_kind != "repository_root"
+            or not isinstance(path, str)
+            or not path.startswith(root_prefix)
+            or len(path) <= len(root_prefix)
+            or path.endswith("/")
+        ):
+            raise IntegrityError("W9 source does not match its registration's kind, root and path")
+        return
     if (
         kind != registration.get("source_identity_kind")
         or path != registration.get("normalized_path")
@@ -584,9 +696,14 @@ def acceptance_observations(state: Mapping[str, Any], record: Mapping[str, Any])
 
 
 def _whole_file(state: Mapping[str, Any], observation: Mapping[str, Any]) -> bool:
-    """§10.5: an observation covers the whole file when it is ``whole_file``, or a ``json_family_set`` naming every
-    family of its accepted membership table."""
+    """§10.5 (and WP9.4 §10.2 K reading 2): an observation covers the whole file when it is ``whole_file``, or a
+    ``json_family_set`` naming every family of its accepted membership table — except for ``legacy_manuscript_root``
+    member observations, which never cover the root itself."""
 
+    reg_id = observation.get("registration_ref", {}).get("id")
+    registration = state.get("records", {}).get("legacy_path_registration", {}).get(reg_id, {})
+    if registration.get("role") == MANUSCRIPT_ROOT_ROLE:
+        return False
     selector = observation.get("selector", {})
     if selector.get("selector_kind") == "whole_file":
         return True
@@ -612,10 +729,20 @@ def _batch_rules(state: Mapping[str, Any], record: Mapping[str, Any]) -> list[Ma
         if observation_id in state["stale_observations"]:
             raise IntegrityError("W9 acceptance item's observation is stale")
         registration_id = observation["registration_ref"]["id"]
+        registration = state["records"]["legacy_path_registration"][registration_id]
+        per_member = registration.get("role") == MANUSCRIPT_ROOT_ROLE
+        _, obs_path = _source_location(observation["source_identity"])
         history = state["observations_by_registration"].get(registration_id, [])
         later = history[history.index(observation_id) + 1 :] if observation_id in history else []
         selector = _selector_key(observation.get("selector"))
-        if any(_selector_key(state["records"]["legacy_observation"][other]["selector"]) == selector for other in later):
+        if any(
+            (
+                not per_member
+                or _source_location(state["records"]["legacy_observation"][other]["source_identity"])[1] == obs_path
+            )
+            and _selector_key(state["records"]["legacy_observation"][other]["selector"]) == selector
+            for other in later
+        ):
             raise IntegrityError("W9 acceptance item's observation is not the latest for its source and selector")
     return observations
 
@@ -940,18 +1067,312 @@ def _parse_fixture_refs(entries: Sequence[Any], resolution_row: str, record: Map
 
 
 def _parse_decision_tail(resolution_row: str, tail: Sequence[Any], record: Mapping[str, Any]) -> tuple[str, ...]:
-    """Parse post-subject entries of a WP9.4 Decision proposal or resolution (§5.4, §8)."""
+    """Parse post-subject entries of a WP9.4 Decision proposal or resolution (§5.4, §8, §10.5; Ruling 3)."""
 
-    if resolution_row == "LR-034":
+    if resolution_row in {"LR-034", "LR-054"}:
         if (
             not tail
             or not isinstance(tail[-1], str)
             or not tail[-1].startswith(OPEN_ITEMS_BLOB_PREFIX)
             or not _SHA1_RE.match(tail[-1].removeprefix(OPEN_ITEMS_BLOB_PREFIX))
         ):
-            raise IntegrityError("W9 discharge Decision must carry one valid w9-open-items-blob entry")
+            label = "discharge" if resolution_row == "LR-034" else resolution_row
+            raise IntegrityError(f"W9 {label} Decision must carry one valid w9-open-items-blob entry")
         return _parse_fixture_refs(tail[:-1], resolution_row, record)
     return _parse_fixture_refs(tail, resolution_row, record)
+
+
+def _pilot_outcome_passed(state: Mapping[str, Any]) -> bool:
+    """Return whether a passed integration-pilot outcome Decision (LR-022) is recorded (§10.1, §10.5)."""
+
+    return any(
+        decision.get("resolve_row") == "LR-022"
+        and decision.get("decision_kind") == "result_interpretation"
+        and decision.get("selected_option") == "passed"
+        for decision in state.get("decisions", {}).values()
+    )
+
+
+def _accepted_observation_ids(state: Mapping[str, Any]) -> set[str]:
+    supersessions = state.get("supersessions", {})
+    accepted: set[str] = set()
+    for acc_id, acc in state.get("records", {}).get(ACCEPTANCE, {}).items():
+        if acc_id in supersessions:
+            continue
+        for item in acc.get("items", ()):
+            obs_ref = item.get("observation_ref")
+            if isinstance(obs_ref, Mapping):
+                obs_id = obs_ref.get("id")
+                if isinstance(obs_id, str) and obs_id not in supersessions:
+                    accepted.add(obs_id)
+    return accepted
+
+
+def _check_source_inventory(
+    state: Mapping[str, Any], record: Mapping[str, Any], event: Mapping[str, Any] | None
+) -> None:
+    """LR-040 & LR-044 replay checks (WP9.4 note §10.3)."""
+
+    reg_ref = record.get("root_registration_ref")
+    reg = _recorded(state, "legacy_path_registration", reg_ref)
+    reg_id = str(reg["record_id"])
+    supersessions = state.get("supersessions", {})
+    if reg_id in supersessions:
+        raise IntegrityError("W9 source inventory names a superseded root registration")
+    if reg.get("role") != MANUSCRIPT_ROOT_ROLE:
+        raise IntegrityError("W9 source inventory registration must have role legacy_manuscript_root")
+    current_mode = state["ownership"].get(reg_id, reg.get("ownership_mode"))
+    if current_mode != "legacy_owned":
+        raise IntegrityError("W9 source inventory root registration is not legacy_owned")
+    if event is not None and event.get("actor_id") != record.get("observer_actor_id"):
+        raise IntegrityError("W9 source inventory observer is not the event's actor")
+
+    rows = record.get("rows", [])
+    if [row.get("row_ordinal") for row in rows] != list(range(1, len(rows) + 1)):
+        raise IntegrityError("W9 source inventory row ordinals do not run 1 to n")
+    root_path = str(reg.get("normalized_path", ""))
+    root_prefix = root_path if root_path.endswith("/") else f"{root_path}/"
+    accepted_obs_ids = _accepted_observation_ids(state)
+    seen_paths: set[str] = set()
+    for row in rows:
+        repo_path = str(row.get("repository_path", ""))
+        if repo_path in seen_paths:
+            raise IntegrityError("W9 source inventory repeats a repository_path")
+        if not repo_path.startswith(root_prefix) or len(repo_path) <= len(root_prefix) or repo_path.endswith("/"):
+            raise IntegrityError("W9 source inventory row path is not strictly under its root")
+        seen_paths.add(repo_path)
+        obs = _recorded(state, "legacy_observation", row.get("observation_ref"))
+        obs_id = str(obs["record_id"])
+        if obs_id in supersessions:
+            raise IntegrityError("W9 source inventory row observation is superseded")
+        if obs_id not in accepted_obs_ids:
+            raise IntegrityError("W9 source inventory row observation is not in a closed-reference acceptance")
+        if obs.get("registration_ref", {}).get("id") != reg_id:
+            raise IntegrityError("W9 source inventory row observation names another registration")
+        if obs.get("selector", {}).get("selector_kind") != "whole_file":
+            raise IntegrityError("W9 source inventory row observation is not whole_file")
+        source = obs.get("source_identity", {})
+        if (
+            source.get("identity_kind") != "git_tracked"
+            or source.get("repository_path") != repo_path
+            or source.get("git_blob") != row.get("git_blob")
+        ):
+            raise IntegrityError("W9 source inventory row differs from its observation's path or blob")
+
+
+def _check_transition_mapping(
+    state: Mapping[str, Any], record: Mapping[str, Any], event: Mapping[str, Any] | None
+) -> None:
+    """LR-045 & LR-049 replay checks (WP9.4 note §10.4)."""
+
+    supersessions = state.get("supersessions", {})
+    inv = _recorded(state, SOURCE_INVENTORY, record.get("source_inventory_ref"))
+    inv_id = str(inv["record_id"])
+    if inv_id in supersessions:
+        raise IntegrityError("W9 mapping names a superseded source inventory")
+    root = _recorded(state, PAPER_ROOT, record.get("target_paper_root_ref"))
+    root_id = str(root["record_id"])
+    if root_id in supersessions:
+        raise IntegrityError("W9 mapping names a superseded paper root")
+    inv_reg = _recorded(state, "legacy_path_registration", inv.get("root_registration_ref"))
+    if root.get("manuscript_root_path") != inv_reg.get("normalized_path"):
+        raise IntegrityError("W9 mapping target paper root path differs from inventory root registration path")
+    if event is not None and event.get("actor_id") != record.get("analyst_actor_id"):
+        raise IntegrityError("W9 mapping analyst is not the event's actor")
+    ordinals = record.get("mapped_row_ordinals", [])
+    inv_ordinals = {row.get("row_ordinal") for row in inv.get("rows", ())}
+    if not ordinals or len(ordinals) != len(set(ordinals)) or not set(ordinals) <= inv_ordinals:
+        raise IntegrityError("W9 mapping mapped_row_ordinals must be a unique non-empty subset of inventory rows")
+
+
+def _check_ownership_proposal(state: Mapping[str, Any], record: Mapping[str, Any]) -> None:
+    """LR-050 replay checks (WP9.4 note §10.5; W9-T5)."""
+
+    from_mode, to_mode = record.get("from_mode"), record.get("to_mode")
+    if (from_mode, to_mode) == ("legacy_owned", "closed_reference"):
+        raise IntegrityError("W9 LR-050 refuses legacy_owned to closed_reference")
+    res_row = ownership_resolution_row(record)
+    supersessions = state.get("supersessions", {})
+    subject_reg = _recorded(state, "legacy_path_registration", record.get("subject_registration_ref"))
+    subject_id = str(subject_reg["record_id"])
+    if subject_id in supersessions:
+        raise IntegrityError("W9 ownership transition names a superseded registration")
+    current = state["ownership"].get(subject_id, subject_reg.get("ownership_mode"))
+    if from_mode != current or not ownership_transition_allowed(from_mode, to_mode):
+        raise IntegrityError("W9 ownership transition is not allowed from the registration's current mode")
+    if res_row == "LR-054":
+        if subject_reg.get("role") != MANUSCRIPT_ROOT_ROLE:
+            raise IntegrityError("W9 LR-054 subject registration must have role legacy_manuscript_root")
+        mapping = _recorded(state, TRANSITION_MAPPING, record.get("mapping_ref"))
+        mapping_id = str(mapping["record_id"])
+        if mapping_id in supersessions:
+            raise IntegrityError("W9 ownership transition names a superseded mapping")
+        root = _recorded(state, PAPER_ROOT, record.get("paper_root_ref"))
+        root_id = str(root["record_id"])
+        if root_id in supersessions:
+            raise IntegrityError("W9 ownership transition names a superseded paper root")
+        if mapping.get("target_paper_root_ref", {}).get("id") != root_id:
+            raise IntegrityError("W9 mapping target paper root differs from ownership paper_root_ref")
+        inv = _recorded(state, SOURCE_INVENTORY, mapping.get("source_inventory_ref"))
+        inv_id = str(inv["record_id"])
+        if inv_id in supersessions:
+            raise IntegrityError("W9 ownership transition mapping names a superseded inventory")
+        if inv.get("root_registration_ref", {}).get("id") != subject_id or (
+            subject_reg.get("normalized_path") != root.get("manuscript_root_path")
+        ):
+            raise IntegrityError("W9 ownership subject registration does not match mapping inventory root")
+
+
+def _check_ownership_resolution(state: Mapping[str, Any], row_id: str, record: Mapping[str, Any]) -> None:
+    """LR-054 and LR-055 replay checks at resolution (WP9.4 note §10.5, §11.3)."""
+
+    if _ROW_DIRECTIONS.get(row_id) != (record.get("from_mode"), record.get("to_mode")):
+        raise IntegrityError(f"W9 ownership transition differs from accepted {row_id}")
+    _check_ownership_proposal(state, record)
+    if row_id != "LR-054":
+        return
+    if not _pilot_outcome_passed(state):
+        raise IntegrityError("W9 LR-054 requires a passed integration-pilot outcome Decision (LR-022)")
+    root_id = str(record["paper_root_ref"]["id"])
+    status_id = state.get("current_citation_status_by_root", {}).get(root_id)
+    supersessions = state.get("supersessions", {})
+    if status_id is None or status_id in supersessions:
+        raise IntegrityError("W9 LR-054 requires a current citation status for the paper root")
+    status = state["records"][CITATION_STATUS][status_id]
+    derivation = status.get("derivation", {})
+    if derivation.get("extractor_output_sha256") != derivation.get("reviewer_derivation_sha256"):
+        raise IntegrityError("W9 LR-054 citation status extractor and reviewer derivations differ")
+    for entry in status.get("families", ()):
+        if entry.get("status") != "adopted":
+            raise IntegrityError("W9 LR-054 citation status has an unadopted cited family")
+        adoption = _recorded(state, ADOPTION, entry.get("adoption_ref"))
+        if adoption_suspension_cause(state, adoption) is not None:
+            raise IntegrityError("W9 LR-054 citation status cites a suspended adoption")
+    mapping = _recorded(state, TRANSITION_MAPPING, record.get("mapping_ref"))
+    inv = _recorded(state, SOURCE_INVENTORY, mapping.get("source_inventory_ref"))
+    status_actors = {status.get("created_by_actor_id"), derivation.get("reviewer_actor_id")}
+    producers = {record.get("created_by_actor_id"), mapping.get("analyst_actor_id"), inv.get("observer_actor_id")}
+    if status_actors & producers:
+        raise IntegrityError("W9 citation status reviewer is not independent of the transition's producers")
+
+
+def _check_paper_root_lr035(
+    state: Mapping[str, Any], record: Mapping[str, Any], event: Mapping[str, Any], context: Mapping[str, Any]
+) -> None:
+    """LR-035 replay checks (WP9.4 note §10.1)."""
+
+    record_id = record.get("record_id")
+    if isinstance(record_id, str):
+        _refuse_foreign(record_id, context)
+    _require_stream(event, record_id, 1, "paper root")
+    _created_fields(record, event)
+    if record.get("recovery") is not None:
+        raise IntegrityError("W9 LR-035 refuses a recovery paper root")
+    if not _pilot_outcome_passed(state):
+        raise IntegrityError("W9 LR-035 requires a passed integration-pilot outcome Decision (LR-022)")
+    supersessions = state.get("supersessions", {})
+    for existing_id, existing in state.get("records", {}).get(PAPER_ROOT, {}).items():
+        if existing_id not in supersessions and existing.get("paper_key") == record.get("paper_key"):
+            raise IntegrityError("W9 paper root already exists for this paper_key")
+
+
+def _adoption_covers_cited_family(
+    adoption: Mapping[str, Any], obs_id: str, family_name: str, expected_use: str
+) -> bool:
+    if adoption.get("observation_ref", {}).get("id") != obs_id:
+        return False
+    if adoption.get("intended_use", {}).get("description") != expected_use:
+        return False
+    subject = adoption.get("subject", {})
+    if family_name == "whole_file":
+        return subject.get("subject_kind") == "whole_file"
+    return subject.get("subject_kind") == "families" and family_name in subject.get("family_names", ())
+
+
+def _check_citation_status_lr039(
+    state: Mapping[str, Any], record: Mapping[str, Any], event: Mapping[str, Any], context: Mapping[str, Any]
+) -> None:
+    """LR-039 replay checks (WP9.4 note §5.6, §11.3)."""
+
+    _created_fields(record, event)
+    supersessions = state.get("supersessions", {})
+    root = _recorded(state, PAPER_ROOT, record.get("root_ref"))
+    root_id = str(root["record_id"])
+    if root_id in supersessions:
+        raise IntegrityError("W9 citation status names a superseded paper root")
+    derivation = record.get("derivation", {})
+    root_creator = root.get("created_by_actor_id")
+    if event.get("actor_id") == root_creator or derivation.get("reviewer_actor_id") == root_creator:
+        raise IntegrityError("W9 citation status submitter or reviewer is the paper root's creator")
+    if derivation.get("reviewer_actor_id") != event.get("actor_id"):
+        raise IntegrityError("W9 citation status reviewer_actor_id is not the event's actor")
+
+    current_status_id = state.get("current_citation_status_by_root", {}).get(root_id)
+    sup_ref = record.get("supersedes_status_ref")
+    if current_status_id is None:
+        if sup_ref is not None:
+            raise IntegrityError("W9 citation status supersedes_status_ref must be null when root has no prior status")
+        supersedes_id = None
+    else:
+        cur = state["records"][CITATION_STATUS][current_status_id]
+        if (
+            not isinstance(sup_ref, Mapping)
+            or sup_ref.get("id") != current_status_id
+            or sup_ref.get("record_revision") != cur.get("record_revision")
+            or sup_ref.get("content_hash") != cur.get("content_hash")
+        ):
+            raise IntegrityError(
+                "W9 citation status supersedes_status_ref must name the root's current citation status"
+            )
+        supersedes_id = current_status_id
+
+    families = record.get("families", ())
+    pairs = [(str(entry.get("observation_ref", {}).get("id")), str(entry.get("family_name"))) for entry in families]
+    if len(pairs) != len(set(pairs)):
+        raise IntegrityError("W9 citation status repeats an (observation, family) pair")
+    expected_set_sha = sha256_hex(canonical_bytes(sorted([obs_id, fname] for obs_id, fname in pairs)))
+    if record.get("cited_family_set_sha256") != expected_set_sha:
+        raise IntegrityError("W9 citation status cited_family_set_sha256 differs from families")
+
+    accepted_obs_ids = _accepted_observation_ids(state)
+    expected_use = f"{MANUSCRIPT_USE_PREFIX}{root.get('paper_key')}"
+    adoptions = state.get("records", {}).get(ADOPTION, {})
+    for entry in families:
+        obs = _recorded(state, "legacy_observation", entry.get("observation_ref"))
+        obs_id = str(obs["record_id"])
+        if obs_id in supersessions or obs_id not in accepted_obs_ids:
+            raise IntegrityError("W9 citation status cites a superseded or unaccepted observation")
+        fname = str(entry.get("family_name"))
+        if entry.get("status") == "adopted":
+            adoption = _recorded(state, ADOPTION, entry.get("adoption_ref"))
+            if not _adoption_covers_cited_family(adoption, obs_id, fname, expected_use):
+                raise IntegrityError(
+                    "W9 citation status adoption does not cover the cited observation, family, or paper"
+                )
+            if adoption_suspension_cause(state, adoption) is not None:
+                raise IntegrityError("W9 citation status cites a suspended adoption")
+        else:
+            if entry.get("adoption_ref") is not None:
+                raise IntegrityError("W9 citation status unadopted family must carry null adoption_ref")
+            if any(
+                _adoption_covers_cited_family(adp, obs_id, fname, expected_use)
+                and adoption_suspension_cause(state, adp) is None
+                for adp in adoptions.values()
+            ):
+                raise IntegrityError("W9 citation status marks an actively adopted family as unadopted")
+
+    derived = citation_status_record_id(
+        root_id,
+        supersedes_id,
+        str(record.get("cited_family_set_sha256")),
+        str(derivation.get("extractor_output_sha256")),
+        str(derivation.get("reviewer_derivation_sha256")),
+        str(root.get("created_at")),
+    )
+    if record.get("record_id") != derived:
+        raise IntegrityError("W9 citation status record_id is not derived from its subject")
+    _refuse_foreign(derived, context)
+    _require_stream(event, derived, 1, "citation status")
 
 
 def reduce_proposal(
@@ -984,6 +1405,12 @@ def reduce_proposal(
             _check_adoption_proposal(state, record)
         elif kind == DISCHARGE:
             _check_discharge_proposal(state, record, at)
+        elif kind == SOURCE_INVENTORY:
+            _check_source_inventory(state, record, event)
+        elif kind == TRANSITION_MAPPING:
+            _check_transition_mapping(state, record, event)
+        elif kind == OWNERSHIP:
+            _check_ownership_proposal(state, record)
     claim_identity(state, record_id, "proposal", context)
     ownership: list[dict[str, Any]] = []
     if row_id in CHECKED_ROWS:
@@ -1132,7 +1559,7 @@ def _check_review_request(
         if eligible_session in sessions:
             raise IntegrityError("W9 adoption review request names the analyst session as the eligible session")
     applicable_fixtures: tuple[str, ...] | None = None
-    resolution_row = _WP9_4_REQUEST_TO_RESOLUTION.get(row_id)
+    resolution_row = _resolution_row_for(row_id, proposal["record"])
     if resolution_row is not None:
         applicable_fixtures = _parse_applicable_fixtures(questions, resolution_row, proposal["record"])
     analyst, reviewer = event.get("actor_id"), reviewers[0]
@@ -1366,7 +1793,7 @@ def _check_decision_proposal(
         state, review_id, record_id, proposal["content_hash"]
     ):
         raise IntegrityError("W9 Decision proposal has no satisfied review on the current hash")
-    resolution_row = _WP9_4_DECISION_TO_RESOLUTION.get(row_id)
+    resolution_row = _resolution_row_for(row_id, proposal["record"])
     if resolution_row is not None:
         fixture_ids = _parse_decision_tail(resolution_row, refs[3:], proposal["record"])
         if review_id is not NO_REVIEW_REQUIRED and fixture_ids != state["reviews"][review_id]["applicable_fixtures"]:
@@ -1390,6 +1817,7 @@ def reduce_decision_proposal(
     entry: dict[str, Any] = {
         "propose_row": row_id,
         "resolve_row": None,
+        "decision_kind": payload.get("decision_kind"),
         "governing_evidence_refs": list(payload.get("governing_evidence_refs", [])),
     }
     if row_id == "LR-024":
@@ -1569,6 +1997,12 @@ def _check_resolution(
         cause = adoption_suspension_cause(state, record)
         if cause is not None:
             raise IntegrityError(f"W9 adoption is suspended at resolution: {cause}")
+    elif row_id == "LR-044":
+        _check_source_inventory(state, record, None)
+    elif row_id == "LR-049":
+        _check_transition_mapping(state, record, None)
+    elif row_id in {"LR-054", "LR-055"}:
+        _check_ownership_resolution(state, row_id, record)
     _require_stream(event, payload.get("decision_id"), 2, "Decision resolution")
     _require_stream(transaction[1], record_id, 2, "resolved record")
     if kind == ACCEPTANCE:
@@ -1593,6 +2027,7 @@ def reduce_decision_resolution(
         return
     if row_id in CHECKED_ROWS:
         _check_resolution(state, row_id, decision, transaction)
+    decision["selected_option"] = payload.get("selected_option")
     decision["resolve_row"] = row_id
     if _decision_family(row_id) == _RECOVERY_DECISION_FAMILY:
         _add_edges(state, decision_id, [ref for ref in decision["governing_evidence_refs"] if ref.startswith("obj_")])
@@ -1605,7 +2040,7 @@ def reduce_decision_resolution(
             _apply_ownership(state, row_id, record)
         elif kind == "legacy_record_supersession":
             _apply_supersession(state, record)
-        if kind in {"legacy_ownership_transitioned", "legacy_transition_mapping"}:
+        if kind in {OWNERSHIP, TRANSITION_MAPPING, SOURCE_INVENTORY}:
             _add_edges(state, record_id, list(_ref_ids(record)))
 
 
@@ -1842,26 +2277,38 @@ def reduce_record(
     registration_id = None
     if kind == "legacy_observation" and row_id in WP9_3_ROWS:
         registration_id = _check_observation(state, record, event, context)
+    elif kind == PAPER_ROOT and row_id in WP9_4_ROWS:
+        _check_paper_root_lr035(state, record, event, context)
+    elif kind == CITATION_STATUS and row_id in WP9_4_ROWS:
+        _check_citation_status_lr039(state, record, event, context)
     claim_identity(state, record_id, kind, context)
-    if kind == "legacy_paper_root":
+    if kind == PAPER_ROOT:
         recovery = record.get("recovery")
         if recovery is not None:
             predecessor_id = recovery.get("predecessor_root_ref", {}).get("id")
             decision_id = recovery.get("recovery_decision_ref", {}).get("id")
             decision = state["decisions"].get(decision_id)
-            if predecessor_id not in state["records"].get("legacy_paper_root", {}):
+            if predecessor_id not in state["records"].get(PAPER_ROOT, {}):
                 raise IntegrityError("W9 recovery root names no recorded predecessor root")
             if decision is None or decision["resolve_row"] != _PAPER_ROOT_RECOVERY_ROW:
                 raise IntegrityError("W9 recovery root names no resolved recovery Decision")
             if f"{record_id}" in decision["governing_evidence_refs"]:
                 raise IntegrityError("W9 recovery Decision names its recovery root")
         _add_edges(state, str(record_id), list(_ref_ids(record)))
+    elif kind == CITATION_STATUS:
+        _add_edges(state, str(record_id), list(_ref_ids(record)))
+        state.setdefault("current_citation_status_by_root", {})[str(record["root_ref"]["id"])] = str(record_id)
     state["records"].setdefault(kind, {})[record_id] = deepcopy(record)
     if registration_id is not None:
+        registration = state["records"]["legacy_path_registration"][registration_id]
         earlier = state["observations_by_registration"].setdefault(registration_id, [])
         fingerprint = _source_fingerprint(record["source_identity"])
+        _, source_path = _source_location(record["source_identity"])
+        per_member = registration.get("role") == MANUSCRIPT_ROOT_ROLE
         for observation_id in earlier:
             other = state["records"]["legacy_observation"][observation_id]
+            if per_member and _source_location(other["source_identity"])[1] != source_path:
+                continue
             if (
                 _source_fingerprint(other["source_identity"]) != fingerprint
                 and observation_id not in state["stale_observations"]

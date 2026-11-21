@@ -26,6 +26,7 @@ from research_system.errors import IntegrityError
 # The preparer-set fields of a record a command creates (§5.1). A payload that supplies one is refused.
 PREPARER_SET_FIELDS = frozenset({"created_by_actor_id", "created_at", "content_hash"})
 OBSERVATION_PREPARER_SET_FIELDS = PREPARER_SET_FIELDS | {"observed_at"}
+CITATION_STATUS_PREPARER_SET_FIELDS = PREPARER_SET_FIELDS | {"record_id", "cited_family_set_sha256"}
 # The read-derived fields of an observation (§5.1): a function of the bytes, filled by the preparer from its own read.
 OBSERVATION_READ_DERIVED_FIELDS = frozenset({"source_identity", "file_facts", "importer", "record_id"})
 
@@ -215,6 +216,26 @@ def observation_record_id(
         "obj",
         f"w9-observation:{registration_id}:{subject_digest}:{observation_count}",
         utc_milliseconds(registration_created_at),
+    )
+
+
+def citation_status_record_id(
+    root_id: str,
+    supersedes_id: str | None,
+    cited_family_set_sha256: str,
+    extractor_output_sha256: str,
+    reviewer_derivation_sha256: str,
+    root_created_at: str,
+) -> str:
+    """Return a citation status record's derived ``record_id`` (WP9.4 note §5.6)."""
+
+    return derived_id(
+        "obj",
+        (
+            f"w9-citation-status:{root_id}:{supersedes_id or 'none'}:"
+            f"{cited_family_set_sha256}:{extractor_output_sha256}:{reviewer_derivation_sha256}"
+        ),
+        utc_milliseconds(root_created_at),
     )
 
 

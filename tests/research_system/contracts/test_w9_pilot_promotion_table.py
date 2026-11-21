@@ -123,3 +123,20 @@ def test_the_adoption_and_discharge_replay_constants_match_parsed_rows() -> None
     assert reducers.DISCHARGE_FIXTURES == (
         set(reducers.DISCHARGE_UNCONDITIONAL_FIXTURES) | set(reducers.DISCHARGE_CONDITIONAL_FIXTURES)
     )
+
+
+def test_the_wp9_4_2_replay_constants_match_parsed_rows() -> None:
+    """WP9.4-2's reducer holds LR-044, LR-049, LR-054, and LR-055 fixture sets equal to parsed catalogue rows."""
+    parsed = _parsed()
+    lr044 = parsed["LR-044"]
+    assert reducers.SOURCE_INVENTORY_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr044 if when is None)
+    assert reducers.SOURCE_INVENTORY_FIXTURES == {fixture for fixture, _ in lr044}
+    assert "LR-049" not in parsed
+    assert reducers.MAPPING_UNCONDITIONAL_FIXTURES == ()
+    assert reducers.MAPPING_FIXTURES == set()
+    lr054 = parsed["LR-054"]
+    assert reducers.OWNERSHIP_54_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr054 if when is None)
+    assert reducers.OWNERSHIP_54_FIXTURES == {fixture for fixture, _ in lr054}
+    lr055 = parsed["LR-055"]
+    assert reducers.OWNERSHIP_55_UNCONDITIONAL_FIXTURES == tuple(fixture for fixture, when in lr055 if when is None)
+    assert reducers.OWNERSHIP_55_FIXTURES == {fixture for fixture, _ in lr055}
