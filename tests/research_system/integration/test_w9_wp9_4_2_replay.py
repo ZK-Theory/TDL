@@ -557,6 +557,66 @@ def test_lr039_positive_unequal_hashes_chain_and_controls(base, actors: Actors) 
     )
 
 
+def _wf_entry(obs: dict[str, Any], name: str, status: str, adoption: dict[str, Any] | None) -> dict[str, Any]:
+    return {
+        "observation_ref": flows.record_ref(obs),
+        "family_name": name,
+        "status": status,
+        "adoption_ref": None if adoption is None else flows.record_ref(adoption),
+    }
+
+
+def test_lr039_json_family_named_whole_file_controls(base) -> None:
+    """A JSON family named ``whole_file`` is told apart from the whole-file sentinel by observation and kind.
+
+    Promoted from the independent review of ``9a510065`` (its I4). Each status replaces the flow's own LR-039 row.
+    """
+
+    events, schemas = base
+    forger, ctx = flows.full_path_prerequisites(events, family="whole_file")
+    prior = Forger(forger.events[:-1])
+    reviewer = ctx["actors"].reviewer
+
+    def status_row(entries: list[dict[str, Any]]) -> Forger:
+        return status_rows(entries)[0]
+
+    def status_rows(entries: list[dict[str, Any]]) -> tuple[Forger, dict[str, Any]]:
+        rec = flows.citation_status_record(prior.project_id, reviewer, at(106), ctx["paper_root"], entries)
+        return prior.row("LR-039", rec["record_id"], rec, actor=reviewer, when=at(106)), rec
+
+    obs_json, obs_whole, adoption = ctx["obs_res"], ctx["obs_member"], ctx["adoption"]
+    # The actively adopted JSON family cannot be marked unadopted.
+    _refused(
+        status_row([_wf_entry(obs_json, "whole_file", "unadopted", None)]),
+        schemas,
+        "W9 citation status marks an actively adopted family as unadopted",
+        pin=ctx["pin"],
+    )
+    # The root's whole-file observation cannot borrow the JSON family's adoption.
+    _refused(
+        status_row([_wf_entry(obs_whole, "whole_file", "adopted", adoption)]),
+        schemas,
+        "W9 citation status adoption does not cover the cited observation, family, or paper",
+        pin=ctx["pin"],
+    )
+    # ``headline`` is not a family of this flow's JSON observation.
+    _refused(
+        status_row([_wf_entry(obs_json, "headline", "adopted", adoption)]),
+        schemas,
+        "W9 citation status family does not belong to the cited observation",
+        pin=ctx["pin"],
+    )
+    # Both named ``whole_file``, the JSON family adopted and the whole-file observation unadopted: distinct pairs.
+    both, rec = status_rows(
+        [
+            _wf_entry(obs_json, "whole_file", "adopted", adoption),
+            _wf_entry(obs_whole, "whole_file", "unadopted", None),
+        ]
+    )
+    state = _replay(both, schemas, pin=ctx["pin"])
+    assert state["current_citation_status_by_root"] == {ctx["paper_root"]["record_id"]: rec["record_id"]}
+
+
 # --- LR-040 to LR-049: inventory & mapping checks, fixtures L, analyst rule M-3 -------------------------------
 
 

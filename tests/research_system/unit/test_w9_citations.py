@@ -182,24 +182,61 @@ def test_extractor_covers_every_design_note_fixture_and_five_class_boundary() ->
     )
     assert output3["extractor_output_sha256"] != output["extractor_output_sha256"]
 
-    # Deeply nested JSON hits json.loads RecursionError. Its decoded strings cannot be scanned, so a fully
-    # \u-escaped result path would go unseen: the scan refuses, for the escaped and the plain spelling alike.
-    escaped = "".join(f"\\u{ord(ch):04x}" for ch in "results/a/unique.json").encode("ascii")
-    for inner in (b'"results/a/unique.json"', b'"' + escaped + b'"'):
-        deep_json = b"[" * 5000 + inner + b"]" * 5000
-        with pytest.raises(IntegrityError, match="JSON nested too deeply to scan"):
-            citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/deep.json", deep_json)
-    # Control: the same escaped path at shallow depth is decoded and scanned.
-    shallow_tokens, _ = citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/s.json", b'["' + escaped + b'"]')
-    assert shallow_tokens is not None and ("results/a/unique.json", False) in shallow_tokens
 
-    # An unpaired surrogate in a decoded JSON string refuses (it cannot be hashed as UTF-8); a paired one is kept.
-    with pytest.raises(IntegrityError, match="unpaired surrogate"):
-        citations.scan_file_tokens("papers/P01-A-JRSSA/drafts/u.json", b'["results/\\ud800.json"]')
-    paired_tokens, _ = citations.scan_file_tokens(
-        "papers/P01-A-JRSSA/drafts/p.json", b'["results/\\ud83d\\ude00.json"]'
-    )
+# A fully \u-escaped spelling of a result path: invisible to the raw-text scan, found only in decoded string values.
+_ESCAPED = "".join(f"\\u{ord(ch):04x}" for ch in "results/a/unique.json").encode("ascii")
+# Deeper than any CPython build's C recursion limit for the json decoder, so RecursionError on every platform.
+_DEEP = 100_000
+
+
+def test_scan_decodes_json_values_and_refuses_what_it_cannot_scan() -> None:
+    """Escaped paths are found in decoded values; unscannable JSON raises ``UnscannableJSON`` (F1, F3, F4)."""
+
+    def found(path: str, raw: bytes) -> bool:
+        tokens, is_text = citations.scan_file_tokens(path, raw)
+        return is_text and tokens is not None and ("results/a/unique.json", False) in tokens
+
+    draft = "papers/P01-A-JRSSA/drafts/s.json"
+    # Control: the escaped path at shallow depth is decoded and scanned.
+    assert found(draft, b'["' + _ESCAPED + b'"]')
+    # F1: a leading BOM, an integer literal past Python's digit limit, and a value shadowed by a duplicate key no
+    # longer stop the decoded values being scanned.
+    assert found(draft, b"\xef\xbb\xbf" + b'["' + _ESCAPED + b'"]')
+    assert found(draft, b'["' + _ESCAPED + b'", ' + b"1" * 5000 + b"]")
+    assert found(draft, b'{"k": "' + _ESCAPED + b'", "k": "other"}')
+    # Malformed JSON is still scanned as raw text only, so the escaped path is not seen (record §7's known limit).
+    assert not found(draft, b'["' + _ESCAPED + b'",]')
+
+    # Too deep to decode: refuse, for the escaped and the plain spelling alike.
+    for inner in (b'"results/a/unique.json"', b'"' + _ESCAPED + b'"'):
+        with pytest.raises(citations.UnscannableJSON, match="JSON nested too deeply to scan"):
+            citations.scan_file_tokens(draft, b"[" * _DEEP + inner + b"]" * _DEEP)
+
+    # Every lone surrogate refuses, high or low, and a reversed pair; a valid pair is decoded and kept.
+    for bad in (b"\\ud800", b"\\udbff", b"\\udc00", b"\\udfff", b"\\ude00\\ud83d"):
+        with pytest.raises(citations.UnscannableJSON, match="unpaired surrogate"):
+            citations.scan_file_tokens(draft, b'["results/' + bad + b'.json"]')
+    paired_tokens, _ = citations.scan_file_tokens(draft, b'["results/\\ud83d\\ude00.json"]')
     assert paired_tokens is not None and ("results/\U0001f600.json", False) in paired_tokens
+    assert issubclass(citations.UnscannableJSON, IntegrityError)
+
+
+def test_unscannable_json_refuses_in_drafts_and_is_not_text_outside() -> None:
+    """F2: note §11.1 item 7 reports files outside ``drafts/`` without blocking."""
+
+    root = "papers/P01-A-JRSSA/"
+    deep = b"[" * _DEEP + b"]" * _DEEP
+    surrogate = b'["results/\\ud800.json"]'
+    for raw, message in ((deep, "JSON nested too deeply to scan"), (surrogate, "unpaired surrogate")):
+        with pytest.raises(citations.UnscannableJSON, match=message):
+            citations.extract_citations_from_files(
+                root_path=root, inventory_files=[(f"{root}drafts/x.json", raw)], registered_results={}
+            )
+        output = citations.extract_citations_from_files(
+            root_path=root, inventory_files=[(f"{root}notes/x.json", raw)], registered_results={}
+        )
+        assert output["report"]["not_text"] == [f"{root}notes/x.json"]
+        assert output["blockers"] == [] and output["cited_family_set"] == []
 
 
 def test_extractor_clears_single_reg_tail_with_disambiguation_and_checks_same_file_tokens() -> None:
@@ -389,6 +426,57 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
             )
             for token in ("old\\x.npy", "old//x.npy", "old/x.npy.", "old/x.npy:", "old x.npy", "(old/x.npy)")
         ),
+        # The guards the 9a510065 review found uncovered (its F5): one case each.
+        (
+            {"format": evidence.CITATION_DISAMBIGUATION_FORMAT, "entries": {}},
+            "W9 citation disambiguation does not have the fixed format",
+        ),
+        (
+            {
+                "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                "entries": [
+                    {"citing_path": disambig_valid_path, "token": "x.npy", "resolution": "not_a_result", "extra": 1}
+                ],
+            },
+            f"W9 {evidence.CITATION_DISAMBIGUATION} does not have the fixed format",
+        ),
+        *(
+            (
+                {
+                    "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                    "entries": [{"citing_path": disambig_valid_path, "token": token, "resolution": "not_a_result"}],
+                },
+                "W9 citation disambiguation entry has invalid citing_path or token",
+            )
+            for token in ("", 7, " x.npy")
+        ),
+        *(
+            (
+                {
+                    "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                    "entries": [{"citing_path": disambig_valid_path, "token": "x.npy", "resolution": resolution}],
+                },
+                "W9 citation disambiguation resolution must be sorted paths or 'not_a_result'",
+            )
+            # A non-string item reaches this guard, not a TypeError in the surrogate check before it.
+            for resolution in (["../x.npy"], ["results/a/x.npy", "results/a/x.npy"], [7], [None])
+        ),
+        # F3 of the 9a510065 review: a lone surrogate in any of the entry's strings.
+        *(
+            (
+                {
+                    "format": evidence.CITATION_DISAMBIGUATION_FORMAT,
+                    "entries": [{"citing_path": citing, "token": token, "resolution": resolution}],
+                },
+                "W9 citation disambiguation entry holds an unpaired surrogate",
+            )
+            for citing, token, resolution in (
+                (disambig_valid_path, "x.npy", ["results/\ud800.npy"]),
+                (disambig_valid_path, "x.npy", ["results/a.npy", "results/\ud800.npy"]),
+                (disambig_valid_path, "x\udc00.npy", "not_a_result"),
+                ("papers/P01-A-JRSSA/drafts/s\ud800.md", "x.npy", "not_a_result"),
+            )
+        ),
     ):
         dis_file.write_bytes((json.dumps(bad) + "\n").encode("utf-8"))
         _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
@@ -399,7 +487,7 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
         assert str(exc_info.value) == expected_msg
 
     # F4: deeply nested JSON triggers RecursionError -> EvidenceRefused.
-    dis_file.write_bytes(b"[" * 5000 + b"]" * 5000)
+    dis_file.write_bytes(b"[" * _DEEP + b"]" * _DEEP)
     _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", ".")
     _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "deep-json")
     deep_head = _git(root, "rev-parse", "HEAD")
@@ -415,8 +503,14 @@ def test_read_citation_disambiguation_validation_and_git_only_isolation(
 def test_disambiguation_token_rule_agrees_with_the_scanner() -> None:
     """The reader admits a token exactly when the scanner would emit that token unchanged."""
 
-    assert evidence.SCANNER_DELIMITERS == citations._SINGLE_DELIMITERS
+    assert citations._SINGLE_DELIMITERS is evidence.SCANNER_DELIMITERS
+    # The set's content is note §11.1 item 1's list, and the scanner splits on each one.
+    note_delimiters = "`'\"()[]{}<>,;|*"
+    assert evidence.SCANNER_DELIMITERS == frozenset(note_delimiters)
+    for delimiter in note_delimiters:
+        assert citations.tokenize_text(f"x{delimiter}y") == [("x", False), ("y", delimiter == "}")], delimiter
     for token in (
+        "",
         "old/x.npy",
         "05_analysis.json",
         "results/a/b.csv",

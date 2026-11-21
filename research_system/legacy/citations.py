@@ -20,7 +20,8 @@ from research_system.legacy import evidence as w9_evidence
 from research_system.legacy.reader import MANUSCRIPT_ROOT_ROLE, ReadRefused, _git, git_blob_id
 
 RESULT_EXTENSIONS = (".json", ".npy", ".npz", ".csv", ".pkl")
-_SINGLE_DELIMITERS = frozenset("`'\"()[]{}<>,;|*")
+# One definition, shared with the disambiguation reader's token rule (``evidence._is_scanner_token``).
+_SINGLE_DELIMITERS = w9_evidence.SCANNER_DELIMITERS
 _DATE_PLACEHOLDERS = ("YYYYMMDD", "YYYY-MM-DD")
 _HEX_OBJECT_RE = re.compile(r"^[0-9a-f]{40}([0-9a-f]{24})?\Z")
 
@@ -62,6 +63,14 @@ def tokenize_text(text: str) -> list[tuple[str, bool]]:
     return tokens
 
 
+class UnscannableJSON(IntegrityError):
+    """A ``.json`` file's decoded string values cannot be scanned (too deeply nested, or an unpaired surrogate).
+
+    The extractor refuses when the file is under the root's ``drafts/``. Outside ``drafts/`` it lists the file as
+    ``not_text`` instead, because note §11.1 item 7 reports files outside ``drafts/`` without blocking.
+    """
+
+
 def _iter_json_strings(value: Any) -> list[str]:
     found: list[str] = []
     stack: list[Any] = [value]
@@ -76,8 +85,23 @@ def _iter_json_strings(value: Any) -> list[str]:
     return found
 
 
+def _object_values(pairs: list[tuple[str, Any]]) -> list[Any]:
+    # Keep every value, a duplicated key's earlier ones included, so a value shadowed by a later key is still scanned.
+    # Keys are not values (note §11.1 item 1 scans "every decoded string value") and are not scanned.
+    return [value for _key, value in pairs]
+
+
 def scan_file_tokens(repository_path: str, raw: bytes) -> tuple[list[tuple[str, bool]] | None, bool]:
-    """Decode UTF-8 (and JSON string values for ``.json``) into tokens, or return ``(None, False)`` for ``not_text``."""
+    """Decode UTF-8 (and JSON string values for ``.json``) into tokens, or return ``(None, False)`` for ``not_text``.
+
+    A leading UTF-8 byte-order mark is ignored when decoding JSON, and integer literals are not converted, so neither
+    stops the string values from being scanned. A ``.json`` file that is still not valid JSON is scanned as raw text
+    only (record §7).
+
+    Raises:
+        UnscannableJSON: the file is JSON nested too deeply to decode, or a decoded string value holds an unpaired
+            surrogate (it could not be hashed as UTF-8).
+    """
 
     try:
         text = raw.decode("utf-8")
@@ -86,17 +110,19 @@ def scan_file_tokens(repository_path: str, raw: bytes) -> tuple[list[tuple[str, 
     tokens = tokenize_text(text)
     if repository_path.lower().endswith(".json"):
         try:
-            parsed = json.loads(text)
+            parsed = json.loads(
+                text.removeprefix("\ufeff"), parse_int=lambda _digits: 0, object_pairs_hook=_object_values
+            )
         except RecursionError as exc:
             # Too deep to decode, so a fully ``\u``-escaped path in a string value would go unseen (note §11.1 item 1
             # scans decoded values). Refuse rather than return a citation set that may omit it.
-            raise IntegrityError(f"W9 citation draft is JSON nested too deeply to scan: {repository_path}") from exc
+            raise UnscannableJSON(f"W9 citation draft is JSON nested too deeply to scan: {repository_path}") from exc
         except ValueError:
             parsed = None
         if parsed is not None:
             for item in _iter_json_strings(parsed):
                 if any(0xD800 <= ord(ch) <= 0xDFFF for ch in item):
-                    raise IntegrityError(
+                    raise UnscannableJSON(
                         f"W9 citation draft has an unpaired surrogate in a JSON string: {repository_path}"
                     )
                 tokens.extend(tokenize_text(item))
@@ -342,7 +368,14 @@ def extract_citations_from_files(
 
     for repo_path, raw in inventory_files:
         in_drafts = repo_path.startswith(drafts_prefix)
-        tokens, is_text = scan_file_tokens(repo_path, raw)
+        try:
+            tokens, is_text = scan_file_tokens(repo_path, raw)
+        except UnscannableJSON:
+            # Note §11.1 item 7: files outside drafts/ are reported, not blocking.
+            if in_drafts:
+                raise
+            not_text_files.append(repo_path)
+            continue
         if not is_text or tokens is None:
             not_text_files.append(repo_path)
             continue
