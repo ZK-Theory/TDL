@@ -1,7 +1,7 @@
 # WP9.4-2: W9 full path, paper roots, citation extractor, reference graph, cited-families CLI, O/K readings and P-087 (LR-035, LR-039, LR-040 to LR-055)
 
 - **Date:** 2026-11-20 (record and comments updated 2026-11-21)
-- **Status:** Built on branch `pipe/w9-wp9-4-2-full-path` (code commit `707cbe0d`; review fixes on branch head). Not yet merged or accepted.
+- **Status:** Built on branch `pipe/w9-wp9-4-2-full-path`: code commit `707cbe0d`, review fixes `ecd08a1b` and `e1fd58eb` (record and comments), CodeRabbit first-round fixes `7de9224c`, the `whole_file` note `85c21e53`, and CodeRabbit second-round fixes `9a510065`. Stephen re-accepted the D-4 bytes and squash-merged PR #443 into `main` as `95871b38` on 2026-11-21. Its acceptance as a work package is not recorded here.
 - **Package / Scope:** `06v WP9.4` — second of two PRs (**WP9.4-2: W9 full path**; P-086 item 1, P-087 item 2).
 - **Base commit (`origin/main`):** `f0e010e0637de45ccc27a6814ae7216eab587079` (carries `### P-087` and ancestor `cc81b733`).
 - **Authority:**
