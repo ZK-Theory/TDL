@@ -1,0 +1,81 @@
+name: U-3 Token Read Probe (Throwaway Draft PR)
+on:
+  pull_request:
+defaults:
+  run:
+    shell: bash
+jobs:
+  probe-contents-only:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Probe ruleset, rule-suites, and commits/pulls under contents-read
+        run: |
+          set +e
+          probe_one() {
+            local label="$1"
+            local ep="$2"
+            local kind="$3"
+            out="$(gh api -i "$ep" 2>&1)"
+            rc=$?
+            status="$(printf '%s\n' "$out" | head -n 1 | tr -d '\r')"
+            perms="$(printf '%s\n' "$out" | grep -i '^X-Accepted-GitHub-Permissions:' | tr -d '\r')"
+            keys="$(printf '%s\n' "$out" | awk 'found{print} /^\r?$/{found=1}' | python -c "
+          import json, sys
+          raw = sys.stdin.read().strip()
+          try:
+              doc = json.loads(raw)
+          except Exception as exc:
+              print('non-json:' + type(exc).__name__)
+              raise SystemExit(0)
+          if '$kind' == 'ruleset' and isinstance(doc, dict):
+              rule_types = sorted(r.get('type') for r in doc.get('rules', []) if isinstance(r, dict) and 'parameters' in r)
+              print(f\"keys={sorted(k for k in ('id','name','enforcement','conditions','bypass_actors','rules') if k in doc)} rules_with_params={rule_types}\")
+          elif isinstance(doc, list):
+              first_keys = sorted(doc[0].keys()) if doc and isinstance(doc[0], dict) else []
+              wanted = ('after_sha','result','actor_name','pushed_at') if '$kind' == 'suites' else ('number','merged_at','merge_commit_sha')
+              print(f\"count={len(doc)} first_has={sorted(k for k in wanted if k in first_keys)}\")
+          else:
+              print(f'unexpected_type={type(doc).__name__}')
+          ")"
+            echo "perm=$label endpoint=$ep rc=$rc status=$status perms=$perms body=$keys"
+            printf -- '- `%s` | `%s` | exit `%d` | `%s` | `%s` | `%s`\n' "$label" "$ep" "$rc" "$status" "$perms" "$keys" >> "$GITHUB_STEP_SUMMARY"
+          }
+          probe_one "contents: read" "repos/ZK-Theory/TDL/rulesets/20822054" "ruleset"
+          probe_one "contents: read" "repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=day&per_page=5" "suites"
+          probe_one "contents: read" "repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls" "pulls"
+          exit 0
+
+  probe-with-pull-requests-read:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Probe commits/pulls under pull-requests-read
+        run: |
+          set +e
+          ep="repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls"
+          out="$(gh api -i "$ep" 2>&1)"
+          rc=$?
+          status="$(printf '%s\n' "$out" | head -n 1 | tr -d '\r')"
+          perms="$(printf '%s\n' "$out" | grep -i '^X-Accepted-GitHub-Permissions:' | tr -d '\r')"
+          keys="$(printf '%s\n' "$out" | awk 'found{print} /^\r?$/{found=1}' | python -c "
+          import json, sys
+          try:
+              doc = json.loads(sys.stdin.read().strip())
+              first_keys = sorted(doc[0].keys()) if isinstance(doc, list) and doc and isinstance(doc[0], dict) else []
+              print(f\"count={len(doc) if isinstance(doc, list) else -1} first_has={sorted(k for k in ('number','merged_at','merge_commit_sha') if k in first_keys)}\")
+          except Exception as exc:
+              print('non-json:' + type(exc).__name__)
+          ")"
+          echo "endpoint=$ep rc=$rc status=$status perms=$perms body=$keys"
+          printf -- '- `pull-requests: read` | `%s` | exit `%d` | `%s` | `%s` | `%s`\n' "$ep" "$rc" "$status" "$perms" "$keys" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
