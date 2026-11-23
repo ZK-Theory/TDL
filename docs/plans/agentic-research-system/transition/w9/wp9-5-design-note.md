@@ -2,15 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Date | 2026-11-22 |
-| Status | **Revision 6, for independent adversarial review. Nothing in it is implemented.** |
+| Date | 2026-11-23 |
+| Status | **Revision 7, for independent adversarial review. Nothing in it is implemented.** |
 | Package | `06v` WP9.5 — "Detectors (W9-D5)" (`docs/plans/agentic-research-system/implementation/06v-w9-implementation-plan.md:470-503`) |
 | Authority | Decision register entry `P-089` (`docs/plans/agentic-research-system/03-decisions-and-open-questions.md:6071-6146`) |
 | Base | `origin/main` at `dbd54fe382e7b2849d3f2038393cbdb4d709477b` (`[PIPELINE] P06: WP9.4-2 follow-up: the independent review's Minor findings (P-088 item 5) (#446)`) |
 | Worktree / Branch | `C:\Users\steph\TDL\.apm\worktrees\wp9-5-note` on branch `docs/w9-wp9-5-design-note` |
-| Prior reviews | Revision 1 (`65363e27`): `wp9-5-note-r1-review-2026-11-21.md` (`edb9acc6`; `REWORK REQUIRED`: 1 Blocking, 12 Major, 14 Minor, 6 Info)<br>Revision 2 (`0c9a90ed`): `wp9-5-note-r2-review-2026-11-21.md` (`3cf35bec`; `REWORK REQUIRED`: 0 Blocking, 5 Major, 16 Minor, 6 Info)<br>Revision 3 (`092db1f1`): `wp9-5-note-r3-review-2026-11-21.md` (`1bd4ecff`; `REWORK REQUIRED`: 0 Blocking, 3 Major, 13 Minor, 4 Info)<br>Revision 4 (`48b5e935`): `wp9-5-note-r4-review-2026-11-22.md` (`0e6d23e4`; `REWORK REQUIRED`: 0 Blocking, 2 Major, 11 Minor, 8 Info)<br>Revision 5 (`83b4ae6f`): `wp9-5-note-r5-review-2026-11-22.md` (`d6938710`; `REWORK REQUIRED`: 0 Blocking, 3 Major, 11 Minor, 6 Info) |
+| Prior reviews | Revision 1 (`65363e27`): `wp9-5-note-r1-review-2026-11-21.md` (`edb9acc6`; `REWORK REQUIRED`: 1 Blocking, 12 Major, 14 Minor, 6 Info)<br>Revision 2 (`0c9a90ed`): `wp9-5-note-r2-review-2026-11-21.md` (`3cf35bec`; `REWORK REQUIRED`: 0 Blocking, 5 Major, 16 Minor, 6 Info)<br>Revision 3 (`092db1f1`): `wp9-5-note-r3-review-2026-11-21.md` (`1bd4ecff`; `REWORK REQUIRED`: 0 Blocking, 3 Major, 13 Minor, 4 Info)<br>Revision 4 (`48b5e935`): `wp9-5-note-r4-review-2026-11-22.md` (`0e6d23e4`; `REWORK REQUIRED`: 0 Blocking, 2 Major, 11 Minor, 8 Info)<br>Revision 5 (`83b4ae6f`): `wp9-5-note-r5-review-2026-11-22.md` (`d6938710`; `REWORK REQUIRED`: 0 Blocking, 3 Major, 11 Minor, 6 Info)<br>Revision 6 (`95dfefe7`): `wp9-5-note-r6-review-2026-11-22.md` (`d47a8e72`; `REWORK REQUIRED`: 0 Blocking, 3 Major, 9 Minor, 6 Info) |
 | Not authorized | WP9.5 code, WP9.6, WP9.7, live operations L-0 to L-5 (including L-0b and L-1), creating or binding the real control store, registering or observing any real file, or any write to a legacy file, `main`, or the vault (`03-decisions-and-open-questions.md:6127-6135`) |
-| Verification scope | **Checked here (`dbd54fe38` / worktree `HEAD`, §21.1):** cited repository lines; 22-commit walk; `CONVENTIONS.md` counts (70/90 units); ruleset `20822054` pins; bare-clone timings; 15-module stdlib-only closure (0 third-party imports); parent + child `[sys.executable, "-S", "-P", ...]` isolation (`PYTHONPATH` + `PYTHONSAFEPATH=1`, script and `-m` forms, out-of-closure `ModuleNotFoundError`); stdin pipe wrapper (`git show <ref> \| python -S -P -`); 19 pin-heredoc cases (Windows trailing-dot/space/device refusal + `hash-object --no-filters` + I3); and `1x` walk stand-ins (`14.05s`/`34.46s`/`62.84s`; `24.04s` measured `2x` at 60 commits; `68.92s`/`125.68s` **extrapolated (`2 × 1x`)**). Independent reviews (`§21.1` intro) reproduced R2–R5 checks including R5 stand-ins (`11.79s`/`34.85s`/`61.58s` + `~11.3s` live `gh api`), `404` citations, and live ruleset `20822054`.<br>**NOT verified here (§15.1, §21.2):** CI `GITHUB_TOKEN` U-3 probe (`UNVERIFIED-1`), live vault U-4 dry run (`UNVERIFIED-2`), single scratch-store timing & weekly D-5 run (`UNVERIFIED-3`), I3 variable permissions (`UNVERIFIED-4`), and hosted `windows-latest` `1x` walk time (`UNVERIFIED-5`). |
+| Verification scope | **Checked here (`dbd54fe38` / worktree `HEAD`, §21.1 items 1–11):** cited lines; 22-commit walk; `CONVENTIONS.md` counts (70/90 units); ruleset `20822054` pins; bare-clone timings; 15-module stdlib-only closure; parent + child `[sys.executable, "-S", "-P", ...]` isolation & Git Bash stdin-pipe wrapper (`item 9`); 27 pin-heredoc cases (`item 11`, incl. `os.path.isreserved`, `casefold()`, `~`, post-loop `hash-object --no-filters`, malformed JSON, I3); and `1x` walk stand-ins (`14.05s`/`34.46s`/`62.84s`; `24.04s` `2x` at 60 commits; `68.92s`/`125.68s` **extrapolated (`2 × 1x`)**). Reviews R2–R6 (`§21.1` intro) reproduced those checks, incl. R6 `12.97s`/`44.03s`/`77.7s` (`26.35s` `2x`), 32 pin runs, `366` citation pairs (`456` range occ), and live ruleset `20822054`.<br>**NOT verified here (§15.1, §21.2):** CI `GITHUB_TOKEN` U-3 probe (`UNVERIFIED-1`), live vault U-4 dry run (`UNVERIFIED-2`), single scratch-store timing & weekly D-5 run (`UNVERIFIED-3`), I3 variable permissions (`UNVERIFIED-4`), and hosted `windows-latest` `1x` walk time (`UNVERIFIED-5`). |
 
 ---
 
@@ -20,22 +20,25 @@ WP9.5 builds the W9 detectors (`06v:470-503`; `W9` §4.4, `09-migration-compatib
 
 | Handover §3 item | Owning sections | Summary |
 |---|---|---|
-| 1. Scope & protected identities | §2, §3 | No D-4 trigger (§2.2); separates `tools/` readers from Owner Point changes under `research_system/legacy/` and WP9.4 test fixtures (§2.3). |
+| 1. Scope & package | §2, §3 | No D-4 trigger (§2.2); separates `tools/` readers from Owner Point changes under `research_system/legacy/` and WP9.4 fixtures (§2.3). |
 | 2. Ruleset read (`main_ruleset`) | §4.1 | Pins ruleset `20822054` and `rule-suites` history (`MAX_DAYS = 30`), outputting canonical `w9-main-ruleset-read/1` SHA-256. |
 | 3. U-3 probe & D-8 fallback | §4.2, §15.1 | Pre-code draft-PR `pull_request` probe of `GITHUB_TOKEN` and pinned keys; `rule-suites` failure triggers hash-bound D-8 fallback. |
-| 4. First-parent detector | §6, §10.2, §16.1–§16.2 | Content-pinned `python -S -P` execution over 22 stdlib-only blobs (`detector_closure_blobs`); time-indexed Rules 0–3 (**pin, no lockstep — Rule 0.3 & PR pin-advance gate deleted per Stephen's 2026-11-22 decision**); `1x` post-merge walk, exit-`2` uncaught errors/incompatibility, manual pin-advance comparison evidence, and pre-code `600s` walk stop rule. |
+| 4. First-parent detector | §6, §10.2, §16.1–§16.2 | Content-pinned `python -S -P` execution over `detector_closure_blobs` (**21** stdlib-only runtime modules + workflow review blob); time-indexed Rules 0–3 (**pin, no-lockstep**); `1x` post-merge walk; tools exit `2` (`ERROR`) on unparseable/unknown-`format` evidence or uncaught errors and `1` for Rules 0–3; manual comparison procedure; `600s` walk stop rule. |
 | 5. Registration manifest (M-6) | §5, §16.3 | `tools/export_w9_registration_manifest.py` exports `w9-registration-manifest/2` (Option A1) from `_legacy_projection` / `_legacy_current_binding`; `--check` verifies store equality at `git_head` (unpinned residual `HR-7`). |
 | 6. Shared-surface rule (`O-32`, Rule 3) | §6.2.2, §6.5, §16.5 | In-commit §4.3 record + `w9-shared-surface-changes/2` (Option D3 blob-keyed freshness); Rule 3 acknowledgements also require `independent_review`, non-empty `affected_registrations` / `"none derived"`, and `pr_number: null` when unmapped. |
 | 7. `CONVENTIONS.md` check | §7, §16.10–§16.11 | Segments baseline `4620c716` vs candidate via `conventions_unit`; 68-unit provisional partition or pinned L-0b classification (`ACCEPTED_CONVENTIONS_CLASSIFICATION`); bullet/paragraph insertions only; PR-lane choice (Owner Point K). |
-| 8. Vault Computational-Log & D-5 | §8, §16.6, §16.10 | `tools/check_legacy_log_baseline.py` verifies live entries against accepted `w9-cl-export/1` + 1-based `w9-cl-classified-list/1` (`void == False` required); D-5 cadence gated at `LR-003`/`LR-015`/`LR-016`/`LR-020`. |
+| 8. Vault Computational-Log & D-5 | §8, §16.6, §16.10 | `tools/check_legacy_log_baseline.py` verifies live entries against accepted `w9-cl-export/1` + 1-based `w9-cl-classified-list/1` (`void == False` required; L-0b pairs with a pin advance); D-5 cadence gated at `LR-003`/`LR-015`/`LR-016`/`LR-020`. |
 | 9. U-4 vault path & dry run | §4.3, §15.1 | Records `2026-11-21T21:06:44Z` metadata (`833,453` B) and pre-code `u4_dry_run.py` (`root_checks` + `handle_bound_read` + `segment`). |
-| 10. Detector controls | §9 | `tools/run_w9_detector_controls.py` binds tool blobs + `closure_blobs` map under isolated `CONTROL_GIT_ENV` (`--code-root` / `--repo-root` split). |
-| 11. Merging is not going live | §10, §16.1, §16.7 | `workflow_dispatch`-only commit until L-1; confined `python -S -P` assembly + post-write hash verification; `L1_LIVE = False` tripwire (`yaml.BaseLoader`) in `admission-controls` + CODEOWNERS; separate throwaway rehearsal + green L-1 `workflow_dispatch`. |
-| 12. Scratch clones & isolation | §11 | Bare local scratch clones (`~1.57–1.99s`); `W9-T7` in `tests/tools/test_w9_detectors.py` (departure from `06v:230`); `REPO_ROOT` checkout-local snapshot (`--git-common-dir` `config`/`hooks/` in CI only). |
-| 13. Tests & budget | §12, §16.7–§16.8 | Unit PR checks (`W9-T19`, `W9-T7`, stdlib/wrapper/CODEOWNERS/pin/comparison tests), integration `M-6`/`O-13` (`affected_research_tests.py` + nightly), `14.05s–62.84s` measured `1x` walk stand-ins, unconditional scratch-store profile (`§15.1`), G1 `300s` budget. |
-| 14. Assurance & claims | §13, §14 | Machine-checkable claims (`MC-1`–`MC-10`), human-review limits (`HR-1`–`HR-7`), and 16 claims for adversarial review. |
-| 15. Stop rules & Owner points | §15, §16 | Pre-code gates (`UNVERIFIED-1`–`5`), pre-code `600s` `1x` walk stop rule, and 11 Owner Points (pin design **decided by Stephen, 2026-11-22**; open choices in **I, C, A, B, D, E, F, G, H, J, K**). |
-| 16. Change logs & verification | §17–§21 | Revision history (§17), compact R1–R4 index (§18), R4->R5 log (§19), R5->R6 log (§20), and reproducible Verification appendix (§21). |
+| 10. Detector controls | §9 | `tools/run_w9_detector_controls.py` binds tool blobs + `closure_blobs` map under `CONTROL_GIT_ENV` (`--code-root` required; no default). |
+| 11. Merging is not going live | §10, §16.1, §16.7 | `workflow_dispatch`-only commit until L-1; confined `python -S -P` assembly + post-loop hash verification; `L1_LIVE = False` tripwire (`yaml.BaseLoader`) in `admission-controls` + CODEOWNERS; separate throwaway rehearsal + green L-1 `workflow_dispatch`. |
+| 12. Where the controls run | §11 | Bare local scratch clones (`~1.57–2.07s`); `W9-T7` in `tests/tools/test_w9_detectors.py` (departure from `06v:230`); `REPO_ROOT` checkout-local snapshot (`--git-common-dir` `config`/`hooks/` in CI only). |
+| 13. Tests & budget | §12, §16.7–§16.8 | Unit PR checks (`W9-T19`, `W9-T7`, stdlib/ASCII/wrapper/CODEOWNERS/pin/comparison tests), integration `M-6`/`O-13` (`affected_research_tests.py` + nightly), `14.05s–62.84s` measured `1x` stand-ins, unconditional scratch-store profile (`§15.1`), G1 `300s` budget. |
+| 14. Research assurance | §13 | Machine-checkable claims (`MC-1`–`MC-10`) and human-review-only limits (`HR-1`–`HR-7`). |
+| 15. Claims for review | §14 | 16 load-bearing claims for independent adversarial attack against `dbd54fe382e7b2849d3f2038393cbdb4d709477b`. |
+| 16. Stop rules | §15 | Pre-code gates (`UNVERIFIED-1`–`5`), implementation stop rules (`06v:610-620`), and WP9.5-added pre-code `600s` `1x` walk stop rule. |
+| 17. Owner points | §16 | 11 Owner Points (pin design **decided by Stephen, 2026-11-22**; open choices in **I, C, A, B, D, E, F, G, H, J, K**). |
+
+*(Revision history, compact disposition logs, and reproducible verification checks appear in §17–§21.)*
 
 ---
 
@@ -46,11 +49,11 @@ WP9.5 builds the W9 detectors (`06v:470-503`; `W9` §4.4, `09-migration-compatib
 Under `06v` §5 (`06v-w9-implementation-plan.md:470-503`) and `P-089` (`03-decisions-and-open-questions.md:6091-6118,6141-6143`), WP9.5 delivers:
 
 1. **`tools/export_w9_registration_manifest.py` (**new**, M-6, `06v:470-473`):** Reads `_legacy_projection` (`research_system/cli.py:1648-1659`) and `_legacy_current_binding` (`:1662-1684`) to export `.research-system/evidence/w9/registration-manifest.json` (`w9-registration-manifest/2` under A1, updating `research_system/legacy/evidence.py:37,40,114-131`); `--check` verifies equality with store `legacy_path_registration` (`research_system/legacy/replay/reducers.py:70,571`) at `binding.binding["git_head"]` (`research_system/cli.py:1714`; §5).
-2. **`tools/check_legacy_writes.py` & `.github/workflows/legacy-write-detector.yml` (**new**, `O-9`, `O-10`, `O-32`, `06v:189-190,212,474-490`):** First-parent detector walking `<b0>..<head>` from `baselines[0]["baseline_commit"]` once (`1x`) per post-merge run with `baselines[-1]` (Rules 0–3, `acknowledged`, ruleset `20822054` / U-3/D-8; no Rule 0.3); every WP9.5 tool wraps `main()` to exit `2` on any uncaught exception and decodes `git`/`gh` with `encoding="utf-8"` (§6). Windows workflow committed `on: workflow_dispatch:` only, assembling `$RUNNER_TEMP/w9-detector` from `detector_closure_blobs` and running stdlib-only `python -S -P` (`PYTHONPATH="$DETECTOR_DIR"`, `PYTHONSAFEPATH=1` — no `uv sync`, §10).
+2. **`tools/check_legacy_writes.py` & `.github/workflows/legacy-write-detector.yml` (**new**, `O-9`, `O-10`, `O-32`, `06v:189-190,212,474-490`):** First-parent detector walking `<b0>..<head>` from `baselines[0]["baseline_commit"]` once (`1x`) per post-merge run with `baselines[-1]` (Rules 0–3, `acknowledged`, ruleset `20822054` / U-3/D-8). Every WP9.5 tool wraps `main()` to exit `2` (`ERROR`, never `0` and never `1` — a rule for the tools, not the pin step) on unparseable/unknown-`format` evidence or uncaught exceptions, reserving exit `1` for Rules 0–3 violations, and decodes `git`/`gh` with explicit `encoding="utf-8"` (§6). Windows workflow committed `on: workflow_dispatch:` only, assembling `$RUNNER_TEMP/w9-detector` from `detector_closure_blobs` and running stdlib-only `python -S -P` (`PYTHONPATH="$DETECTOR_DIR"`, `PYTHONSAFEPATH=1` — no `uv sync`, §10).
 3. **`tools/check_conventions_legacy_locks.py` (**new**, `O-12`, `06v:192,491-492`):** Verifies `CONVENTIONS.md` preserves every `conventions_unit` from `4b143c9225035cc29e37351445f1c3a4ab09ceb1` (blob `4620c71607ca3a06c6df3b8e96a6bddffc783960`, 33,645 bytes, SHA-256 `d04fe97e4a318f4a3c3dae00650419c13d6e7077ac54acda0b738c1608698589`, `CONVENTIONS_LOCK` `research_system/legacy/reader.py:43-49`) via `w9-segmentation/1.0.0` (`research_system/legacy/segmentation.py:429-488`, `tools/w9_segmentation.py:461-518`) and `ACCEPTED_CONVENTIONS_CLASSIFICATION` (`research_system/legacy/accepted_w9.py`, **new**; §7).
 4. **`tools/check_legacy_log_baseline.py` (**new**, `O-11`, `D-5`, `D-7`, `06v:191,493-496,567,569`):** Refuses symlink/junction/in-repo `--vault-root`, reads `04-Methods/Computational-Log.md` via `handle_bound_read` (`research_system/legacy/reader.py:140-206`), requires `recheck_cl_export` `void == False`, and checks legacy rows against `ACCEPTED_CL_EXPORT` (`accepted_w9.py:86-88`; §8).
-5. **`tools/run_w9_detector_controls.py` & `tools/run_w9_pinned_detectors.py` (**new**, `O-13`, `06v:193,497-502,603-604`):** Emits `.research-system/evidence/w9/detector-controls.json` (`w9-detector-controls/1`, `evidence.py:38,41,59-64,133-154`, `--code-root`/`--repo-root` split, §9). The pinned wrapper is one **self-contained stdlib-only file** (zero `tools.*`/`research_system.*` imports) piped by Stephen from `origin/main` via `git show ... | python -S -P -` (§6.2.3).
-6. **Tests (`W9-T7`, `W9-T19`, `06v:230,242,503`):** `tests/tools/test_w9_detectors.py` (**new**, `unit` in `admission-controls`: `W9-T19`, `W9-T7` departure from `06v:230`, `L1_LIVE` tripwire, stdlib/wrapper/CODEOWNERS/pin/comparison/exit-`2`/UTF-8 controls) and `tests/research_system/integration/test_w9_wp9_5_detectors.py` (**new**, `slow`, `integration`: scratch-store `M-6` and `O-13`) (§12.1).
+5. **`tools/run_w9_detector_controls.py` & `tools/run_w9_pinned_detectors.py` (**new**, `O-13`, `06v:193,497-502,603-604`):** Emits `.research-system/evidence/w9/detector-controls.json` (`w9-detector-controls/1`, `evidence.py:38,41,59-64,133-154`, `--code-root` required / no default, §9). The pinned wrapper is one **ASCII-only, self-contained stdlib-only file** (zero `tools.*`/`research_system.*` imports) piped by Stephen under Git Bash (or `cmd /c`) from `origin/main` via `git show ... | python -S -P -`, preserving child exit `2` and supporting `--assemble-only --rev <rev> --out <dir>` for §6.2.2's comparison (§6.2.3).
+6. **Tests (`W9-T7`, `W9-T19`, `06v:230,242,503`):** `tests/tools/test_w9_detectors.py` (**new**, `unit` in `admission-controls`: `W9-T19`, `W9-T7` departure from `06v:230`, `L1_LIVE` tripwire, stdlib/ASCII/wrapper/CODEOWNERS/pin/comparison/exit-`2`/UTF-8 controls) and `tests/research_system/integration/test_w9_wp9_5_detectors.py` (**new**, `slow`, `integration`: scratch-store `M-6` and `O-13`) (§12.1).
 
 ### 2.2 What WP9.5 does NOT touch and why no D-4 is expected
 
@@ -116,12 +119,12 @@ Per `P-089` item 1 (`03-decisions-and-open-questions.md:6091-6099`), WP9.5 adds 
 ### 4.1 The ruleset read (`main_ruleset`, control kind `recorded_read`)
 
 - **Authority & purpose:** `W9` §4.4 (`09-migration-compatibility-and-pilot.md:195,201-202`), `06v:190,594,603`, `REQUIRED_DETECTOR_CONTROLS["main_ruleset"] == "recorded_read"` (`research_system/legacy/evidence.py:59-64`).
-- **What it reads (`gh api` GETs; `.claude/hooks/admin-bypass-guard.sh:18,96-106`; §21.1 item 8):**
-  1. **Ruleset config (`gh api repos/ZK-Theory/TDL/rulesets/20822054`; `01-current-system-evidence.md:409`):** Verifies the 16 invariants shown in the report below (`id: 20822054`, `name`, `target == "branch"`, `enforcement == "active"`, `conditions.ref_name.include == ["refs/heads/main"]`, `exclude == []`, single `bypass_actors` entry `actor_id: 5`, and all 4 rule objects: `pull_request` [`require_code_owner_review: True`, `required_approving_review_count: 0`, `required_review_thread_resolution: True`, `allowed_merge_methods == ["squash"]`, `06v:90-91`], `merge_queue` [`SQUASH`, build/min/max `== 1`, `evaluate_merge_group_size` `tools/check_merge_admission.py:700-737`], `required_status_checks` [`strict_required_status_checks_policy: True`, 4 contexts with `integration_id == 15368`], and `non_fast_forward`). *(Unpinned per `R2-i3`: `require_extra_approval_for_unattributed_changes`, `grouping_strategy`, `check_response_timeout_minutes`, `dismiss_stale_reviews_on_push`.)*
-  2. **Rule-suites history (`gh api --paginate --slurp "repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=month&per_page=100"`, matching `tools/check_bypass_merges.py:141-166`):**
-     - **30-day API window (`MAX_DAYS = 30`, `tools/check_bypass_merges.py:24,57-58,73-90`):** If `detector-controls.json` holds a prior `"main_ruleset"` entry older than 30 days, the reader fails closed (`ERROR: main_ruleset: previous recorded read is older than 30 days (<previous_recorded_at>); rule-suites API window (MAX_DAYS=30) cannot cover the gap without a recorded P-0xx acknowledgement in walk-baseline.json`). Recovery uses `--acknowledge-gap <P-0xx>`, requiring a matching `walk-baseline.json` `ruleset_gap_acknowledgements` row (`{"previous_recorded_at", "acknowledged_through", "disposition_ref": {"id", "source_path", "source_commit", "entry_sha256"}}`) with `P1`-pre-existing hash-bound `disposition_ref` (§6.5) naming both timestamps and `acknowledged_through >= now - timedelta(days=30)`.
-     - **`result == "bypass"` evaluation (§21.1 item 8):** Owner merges routinely log `"bypass"`, so `"bypass"` alone is not a failure. For every `refs/heads/main` entry after `<baseline>` on `<head>`, `check_legacy_writes.py` verifies Rules 0–3, and the reader records `{after_sha, pushed_at, actor_name, touched_guarded_paths}` per bypass entry.
-- **Token & recording schedule (`06v:603`):** Uses Stephen's `gh` CLI via `tools/run_w9_pinned_detectors.py` locally (CI token governed by U-3/D-8, §4.2), run at L-1 (`LR-003`, `research_system/legacy/preparers.py:686-690`) and pre-batch. Because `research_system/legacy/evidence.py:92-105` reads `detector-controls.json` at `git_head`, each pre-batch update needs Stephen's `Bypass reason:` PR (`tools/check_bypass_merges.py:41,135`) + `ars store advance-binding`. Output report hashed via `sha256_hex(canonical_bytes(report))` (`research_system/canonical.py:40-52`) and stored under `"main_ruleset"` with `"control": "recorded_read"`, `"output_sha256"`, `"recorded_at"`:
+- **What it reads (`gh api` GETs; `.claude/hooks/admin-bypass-guard.sh:18,96-106`; §21.1 #8):**
+  1. **`rulesets/20822054` (`01-current-system-evidence.md:409`):** Verifies 16 invariants below (`id: 20822054`, `name`, `target == "branch"`, `enforcement == "active"`, `refs/heads/main`, `exclude == []`, single `bypass_actors` `actor_id: 5`, plus rules: `pull_request` [`require_code_owner_review: True`, `required_approving_review_count: 0`, `required_review_thread_resolution: True`, `["squash"]`, `06v:90-91`], `merge_queue` [`SQUASH`, build/min/max `== 1`, `tools/check_merge_admission.py:700-737`], `required_status_checks` [`strict: True`, 4 contexts `integration_id == 15368`], `non_fast_forward`). *(Unpinned `R2-i3`: `require_extra_approval_for_unattributed_changes`, `grouping_strategy`, `check_response_timeout_minutes`, `dismiss_stale_reviews_on_push`.)*
+  2. **`rule-suites?ref=refs/heads/main&time_period=month&per_page=100` (`tools/check_bypass_merges.py:141-166`):**
+     - **30d window (`MAX_DAYS = 30`, `tools/check_bypass_merges.py:24,57-58,73-90`):** Fails closed if prior `"main_ruleset"` >30d old (`ERROR: main_ruleset: previous recorded read is older than 30 days (<previous_recorded_at>); rule-suites API window (MAX_DAYS=30) cannot cover the gap without a recorded P-0xx acknowledgement in walk-baseline.json`). Recovery: `--acknowledge-gap <P-0xx>` matching `walk-baseline.json` `ruleset_gap_acknowledgements` row (`P1` hash-bound `disposition_ref` §6.5 naming both timestamps, `acknowledged_through >= now - 30d`).
+     - **`"bypass"` eval (§21.1 #8):** `"bypass"` alone is valid for owner merges; every `refs/heads/main` entry after `<baseline>` passes Rules 0–3 (`check_legacy_writes.py`), recording `{after_sha, pushed_at, actor_name, touched_guarded_paths}`.
+- **Schedule & digest (`06v:603`):** Local `gh` via `run_w9_pinned_detectors.py` at L-1 (`LR-003`, `preparers.py:686-690`) & pre-batch (since `evidence.py:92-105` reads `git_head`, updates need `Bypass reason:` PR `tools/check_bypass_merges.py:41,135` + `ars store advance-binding`). Hashed via `sha256_hex(canonical_bytes(report))` (`canonical.py:40-52`) under `"main_ruleset"`:
     ```json
     {
       "format": "w9-main-ruleset-read/1",
@@ -168,37 +171,16 @@ Per `P-089` item 1 (`03-decisions-and-open-questions.md:6091-6099`), WP9.5 adds 
 
 #### 4.2.1 Current repository evidence on U-3
 
-1. **Owner's `gh` login (verified live on 2026-11-21 in both `wp9-5-note-r1-review-2026-11-21.md:198` and Appendix A §21.1):**
-   - `gh api repos/ZK-Theory/TDL/rulesets/20822054` returns HTTP 200 with all ruleset invariants in §4.1.
-   - `gh api --paginate --slurp "repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=month&per_page=100"` returns HTTP 200 with 57 entries at `dbd54fe38` (`33` `bypass`, `24` `pass`; newest `after_sha` `dbd54fe382e7b2849d3f2038393cbdb4d709477b`).
-   - `gh api repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls` returns HTTP 200 with PR `#446` (`merge_commit_sha == "dbd54fe382e7b2849d3f2038393cbdb4d709477b"`).
-2. **Existing codebase note on `GITHUB_TOKEN` (`tools/check_bypass_merges.py:20-21`):**
-   `tools/check_bypass_merges.py:20-21` states:
-   > *"Reading rule suites needs the repository owner's token, which a workflow's `GITHUB_TOKEN` cannot be granted, so the weekly system review runs this in its step 1."*
-   Note that `tools/check_bypass_merges.py:20-21` speaks only about **rule suites** (`rulesets/rule-suites`), not about the ruleset configuration endpoint (`rulesets/20822054`) or the commit-to-PR endpoint (`commits/<sha>/pulls`). Whether `GITHUB_TOKEN` on the public repository `ZK-Theory/TDL` (`private: false`) can read `rulesets/20822054`, `rulesets/rule-suites`, and `commits/<sha>/pulls` under `permissions: contents: read` vs `permissions: contents: read, pull-requests: read` is **UNVERIFIED** until the U-3 workflow probe runs (`06v:159`; `P-089` item 3, `03-decisions-and-open-questions.md:6105-6107`).
-3. **Existing workflow `permissions:` blocks in `.github/workflows/` (verified at `dbd54fe38`):**
-   - `.github/workflows/ci.yml`: no top-level `permissions:` block; job `watchdog-schedule-liveness` declares `permissions: actions: read, contents: read` (`ci.yml:239-241`).
-   - `.github/workflows/merge-admission.yml`: top-level `permissions: contents: read, pull-requests: read, checks: read` (`.github/workflows/merge-admission.yml:52-55`); job `merge-admission` declares `checks: read, actions: read, contents: write, pull-requests: write` (`:70-83`).
-   - `.github/workflows/merge-admission-sweep.yml`: top-level `permissions: contents: read` (`merge-admission-sweep.yml:58-59`); job `sweep` declares `checks: read, actions: write, contents: write, pull-requests: write` (`:74-80`).
-   - `.github/workflows/ars-artefact-currency.yml`: top-level `permissions: contents: read` (`ars-artefact-currency.yml:12-13`).
-   - `.github/workflows/ars-artefact-currency-watchdog.yml`: top-level `permissions: actions: read, contents: read` (`ars-artefact-currency-watchdog.yml:14-16`).
-   - `.github/workflows/research-system-suite.yml`: top-level `permissions: contents: read` (`research-system-suite.yml:30-31`).
+1. **Owner `gh` login (verified `2026-11-21`, `wp9-5-note-r1-review-2026-11-21.md:198`, §21.1):** HTTP 200 on `rulesets/20822054`, `rulesets/rule-suites?...&time_period=month&per_page=100` (57 entries at `dbd54fe38`: `33` `bypass`, `24` `pass`, newest `dbd54fe382e7b2849d3f2038393cbdb4d709477b`), and `commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls` (PR `#446`, `merge_commit_sha == "dbd54fe382e7b2849d3f2038393cbdb4d709477b"`).
+2. **`tools/check_bypass_merges.py:20-21`:** Notes `GITHUB_TOKEN` cannot read **rule suites** (`rulesets/rule-suites`); whether `GITHUB_TOKEN` on public `ZK-Theory/TDL` reads `rulesets/20822054`, `rule-suites`, and `commits/<sha>/pulls` under `contents: read` vs `contents: read, pull-requests: read` is **`UNVERIFIED`** until U-3 runs (`06v:159`, `P-089` #3 `03-decisions-and-open-questions.md:6105-6107`).
+3. **Existing workflow `permissions:` (`dbd54fe38`):** `ci.yml` (no top-level; `watchdog-schedule-liveness`: `actions: read, contents: read`, `:239-241`), `merge-admission.yml` (`:52-55`, `:70-83`), `merge-admission-sweep.yml` (`:58-59`, `:74-80`), `ars-artefact-currency.yml` (`:12-13`), `ars-artefact-currency-watchdog.yml` (`:14-16`), `research-system-suite.yml` (`:30-31`).
 
 #### 4.2.2 Design of a runnable read-only U-3 probe
 
-- **Why a `workflow_dispatch`-only workflow cannot probe U-3 before landing on `main`:**
-  GitHub Actions does not register or allow `workflow_dispatch` on a new workflow file until that workflow file exists on the repository's default branch (`main`) (`tools/check_workflow_liveness.py:64-67`). Merging a probe workflow onto `main` before WP9.5 code is outside `P-089` (`03-decisions-and-open-questions.md:6127-6135`).
-- **How the U-3 probe runs without touching `main` (and its side effects, `R2-m6`):**
-  On Stephen's authorization, the reviewing session pushes a throwaway branch `probe/w9-u3-token-read` and opens a **draft, never-merged pull request** containing a temporary workflow `.github/workflows/u3-probe-temp.yml` triggered by `on: pull_request:`. GitHub Actions executes `on: pull_request:` workflows from the PR head commit immediately using a standard `GITHUB_TOKEN` scoped to the workflow's declared `permissions:` block, without modifying `main`. **Side effects (`R2-m6`):** opening that draft PR triggers the repository's existing `on: pull_request:` workflows (`ci.yml`, `merge-admission.yml`, `ars-artefact-currency.yml`, and `research-system-suite.yml`) against the throwaway branch; those runs are read-only/harmless on a never-merged PR and cancel as soon as the reviewing session records the outputs below, closes the draft PR, and deletes the remote branch `probe/w9-u3-token-read`.
-- **What the probe tests (two jobs, four read-only GET calls + pinned-key body checks, `R2-m6`):**
-  - Because GitHub can return HTTP 200 with optional administrative fields (such as `bypass_actors`, `rules[].parameters`, or `conditions`) omitted to a lower-privileged token, an HTTP 200 status alone does not prove the token can run §4.1's pin checks! Therefore, the probe logs both HTTP status + `X-Accepted-GitHub-Permissions` **and** which pinned top-level/nested keys are present in each HTTP 200 JSON body (`R2-m6`):
-  - **Job 1 (`probe-contents-only`, `permissions: contents: read`):**
-    1. `gh api -i repos/ZK-Theory/TDL/rulesets/20822054` — check presence of `id`, `enforcement`, `conditions.ref_name.include`, `bypass_actors`, and per-rule `parameters`.
-    2. `gh api -i "repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=day&per_page=5"` — check JSON array length and `after_sha`/`result`/`actor_name`/`pushed_at` on the first item.
-    3. `gh api -i repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls` — check JSON array length and `number`/`merged_at`/`merge_commit_sha`.
-  - **Job 2 (`probe-with-pull-requests-read`, `permissions: contents: read, pull-requests: read`):**
-    4. `gh api -i repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls` — check array length and `number`/`merged_at`/`merge_commit_sha`.
-    (And `.github/workflows/legacy-write-detector.yml` declares `permissions: contents: read, pull-requests: read` unconditionally so `commits/<C>/pulls` and `pulls/<N>` always have `pull-requests: read` scope; §10.2.)
+- **Why a throwaway PR is needed:** GitHub rejects `workflow_dispatch` on workflows absent from `main` (`tools/check_workflow_liveness.py:64-67`), and landing a probe on `main` exceeds `P-089` (`03-decisions-and-open-questions.md:6127-6135`).
+- **Execution & side effects (`R2-m6`):** On Stephen's authorization, the reviewing session pushes `probe/w9-u3-token-read` + draft unmerged PR with `.github/workflows/u3-probe-temp.yml` (`on: pull_request:`), logs HTTP statuses, `X-Accepted-GitHub-Permissions`, and HTTP 200 JSON keys (since lower-privilege tokens can omit `bypass_actors`/`parameters`/`conditions`), cancels triggered CI runs, closes the draft PR, and deletes the branch:
+  - **Job 1 (`probe-contents-only`, `permissions: contents: read`):** GETs `rulesets/20822054` (`id`, `enforcement`, `conditions.ref_name.include`, `bypass_actors`, `parameters`), `rule-suites?...&time_period=day&per_page=5` (length + `after_sha`/`result`/`actor_name`/`pushed_at`), and `commits/dbd54fe38.../pulls` (length + `number`/`merged_at`/`merge_commit_sha`).
+  - **Job 2 (`probe-with-pull-requests-read`, `permissions: contents: read, pull-requests: read`):** GETs `commits/dbd54fe38.../pulls` (`legacy-write-detector.yml` sets `contents: read, pull-requests: read` unconditionally, §10.2).
 - **Exact temporary probe workflow YAML (`.github/workflows/u3-probe-temp.yml` on the throwaway draft PR):**
   ```yaml
   name: U-3 Token Read Probe (Throwaway Draft PR)
@@ -318,23 +300,13 @@ Per `P-089` item 1 (`03-decisions-and-open-questions.md:6091-6099`), WP9.5 adds 
 
 #### 4.3.1 Verified repository facts on the vault path and why `tools/check_legacy_log_baseline.py` needs its own root-junction check
 
-1. **The repository junction vs the real vault directory:**
-   - In the main checkout `C:\Users\steph\TDL`, `C:\Users\steph\TDL\vault` is a gitignored Windows directory junction (`Attributes: Directory, ReparsePoint`, `LinkType: Junction`) targeting `C:\Users\steph\Documents\TDA-Research` (`01-current-system-evidence.md:357`; `CLAUDE.md:15,28`; `CONVENTIONS.md:790,796`).
-   - Because `vault/` is gitignored, linked worktrees under `C:\Users\steph\TDL\.apm\worktrees\<name>` do not have a `vault\` junction (`CLAUDE.md:28`).
-2. **WP9.2 segmentation contract census figures (`w9-segmentation-contract-v1.md:233-258`, evidence for the grammar, NOT a baseline):**
-   - At the WP9.2 contract census on `2026-10-23` (`09:07:42Z`), `C:\Users\steph\Documents\TDA-Research\04-Methods\Computational-Log.md` was `700,632` bytes, SHA-256 `de44a67b8b72b62bbd17fafee9a20f91308c66e6105e860155bce25120ef1026` (LF, no BOM), yielding `255` dated entries and `1` structural block (`# Computational Log` at L4436), with **0 blockers** (`w9-segmentation-contract-v1.md:242`).
-   - At the revision-3 re-run on `2026-10-23` (`12:04:22Z`), the live page had grown by one successor entry to `703,531` bytes, SHA-256 `19ad5c4d797d02cfef8e384255bcb960e90830ea9a6a7c83cb3029ca7ab66bb6`, yielding `256` entries and `1` structural block (at L4476), with **0 blockers** (`w9-segmentation-contract-v1.md:254-256`).
-   - As `w9-segmentation-contract-v1.md:258` states: *"The census is evidence for the grammar, not a baseline. The L-0b export is the baseline, taken under §6."*
-3. **What WP9.3's `handle_bound_read` and `LegacyReader.__init__` actually check (`research_system/legacy/reader.py:140-206,241-248` and `research_system/store/anchor.py:1934-1950`):**
-   - `handle_bound_read(root, path)` (`research_system/legacy/reader.py:140-206`) opens the root directory with `open_registered_root_anchor(root, delete_protect=True)` (`reader.py:152`). In `research_system/store/anchor.py:1934-1950`, `open_registered_root_anchor` calls `_open_directory_anchor(path, reject_reparse=False, delete_protect=delete_protect)` because *"Registered roots may themselves be junctions, so this purpose-named seam follows the root alias while retaining the physical identity handle."*
-   - Inside the root, `handle_bound_read` opens each intermediate directory with `open_registered_member_directory_anchor(child)` (`reader.py:160`), rejects any intermediate directory where `os.path.normcase(str(child_anchor.final_path)) != os.path.normcase(str(child))` (`:164-165`), and checks `if candidate.is_symlink() or candidate.is_junction(): raise ReadRefused("the registered path is a symlink or junction")` on the leaf (`:168-169`).
-   - `LegacyReader.__init__` (`research_system/legacy/reader.py:241-248`) checks `Path(os.path.abspath(vault_root)).relative_to(self.repository_root)` and raises `ReadRefused("the vault is read through its real path, never through the repository")`. Because `os.path.abspath` is **lexical** (it does not resolve junctions or symlinks), `LegacyReader.__init__` rejects `<repo>/vault`, but a junction located outside `repository_root` would not be caught by `LegacyReader.__init__` or by `open_registered_root_anchor` (`reject_reparse=False`).
+1. **Junction vs real vault:** In `C:\Users\steph\TDL`, `vault` is a gitignored Windows junction -> `C:\Users\steph\Documents\TDA-Research` (`01-current-system-evidence.md:357`, `CLAUDE.md:15,28`, `CONVENTIONS.md:790,796`), absent in `.apm/worktrees/<name>`.
+2. **WP9.2 grammar census (`w9-segmentation-contract-v1.md:233-258`, not a baseline):** On `2026-10-23`: `700,632` B (`de44a67b...`, `255` items, `1` structural @ L4436, 0 blockers, `:242`), then `703,531` B (`19ad5c4d...`, `256` items, `1` structural @ L4476, 0 blockers, `:254-256`).
+3. **Why `handle_bound_read` & `LegacyReader.__init__` need a root-junction check (`reader.py:140-206,241-248`, `anchor.py:1934-1950`):** `open_registered_root_anchor` uses `reject_reparse=False` (`:1934-1950`), `handle_bound_read` checks intermediate dirs (`:160,164-165`) and leaf `is_symlink()`/`is_junction()` (`:168-169`), and `LegacyReader.__init__` uses lexical `os.path.abspath` (`:241-248`)—so an external junction passed as `--vault-root` would slip past both.
 
 #### 4.3.2 How `tools/check_legacy_log_baseline.py` validates `--vault-root`
 
-To reject **both** `<repo>/vault` and any external symlink or junction passed as `--vault-root`, `tools/check_legacy_log_baseline.py` performs an explicit three-step check before calling `handle_bound_read` (`research_system/legacy/reader.py:140-206`):
-1. **Explicit CLI argument required (`P-083` item 2 `m-3`):** `--vault-root <path>` is required (no default to `<repo>/vault`).
-2. **Root-level symlink/junction refusal on the given path and every ancestor:**
+Before `handle_bound_read` (`research_system/legacy/reader.py:140-206`): (1) `--vault-root <path>` is required (`P-083` #2 `m-3`); (2) root symlink/junction/resolve check (`research_system/legacy/reader.py:168`):
    ```python
    given_vault = Path(os.path.abspath(vault_root))
    if not given_vault.exists() or not given_vault.is_dir():
@@ -345,11 +317,7 @@ To reject **both** `<repo>/vault` and any external symlink or junction passed as
    if os.path.normcase(str(resolved_vault)) != os.path.normcase(str(given_vault)):
        raise ReadRefused(f"vault_root resolves through a reparse point or alias: {given_vault} -> {resolved_vault}")
    ```
-   (On Python 3.13 / Windows 11, `Path.is_junction()` and `Path.is_symlink()` are standard `pathlib.Path` methods used at `research_system/legacy/reader.py:168`, and comparing `os.path.normcase(str(given_vault.resolve(strict=True)))` against `os.path.normcase(str(given_vault))` catches any ancestor junction as well.)
-3. **Disjointness from `repository_root` (both lexical and resolved):**
-   Neither `given_vault` nor `resolved_vault` may be equal to or inside `repository_root.resolve(strict=True)` (`relative_to` check).
-4. **Handle-bound read of the member file:**
-   Calls `raw, physical, _ = handle_bound_read(resolved_vault, "04-Methods/Computational-Log.md")` (`research_system/legacy/reader.py:140-206`), which verifies `04-Methods` is not a link/junction, `Computational-Log.md` is a regular file with `st_nlink == 1`, and file identity `(st_dev, st_ino, st_size, st_mtime_ns, st_nlink)` and parent directory anchors remain invariant across the read (`reader.py:157-204`).
+   (3) `given_vault` & `resolved_vault` disjoint from `repository_root.resolve(strict=True)`; (4) `handle_bound_read(resolved_vault, "04-Methods/Computational-Log.md")` enforces `st_nlink == 1` & identity invariance (`reader.py:157-204`).
 
 #### 4.3.3 Recorded U-4 metadata read (`2026-11-21T21:06:44Z`) and pre-code reader+segmenter dry-run gate
 
@@ -493,20 +461,20 @@ To reject **both** `<repo>/vault` and any external symlink or junction passed as
 
 ### 6.1 Time-indexed evidence evaluation, trust-root boundary, and "pin, no lockstep" decision
 
-No repository-content trust root stops a merged commit from changing `.github/workflows/legacy-write-detector.yml` or scripts on `main` (GitHub runs workflows from the pushed commit on GitHub Free; `CONVENTIONS.md:721-725`). Under **Stephen's `2026-11-22` decision (*"pin, no lockstep", to be entered in `P-090` with the other owner points*)**:
-- **Preventive (`Option I1` CODEOWNERS + optional `Option I3`):** `.github/CODEOWNERS` (`@stephendor`) protects the workflow, 7 WP9.5 `tools/` files, `test_w9_detectors.py`, `accepted_w9.py`, and `/.research-system/evidence/w9/` (plus `/tools/w9_segmentation.py` under Recommended `I1-include-seg`, §16.1), optionally paired with out-of-tree `vars.W9_DETECTOR_PIN` (`I3`). Pin advances merge via Stephen's `Bypass reason:` review; `Option I2` fails R1-B1 scenarios 4–5 (§16.1).
-- **Pin kept, lockstep dropped (no Rule 0.3):** Unpinned edits to non-code-owned closure modules are **not** violations; head's `baselines[-1]` keeps running until Stephen advances the pin, exiting `2` (`ERROR`) on incompatible formats/uncaught errors (§6.3).
-- **No PR-time pin-advance gate (`admission-controls`):** Runs `L1_LIVE`, F1 tests, `--verify-watched-to-fail` (under `L1_LIVE`), and optional K1—no `HEAD` blob check, no gating row check, no PR verdict comparison, and no `gh` calls (optional advisory Rule 0.2 row report only). Pin advances rely solely on Stephen's PR review + attached manual comparison diff (§6.2.2, §13.2 `HR-3`).
+No repository-content trust root stops a merged commit from changing workflows/scripts on `main` (`CONVENTIONS.md:721-725`). Under **Stephen's `2026-11-22` decision (*"pin, no lockstep", for `P-090`*)**:
+- **Preventive (`Option I1` CODEOWNERS + optional `I3`):** `.github/CODEOWNERS` (`@stephendor`) protects the workflow, 7 WP9.5 tools, `test_w9_detectors.py`, `accepted_w9.py`, and `/.research-system/evidence/w9/` (plus `/tools/w9_segmentation.py` under Recommended `I1-include-seg`, §16.1), optionally paired with `vars.W9_DETECTOR_PIN` (`I3`). **"Code-owned, so Stephen merges it himself" holds only under `Option I1`** (under `I2`, `walk-baseline.json` is un-owned and lacks I1 bypass protection, `R6-m9`, failing R1-B1 scenarios 4–5).
+- **The lockstep rule is deleted (`§6.2.3`, `§13.2 HR-3`):** Unpinned non-code-owned closure edits are valid; `baselines[-1]` keeps running until Stephen advances the pin. Unparseable/unknown-`format` evidence exits `2` (`ERROR`); new evidence keys/files unread by the older pin lag silently (`exit 0`, `§6.6`, `HR-3`).
+- **No PR-time pin-advance gate (`admission-controls`):** Runs `L1_LIVE`, F1 tests, `--verify-watched-to-fail` against assembled `baselines[-1]` `--code-root` (§10.3), and optional K1 (no `HEAD` blob check, gating row check, verdict comparison, or `gh` calls). Pin advances rely on Stephen's review + manual comparison evidence (§6.2.2, `HR-3`).
 
-Because single-snapshot `<head>` evaluation fails via atomic disarm, retroactive false positives, retroactive blessing, and self-edits, WP9.5 enforces:
+Because `<head>`-only evaluation fails via atomic disarm, retroactive false positives/blessing, and self-edits, WP9.5 enforces:
 
 | Evidence / artifact | Evaluated at / how | Why |
 |---|---|---|
 | `registration-manifest.json` (Rules 1, 3) | **`P1` union `C`** ($\text{Manifest}(P_1) \cup \text{Manifest}(C)$) | Blocks atomic disarm and retroactive false positives. |
 | `legacy-write-records.json` (Rules 1–3) | **Commit `C`** | Requires in-PR record at `C` (`06v:212,479-481`); blocks retroactive blessing. |
-| `shared-surface-changes.json` (Rule 3) | **Commit `C`** (or `<head>` with late-entry Rule 3 `acknowledged`, §6.2.2) | Binds late recovery to WP9.3 `check_change_list` (`evidence.py:190-218`, `acceptance.py:121-136`). |
-| Monotonicity & rows (**Rule 0**) | **Every `P1 -> C` in `(b0, head]`** | Ledgers & `walk-baseline.json` top-level keys monotonic; `baselines[0]` & `baselines[k]` pass (i)–(iv); no Rule 0.3 lockstep. |
-| 22-blob detector code | **Confined `cat-file blob` + `hash-object --no-filters` + `python -S -P`** | Rejects traversal/Windows device/trailing-dot names; child `[sys.executable, "-S", "-P", ...]`, `PYTHONPATH`, `PYTHONSAFEPATH=1`, `1x` post-merge walk (§6.2.3, §10.2). |
+| `shared-surface-changes.json` (Rule 3) | **Commit `C`** (or `<head>` with Rule 3 `acknowledged`) | Binds late recovery to WP9.3 `check_change_list` (`evidence.py:190-218`, `acceptance.py:121-136`). |
+| Monotonicity & rows (**Rule 0**) | **Every `P1 -> C` in `(b0, head]`** | Ledgers & `walk-baseline.json` monotonic; `baselines[0]`/`[k]` pass (i)–(iv); Rule 0.3 covers `detector-controls.json`. |
+| Pinned closure code | **Confined `cat-file blob` + post-loop `hash-object --no-filters` + `python -S -P`** | Assembles **21** stdlib runtime modules (+ workflow review blob); refuses traversal/`isreserved`/`~`/`casefold()`; child `[sys.executable, "-S", "-P", ...]`, `PYTHONSAFEPATH=1`, `1x` walk (§6.2.3, §10.2). |
 
 ---
 
@@ -514,7 +482,7 @@ Because single-snapshot `<head>` evaluation fails via atomic disarm, retroactive
 
 #### 6.2.1 Summary of first-parent commits touching guarded prefixes between `4b143c92` and `dbd54fe3`
 
-Running `git --no-replace-objects rev-list --first-parent --reverse 4b143c9225035cc29e37351445f1c3a4ab09ceb1..dbd54fe382e7b2849d3f2038393cbdb4d709477b` yields **320** first-parent commits on `main`, of which **22** touched `CONVENTIONS.md`, `results/`, `papers/`, `contracts/`, or `.apm/`: 9 `CONVENTIONS.md`-only pure-successor PRs (`#172`, `#178`, `#183`, `#278`, `#345`, `#376`, `#384`, `#419`, `#425`), 1 mixed PR (`#277` `1dbf6b7b`), 3 `.apm/tracker.md` Working-Note PRs (`#368` `452352ff`, `#388` `e3519ba7`, `#433` `a6a98966`), 3 ARS contract PRs (`#168`, `#169`, `#334`), 3 pre-W9/ruled/reviewed results PRs (`#125`, `#129`, `#401`), 2 direct pushes (`5df0c001`, `811d5a2b`, replayed in `W9-T7`), and 1 revert PR (`#219` `b132406e`). Exact hashes and reproduction commands are in §21.1 item 3 (`wp9-5-note-r2-review-2026-11-21.md:137-148`, `wp9-5-note-r3-review-2026-11-21.md:107-117`).
+`git --no-replace-objects rev-list --first-parent --reverse 4b143c9225035cc29e37351445f1c3a4ab09ceb1..dbd54fe382e7b2849d3f2038393cbdb4d709477b` yields **320** commits, of which **22** touched guarded paths (`CONVENTIONS.md`, `results/`, `papers/`, `contracts/`, `.apm/`): 9 `CONVENTIONS.md`-only PRs (`#172`, `#178`, `#183`, `#278`, `#345`, `#376`, `#384`, `#419`, `#425`), 1 mixed PR (`#277` `1dbf6b7b`), 3 `.apm/tracker.md` Working-Note PRs (`#368` `452352ff`, `#388` `e3519ba7`, `#433` `a6a98966`), 3 contract PRs (`#168`, `#169`, `#334`), 3 results PRs (`#125`, `#129`, `#401`), 2 direct pushes (`5df0c001`, `811d5a2b`, `W9-T7`), and 1 revert PR (`#219` `b132406e`). Reproduced in §21.1 item 3 (`wp9-5-note-r2-review-2026-11-21.md:137-148`, `wp9-5-note-r3-review-2026-11-21.md:107-117`).
 
 #### 6.2.2 Committed append-only walk-baseline ledger, acknowledged violations, pin-advance comparison evidence, and walk cost
 
@@ -595,44 +563,44 @@ Instead of hard-coding a baseline SHA inside `tools/check_legacy_writes.py`:
      ]
    }
    ```
-   *(All top-level keys are closed and protected by Rule 0.2 (§6.5): `format` is immutable; `d8_rule_suites_limit_decision_ref` is immutable once non-null; `baselines`, `acknowledged`, and `ruleset_gap_acknowledgements` are strictly append-only. `baselines[0]` carries `{"baseline_commit", "recorded_in_decision_ref", "detector_closure_blobs", "pre_baseline_dispositions_ref"}`—where `pre_baseline_dispositions_ref` is a hash-bound register reference (`R4-i6`)—and every appended row `baselines[k]` for $k \ge 1$ carries `{"recorded_in_decision_ref", "detector_closure_blobs"}`. **Blob computation:** because `.gitattributes:14` specifies `* text=auto eol=lf` and `.claude/rules/apm-outputs.md:37` warns against raw `git hash-object <file>` on CRLF working copies, PR authors compute `detector_closure_blobs` entries with `git rev-parse :<path>` (from staged index) or `git hash-object --path=<path> <path>`.)*
-2. **Baseline, disposed vs walked intervals, content pin, and loud incompatibility failure (`R5-m1`):**
-   - **`baselines[0]["baseline_commit"]` fixes the original walk start** (immutable; any known first-parent ancestor of the L-1 commit on `main`).
-   - **Pre-baseline disposed interval `(4b143c92, baselines[0]["baseline_commit"]]`:** At L-1, run §21.1 item 3 over `(dbd54fe3, baselines[0]["baseline_commit"]]` and record every guarded commit's disposition in `pre_baseline_dispositions_ref` (§6.2.1 covers `4b143c92..dbd54fe3`).
-   - **Walked interval `(baselines[0]["baseline_commit"], head]`:** Walked once (`1x`) per post-merge run with `baselines[-1]["detector_closure_blobs"]`; every commit passes Rules 0–3 or holds a valid `acknowledged` entry.
-   - **CLI lockouts, first-parent chain, and loud exit `2`:** Passing `--baseline`, `--head`, `--pr-map`, `--manifest-file`, `--verdict-json`, or `--acknowledged-from` without `--ruleset-check skip` exits `2` (§6.3 item 4). `check_legacy_writes.py` verifies `baselines[0]["baseline_commit"]` (and referenced commits) in `git --no-replace-objects rev-list --first-parent <head>`. Every WP9.5 tool wraps `main()` to exit **`2`** on any uncaught exception—never `0` and never `1`—so if production evidence formats evolve incompatibly ahead of a pin advance, the pinned tool turns the run red loudly (`R5-m1`).
-3. **Clearable true positives: the append-only `acknowledged` list (Owner Point C):**
-   - Appended row `{"commit", "rule", "path", "old_blob", "new_blob", "disposition_ref", ...}` (for `rule == "Rule 3"`, also `"independent_review"` matching §6.4 item 2):
+   *(Top-level keys are closed and Rule 0.2-protected (§6.5): `format` is immutable; `d8_rule_suites_limit_decision_ref` is immutable once non-null; `baselines`, `acknowledged`, and `ruleset_gap_acknowledgements` are strictly append-only. `baselines[0]` holds `{"baseline_commit", "recorded_in_decision_ref", "detector_closure_blobs", "pre_baseline_dispositions_ref"}` (`R4-i6`); `baselines[k]` ($k \ge 1$) holds `{"recorded_in_decision_ref", "detector_closure_blobs"}`. Compute closure blobs via `git rev-parse :<path>` or `git hash-object --path=<path> <path>` because `.gitattributes:14` sets `* text=auto eol=lf` and `.claude/rules/apm-outputs.md:37` forbids raw `git hash-object <file>` on CRLF trees.)*
+2. **Baseline, intervals, pin, and loud exit `2` (`R5-m1`, `R6-M1`, `R6-i5`):**
+   - `baselines[0]["baseline_commit"]` fixes the immutable walk start (first-parent ancestor of L-1). Pre-baseline `(4b143c92, baselines[0]["baseline_commit"]]` dispositions are recorded at L-1 in `pre_baseline_dispositions_ref` (§21.1 item 3 covers `(dbd54fe3, b0]`); `(baselines[0]["baseline_commit"], head]` is walked `1x` per post-merge run with `baselines[-1]["detector_closure_blobs"]`.
+   - CLI test flags (`--baseline`, `--head`, `--pr-map`, `--manifest-file`, `--verdict-json`, `--acknowledged-from`) without `--ruleset-check skip` exit `2` (§6.3 item 4); `baselines[0]["baseline_commit"]` and referenced commits must lie on `rev-list --first-parent <head>`. Every WP9.5 tool wraps `main()` to exit **`2`** (`ERROR`, never `0`/`1` — tools only, not pin step) on unparseable evidence, unknown `format`, or uncaught errors; exit `1` is reserved for Rules 0–3 on readable evidence (§6.6 item 1).
+3. **Clearable true positives: append-only `acknowledged` list (Owner Point C):**
+   - Row `{"commit", "rule", "path", "old_blob", "new_blob", "disposition_ref", ...}` (for `rule == "Rule 3"`, also `"independent_review"` per §6.4 item 2):
      1. `a["commit"]` lies on `<head>`'s first-parent chain strictly after `baselines[0]["baseline_commit"]`.
-     2. `a["disposition_ref"]["source_commit"]` satisfies `commit < source_commit <= P1(C_ack)` with `### <id>` slice SHA-256 matching `entry_sha256` at `P1(C_ack)` and naming `commit[:8]`, `rule`, `path`, `old_blob[:8]`, and `new_blob[:8]`.
+     2. `a["disposition_ref"]["source_commit"]` satisfies `commit < source_commit <= P1(C_ack)` with slice SHA-256 matching `entry_sha256` at `P1(C_ack)` naming `commit[:8]`, `rule`, `path`, `old_blob[:8]`, and `new_blob[:8]`.
      3. Scope: exempts only `(commit, rule, path, old_blob, new_blob)`.
-     4. **Rule 3 late change-list entry and independent-review requirement:** When `a["rule"] == "Rule 3"`, `a` must also carry `"independent_review"` verified at `P1(C_ack)` per §6.4 item 2 (satisfying `W9` §4.3, `09-migration-compatibility-and-pilot.md:183-188`), **and** `<head>:.research-system/evidence/w9/shared-surface-changes.json` must hold a matching entry `(pr_number_or_null, a["path"], a["old_blob"], a["new_blob"], affected_registrations)` where:
-        - `affected_registrations` is **non-empty**, unless `"none derived"` is explicitly stated in **both** the `### P-0xx` slice and `independent_review` (`evidence.py:221-252` permits `[]` structurally, so the detector enforces non-emptiness unless derived);
-        - `"pr_number"` equals `pr_number(a["commit"])` for PR merges, or `null` **strictly** for an acknowledgement-backed entry whose `a["commit"]` has `pr_number == None` (direct push; ordinary in-commit Rule 3 PR entries still forbid `null`);
-        - *Why late entries work cleanly against WP9.3:* `check_change_list` calls `require_change_list` (`research_system/legacy/evidence.py:190-218`; `acceptance.py:121-136`), which requires the acceptance's declared `git_blob` to equal `shared-surface-changes.json` at `git_head` and `git_commit` to be an ancestor holding it. Thus every acceptance evaluated at or after the late entry's `git_head` enforces it, stale declarations are refused, and previously committed acceptances retain their verdict.
-4. **Post-merge walk (`1x`), manual pin-advance comparison evidence, advisory row check, and pre-code walk stop rule (*pin design decided by Stephen, 2026-11-22, to be entered in `P-090` with the other owner points*):**
-   - **Post-merge walk (`1x`):** `.github/workflows/legacy-write-detector.yml` and `tools/run_w9_pinned_detectors.py` assemble only `baselines[-1]["detector_closure_blobs"]` and execute **one** walk over `(baselines[0]["baseline_commit"], head]`.
-   - **Old-vs-new comparison procedure (review evidence attached to pin-advance PR, not a gate; no new tool file):** Applies when appending `baselines[k]` ($k \ge 1$); L-1 row `0` creation checks Rule 0.2 (i)–(iv) with no prior comparison. Assemble `baselines[k-1]` (`T_old`) and `baselines[k]` (`T_new`) via §6.2.3's confined `python -S -P` assembly, run `check_legacy_writes.py --repo-root . --ruleset-check skip --baseline <b0> --head <candidate> --verdict-json --acknowledged-from <pr_base>` on each (all tool versions keep this interface or document changes in `### P-0xx`; offline tests pass `--pr-map`), diff outputs, and attach to the PR.
-     - **Complete verdict & failure semantics:** Verdict on `V` in `(baselines[0]["baseline_commit"], candidate]` under tool `t` is the `(rule, path)` set reported after `<pr_base>` `acknowledged` rows—**including Rule 0** (`("Rule 0.1", path)`, `("Rule 0.2", path)`; no Rule 0.3 or Rule 0.2 (v), so nothing nests). `--verdict-json` emits **one** JSON object carrying `"error"` on failure (exit `2`); **any `ERROR` on either side—including identical `ERROR` on both tools—is `ERROR`**, never clean.
-     - **Per-line slice & same-PR `acknowledged`:** List each differing `(V, rule, path)` on its own line in `recorded_in_decision_ref`'s `### P-0xx` slice as `V[:8] | <rule> | <path>`. Green-to-red Rules 1–3 differences needing clearing must carry `acknowledged` in the **same PR** (Rule 0 changes cannot use `acknowledged`, §6.5, and fail review unless resolved or exempted under Owner Point C).
-   - **No PR-time pin-advance gate in `admission-controls`:** Runs no `HEAD` blob check, gating row check, verdict comparison, or `gh` call; Rule 0.2 (i)–(iv) on added rows may emit an **advisory** report labelled advisory.
-   - **Measured `1x` stand-ins & pre-code walk stop rule (§12.3, §15.2 item 5, §21.1 item 10):** Local 6-subprocess `1x` walk stand-ins: **`14.05s`** (60 commits, 6 guarded), **`34.46s`** (178, 12 guarded), **`62.84s`** (320, 22 guarded), with ~15% variance (R5: `11.79s`/`34.85s`/`61.58s` + `~11.3s` across 22 live `gh api` calls) and no full Python rule eval; manual 2-tool comparison takes ~2x (`24.04s` measured `2x` at 60 commits; `68.92s` and `125.68s` **extrapolated as `2 × 1x`**). **Pre-code / rehearsal stop rule (§15.2 item 5):** if one post-merge `1x` walk with real rules and `gh api` exceeds **`600s` (10 min)**, stop and return to Stephen for a **design amendment** (e.g. a hash-bound baseline-epoch advancement row or Git batching), not a runtime flag (`UNVERIFIED-5`, §15.1, §21.2).
+     4. **Rule 3 late change-list & review:** `rule == "Rule 3"` also requires `independent_review` at `P1(C_ack)` (`W9` §4.3, `09-migration-compatibility-and-pilot.md:183-188`) and a matching `<head>:shared-surface-changes.json` entry `(pr_number_or_null, path, old_blob, new_blob, affected_registrations)`: `affected_registrations` non-empty unless `"none derived"` appears in both slice and review (`evidence.py:221-252` permits `[]` structurally); `pr_number` = `pr_number(commit)` or `null` strictly for ack-only unmapped direct pushes. *Why WP9.3 accepts late entries:* `check_change_list` (`research_system/legacy/evidence.py:190-218`; `acceptance.py:121-136`) binds `git_blob` at `git_head` (so post-entry acceptances enforce it while prior acceptances retain their verdicts).
+4. **Post-merge walk (`1x`), runnable comparison procedure, advisory report, and walk cost (*pin design decided by Stephen, 2026-11-22, for `P-090`*):**
+   - **Post-merge walk (`1x`):** `.github/workflows/legacy-write-detector.yml` and `run_w9_pinned_detectors.py` assemble `baselines[-1]` and walk `(baselines[0]["baseline_commit"], head]` once.
+   - **Runnable comparison procedure (manual review evidence on `baselines[k]`, $k \ge 1$; not a gate; L-1 row `0` checks Rule 0.2 (i)–(iv) only):** In **Git Bash** (or `cmd /c`):
+     1. **Build `<candidate>`:** `git fetch origin pull/<N>/merge && git branch -f candidate FETCH_HEAD` (or `candidate=$(git commit-tree <PR_tree> -p <pr_base> -m "candidate")`).
+     2. **Assemble `<dirA>` (`k-1`) and `<dirB>` (`k`)** using `run_w9_pinned_detectors.py` from `origin/main` (`--assemble-only --rev <rev> --out <dir>`, enforcing §6.2.3/§10.2 confinement + post-loop `hash-object --no-filters`):
+        `git --no-replace-objects show refs/remotes/origin/main:tools/run_w9_pinned_detectors.py | python -S -P - --assemble-only --rev <pr_base> --out <dirA>` (repeat with `--rev <candidate> --out <dirB>`).
+     3. **Attach code diff & re-record controls (`R6-m7`):** List every changed closure path in row `k` and attach `git --no-replace-objects diff <old_blob> <new_blob>` (showing prior non-code-owned edits captured in row `k`); re-record `detector-controls.json` in the PR.
+     4. **Run each assembled tool** (`PYTHONHOME`/`VIRTUAL_ENV` unset, `PYTHONSAFEPATH=1`):
+        `PYTHONPATH=<dir> python -S -P <dir>/tools/check_legacy_writes.py --repo-root . --ruleset-check skip --baseline <b0> --head <candidate> --verdict-json --acknowledged-from <pr_base>` (`--pr-map` in tests).
+     5. **Diff sorted `w9-verdict/1` JSONs:** Exit `0`/`1` emits `{"format": "w9-verdict/1", "error": null, "verdicts": {"<40-hex>": [["Rule 0.1", "path"], ...]}}` (covering **`Rule 0.1`, `Rule 0.2`, `Rule 0.3`**, and Rules 1–3 with no timing/retry counts and no Rule 0.2 (v)); exit `2` emits `{"format": "w9-verdict/1", "error": "<text>"}`. Any `ERROR` on either/both sides is reported as `ERROR`, never clean.
+     6. **Write slice lines:** In `recorded_in_decision_ref`'s `### P-0xx` slice, list **`candidate | <rule> | <path>`** (pre-merge squash candidate) or **`V[:8] | <rule> | <path>`** (`V` in `(b0, pr_base]`). Rules 1–3 green-to-red differences needing clearing need `acknowledged` in the same PR (Rule 0 cannot use `acknowledged`). Completeness is a human review check (`HR-3`, `§6.5` Rule 0.2 (iv)).
+   - **No PR pin-advance gate in `admission-controls`:** No `HEAD` blob check, gating row check, verdict diff, or `gh` call; optional advisory Rule 0.2 row report compares `HEAD` vs `HEAD^1`, writes to `$GITHUB_STEP_SUMMARY`, and exits `0` (`R6-i4`).
+   - **Measured `1x` stand-ins & pre-code walk stop rule (§12.3, §15.2 item 5, §21.1 item 10):** Local 6-call `1x` stand-ins (no full Rules 0–3 eval): **`14.05s`** (`60` commits, 6 guarded), **`34.46s`** (`178`, 12), **`62.84s`** (`320`, 22) with **up to ~28% spread across three independent runs** (R5: `11.79s`/`34.85s`/`61.58s` + `~11.3s` `gh api`; R6: `12.97s`/`44.03s`/`77.7s` + `26.35s` 2x@60); 2-tool comparison ~2x (R5 `24.04s` @60; `68.92s`/`125.68s` **extrapolated as `2 × 1x`**). **Stop rule (§15.2 item 5):** if a real `1x` walk + `gh api` exceeds **`600s`**, stop for a **design amendment**, never a runtime flag (`UNVERIFIED-5`, §15.1, §21.2).
 
 #### 6.2.3 Detector import closure, stdlib-only isolation, no-lockstep trade-off, and operator-machine pinning
 
-1. **Deterministic AST closure & 22-blob map (`compute_detector_import_closure(repo_root, entry_scripts)` in `tools/_w9_detector_evidence.py`, **new**):**
-   Walks `ast.Import`/`ast.ImportFrom` (`research_system` and `tools`, including ancestor `__init__.py` files; `tools/` is a namespace package) across the **6** runtime `tools/` scripts (`check_legacy_writes.py`, `check_conventions_legacy_locks.py`, `check_legacy_log_baseline.py`, `run_w9_detector_controls.py`, `run_w9_pinned_detectors.py`, `_w9_detector_evidence.py`) plus **15** existing `dbd54fe38` modules (§6.2.2) = **21** runtime modules, plus `.github/workflows/legacy-write-detector.yml` = **22 blobs** (`pyproject.toml`, `uv.lock`, and M-6 `tools/export_w9_registration_manifest.py` omitted; §2.3, §13.2 `HR-7`).
-2. **Stdlib-only enforcement, Windows-hardened assembly, and `python -S -P` isolation (§21.1 item 9):**
-   - `test_detector_closure_is_stdlib_only` checks all 21 runtime modules import only `sys.stdlib_module_names | {"research_system", "tools"}` (all 15 existing have 0 third-party imports); `test_recorded_detector_import_closure_covers_ast_walk`, `test_pinned_wrapper_is_self_contained_stdlib_only` (wrapper imports no `tools.*`/`research_system.*`), and `test_derived_closure_tools_and_accepted_w9_are_codeowned` (Owner Point I `w9_segmentation.py` choice) enforce closure completeness and CODEOWNERS.
-   - Before writing into `$DETECTOR_DIR`, §10.2 and `run_w9_pinned_detectors.py` validate `PurePosixPath(rel_path).as_posix() == rel_path` (no leading `/`, `\`, `:`, `..`, `.`, trailing `.`/space, or Windows reserved names `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`), verify `git cat-file -t <blob_sha> == "blob"` and `dest.resolve().is_relative_to(detector_dir.resolve())`, then verify `dest.is_file()` and `git --no-replace-objects hash-object --no-filters <dest> == blob_sha`.
-   - Runs under cleared `PYTHONHOME`/`VIRTUAL_ENV`, `PYTHONPATH="$DETECTOR_DIR"`, `PYTHONSAFEPATH=1`, and `python -S -P "$DETECTOR_DIR/tools/<script>.py"` (`3.13.x` Recommended vs `3.13.5`, §16.1; not `-I`/`-E` which ignore `PYTHONPATH`), spawning every child explicitly as `[sys.executable, "-S", "-P", ...]` so neither checkout modules nor `site-packages` enter child `sys.path` (§21.1 item 9).
-3. **No-lockstep lag trade-off (`2026-11-22` decision):** Non-code-owned closure edits need no `baselines` append; head's `baselines[-1]` stays safely pinned until Stephen advances it (or fails loudly with exit `2` on format incompatibility).
-4. **Operator-machine wrapper (`tools/run_w9_pinned_detectors.py`):** Self-contained stdlib-only file run directly from `origin/main` before every batch and weekly D-5 run (`06v:603-604`):
+1. **Deterministic AST closure & `detector_closure_blobs` (`compute_detector_import_closure(repo_root, entry_scripts)` in `tools/_w9_detector_evidence.py`, **new**):** Walks `ast.Import`/`ast.ImportFrom` (`research_system` & `tools`, incl. `__init__.py`) across **6** runtime `tools/` scripts (`check_legacy_writes.py`, `check_conventions_legacy_locks.py`, `check_legacy_log_baseline.py`, `run_w9_detector_controls.py`, `run_w9_pinned_detectors.py`, `_w9_detector_evidence.py`) + **15** existing `dbd54fe38` modules = **21** stdlib runtime modules, plus `.github/workflows/legacy-write-detector.yml` as a **review record only** (never executed from `$DETECTOR_DIR`, `R6-i1`) = **22** entries (`pyproject.toml`, `uv.lock`, and M-6 `export_w9_registration_manifest.py` omitted; §2.3, `HR-7`).
+2. **Stdlib/ASCII checks, confinement, & `python -S -P` isolation (§21.1 items 9, 11):**
+   - `test_detector_closure_is_stdlib_only` enforces stdlib-only (`sys.stdlib_module_names | {"research_system", "tools"}`; 15 existing = 0 third-party imports); `test_recorded_detector_import_closure_covers_ast_walk`, `test_pinned_wrapper_is_self_contained_stdlib_only`, **`test_pinned_wrapper_is_ascii_only`** (`R6-m2`), and `test_derived_closure_tools_and_accepted_w9_are_codeowned` (`I1` `w9_segmentation.py` choice) enforce completeness, ASCII wrapper safety, and CODEOWNERS.
+   - §10.2 & `run_w9_pinned_detectors.py` refuse **`casefold()`** collisions, require `PurePosixPath(rel_path).as_posix() == rel_path` (no `/`, `\`, `:`, `..`, `.`, `~`, trailing `.`/space, or **`os.path.isreserved`**), catch `CalledProcessError`/JSON errors with named refusals, check `cat-file -t == "blob"` + `dest.resolve().is_relative_to(detector_dir.resolve())`, and **post-loop re-hash every written key** via `dest.is_file()` & `git --no-replace-objects hash-object --no-filters <dest> == blob_sha` (`R6-m1`, `R6-i3`).
+   - Runs with cleared `PYTHONHOME`/`VIRTUAL_ENV`, `PYTHONPATH="$DETECTOR_DIR"`, `PYTHONSAFEPATH=1`, `python -S -P` (`3.13.x` Recommended vs `3.13.5`), spawning children via `[sys.executable, "-S", "-P", ...]` (§21.1 item 9).
+3. **No-lockstep lag trade-off (`2026-11-22` decision):** Non-code-owned closure edits need no `baselines` row; `baselines[-1]` stays active—exiting `2` on unparseable/unknown-`format` evidence, or `0` silently for new keys/rules the older pin does not read (`§6.6`, `HR-3`).
+4. **Operator-machine wrapper (`tools/run_w9_pinned_detectors.py`):** ASCII stdlib-only file run in **Git Bash** (or `cmd /c`; never PowerShell 5.1, which re-encodes streams, `R6-m2`) pre-batch & weekly (`06v:603-604`):
    ```bash
    git fetch --no-tags origin main:refs/remotes/origin/main
    git --no-replace-objects show refs/remotes/origin/main:tools/run_w9_pinned_detectors.py | python -S -P - --repo-root .
    ```
-   Verifies `origin/main == git ls-remote origin refs/heads/main`, checks `W9_DETECTOR_PIN` via `gh api` (`encoding="utf-8"`) under I3 (`UNVERIFIED-4`), writes the 22 confined blobs with post-write `git hash-object --no-filters`, and launches `[sys.executable, "-S", "-P", ...]` for the 3 detectors and `run_w9_detector_controls.py --code-root "$DETECTOR_DIR" --repo-root . --verify-watched-to-fail ...`. (`export_w9_registration_manifest.py` runs unpinned in CODEOWNERS; `HR-7`.)
+   Verifies `origin/main == git ls-remote origin refs/heads/main`, checks `W9_DETECTOR_PIN` (`gh api`, `encoding="utf-8"`) under I3 (`UNVERIFIED-4`), assembles confined `$DETECTOR_DIR`, launches `[sys.executable, "-S", "-P", ...]` for all 3 detectors + `run_w9_detector_controls.py --code-root "$DETECTOR_DIR" --repo-root . --verify-watched-to-fail ...`, **propagates child exit `2`** (`R6-i5`), and supports `--assemble-only --rev <rev> --out <dir>` (§6.2.2). (`export_w9_registration_manifest.py` runs unpinned in I1 CODEOWNERS; `HR-7`).
 
 ---
 
@@ -654,9 +622,9 @@ Instead of hard-coding a baseline SHA inside `tools/check_legacy_writes.py`:
      2. **Subject-hinted fallback lookup (`pulls/<N>` verified by `merge_commit_sha == C`):** If retries still find no match, parses trailing `(#<N>)` or `^Merge pull request #(<N>) `, queries `gh api repos/ZK-Theory/TDL/pulls/<N>`, and accepts `<N>` **iff** `pull.get("merged_at")` is non-empty **and** `pull.get("merge_commit_sha") == C` (so `5df0c001`, whose subject reuses `#215` merged at `a426b731`, maps to `pr_number = None`).
      3. **API failure vs unmapped commit:** API/transport/JSON errors exit **`2`** (`ERROR: post_merge_first_parent: GitHub API read failed while mapping commit <C>: <stderr_or_status>`); HTTP 200 with no matching merged PR sets `pr_number = None` and exits **`1`** (`pr=none`).
      4. **Test-only flags hard-locked behind `--ruleset-check skip`:** `--baseline <sha>`, `--head <sha>`, `--pr-map <json>`, `--manifest-file <json>`, `--verdict-json`, and `--acknowledged-from <sha>` are test/manual-comparison overrides only. Passing any of them without `--ruleset-check skip` exits **`2`** immediately (`ERROR: post_merge_first_parent: --baseline, --head, --pr-map, --manifest-file, --verdict-json, and --acknowledged-from are permitted only with --ruleset-check skip`), and a unit test verifies none of `--baseline`, `--head`, `--pr-map`, `--manifest-file`, `--verdict-json`, `--acknowledged-from`, `--ruleset-check skip`, or `--classified-locks` appears in `.github/workflows/legacy-write-detector.yml`.
-4. **Explicit UTF-8 subprocess decoding and `main()` exit-`2` exception wrapper (`R5-m1`, `R5-m9`):**
-   - Every `git` and `gh` subprocess invocation across all WP9.5 tools passes `encoding="utf-8"` explicitly (matching `tools/check_bypass_merges.py:160`, avoiding Windows ANSI `charmap` `UnicodeDecodeError`).
-   - Every WP9.5 tool wraps `main()` to catch any uncaught exception and exit **`2`** (`ERROR`, never `0` and never `1`), printing a clear `ERROR: ...` diagnostic—and with `--verdict-json`, `tools/check_legacy_writes.py` always prints **one** JSON object on stdout carrying an `"error"` key on failure.
+4. **Explicit UTF-8 subprocess decoding and `main()` exit-`2` exception wrapper (`R5-m1`, `R5-m9`, `R6-M1`, `R6-m4`, `R6-i5`):**
+   - Every `git` and `gh` subprocess invocation across all WP9.5 tools passes `encoding="utf-8"` explicitly (matching `tools/check_bypass_merges.py:140-144`, avoiding Windows ANSI `charmap` `UnicodeDecodeError`).
+   - Every WP9.5 tool wraps `main()` so unparseable evidence JSON, unknown `format` strings, and uncaught exceptions exit **`2`** (`ERROR`, never `0` and never `1` — a rule for the WP9.5 tools, not the pin step), printing a clear `ERROR: ...` diagnostic—and with `--verdict-json`, `tools/check_legacy_writes.py` emits `{"format": "w9-verdict/1", "error": "<text>"}` (`§6.2.2`, `§6.6`).
 
 ---
 
@@ -664,11 +632,10 @@ Instead of hard-coding a baseline SHA inside `tools/check_legacy_writes.py`:
 
 - **Location:** `.research-system/evidence/w9/legacy-write-records.json` (format `"w9-legacy-write-records/1"`, added as a dated row in `06v-addendum-2026-11-10-w9-paths.md` under Owner Point B).
 - **Evaluated at `C`:** When commit `C` (with first parent `P1`, mapped to `pr_number`) touches a guarded path, the detector reads `<C>:.research-system/evidence/w9/legacy-write-records.json`.
-- **Provenance checks and conditional reliance on Owner Point I1:**
-  `P1` ancestry proves only pre-PR age (that a referenced decision entry or review existed on `main` before PR `C`), **not** Stephen's authorship, because `03-decisions-and-open-questions.md` and `docs/plans/agentic-research-system/reviews/` are not CODEOWNED and ruleset `20822054` has `required_approving_review_count: 0`. Therefore, **Option B1's tamper resistance is conditional on Owner Point I1** (`@stephendor` over `.research-system/evidence/w9/`), and requiring `source_commit`/`review_commit` to precede `C` (`at P1`) is this note's stricter reading of W9 §4.2(b) (`09-migration-compatibility-and-pilot.md:174-176`; Option B2 is the same-PR alternative under I1).
-  1. **Pre-existing owner decision (`owner_note` verified at `P1`):** For `"repo_wide_change_4_2_b"`, `"owner_ruling_4_2_c"`, and `"shared_surface_4_3"`, checks `decision_entry_id` (`^P-[0-9]{3}[a-z]?$`), `source_path`, `is_ancestor(repo_root, source_commit, P1)`, and exact `### P-0xx` slice `entry_sha256` naming `normalized_path`, `old_blob[:8]`, and `new_blob[:8]` for every `record["files"]` item (matching `fecfc1da`, `6024-6088`).
-  2. **Pre-existing independent review bound to the change (`independent_review` verified at `P1`):** For `"repo_wide_change_4_2_b"` and `"shared_surface_4_3"`, checks `review_path` (`docs/plans/agentic-research-system/reviews/<file>.md`), `is_ancestor(repo_root, review_commit, P1)`, `review_sha256` against `<P1>:<review_path>`, and presence of `decision_entry_id` plus every `(normalized_path, old_blob[:8], new_blob[:8])` inside that review.
-  3. **CODEOWNERS / Rule 0 protection (Owner Point I1, §16.1):** Owner Point I1 adds `.research-system/evidence/w9/`, `.github/workflows/legacy-write-detector.yml`, all 7 WP9.5 `tools/` detector/control/exporter/wrapper/helper modules, `tests/tools/test_w9_detectors.py`, and `research_system/legacy/accepted_w9.py` to `.github/CODEOWNERS` (`@stephendor`).
+- **Provenance checks and `Option I1` dependency:** `P1` ancestry proves only pre-PR age (since `03-decisions-and-open-questions.md` & `reviews/` are un-owned and ruleset `20822054` has `required_approving_review_count: 0`). Thus **Option B1's tamper resistance depends on Option I1** (`@stephendor` over `.research-system/evidence/w9/`), and requiring `source_commit`/`review_commit` at `P1` enforces W9 §4.2(b) (`09-migration-compatibility-and-pilot.md:174-176`; B2 is the same-PR alternative).
+  1. **Pre-existing owner decision (`owner_note` at `P1`):** For `"repo_wide_change_4_2_b"`, `"owner_ruling_4_2_c"`, `"shared_surface_4_3"`: validates `decision_entry_id` (`^P-[0-9]{3}[a-z]?$`), `source_path`, `is_ancestor(source_commit, P1)`, & slice `entry_sha256` naming every `(normalized_path, old_blob[:8], new_blob[:8])` (`fecfc1da`, `6024-6088`).
+  2. **Pre-existing independent review (`independent_review` at `P1`):** For `"repo_wide_change_4_2_b"` & `"shared_surface_4_3"`: validates `review_path` (`docs/plans/agentic-research-system/reviews/<file>.md`), `is_ancestor(review_commit, P1)`, `review_sha256` at `<P1>:<review_path>`, & presence of `decision_entry_id` + every `(normalized_path, old_blob[:8], new_blob[:8])`.
+  3. **CODEOWNERS / Rule 0 (Option I1, §16.1):** Adds `.research-system/evidence/w9/`, workflow, 7 `tools/` modules, `test_w9_detectors.py`, and `accepted_w9.py` to `.github/CODEOWNERS` (`@stephendor`).
 - **Closed JSON schema (`w9-legacy-write-records/1`):**
   ```json
   {
@@ -708,53 +675,52 @@ Instead of hard-coding a baseline SHA inside `tools/check_legacy_writes.py`:
 
 For each first-parent commit $C \in (\text{baselines}[0][\text{"baseline\_commit"}], \text{head}]$ with first parent $P_1$ and changed file tuples $(m_{\text{old}}, m_{\text{new}}, b_{\text{old}}, b_{\text{new}}, \text{status}, p) \in \text{diff-tree}(P_1, C)$:
 
-#### Rule 0 — Monotonicity of W9 evidence files and governed closure
+#### Rule 0 — Monotonicity of W9 evidence files (`Rule 0.1`, `Rule 0.2`, `Rule 0.3`)
 
-1. **`registration-manifest.json` is strictly append-only:**
+1. **`Rule 0.1` — `registration-manifest.json` is strictly append-only:**
    Every entry present at $P_1$ remains present with identical fields at $C$; otherwise fail closed (`ERROR: post_merge_first_parent: Rule 0 violation at commit <C>: registration-manifest.json deleted or modified existing registration entry <entry>`).
-2. **Evidence ledgers, all top-level fields + rows of `walk-baseline.json`, and L-0b classification:**
+2. **`Rule 0.2` — Evidence ledgers, all top-level fields + rows of `walk-baseline.json`, and L-0b classification:**
    - `legacy-write-records.json`, `shared-surface-changes.json`, and `vault-detector-runs.json` are strictly append-only on entries: every entry at $P_1$ stays byte-identical at $C$, and any new `legacy-write-records.json` entry at $C$ has `entry["pr_number"] == pr_number(C)`.
    - Top-level fields of `walk-baseline.json` are governed: `format` (`"w9-walk-baseline/1"`) is immutable; `d8_rule_suites_limit_decision_ref` is immutable once non-null and any non-null value passes the `P1` hash-bound check naming `"D-8"` and `"rule-suites"`; `baselines`, `acknowledged`, and `ruleset_gap_acknowledgements` are strictly append-only.
-   - **Row 0 at creation and every appended `baselines[k]` ($k \ge 1$) must satisfy checks (i)–(iv)** (evaluated at the creating commit `C_0` when `walk-baseline.json` first appears—with `C_0`'s first parent `P1(C_0)`—and at `C_k` for each appended `k >= 1`):
-     (i) closed keys: `{"baseline_commit", "recorded_in_decision_ref", "detector_closure_blobs", "pre_baseline_dispositions_ref"}` on row `0`, or `{"recorded_in_decision_ref", "detector_closure_blobs"}` on row $k \ge 1$ (no second `baseline_commit`);
-     (ii) every entry `(p, expected_blob)` in `row["detector_closure_blobs"]` equals `git --no-replace-objects rev-parse <C>:<p>`;
-     (iii) `row["recorded_in_decision_ref"]` (and `row["pre_baseline_dispositions_ref"]` on row `0`) passes the pre-existing (`source_commit` ancestor of $P_1(C)$) hash-bound slice check; and
-     (iv) for $k \ge 1$, the `recorded_in_decision_ref` `### P-0xx` slice names every path added, removed, or changed relative to `baselines[k-1]["detector_closure_blobs"]` with `new_blob[:8]` (or `"no blob change"` if identical, and `"rollback"` plus restored paths and `new_blob[:8]` if matching an earlier row), and lists every old-vs-new verdict difference (including Rule 0) one per line as `V[:8] | <rule> | <path>` (§6.2.2 item 4; any Rules 1–3 green-to-red difference cleared on `main` carries an `acknowledged` row in the same PR).
-   - **Every newly appended `ruleset_gap_acknowledgements` row ($C_{\text{gap}}$):** closed keys `{"previous_recorded_at", "acknowledged_through", "disposition_ref"}`, `disposition_ref["source_commit"]` ancestor of $P_1(C_{\text{gap}})$, slice naming both `<previous_recorded_at>` and `<acknowledged_through>`.
-   - **Every newly appended `acknowledged` row ($C_{\text{ack}}$):** `commit < source_commit <= P1(C_ack)` with slice verification (§6.2.2 item 3); when `rule == "Rule 3"`, also requires `independent_review` at `P1(C_ack)` plus a matching entry (non-empty `affected_registrations` or `"none derived"`, `pr_number` integer or `null` if unmapped) at `<head>:.research-system/evidence/w9/shared-surface-changes.json` (§6.2.2 item 3.4).
-   - Once `ACCEPTED_CONVENTIONS_CLASSIFICATION` (`accepted_w9.py`) is populated at L-0b, its pinned classification JSON path cannot be modified or deleted.
-   - Failure message: `ERROR: post_merge_first_parent: Rule 0 violation at commit <C>: evidence file '<path>' violated append-only, validation, or immutability invariants`
-3. **`detector-controls.json` monotonicity:**
-   - Once `.research-system/evidence/w9/detector-controls.json` exists at $P_1$, it cannot be deleted at $C$, and updates pass `require_detector_controls` (`evidence.py:133-154`) with `recorded_at` timestamps $\ge$ $P_1$. *(Lockstep Rule 0.3 is deleted per Stephen's 2026-11-22 decision: editing a closure module without appending a `baselines` row is not a violation; §6.1.)*
+   - **Row 0 and every appended `baselines[k]` ($k \ge 1$) pass (i)–(iv)** (evaluated at creating commit `C_0`—with `P1(C_0)`—or `C_k`):
+     (i) closed keys: `{"baseline_commit", "recorded_in_decision_ref", "detector_closure_blobs", "pre_baseline_dispositions_ref"}` (row `0`), or `{"recorded_in_decision_ref", "detector_closure_blobs"}` ($k \ge 1$, no second `baseline_commit`);
+     (ii) every `(p, expected_blob)` in `detector_closure_blobs` equals `git --no-replace-objects rev-parse <C>:<p>`;
+     (iii) `recorded_in_decision_ref` (plus `pre_baseline_dispositions_ref` on row `0`) passes the `P1` hash-bound slice check; and
+     (iv) for $k \ge 1$, `recorded_in_decision_ref`'s slice names every added/removed/changed path vs `baselines[k-1]` with `new_blob[:8]` (or `"no blob change"`), plus any §6.2.2 verdict lines (completeness is human-reviewed, `HR-3` (b); post-merge checks only `V[:8] | <rule> | <path>` or `candidate | <rule> | <path>` grammar and that `V` resolves in `(b0, C_k]`).
+   - **Appended `ruleset_gap_acknowledgements` ($C_{\text{gap}}$):** closed `{"previous_recorded_at", "acknowledged_through", "disposition_ref"}`, `P1` slice naming both timestamps.
+   - **Appended `acknowledged` ($C_{\text{ack}}$):** `commit < source_commit <= P1(C_ack)` with §6.2.2 item 3 slice verify; `rule == "Rule 3"` also requires `independent_review` at `P1(C_ack)` & matching `<head>:shared-surface-changes.json` entry (§6.2.2 item 3.4).
+   - Once `ACCEPTED_CONVENTIONS_CLASSIFICATION` (`accepted_w9.py`) is populated at L-0b, its JSON path is immutable.
+   - Failure: `ERROR: post_merge_first_parent: Rule 0 violation at commit <C>: evidence file '<path>' violated append-only, validation, or immutability invariants`
+3. **`Rule 0.3` — `detector-controls.json` monotonicity:** Once present at $P_1$, cannot be deleted at $C$, and updates pass `require_detector_controls` (`evidence.py:133-154`) with `recorded_at` $\ge$ $P_1$.
 
 #### Rule 1 — Registered `git_tracked` legacy files (`06v:477`; `W9:172-181`)
 
-- **Manifest evaluated at `P1` (union `C`):** Let $\mathcal{M}(P_1, C) = \text{Manifest}(P_1) \cup \text{Manifest}(C)$ be the set of registration entries present in `registration-manifest.json` at $P_1$ or at $C$.
-- **Exclusions from Rule 1:** An entry $r \in \mathcal{M}(P_1, C)$ is excluded if: (1) `r["root_kind"] != "repository_root"`; (2) `r["source_identity_kind"] != "git_tracked"`; (3) `r["role"] == "conventions_lock"` (§7); (4) `r["role"] == "shared_enforcement_surface"` (Rule 3); (5) `r["role"] == "successor_results_root"` (`results/ars/`); or (6) `r["role"] == "legacy_read_only_projection"`.
-- **Path matching rule:** Exact case-folded match (`r["role"] != "legacy_manuscript_root"`), or directory-prefix match (`papers/P01-A-JRSSA/`, `papers/P01-B-JRSSB/`, `reader.py:51,289-299`).
-- **`.apm/tracker.md` Working Notes handling (Owner Point H, §16.9):** Under Option H1 (Recommended), passes Rule 1 iff `check_tracker_working_note_append(raw_P1, raw_C)` via `segment(raw, "tracker_task_row")` and `segment(raw, "working_note_entry")` (`segmentation.py:470-473`) confirms identical bytes outside `## Working Notes`, all prior entries preserved verbatim in order with 0 blockers, and only `[ \t]*\n` separators (`+1`-byte separator verified on `452352ff`, `e3519ba7`, `a6a98966` in `wp9-5-note-r2-review-2026-11-21.md:219`). Under H2/H3, follows that option.
-- **Requirement for all other Rule-1 matches:** Unless exempted by `acknowledged` covering `(C, "Rule 1", p, b_old, b_new)` (§6.2.2 item 3), commit $C$ requires mapped `pr_number`, `b_old != b_new`, and a valid `P1`-provenance §4.2 record at $C$ (§6.4). Failure (exit `1`):
+- **Manifest at `P1` union `C`:** $\mathcal{M}(P_1, C) = \text{Manifest}(P_1) \cup \text{Manifest}(C)$. Excludes entries where `root_kind != "repository_root"`, `source_identity_kind != "git_tracked"`, or `role` $\in$ `{"conventions_lock", "shared_enforcement_surface", "successor_results_root", "legacy_read_only_projection"}`.
+- **Path matching:** Case-folded exact match (`role != "legacy_manuscript_root"`), or prefix match (`papers/P01-A-JRSSA/`, `papers/P01-B-JRSSB/`, `reader.py:51,289-299`).
+- **`.apm/tracker.md` (Owner Point H, §16.9):** Under H1 (Recommended), passes Rule 1 iff `check_tracker_working_note_append(raw_P1, raw_C)` (`segment(raw, "tracker_task_row")` & `"working_note_entry"`, `segmentation.py:470-473`) confirms identical bytes outside `## Working Notes`, prior entries preserved verbatim with 0 blockers, and `[ \t]*\n` gaps (`452352ff`, `e3519ba7`, `a6a98966`, `wp9-5-note-r2-review-2026-11-21.md:219`).
+- **All other matches:** Unless `acknowledged` exempts `(C, "Rule 1", p, b_old, b_new)`, requires mapped `pr_number`, `b_old != b_new`, and valid `P1` §4.2 record (§6.4). Exit `1`:
   `ERROR: post_merge_first_parent: Rule 1 violation at commit <C> (pr=<pr_or_none>): registered path '<p>' changed (<b_old> -> <b_new>) without a valid in-commit W9 §4.2 record`
 
 #### Rule 2 — Any path under `results/` outside `results/ars/` (`06v:478`; `W9-D13`, `W9-D14`, `W9:140-147,196`)
 
-- **Matching & hard-coded `results/ars/` exemption:** Case-folded path starts with `"results/"` and not `"results/ars/"` (exempting `"results/ars/"` directly per `W9-D14` `09-migration-compatibility-and-pilot.md:768` so unregistered legacy families under `results/`—`W9-D13`, `:767`—stay guarded before `results/ars/` is registered). Requires valid §4.2 record at $C$ (or `acknowledged`); otherwise exit `1`:
+- Case-folded prefix `"results/"` not `"results/ars/"` (`W9-D14` `09-migration-compatibility-and-pilot.md:768` so unregistered `results/` families, `W9-D13` `:767`, remain guarded pre-registration). Requires §4.2 record at $C$ (or `acknowledged`); else exit `1`:
   `ERROR: post_merge_first_parent: Rule 2 violation at commit <C> (pr=<pr_or_none>): results path outside results/ars/ '<p>' changed (<b_old> -> <b_new>) without a valid in-commit W9 §4.2 record`
 
-#### Rule 3 — `shared_enforcement_surface` contracts (`06v:212,479-481`; `O-32`; `W9` §4.3, `W9:183-190`; Owner Point D)
+#### Rule 3 — `shared_enforcement_surface` contracts (`06v:212,479-481`; `O-32`; `W9:183-190`; Owner Point D)
 
-- **Shared surfaces:** `{r["normalized_path"] for r in M(P1, C) if r["root_kind"] == "repository_root" and r["role"] == "shared_enforcement_surface"}` (e.g. `contracts/manifests/research-assurance.yaml`, `contracts/stochastic-tests/monte-carlo-permutation-p-value.yaml`, `contracts/stochastic-tests/markov-order-provenance.yaml`, `contracts/topology-invariants/null-operation-changes-ph-input.yaml`; `W9:166`).
-- **Requirements:** Unless exempted by a valid Rule 3 `acknowledged` row + `independent_review` + matching entry (`pr_number` or ack-only `null`, non-empty `affected_registrations` or `"none derived"`) in `<head>:shared-surface-changes.json` (§6.2.2 item 3.4): (1) mapped `pr_number` + `shared_surface_4_3` record with `owner_note` & `independent_review` at $P_1$; (2) matching entry in `<C>:shared-surface-changes.json`.
-- **Resolving `O-32` (`06v:90-91` vs `evidence.py:231-238`, `acceptance.py:135`; §16.5):** Option D1 (`base_commit`) is race-prone under the merge queue; Option D2 (two PRs) leaves a red window. **Option D3 (Recommended, `"w9-shared-surface-changes/2"`, uniform `/2` with Option A1)** closes entries on `{"pr_number", "surface", "old_blob", "new_blob", "affected_registrations"}` (where `pr_number` is an integer for in-commit PR entries and `null` only for ack-backed unmapped commits, §6.2.2 item 3.4); in `acceptance.py:121-136` (`check_change_list`), an affected observation at `obs_commit` passes iff `evidence.blob_at(repository_root, obs_commit, entry["surface"])` (`evidence.py:179-188`) equals `entry["new_blob"]` or a later `new_blob` for `surface` *(tree-state equivalence semantic; revert cycles `A -> B -> A` noted in `HR-2`)*.
-- **Failure message (exit `1`):**
+- **Surfaces:** `{r["normalized_path"] for r in M(P1, C) if r["root_kind"] == "repository_root" and r["role"] == "shared_enforcement_surface"}` (`contracts/manifests/research-assurance.yaml`, `monte-carlo-permutation-p-value.yaml`, `markov-order-provenance.yaml`, `null-operation-changes-ph-input.yaml`; `W9:166`).
+- **Requirements:** Unless Rule 3 `acknowledged` + `independent_review` + `<head>:shared-surface-changes.json` entry exempts it (§6.2.2 item 3.4), needs mapped `pr_number`, `shared_surface_4_3` record with `owner_note` & `independent_review` at $P_1$, and matching `<C>:shared-surface-changes.json` entry.
+- **Resolving `O-32` (`06v:90-91` vs `evidence.py:231-238`, `acceptance.py:135`; §16.5):** D1 races under merge queue; D2 leaves a red window. **Option D3 (`"w9-shared-surface-changes/2"`, uniform `/2` with A1)** closes entries on `{"pr_number", "surface", "old_blob", "new_blob", "affected_registrations"}` (`pr_number` int or ack-only `null`); in `acceptance.py:121-136` (`check_change_list`), passes at `obs_commit` iff `evidence.blob_at(repository_root, obs_commit, entry["surface"])` (`evidence.py:179-188`) matches `entry["new_blob"]` or a later `new_blob` *(tree-state semantic; `A -> B -> A` in `HR-2`)*.
+- **Failure (exit `1`):**
   `ERROR: post_merge_first_parent: Rule 3 violation at commit <C> (pr=<pr_or_none>): shared_enforcement_surface '<s>' changed (<b_old> -> <b_new>) without a valid in-commit shared-surface-changes.json entry and W9 §4.3 owner note`
 
 ---
 
 ### 6.6 What `tools/check_legacy_writes.py` does with an unreadable registered file or unmappable commit
 
-1. **Missing or malformed evidence files:**
-   - If `walk-baseline.json` or `registration-manifest.json` is absent or malformed at `<head>` (once L-1 is active or when `--require-manifest` is set), or if any evidence file present at $P_1$ or $C$ fails JSON/schema validation, `tools/check_legacy_writes.py` fails closed (exit `1`) with `ERROR: post_merge_first_parent: invalid evidence file at <commit>:<path>: <reason>`.
+1. **Unreadable, unknown-`format`, missing, or malformed evidence files (`R6-M1`):**
+   - **An evidence file that cannot be parsed, or whose `format` string this tool does not know, is `ERROR`: exit `2` with `--verdict-json` printing the `"error"` key (`{"format": "w9-verdict/1", "error": "<text>"}`). Exit `1` is reserved for violations of Rules 0 to 3 on evidence the tool read.**
+   - Missing required `walk-baseline.json` or `registration-manifest.json` at `<head>` (once L-1 is active or when `--require-manifest` is set), or known-`format` field-level validation failures at $P_1$ or $C$, exit `1` with `ERROR: post_merge_first_parent: invalid evidence file at <commit>:<path>: <reason>`.
 2. **Scope of the Git tree existence check at `<head>` (`R1-M4`):**
    - For every entry $r$ in `registration-manifest.json` at `<head>`:
      - If `r["root_kind"] == "vault_root"` or `r["source_identity_kind"] in {"untracked_file", "restricted_untracked_file"}` or `r["role"] in {"successor_results_root", "legacy_read_only_projection"}`:
@@ -899,8 +865,8 @@ Given baseline segmentation $S_{\text{base}}$ (from blob `4620c716`) and candida
            "classified_list": {"repository_path": ..., "git_commit": ..., "git_blob": ..., "sha256": ..., "byte_length": ...},
        }
        ```
-       If `ACCEPTED_CL_EXPORT` is empty `()`, fails closed: `ERROR: vault_computational_log: ACCEPTED_CL_EXPORT is empty; L-0b baseline export has not been accepted yet`. When populated at L-0b, reads all three members via `git --no-replace-objects show <git_commit>:<repository_path>` matching `git_blob_id`, `sha256_hex`, and `len`; validates via `evidence.require_cl_export(export)` (`research_system/legacy/evidence.py:277-362`); runs `report = recheck_cl_export(export, retained_raw)` (`research_system/legacy/export_recheck.py:32-89`, producer `CL_EXPORT_PRODUCER`, `tools/w9_segmentation.py` blob `43e1454de09b61e274954c42b21d6ae533857a24`, `evidence.py:52-54`); **explicitly requires `report["void"] is False`** (`recheck_cl_export` does not raise on divergence, `R2-m12` — exit `1` with `ERROR: vault_computational_log: recheck_cl_export reported void=True`); and validates `classified_list` (§8.3).
-     - **Fixture mode (`--fixture-export-json <path> --fixture-retained-copy <path> [--fixture-classified-list <path>]`):** Same `require_cl_export` + `recheck_cl_export` (`void == False`) checks from disk.
+       If `ACCEPTED_CL_EXPORT` is empty `()` at the pinned copy and `HEAD` is pre-L-0b (or if L-0b landed without a paired pin advance, §8.3), production mode fails closed with **exit `1`** (`ERROR: vault_computational_log: ACCEPTED_CL_EXPORT is empty; L-0b baseline export has not been accepted yet`). When populated at L-0b, reads all three members via `git --no-replace-objects show <git_commit>:<repository_path>` matching `git_blob_id`, `sha256_hex`, and `len`; validates via `evidence.require_cl_export(export)` (`research_system/legacy/evidence.py:277-362`); runs `report = recheck_cl_export(export, retained_raw)` (`research_system/legacy/export_recheck.py:32-89`, producer `CL_EXPORT_PRODUCER`, `tools/w9_segmentation.py` blob `43e1454de09b61e274954c42b21d6ae533857a24`, `evidence.py:52-54`); **explicitly requires `report["void"] is False`** (`recheck_cl_export` does not raise on divergence, `R2-m12` — exit `1` with `ERROR: vault_computational_log: recheck_cl_export reported void=True`); and validates `classified_list` (§8.3). An unparseable export/classified-list JSON or unknown `format` string exits **`2`** (`ERROR`, `R6-M1`).
+     - **Fixture mode (`--fixture-export-json <path> --fixture-retained-copy <path> [--fixture-classified-list <path>]`):** Same `require_cl_export` + `recheck_cl_export` (`void == False`) checks from disk (unparseable JSON or unknown `format` exits **`2`**).
 2. **Whole-page live segmentation (`R1-M2`):** Calls `live_seg = segment(live_raw, "computational_log_entry")` (`research_system/legacy/segmentation.py:429-488`, `region=None` because prepended successor entries shift line numbers and byte offsets of all legacy rows below them, `w9-segmentation-contract-v1.md:189-192`) and verifies agreement with `tools/w9_segmentation.py:461-518`.
 3. **Exact five-part decision rule (`R1-M1`, `R1-M9`, `R1-m8`, `R2-m3`, `R2-i4`):**
    - **Check 1 — No UTF-8 BOM, CRLF tolerance on successor prepends, zero blockers (`W9:197`):** Requires `live_seg["file_facts"]["has_utf8_bom"] is False`. Because Obsidian/Windows edits may save prepended successor entries with CRLF (`"line_ending": "mixed"`), Check 1 ignores file-level `line_ending` while Checks 3–4 verify exact `raw_row_sha256` (`w9-segmentation-contract-v1.md:168-169`), catching any legacy LF->CRLF change. Rejects any `"blocker"` row (`unparseable_anchor`, `duplicate_anchor`, `unaddressed_region`; 0 blockers in `w9-segmentation-contract-v1.md:242,254-256`; intentional strictness over successor anchors):
@@ -951,7 +917,7 @@ Every 1-based row ordinal $1, \dots, N$ of `export["segmentation"]["rows"]` (`re
 |---|---|---|
 | `ACCEPTED_CL_EXPORT` (`research_system/legacy/accepted_w9.py:86-88`) | `()` (empty tuple) | Appended with one `MappingProxyType({"export": {...}, "retained_copy": {...}, "classified_list": {...}})` entry, where each of the 3 members carries `{"repository_path", "git_commit", "git_blob", "sha256", "byte_length"}` (`accepted_w9.py:86-87`). |
 | W9 paths addendum row (`06v-addendum-2026-11-10-w9-paths.md:29`) | File names open (`in the evidence area; file name not yet fixed`) | Dated amendment fixing the three `.research-system/evidence/w9/` paths for `export`, `retained_copy`, and `classified_list`. |
-| `tools/check_legacy_log_baseline.py` | Tested against synthetic `w9-cl-export/1` and `w9-cl-classified-list/1` fixtures via `--fixture-export-json`, `--fixture-retained-copy`, `--fixture-classified-list`. Production mode checks `ACCEPTED_CL_EXPORT` and fails closed while empty. | Production mode reads `ACCEPTED_CL_EXPORT[-1]` at `--git-commit HEAD` without needing a detector rewrite. |
+| `tools/check_legacy_log_baseline.py` | Tested against synthetic `w9-cl-export/1` and `w9-cl-classified-list/1` fixtures via `--fixture-export-json`, `--fixture-retained-copy`, `--fixture-classified-list`. Production mode checks `ACCEPTED_CL_EXPORT` and exits `1` while empty. | **The L-0b PR must be paired with a pin advance** (appending a `baselines` row so the pinned `accepted_w9.py` picks up `ACCEPTED_CL_EXPORT[-1]` and `ACCEPTED_CONVENTIONS_CLASSIFICATION`; until then, the pinned vault detector stays empty and stops with exit `1` while the pinned `CONVENTIONS.md` check silently keeps the 68-unit baseline, `R6-m8`). |
 
 ---
 
@@ -1097,7 +1063,7 @@ As `R1-m4` identified:
    }
    ```
    The detector entry's `output_sha256` is `sha256_hex(canonical_bytes(transcript))` (`research_system/canonical.py:40-52`).
-3. **CI and wrapper re-verification of `watched_to_fail` hashes after L-1:** `tools/run_w9_detector_controls.py --code-root <detector_dir> --repo-root <checkout_root> --verify-watched-to-fail <detector_controls_json>` separates `--code-root` (assembled closure bytes/imports) from `--repo-root` (Git object DB for bare clones, defaulting to `--repo-root` when omitted), wraps `main()` to exit `2`, uses `encoding="utf-8"` on `git`, and spawns child Python interpreters via `[sys.executable, "-S", "-P", ...]`. Executed under `python -S -P` in `.github/workflows/legacy-write-detector.yml` (§10.2), `tools/run_w9_pinned_detectors.py` (§6.2.3), and `L1_LIVE` `admission-controls` (§10.3), failing closed on mismatch (`ERROR: detector_controls: recomputed output_sha256 for '<detector>' does not match detector-controls.json`; M-6 sits outside the 22-blob runtime closure, `HR-7`).
+3. **CI and wrapper re-verification of `watched_to_fail` hashes after L-1 (`R4-m5`, `R6-M3`):** `tools/run_w9_detector_controls.py --code-root <detector_dir> --repo-root <checkout_root> --verify-watched-to-fail <detector_controls_json>` separates `--code-root` (assembled closure bytes/imports; **`--code-root` has no default**) from `--repo-root` (Git object DB for bare clones), wraps `main()` to exit `2`, uses `encoding="utf-8"` on `git`, and spawns child Python interpreters via `[sys.executable, "-S", "-P", ...]`. **In `admission-controls`, `--verify-watched-to-fail` runs with `--code-root` set to a tree assembled from `HEAD`'s `baselines[-1]` by the §10.2 pin step body, never the checkout; `--code-root` has no default** (executed under `python -S -P` in `admission-controls` §10.3, `.github/workflows/legacy-write-detector.yml` §10.2, and `tools/run_w9_pinned_detectors.py` §6.2.3), failing closed on mismatch (`ERROR: detector_controls: recomputed output_sha256 for '<detector>' does not match detector-controls.json`; M-6 sits outside the 22-blob map, `HR-7`).
 
 ---
 
@@ -1163,17 +1129,18 @@ jobs:
           python - <<'PY' "$main_tip" "$detector_dir" > "${RUNNER_TEMP}/w9-pin.env"
           import hashlib, json, os, pathlib, shutil, subprocess, sys
           from pathlib import PurePosixPath
-          WIN_RESERVED = {
-              "CON", "PRN", "AUX", "NUL",
-              *(f"COM{i}" for i in range(1, 10)),
-              *(f"LPT{i}" for i in range(1, 10)),
-          }
           main_tip, detector_dir = sys.argv[1], pathlib.Path(sys.argv[2])
-          raw = subprocess.check_output(
-              ["git", "--no-replace-objects", "show", f"{main_tip}:.research-system/evidence/w9/walk-baseline.json"]
-          )
-          wb = json.loads(raw.decode("utf-8"))
-          blobs = wb["baselines"][-1]["detector_closure_blobs"]
+          try:
+              raw = subprocess.check_output(
+                  ["git", "--no-replace-objects", "show", f"{main_tip}:.research-system/evidence/w9/walk-baseline.json"]
+              )
+              wb = json.loads(raw.decode("utf-8"))
+              blobs = wb["baselines"][-1]["detector_closure_blobs"]
+              baseline_commit = wb["baselines"][0]["baseline_commit"]
+          except (subprocess.CalledProcessError, UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+              raise SystemExit(f"ERROR: invalid walk-baseline.json at {main_tip}: {exc}")
+          if not isinstance(blobs, dict) or not isinstance(baseline_commit, str):
+              raise SystemExit("ERROR: walk-baseline.json has non-mapping detector_closure_blobs or non-string baseline_commit")
           canonical = json.dumps(blobs, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
           blobs_sha256 = hashlib.sha256(canonical).hexdigest()
           require_i3 = os.environ.get("REQUIRE_I3_PIN", "false").lower() == "true"
@@ -1181,31 +1148,44 @@ jobs:
           if require_i3 and not var_raw:
               raise SystemExit("ERROR: W9_DETECTOR_PIN is required under Option I3 but is empty")
           if var_raw:
-              pv = json.loads(var_raw)
-              if pv["walk_baseline_commit"] != wb["baselines"][0]["baseline_commit"]:
-                  raise SystemExit(
-                      f"ERROR: walk_baseline_commit {wb['baselines'][0]['baseline_commit']} != W9_DETECTOR_PIN {pv['walk_baseline_commit']}"
-                  )
-              if pv["closure_blobs_sha256"] != blobs_sha256:
-                  raise SystemExit(
-                      f"ERROR: closure_blobs_sha256 {blobs_sha256} != W9_DETECTOR_PIN {pv['closure_blobs_sha256']}"
-                  )
-          baseline_commit = wb["baselines"][0]["baseline_commit"]
-          chain = subprocess.check_output(
-              ["git", "--no-replace-objects", "rev-list", "--first-parent", main_tip], text=True, encoding="utf-8"
-          ).splitlines()
+              try:
+                  pv = json.loads(var_raw)
+                  pv_base, pv_sha = pv["walk_baseline_commit"], pv["closure_blobs_sha256"]
+              except (json.JSONDecodeError, KeyError, TypeError) as exc:
+                  raise SystemExit(f"ERROR: invalid W9_DETECTOR_PIN JSON: {exc}")
+              if pv_base != baseline_commit:
+                  raise SystemExit(f"ERROR: walk_baseline_commit {baseline_commit} != W9_DETECTOR_PIN {pv_base}")
+              if pv_sha != blobs_sha256:
+                  raise SystemExit(f"ERROR: closure_blobs_sha256 {blobs_sha256} != W9_DETECTOR_PIN {pv_sha}")
+          try:
+              chain = subprocess.check_output(
+                  ["git", "--no-replace-objects", "rev-list", "--first-parent", main_tip], text=True, encoding="utf-8"
+              ).splitlines()
+          except subprocess.CalledProcessError as exc:
+              raise SystemExit(f"ERROR: rev-list failed for {main_tip}: {exc}")
           if baseline_commit not in chain:
               raise SystemExit(f"ERROR: baseline commit {baseline_commit} is not on origin/main ({main_tip}) first-parent chain")
           shutil.rmtree(detector_dir, ignore_errors=True)
           detector_dir.mkdir(parents=True, exist_ok=True)
           resolved_root = detector_dir.resolve()
+          seen_folded: dict[str, str] = {}
+          written: list[tuple[str, pathlib.Path, str]] = []
           for rel_path, blob_sha in blobs.items():
+              if not isinstance(rel_path, str) or not isinstance(blob_sha, str):
+                  raise SystemExit(f"ERROR: non-string closure entry {(rel_path, blob_sha)!r}")
+              folded = rel_path.casefold()
+              if folded in seen_folded:
+                  raise SystemExit(f"ERROR: casefold path collision {rel_path!r} vs {seen_folded[folded]!r}")
+              seen_folded[folded] = rel_path
               if not rel_path or "\\" in rel_path or rel_path.startswith("/") or ":" in rel_path:
                   raise SystemExit(f"ERROR: invalid closure path key {rel_path!r}")
               pp = PurePosixPath(rel_path)
               if pp.is_absolute() or ".." in pp.parts or "." in pp.parts or pp.as_posix() != rel_path:
                   raise SystemExit(f"ERROR: unconfined closure path key {rel_path!r}")
-              if any(part.endswith((".", " ")) or part.split(".", 1)[0].upper() in WIN_RESERVED for part in pp.parts):
+              if os.path.isreserved(rel_path) or any(
+                  "~" in part or part.endswith((".", " ")) or os.path.isreserved(part)
+                  for part in pp.parts
+              ):
                   raise SystemExit(f"ERROR: prohibited Windows path segment in {rel_path!r}")
               obj_probe = subprocess.run(
                   ["git", "--no-replace-objects", "cat-file", "-t", blob_sha],
@@ -1219,13 +1199,21 @@ jobs:
               if not dest.is_relative_to(resolved_root):
                   raise SystemExit(f"ERROR: path traversal outside {resolved_root}: {rel_path!r}")
               dest.parent.mkdir(parents=True, exist_ok=True)
-              dest.write_bytes(subprocess.check_output(["git", "--no-replace-objects", "cat-file", "blob", blob_sha]))
+              try:
+                  dest.write_bytes(subprocess.check_output(["git", "--no-replace-objects", "cat-file", "blob", blob_sha]))
+              except subprocess.CalledProcessError as exc:
+                  raise SystemExit(f"ERROR: failed reading blob {blob_sha} for {rel_path!r}: {exc}")
+              written.append((rel_path, dest, blob_sha))
+          for rel_path, dest, blob_sha in written:
               if not dest.is_file():
                   raise SystemExit(f"ERROR: missing written closure file {rel_path!r}")
-              written_sha = subprocess.check_output(
-                  ["git", "--no-replace-objects", "hash-object", "--no-filters", str(dest)],
-                  text=True, encoding="utf-8",
-              ).strip()
+              try:
+                  written_sha = subprocess.check_output(
+                      ["git", "--no-replace-objects", "hash-object", "--no-filters", str(dest)],
+                      text=True, encoding="utf-8",
+                  ).strip()
+              except subprocess.CalledProcessError as exc:
+                  raise SystemExit(f"ERROR: hash-object failed for {rel_path!r}: {exc}")
               if written_sha != blob_sha:
                   raise SystemExit(f"ERROR: post-write blob mismatch for {rel_path!r}: {written_sha} != {blob_sha}")
           print(f"MAIN_TIP={main_tip}")
@@ -1267,7 +1255,7 @@ jobs:
 **Why every part of this workflow skeleton is required:**
 1. **`fetch-depth: 0`:** `check_legacy_writes.py` refuses shallow clones; `check_conventions_legacy_locks.py` reads blob `4620c716` at `4b143c92`.
 2. **No `workflow_dispatch` `inputs:` and `pipefail`-safe shell:** Prevents narrowing walks; Python `rev-list` avoids SIGPIPE 141; forward slashes avoid Git Bash backslash-dropping.
-3. **Confined 22-blob assembly, post-write hash check, `python -S -P`, and Option I3 sequencing:** §6.2.3 validation (traversal, absolute, trailing `.`/space, Windows reserved names) + `dest.is_file()` + `git --no-replace-objects hash-object --no-filters` runs before `python -S -P` + `PYTHONPATH="$DETECTOR_DIR"` + `PYTHONSAFEPATH=1` (child `[sys.executable, "-S", "-P", ...]`; `--code-root "$DETECTOR_DIR" --repo-root .` on `--verify-watched-to-fail`). **I3 upgrade sequence:** merge pin advance first, then update `vars.W9_DETECTOR_PIN` (expected red `push` run until update, then `workflow_dispatch` green); Option I1 CODEOWNERS protects the workflow.
+3. **Confined assembly, post-loop hash check, `python -S -P`, and Option I3 sequencing:** §6.2.3 validation (casefold collision refusal, traversal, absolute, `~`, trailing `.`/space, and `os.path.isreserved`) + post-loop `dest.is_file()` and `git --no-replace-objects hash-object --no-filters` runs before `python -S -P` + `PYTHONPATH="$DETECTOR_DIR"` + `PYTHONSAFEPATH=1` (child `[sys.executable, "-S", "-P", ...]`; `--code-root "$DETECTOR_DIR" --repo-root .` on `--verify-watched-to-fail`). **I3 upgrade sequence:** merge pin advance first, then update `vars.W9_DETECTOR_PIN` (expected red `push` run until update, then `workflow_dispatch` green); Option I1 CODEOWNERS protects the workflow.
 4. **Watchdog compatibility:** `tools/check_workflow_liveness.py:78-92` requires `state == "active"`; `.github/workflows/ci.yml:255-279` (`:263,276`) watches only `ars-artefact-currency-watchdog.yml` and `research-system-suite.yml`.
 5. **Pre-L-1 throwaway rehearsal & L-1 exit criterion:** Because `walk-baseline.json` is absent on `origin/main` before L-1, rehearsal uses a **separate temporary throwaway workflow** differing on `on: pull_request`, no `git fetch origin main` overwrite, and `MAIN_TIP="$GITHUB_SHA"` reading synthetic PR-head evidence (closed without merging like U-3); **a green `workflow_dispatch` run of unmodified `.github/workflows/legacy-write-detector.yml` on the L-1 merge commit on `main` is a required L-1 exit criterion**.
 
@@ -1280,7 +1268,10 @@ L1_LIVE = False
 ```
 `test_legacy_write_detector_l1_activation_state` asserts:
 - **While `L1_LIVE is False`:** `set(doc["on"].keys()) == {"workflow_dispatch"}`; none of `.research-system/evidence/w9/{detector-controls,registration-manifest,walk-baseline,vault-detector-runs}.json` exists in `REPO_ROOT`.
-- **When `L1_LIVE is True` (flipped at L-1, in `ci.yml` `admission-controls` under Option F1):** `set(doc["on"].keys()) == {"push", "schedule", "workflow_dispatch"}`, `doc["on"]["push"] == {"branches": ["main"]}`, and `.research-system/evidence/w9/{detector-controls,walk-baseline,registration-manifest}.json` exist and pass schema checks + `--verify-watched-to-fail`. Per Stephen's `2026-11-22` decision, `admission-controls` runs no `HEAD` blob check, gating row check, verdict comparison, or `gh` call (optional advisory-only Rule 0.2 row report allowed); wiring into `ci.yml` (F1) + CODEOWNERS (I1) protects `L1_LIVE` (§6.2.2).
+- **When `L1_LIVE is True` (flipped at L-1, in `ci.yml` `admission-controls` under Option F1):**
+  1. `set(doc["on"].keys()) == {"push", "schedule", "workflow_dispatch"}` and `doc["on"]["push"] == {"branches": ["main"]}`;
+  2. `.research-system/evidence/w9/{detector-controls,walk-baseline,registration-manifest}.json` exist and pass **schema checks (meaning the top-level shape of those three files only, not their rows, `R6-M3`)** + `require_detector_controls` + `--verify-watched-to-fail`. **In `admission-controls`, `--verify-watched-to-fail` runs with `--code-root` set to a tree assembled from `HEAD`'s `baselines[-1]` by the §10.2 pin step body, never the checkout; `--code-root` has no default** (so editing a non-code-owned closure module without appending a `baselines` row leaves `admission-controls` green, `R6-M3`).
+  *(Per Stephen's `2026-11-22` decision, `admission-controls` runs no `HEAD` blob check, gating row check, verdict comparison, or `gh` call; an optional advisory Rule 0.2 row report may compare `HEAD` against `HEAD^1`, write text to `$GITHUB_STEP_SUMMARY`, and always exit `0`, `R6-i4`. Wiring into `ci.yml` (F1) + CODEOWNERS (I1) protects `L1_LIVE`, §6.2.2.)*
 
 ---
 
@@ -1320,14 +1311,14 @@ As `R1-m3`, `R2-m16`, `R3-m8`, and `R4-m9` established, in a linked worktree `--
 | Test file & group | Markers | Cases covered |
 |---|---|---|
 | `tests/tools/test_w9_detectors.py` — **`W9-T19` (`CONVENTIONS.md`)** | `unit` (`ci.yml` `admission-controls`) | Baseline `4620c716` and `dbd54fe3` (`68` -> `90` units) pass; pure successor bullet/paragraph insertion passes; L-0b `ACCEPTED_CONVENTIONS_CLASSIFICATION` passes; negative controls N1–N7 exit `1`. |
-| `tests/tools/test_w9_detectors.py` — **`W9-T19` (Computational-Log) & D-5** | `unit` (`ci.yml` `admission-controls`) | Clean fixture + prepended LF/CRLF successor entries pass; empty `ACCEPTED_CL_EXPORT` fails; `recheck_cl_export` `void: True` fails; symlink/junction/resolve-mismatch/in-repo `--vault-root` fails; controls V1–V6 exit `1`; D-5 7-day cadence passes, missing file when `ACCEPTED_CL_EXPORT` non-empty fails, >7 days fails until `"owner_cadence_reset"` + `"run"`. |
-| `tests/tools/test_w9_detectors.py` — **Rule 0 & closure non-lockstep** | `unit` (`ci.yml` `admission-controls`) | Atomic disarm fails; pre-reg edit passes; retroactive blessing fails; `detector-controls.json` deletion or backdated `recorded_at` fails; editing a closure module without a `baselines` append exits `0` (**no Rule 0.3 lockstep**); row creation (`baselines[0]`) & append (`baselines[k]`) positive/negative controls for (i)–(iv): missing ref, blobs differing from tree at `C`, non-`P1` `source_commit`, wrong `entry_sha256`, extra keys (`baseline_commit`), slice omitting changed path/`new_blob[:8]`, unmentioned no-op/rollback row, CRLF working copy matching `git rev-parse :<path>` / `hash-object --path`. |
-| `tests/tools/test_w9_detectors.py` — **Pin-advance comparison procedure & `main()` exit `2`** | `unit` (`ci.yml` `admission-controls`, `--pr-map` offline) | Every tool's `main()` wrapper catches uncaught exceptions and exits `2` (`--verdict-json` emits one JSON object with `"error"`); L-1 `baselines[0]` creation skips comparison while checking (i)–(iv); matching verdicts pass; named `V[:8] \| <rule> \| <path>` difference (including Rule 0 difference) passes while unnamed or malformed line fails; green-to-red Rules 1–3 difference with same-PR `acknowledged` passes; one-sided `ERROR` and **both sides failing identically (`ERROR`)** fail; advisory Rule 0.2 row report runs on pin-advance PRs without failing checks. |
-| `tests/tools/test_w9_detectors.py` — **`acknowledged` & Rule 3 late-entry checks** | `unit` (`ci.yml` `admission-controls`) | Exact tuple exempt while sibling fails; backdated/same-commit ref fails; missing `independent_review` fails; missing late `shared-surface-changes.json` entry fails; empty `affected_registrations` without `"none derived"` fails; `"none derived"` in slice + `independent_review` passes; ack-only `pr_number: null` on unmapped commit passes while in-commit PR `pr_number: null` fails. |
-| `tests/tools/test_w9_detectors.py` — **Rules 1–3, PR mapping, UTF-8 & CLI lockouts** | `unit` (`ci.yml` `admission-controls`) | Rule 1 exclusions & `legacy_manuscript_root` prefix match; mode-only change fails; H1 Working-Note append passes while task-row edit fails; retry/hint fallback & API exit `2`; non-ASCII PR title/body decoded under explicit UTF-8 without `UnicodeDecodeError`; `--baseline`/`--head`/`--pr-map`/`--manifest-file`/`--verdict-json`/`--acknowledged-from` exit `2` without `--ruleset-check skip`; `--classified-locks` exits `2` without `--candidate-file`; workflow YAML contains none. |
-| `tests/tools/test_w9_detectors.py` — **Closure, stdlib, wrapper, CODEOWNERS, `L1_LIVE`, ruleset & pin assembly** | `unit` (`ci.yml` `admission-controls`) | `test_recorded_detector_import_closure_covers_ast_walk`; `test_detector_closure_is_stdlib_only` (21 runtime modules); `test_pinned_wrapper_is_self_contained_stdlib_only`; `test_derived_closure_tools_and_accepted_w9_are_codeowned` (aligned with Owner Point I on `w9_segmentation.py`); `main_ruleset` / D-8 (`--acknowledge-gap`, `ci-d8`); `L1_LIVE` tripwire (`yaml.BaseLoader`, `False` and synthetic `True` incl. `--verify-watched-to-fail`); scratch pin-heredoc tests: valid confined assembly + post-write `git hash-object --no-filters` + parent & child `[sys.executable, "-S", "-P", ...]` isolation pass (`research_system.cli` raises `ModuleNotFoundError`), while `../escape.txt`, `/escape.txt`, `C:/escape.txt`, `tools/a.py.`, `tools/a.py `, `tools/nul`, `tools/CON.py`, off-chain baseline, absent object, and empty/mismatched `W9_DETECTOR_PIN` under `REQUIRE_I3_PIN=true` all exit non-zero. |
-| `tests/tools/test_w9_detectors.py` — **`W9-T7` scratch-clone replay** | `unit` (`ci.yml` `admission-controls`) | `~1.57–1.99s` bare clone; derives 10 `git diff-tree` paths of `5df0c001`/`811d5a2b`; T7-1 and T7-2 (`GIT_INDEX_FILE`) assert Rule 1 & Rule 2 exit `1`; checkout-scoped snapshot (`config`/`hooks/` from `--git-common-dir` in `CI=true` only). *(Recorded departure from `06v:230`, Owner Point F.)* |
-| `tests/research_system/integration/test_w9_wp9_5_detectors.py` | `integration`, `@pytest.mark.slow` *(selected by `tools/affected_research_tests.py:120-147` on `research_system/`, `tests/research_system/`, or `.research-system/` edits only—NOT `tools/`-only edits; nightly in `research-system-suite.yml:8-9,15,17` `-m "not live_store"`)* | 1. **`M-6`:** scratch W9 control store + scratch Git repo; exports `w9-registration-manifest/2`; `--check` passes & store/manifest drift exits `1`.<br>2. **`O-13`:** runs `tools/run_w9_detector_controls.py` with `CONTROL_GIT_ENV`, UTF-8 decoding, and `-c` flags; verifies deterministic `output_sha256`, `--verify-watched-to-fail` with `--code-root` / `--repo-root` split + pinned wrapper execution (`python -S -P`), `require_detector_controls`, `LR-003`, and immutability snapshot. |
+| `tests/tools/test_w9_detectors.py` — **`W9-T19` (Computational-Log) & D-5** | `unit` (`ci.yml` `admission-controls`) | Clean + prepended LF/CRLF successor entries pass; empty `ACCEPTED_CL_EXPORT` fails; `recheck_cl_export` `void: True` fails; symlink/junction/resolve/in-repo `--vault-root` fails; V1–V6 exit `1`; D-5 7-day cadence passes, missing file fails when `ACCEPTED_CL_EXPORT` non-empty, >7 days fails until `"owner_cadence_reset"` + `"run"`. |
+| `tests/tools/test_w9_detectors.py` — **Rule 0 & closure changes** | `unit` (`ci.yml` `admission-controls`) | Atomic disarm/retroactive blessing fail; pre-reg edit passes; `detector-controls.json` delete/backdate fails (`Rule 0.3`); closure edit without `baselines` append exits `0`; row `0`/row `k` (i)–(iv) negatives: missing ref, tree mismatch, non-`P1` `source_commit`, wrong `entry_sha256`, extra `baseline_commit`, omitted path/`new_blob[:8]`, unmentioned no-op, Rule 0.2 (iv) grammar (`V[:8]`/`candidate`, `V` in `(b0, C_k]`), CRLF index blob check. |
+| `tests/tools/test_w9_detectors.py` — **Exit `2` & `--assemble-only` procedure** | `unit` (`ci.yml` `admission-controls`, `--pr-map`) | Tool `main()` exits `2` on uncaught errors, unknown `format`, or unparseable JSON (`--verdict-json` emits `{"format": "w9-verdict/1", "error": "..."}`, `R6-M1`); row `0` skips diff; **procedure (`R6-M2`)**: `--assemble-only` 2-row diff (incl. `Rule 0.1`–`0.3`, `candidate \| rule \| path`), one-sided or identical `ERROR` -> `ERROR` (completeness = human `HR-3`); Rules 1–3 green-to-red with `acknowledged` passes post-merge. |
+| `tests/tools/test_w9_detectors.py` — **`acknowledged` & Rule 3 late entry** | `unit` (`ci.yml` `admission-controls`) | Exact tuple exempt while sibling fails; backdated/same-commit ref, missing `independent_review`, missing late `shared-surface-changes.json`, or empty `affected_registrations` without `"none derived"` fail; `"none derived"` passes; ack-only `pr_number: null` passes while PR `pr_number: null` fails. |
+| `tests/tools/test_w9_detectors.py` — **Rules 1–3, PR map, UTF-8 & CLI locks** | `unit` (`ci.yml` `admission-controls`) | Rule 1 exclusions & manuscript prefix; mode-only fails; H1 Working-Note append passes while task-row edit fails; retry/fallback & API `2`; non-ASCII PR UTF-8 decode; test flags rejected without `--ruleset-check skip`; `--classified-locks` needs `--candidate-file`; none in workflow YAML. |
+| `tests/tools/test_w9_detectors.py` — **Closure, stdlib/ASCII, wrapper, CODEOWNERS, `L1_LIVE`, ruleset & pin** | `unit` (`ci.yml` `admission-controls`) | `test_recorded_detector_import_closure_covers_ast_walk`, `test_detector_closure_is_stdlib_only` (21 runtime), `test_pinned_wrapper_is_self_contained_stdlib_only`, **`test_pinned_wrapper_is_ascii_only`** (`R6-m2`), child exit `2` (`R6-i5`), `test_derived_closure_tools_and_accepted_w9_are_codeowned` (`w9_segmentation.py` choice); `main_ruleset`/D-8; `L1_LIVE` (`yaml.BaseLoader`, `False`, synthetic `True` top-level shape checks + `--verify-watched-to-fail` with `HEAD` `baselines[-1]` `--code-root`, plus **unrowed non-code-owned closure edit stays green**, `R6-M3`); §21.1 item 11 pin cases (post-loop re-hash, `-S -P`, traversal/abs/`casefold`/`~`/dot/space/`isreserved`, off-chain, malformed WB, absent/tree, I3). |
+| `tests/tools/test_w9_detectors.py` — **`W9-T7` scratch replay** | `unit` (`ci.yml` `admission-controls`) | `~1.57–2.07s` bare clone; derives 10 `diff-tree` paths (`5df0c001`/`811d5a2b`); T7-1/T7-2 (`GIT_INDEX_FILE`) assert Rule 1/2 exit `1`; checkout-scoped snapshot (`config`/`hooks/` in `CI=true`). *(Recorded departure from `06v:230`, Point F.)* |
+| `tests/research_system/integration/test_w9_wp9_5_detectors.py` | `integration`, `@pytest.mark.slow` *(selected by `affected_research_tests.py:120-147`, not `tools/`-only edits; nightly `research-system-suite.yml:8-9,15,17` `-m "not live_store"`)* | 1. **`M-6`:** scratch W9 store + Git repo; exports `w9-registration-manifest/2`; `--check` passes & drift exits `1`.<br>2. **`O-13`:** `run_w9_detector_controls.py` (`CONTROL_GIT_ENV`, UTF-8, `-c`); checks `output_sha256`, `--verify-watched-to-fail` (`--code-root`/`--repo-root`, `python -S -P`), `require_detector_controls`, `LR-003`, immutability. |
 
 ### 12.2 Fixture provenance rule (`06v:248-255`)
 
@@ -1336,18 +1327,14 @@ As `R1-m3`, `R2-m16`, `R3-m8`, and `R4-m9` established, in a linked worktree `--
 
 ### 12.3 Measured timings and test-time budget
 
-Measured operations on this machine (Appendix A §21.1):
-- `git clone --bare --local --no-hardlinks` (`58,133` objects, `28` packs, `335.09` MiB) + cleanup: **`1.57–1.99s`**.
-- `segment(raw, "conventions_unit")` on `4620c716` (`33,645` B) and `dbd54fe3` (`51,774` B): **< `0.15s`**.
-- Stdlib-only `python -S -P` execution: **zero package-install overhead** (no `uv sync`).
-- **6-call Option C1 walk stand-ins (§21.1 item 10):** measured local `1x` post-merge stand-in timings are **`14.05s`** (`60` commits, 6 guarded), **`34.46s`** (`178` commits, 12 guarded), and **`62.84s`** (`320` commits, 22 guarded), with ~15% run-to-run noise (R5 reproduced `11.79s` / `34.85s` / `61.58s`) and excluding real rule evaluation + live `gh api` calls (`~11.3s` + backoff across 22 guarded commits in R5). For manual 2-tool comparison, `24.04s` was measured `2x` at 60 commits while `68.92s` and `125.68s` are **extrapolated (`2 × 1x`)**. **Pre-code / rehearsal walk stop rule:** **`600s`** applies to a single `1x` post-merge walk with real rules and `gh api` (§15.2 item 5), separate from Owner Point G's test-suite budget below; hosted `windows-latest` `1x` full-walk time is `UNVERIFIED-5`.
+Measured local timings (§21.1): bare clone (`58,133` objects, `28` packs, `335.09` MiB) + cleanup **`1.57–2.07s`** (R6 `1.99–2.07s`); `segment(raw, "conventions_unit")` on `4620c716` (`33,645` B) / `dbd54fe3` (`51,774` B) **`< 0.15s`**; R6 pin-heredoc **`0.32s`/case** (`32` runs = `10.28s`, so `27` cases ≈ `8.6s`); `python -S -P` = zero install overhead; 6-call `1x` walk stand-ins (§21.1 item 10, no Python rule eval): **`14.05s`** (`60`/6), **`34.46s`** (`178`/12), **`62.84s`** (`320`/22), **up to ~28% spread across three independent runs** (R5 `11.79s`/`34.85s`/`61.58s` + `~11.3s` `gh api`; R6 `12.97s`/`44.03s`/`77.7s` + `26.35s` 2x@60; R5 2x `24.04s` @60; `68.92s`/`125.68s` **extrapolated `2 × 1x`**). Hosted full-walk time (`600s` stop rule §15.2 item 5) is `UNVERIFIED-5`.
 
-| Test file | Measured vs unmeasured wall-clock budget basis (`--no-cov`, serial, **including `@pytest.mark.slow`**) | Status |
+| Test file | Measured vs estimated budget (`--no-cov`, serial, **incl. `@pytest.mark.slow`**) | Status |
 |---|---|---|
-| `tests/tools/test_w9_detectors.py` | Segmentation (`< 0.5s`) + synthetic Git/pin/comparison/wrapper controls (`< 5s`) + `W9-T7` bare scratch clone (`~1.57–1.99s` + `0.3s`) + under `L1_LIVE`: `--verify-watched-to-fail` (`< 2s`, synthetic/local controls) and CI-only `--git-common-dir` `config`/`hooks/` snapshot. (Runs no full-history walk; no `gh` calls.) | Runs on every PR in `ci.yml` `admission-controls` (`F1`). |
-| `tests/research_system/integration/test_w9_wp9_5_detectors.py` | Scratch W9 store fixture timing for `M-6` and `O-13` (**`UNVERIFIED-3`**: unmeasured here). | Selected via `affected_research_tests.py`; full suite nightly in `research-system-suite.yml`. |
+| `tests/tools/test_w9_detectors.py` | Segmentation (`< 0.5s`, estimate, unwritten code) + `27` pin cases (`~8.6s`, scaled from R6 `0.32s`/case) + Git/diff/wrapper controls (`~5–10s`, estimate, unwritten code) + `W9-T7` bare clone (`1.57–2.07s` + `< 0.5s` replay, estimate, unwritten code) + under `L1_LIVE`: `--verify-watched-to-fail` on assembled `baselines[-1]` (`~3–6s`, estimate, unwritten code) + `CI=true` `config`/`hooks/` snapshot (`< 0.5s`, estimate, unwritten code). No full walk / `gh`. | Runs in `ci.yml` `admission-controls` (`F1`). |
+| `tests/research_system/integration/test_w9_wp9_5_detectors.py` | Scratch W9 store timing for `M-6` & `O-13` (**`UNVERIFIED-3`**). | Selected by `affected_research_tests.py`; nightly `research-system-suite.yml`. |
 
-**Unconditional pre-code profiling step (`P-087` item 7, `03-decisions-and-open-questions.md:5919-5923`):** §15.1 item 4 **unconditionally** requires profiling one existing scratch-store test alone on Stephen's machine before code dispatch; **Owner Point G recommends Option G1 (`300s`)** for all new/changed WP9.5 tests (distinct from the pre-code `600s` `1x` full-walk stop rule, §15.2) until that measurement supports tightening to G2 (`120s`). Over-budget returns `PARTIAL`.
+**Unconditional pre-code profiling (`P-087` item 7, `03-decisions-and-open-questions.md:5919-5923`):** §15.1 item 4 requires profiling one existing scratch-store test on Stephen's machine first; **Owner Point G recommends `G1` (`300s`)** (separate from §15.2's `600s` `1x` walk stop rule) until that run supports `G2` (`120s`). Over-budget -> `PARTIAL`.
 
 ---
 
@@ -1360,182 +1347,145 @@ WP9.5 touches the **Output / Provenance** assurance lane (`CONVENTIONS.md:20-34`
 | # | Claim | Enforcement artifact (test / validator / schema) |
 |---|---|---|
 | MC-1 | Every `legacy_path_registration` record in the W9 control store matches `.research-system/evidence/w9/registration-manifest.json` (`w9-registration-manifest/2` under A1: `root_kind`, `root_id`, `normalized_path`, `role`, `source_identity_kind`) at `binding.binding["git_head"]` (§5.3). | `tools/export_w9_registration_manifest.py --check`; `test_w9_wp9_5_detectors.py` (`M-6`). |
-| MC-2 | Confined 22-blob `python -S -P` assembly (trailing-dot/space/device refusal + post-write `git hash-object --no-filters`) executes **`1x`** post-merge walks from `baselines[0]["baseline_commit"]` using `baselines[-1]` (§6.2.3, §10.2); every tool wraps `main()` to exit `2` (`--verdict-json` emits `"error"`), and Rule 0 enforces monotonicity + `baselines` (i)–(iv) with **no Rule 0.3** and **no PR pin-advance gate** (pin advances attach manual `(baselines[0]["baseline_commit"], candidate]` diffs, §6.1, §6.2.2, §6.5). | `tools/check_legacy_writes.py` (Rule 0), workflow pin step, `test_detector_closure_is_stdlib_only`, `test_recorded_detector_import_closure_covers_ast_walk`, `test_pinned_wrapper_is_self_contained_stdlib_only`, `tests/tools/test_w9_detectors.py`. |
-| MC-3 | Any guarded first-parent commit `C` after `baselines[0]["baseline_commit"]` changing a registered `git_tracked` `repository_root` legacy path without an in-commit W9 §4.2 record (`P1`-pre-existing `owner_note` + `independent_review` slices) or valid `acknowledged` entry exits `1` (§6.4, §6.5 Rule 1, §6.6). | `tools/check_legacy_writes.py` (Rule 1); `tests/tools/test_w9_detectors.py` (`W9-T7`). |
-| MC-4 | Any first-parent commit `C` after `baselines[0]["baseline_commit"]` touching `results/` outside `results/ars/` without a matching §4.2 record at `C` (or valid `acknowledged` entry) exits `1` (§6.5 Rule 2). | `tools/check_legacy_writes.py` (Rule 2); `tests/tools/test_w9_detectors.py` (`W9-T7`). |
-| MC-5 | Any first-parent commit `C` after `baselines[0]["baseline_commit"]` modifying a `shared_enforcement_surface` without both an in-commit §4.3 record + `shared-surface-changes.json` entry (or valid `acknowledged` row with `independent_review`, non-empty `affected_registrations`/slice `"none derived"`, ack-only `pr_number: null` when unmapped, and matching late `<head>:shared-surface-changes.json` entry compatible with `require_change_list`) exits `1` (§6.5 Rule 3, `O-32`). | `tools/check_legacy_writes.py` (Rule 3); `tests/tools/test_w9_detectors.py`. |
-| MC-6 | `git --no-replace-objects diff-tree -r --no-renames -z <P1> <C>` detects first-parent changes on both 1-parent and 2-parent commits on `main`, failing closed on mode-only changes (§6.3). | `tools/check_legacy_writes.py`; `tests/tools/test_w9_detectors.py`. |
-| MC-7 | Every legacy `conventions_unit` in `CONVENTIONS.md` from `4b143c92` (`4620c716`, provisional 68 units or pinned `ACCEPTED_CONVENTIONS_CLASSIFICATION` `(anchor_text, unit_hash)`) is preserved byte-for-byte in order, with no table inserted in a legacy-lock section (§7.3, §7.4). | `tools/check_conventions_legacy_locks.py`; `tests/tools/test_w9_detectors.py` (`W9-T19`, N1–N7). |
-| MC-8 | Every legacy `"item"`/`"structural"` row in `ACCEPTED_CL_EXPORT[-1]` (`recheck_cl_export` `void == False`) is preserved byte-for-byte in order in `04-Methods/Computational-Log.md`, with 0 blockers across the live file while LF/CRLF prepended successor entries pass (§8.2, §8.3). | `tools/check_legacy_log_baseline.py`; `tests/tools/test_w9_detectors.py` (`W9-T19`, V1–V6). |
-| MC-9 | All four detector controls emit deterministic `output_sha256` (`CONTROL_GIT_ENV`, `-c core.autocrlf=false -c commit.gpgsign=false`) bound to tool `git_blob_id` and `closure_blobs`, passing `evidence.require_detector_controls` and `--verify-watched-to-fail` with `--code-root`/`--repo-root` (§9.2). | `tools/run_w9_detector_controls.py` & `research_system/legacy/evidence.py:133-154`; `test_w9_wp9_5_detectors.py`. |
-| MC-10 | While `L1_LIVE is False`, `legacy-write-detector.yml` has `on == {"workflow_dispatch"}` only and zero L-1 evidence files exist on `main`; when `True`, `on["push"]` filters `branches: ["main"]` and `admission-controls` runs `L1_LIVE`, F1 tests, `--verify-watched-to-fail`, optional K1, and optional advisory Rule 0.2 row report with zero PR-time pin-advance gate or `gh` call (§10.3). | `tests/tools/test_w9_detectors.py` (`yaml.BaseLoader`), in `ci.yml` `admission-controls` (`F1`) & CODEOWNERS (`I1`). |
+| MC-2 | Confined `python -S -P` assembly of `21` stdlib runtime + `1` workflow review blob (`isreserved`/`~`/`casefold()`, post-loop `hash-object --no-filters`) runs **`1x`** walks from `baselines[0]["baseline_commit"]` on `baselines[-1]` (§6.2.3, §10.2); tools exit `2` on unparseable/unknown-`format`/uncaught errors (`--verdict-json` `"error"`, vs exit `1` for Rules 0–3); Rule 0 enforces `0.1` + `0.2` (i)–(iv) (grammar check only) + `0.3` with no PR gate, while pin advances attach `--assemble-only` diffs + `git diff <old_blob> <new_blob>` (§6.1–§6.2, §6.5). | `tools/check_legacy_writes.py`, pin step, `test_detector_closure_is_stdlib_only`, `test_recorded_detector_import_closure_covers_ast_walk`, `test_pinned_wrapper_is_self_contained_stdlib_only`, `test_pinned_wrapper_is_ascii_only`, `test_w9_detectors.py`. |
+| MC-3 | Guarded commit `C` after `baselines[0]["baseline_commit"]` altering registered `git_tracked` `repository_root` paths without `C` W9 §4.2 record (`P1` slices) or `acknowledged` exits `1` (§6.4–§6.6). | `check_legacy_writes.py` (Rule 1); `test_w9_detectors.py` (`W9-T7`). |
+| MC-4 | Commit `C` after `baselines[0]["baseline_commit"]` touching `results/` outside `results/ars/` without §4.2 record / `acknowledged` exits `1` (§6.5 Rule 2). | `check_legacy_writes.py` (Rule 2); `test_w9_detectors.py` (`W9-T7`). |
+| MC-5 | Commit `C` modifying `shared_enforcement_surface` without `C` §4.3 record + `shared-surface-changes.json` (or Rule 3 `acknowledged` + `independent_review` + `<head>:shared-surface-changes.json` with non-empty `affected_registrations`/slice `"none derived"`, ack-only `null`) exits `1` (§6.5 Rule 3, `O-32`). | `check_legacy_writes.py` (Rule 3); `test_w9_detectors.py`. |
+| MC-6 | `diff-tree -r --no-renames -z <P1> <C>` handles 1- and 2-parent commits on `main`, failing closed on mode-only changes (§6.3). | `check_legacy_writes.py`; `test_w9_detectors.py`. |
+| MC-7 | Every legacy `conventions_unit` from `4b143c92` (`4620c716`, 68 units or L-0b `ACCEPTED_CONVENTIONS_CLASSIFICATION` `(anchor_text, unit_hash)`) is preserved byte-for-byte in order without inserted tables (§7.3–§7.4). | `check_conventions_legacy_locks.py`; `test_w9_detectors.py` (`W9-T19`, N1–N7). |
+| MC-8 | Every `"item"`/`"structural"` row in `ACCEPTED_CL_EXPORT[-1]` (`void == False`) stays byte-identical in `04-Methods/Computational-Log.md` with 0 blockers while LF/CRLF prepended successor entries pass (§8.2–§8.3). | `check_legacy_log_baseline.py`; `test_w9_detectors.py` (`W9-T19`, V1–V6). |
+| MC-9 | Controls emit deterministic `output_sha256` (`CONTROL_GIT_ENV`, `-c core.autocrlf=false -c commit.gpgsign=false`) bound to `git_blob_id` & `closure_blobs`, passing `require_detector_controls` & `--verify-watched-to-fail` (required `--code-root`—no default; assembled from `HEAD`'s `baselines[-1]` via `§10.2` in `admission-controls`—plus `--repo-root`, §9.2, §10.3). | `run_w9_detector_controls.py`, `evidence.py:133-154`; `test_w9_wp9_5_detectors.py`. |
+| MC-10 | Pre-L-1 (`L1_LIVE is False`): `on == {"workflow_dispatch"}` only, zero L-1 evidence; when `True`: `on["push"]` on `main` and `admission-controls` runs `L1_LIVE`, F1 (top-level JSON shape only), `--verify-watched-to-fail` on assembled `baselines[-1]`, optional K1, & optional 1-sentence advisory Rule 0.2 report—zero PR gate or `gh` call (§10.3). | `test_w9_detectors.py` (`yaml.BaseLoader`), `ci.yml` (`F1`), CODEOWNERS (`I1`). |
 
 ### 13.2 Human-review-only claims and residual architectural limits
 
 | # | Claim / Limit | Reviewer / Owner check and why not mechanized |
 |---|---|---|
-| HR-1 | **Semantic equivalence, review authenticity, and authorship of register/review entries:** | `check_legacy_writes.py` verifies `P1` ancestry & slices on `legacy-write-records.json` and `walk-baseline.json` (`03-decisions-and-open-questions.md`, `reviews/`, §6.2.2, §6.4). Because those directories are not CODEOWNED, **`P1` ancestry proves pre-PR age, not author identity**; authorship/semantics rest on human review + Option I1 CODEOWNERS on evidence (`W9:174-176`). |
-| HR-2 | Completeness of `affected_registrations` in `shared-surface-changes.json` (incl. `B -> A` reverts, §6.5). | Deriving `affected_registrations` from binding tests requires Stephen and the independent reviewer (`W9:185-188`). |
-| HR-3 | **Human-review trust root, deliberate pin lag, no machine gate on tool changes, post-merge Rule 0 permanence, and bypass cost (§6.1, §6.2.3, §16.1–§16.2):** | Ruleset `20822054` has `required_approving_review_count: 0`, so preventive control on CODEOWNED paths rests on human review + `.github/CODEOWNERS` (+ optional I3). Under Stephen's `2026-11-22` decision: (a) the pinned detector can lag production code until Stephen merges a pin advance (exiting `2` cleanly on format incompatibility), and (b) **no machine check gates a tool/closure change**—judged solely by Stephen's PR review + attached manual comparison diff (§6.2.2). A rare post-merge Rule 0 violation (affecting the post-merge detector only) remains permanently red across re-walks unless Owner Point C's narrow exemption row is chosen (§16.2). I1 bypasses need `Bypass reason:` (`tools/check_bypass_merges.py:41,135`, `admin-bypass-guard.sh:13-18`). |
-| HR-4 | **Self-attestation of weekly vault Computational-Log runs (§8.4):** `vault-detector-runs.json` timestamps/hashes. | CI cannot access `C:\Users\steph\Documents\TDA-Research` to independently execute `tools/check_legacy_log_baseline.py`. |
-| HR-5 | **30-day `rule-suites` window & D-8 bypass visibility (§4.1–§4.2):** `MAX_DAYS = 30`. | Fails closed past 30 days without `ruleset_gap_acknowledgements`; under D-8, direct `rule-suites` checks run locally pre-batch (`06v:571,603`). |
-| HR-6 | **`CONVENTIONS.md` structural exceptions outside `conventions_unit` rows (§7.4):** `### ` sub-headings, `---`, blanks, H1, footer. | Editing legacy `### ` titles or moving bullets across `### ` sub-headings inside the same `## ` section relies on PR review (`wp9-5-note-r2-review-2026-11-21.md:123`). |
-| HR-7 | **`tools/export_w9_registration_manifest.py` (M-6) runs unpinned from checkout (§2.1, §6.2.3):** | Imports `research_system/cli.py` (~161 modules), so excluded from 22-blob `$DETECTOR_DIR` assembly; CODEOWNED under I1 while `cli.py` imports rely on operator checkout. |
+| HR-1 | **Semantic equivalence & authorship of register/review slices:** | Detector checks `P1` ancestry & slices (`03-decisions-and-open-questions.md`, `reviews/`, §6.2.2, §6.4). Because those paths are un-owned, **`P1` proves age, not authorship**; authorship/semantics rely on review + I1 CODEOWNERS (`W9:174-176`). |
+| HR-2 | `affected_registrations` completeness (`shared-surface-changes.json`, `B -> A` reverts, §6.5). | Deriving `affected_registrations` requires Stephen + reviewer (`W9:185-188`). |
+| HR-3 | **Human-review trust root, deliberate pin lag, Rule 0.2 limits, permanence, & bypass cost (§6.1–§6.2, §6.5, §16.1–§16.2):** | Ruleset `20822054` has `required_approving_review_count: 0`, so control rests on human review + CODEOWNERS (**only under Option I1**, which owns tools/closure/`walk-baseline.json`; `Option I2` leaves them un-owned) (+ I3). Under Stephen's `2026-11-22` decision: (a) a lagging pin exits `2` on unparseable/unknown-`format` JSON, **or `0` silently** on unread new evidence keys/files (so L-0b pairs with a pin advance); (b) **no machine gate checks tool edits or `--assemble-only` diff completeness**—Stephen reviews `git diff <old_blob> <new_blob>` + slices (§6.2.2); (c) Rule 0.2 (ii) snaps to the whole current tree (no pure rollback without code revert) and fails on out-of-order concurrent closure merges. Post-merge Rule 0 failures stay red across re-walks unless Owner Point C's narrow exemption row is chosen (§16.2). I1 bypasses need `Bypass reason:` (`tools/check_bypass_merges.py:41,135`, `admin-bypass-guard.sh:13-18`). |
+| HR-4 | **Weekly vault attestations (§8.4):** `vault-detector-runs.json`. | CI cannot access `C:\Users\steph\Documents\TDA-Research` to run `check_legacy_log_baseline.py`. |
+| HR-5 | **30-day `rule-suites` window & D-8 (`§4.1–§4.2`):** `MAX_DAYS = 30`. | Fails closed past 30d without `ruleset_gap_acknowledgements`; under D-8, direct checks run locally (`06v:571,603`). |
+| HR-6 | **`CONVENTIONS.md` structural lines (§7.4):** `### `, `---`, blanks, H1, footer. | Editing legacy `### ` titles or moving bullets across `### ` inside the same `## ` relies on review (`wp9-5-note-r2-review-2026-11-21.md:123`). |
+| HR-7 | **`export_w9_registration_manifest.py` (M-6) runs unpinned (§2.1, §6.2.3):** | Imports `research_system/cli.py` (~161 modules), excluded from `$DETECTOR_DIR`; CODEOWNED under I1. |
 
 ---
 
 ## 14. Claims for review
 
-An independent adversarial reviewer should attack these 16 claims against `dbd54fe382e7b2849d3f2038393cbdb4d709477b`:
+An independent reviewer should attack these 16 claims against `dbd54fe382e7b2849d3f2038393cbdb4d709477b`:
 
-1. **No D-4 trigger (`P-089` item 1):** Zero W9 commands, runtime-binding rows (`275` rows, SHA-256 `82eab93a...451d58`), store append sites, or schema edits; `tools/w9_segmentation.py` (`43e1454de09b61e274954c42b21d6ae533857a24`) and `IMPORTER_MODULES` (`reader.py:42`) untouched (§2.2; `03-decisions-and-open-questions.md:6022-6025,6085-6099`).
-2. **Pin, no lockstep, and `1x` post-merge execution (`2026-11-22` decision):** Option I1 CODEOWNERS (+ optional I3 `vars.W9_DETECTOR_PIN`), **no Rule 0.3**, **no PR pin-advance gate** in `admission-controls`, `1x` post-merge walks using `baselines[-1]` via confined `python -S -P` + `hash-object --no-filters`, `main()` exit `2`, and attached manual `(baselines[0]["baseline_commit"], candidate]` diffs (§6.1–§6.2, §6.5, §10.2, §13.2, §16.1–§16.2).
-3. **Manifest `/2`, `require_registered`, & WP9.4 counts:** Option A1 updates `REGISTRATION_MANIFEST_FORMAT` (`"w9-registration-manifest/2"`, 5 closed keys, `cli.py:1648-1659`, `evidence.py:40,114-131`) + 4 test builders via dated WP9.3 amendment + review; WP9.4 production code untouched, leaving `wp9-4-1-record.md:114,130` re-recording to Stephen (§2.3, §5.3, §16.3).
-4. **Rule 1 matching/exclusions:** Scoping Rule 1 & §6.6 to `repository_root` + `git_tracked` excluding `conventions_lock`, `shared_enforcement_surface`, `successor_results_root`, and `legacy_read_only_projection` avoids untracked/restricted/`results/ars/`/`CONVENTIONS.md` misfires (§6.5–§6.6).
-5. **`.apm/tracker.md` Working Notes:** Option H1 checks `tracker_task_row` and `working_note_entry` (`segmentation.py:470-473`) byte equality + `[ \t]*\n` gaps (`#368`, `#388`, `#433`, §6.5, §16.9).
-6. **§4.2 keying & `P1` provenance:** `(pr_number, normalized_path, old_blob, new_blob)` + `P1`-pre-existing slices binds without squash SHAs, conditional on Option I1 (`HR-1`, §6.4, §16.1, §16.4).
-7. **2-parent diffs & modes:** `git --no-replace-objects diff-tree -r --no-renames -z <P1> <C>` handles 1- and 2-parent commits (`b132406e`) and fails closed on mode-only changes (§6.3).
-8. **PR mapping, `5df0c001`/`811d5a2b`, & `W9-T7` lane:** `merge_commit_sha == C` (3 retries + hint, UTF-8, exit `2` on API failure, `--ruleset-check skip` locks debug flags) + `W9-T7` unit replay (`5df0c001` 11 files / 7 `results/`, `811d5a2b` 9 files / 3 manifests, recorded `06v:230` departure, §6.2.1, §6.3, §11.2, §16.7).
-9. **Option D3 `O-32` & Rule 3 `acknowledged`:** `"w9-shared-surface-changes/2"` without commit SHA satisfies `require_change_list`/`acceptance.py:121-136` via `evidence.blob_at` (`evidence.py:179-218`); late entries require `independent_review`, non-empty `affected_registrations`/slice `"none derived"`, and `pr_number: null` on unmapped commits only (§6.5, `HR-2`, §16.5).
-10. **Ruleset `20822054`, 30-day gap ack, & U-3:** Pinning 16 fields (`integration_id: 15368`) fails closed past 30 days without Rule-0-checked `ruleset_gap_acknowledgements`; U-3 probe tests `GITHUB_TOKEN` across all 3 endpoints (§4.1–§4.2).
-11. **Vault junction refusal:** Because `open_registered_root_anchor` (`anchor.py:1934-1950`) allows `reject_reparse=False` and `LegacyReader.__init__` (`reader.py:241-248`) is lexical, `check_legacy_log_baseline.py` and `u4_dry_run.py` explicitly block symlinks/junctions/in-repo paths (§4.3.1–§4.3.3).
-12. **`CONVENTIONS.md` counts & L-0b pin:** Parity (`4620c716` 70 -> `dbd54fe3` 90 units, 0 blockers), first-byte `|` filter, `HR-6`, and L-0b `ACCEPTED_CONVENTIONS_CLASSIFICATION` (`(anchor_text, unit_hash)`, N7) (§7.3–§7.6, §16.10).
-13. **Vault classification & CRLF:** Reading `ACCEPTED_CL_EXPORT[-1]["classified_list"]` (`1..N`), failing closed on `void == True` or any live `blocker`, preserving legacy `raw_row_sha256` across Obsidian CRLF prepends (§8.2–§8.3, §16.10).
-14. **D-5 cadence gate:** Strict `bool(reader.accepted_cl_export)` check at `LR-003`/`LR-015`/`LR-016`/`LR-020` with `"owner_cadence_reset"` recovery (§8.4, §16.6).
-15. **Deterministic controls & dual roots:** Binding `git_blob_id`, `closure_blobs`, `CONTROL_GIT_ENV`, and `-c` flags with `--code-root`/`--repo-root` across `run_w9_detector_controls.py --verify-watched-to-fail` and `run_w9_pinned_detectors.py` (§9.2, §10.2, §12.1).
-16. **PR wiring, CODEOWNERS, wrapper, & K1:** Wiring `tests/tools/test_w9_detectors.py` (`yaml.BaseLoader`), `test_derived_closure_tools_and_accepted_w9_are_codeowned`, `test_pinned_wrapper_is_self_contained_stdlib_only`, Option I1 (`w9_segmentation.py` & `"3.13"` sub-choices), and Option K1 (`check_conventions_legacy_locks.py` without PR pin-advance gate or `gh` call) (§2.3, §10.3, §16.1, §16.7, §16.11).
+1. **No D-4 trigger (`P-089` #1):** Zero W9 commands, runtime bindings (`275` rows, `82eab93a...451d58`), append sites, or schemas changed; `w9_segmentation.py` (`43e1454de09b61e274954c42b21d6ae533857a24`) & `IMPORTER_MODULES` (`reader.py:42`) untouched (§2.2; `03-decisions-and-open-questions.md:6022-6025,6085-6099`).
+2. **Pin, no lockstep, & `1x` walk (`2026-11-22`):** I1 CODEOWNERS (+ optional I3 `W9_DETECTOR_PIN`), **no PR pin-advance gate** in `admission-controls` (advances attach `--assemble-only` diffs + `git diff <old_blob> <new_blob>`), `1x` walk via `baselines[-1]` (`21` runtime + workflow review blob) under confined `python -S -P` + post-loop `hash-object --no-filters`, `main()` exit `2` on unparseable/unknown-`format`/uncaught errors vs `1` on Rules 0–3, and Rule 0 (`0.1` + `0.2` (i)–(iv) grammar-only + `0.3`) (§6.1–§6.2, §6.5, §10.2, §13.2, §16.1–§16.2).
+3. **Manifest `/2` & WP9.4 counts:** Option A1 updates `REGISTRATION_MANIFEST_FORMAT` (`"w9-registration-manifest/2"`, `cli.py:1648-1659`, `evidence.py:40,114-131`) + 4 test builders (WP9.3 amendment + review; WP9.4 code untouched; Stephen decides `wp9-4-1-record.md:114,130` re-record, §2.3, §5.3, §16.3).
+4. **Rule 1 scope:** Filtering to `repository_root` + `git_tracked` minus `conventions_lock`, `shared_enforcement_surface`, `successor_results_root`, & `legacy_read_only_projection` avoids untracked/`results/ars/`/`CONVENTIONS.md` misfires (§6.5–§6.6).
+5. **`.apm/tracker.md`:** H1 validates `tracker_task_row` & `working_note_entry` (`segmentation.py:470-473`) byte equality + `[ \t]*\n` gaps (`#368`, `#388`, `#433`, §6.5, §16.9).
+6. **§4.2 keying & `P1`:** `(pr_number, normalized_path, old_blob, new_blob)` + `P1` slices binds without squash SHAs, conditional on I1 (`HR-1`, §6.4, §16.1, §16.4).
+7. **2-parent diffs & modes:** `diff-tree -r --no-renames -z <P1> <C>` covers merges (`b132406e`) and fails closed on mode-only changes (§6.3).
+8. **PR mapping & `W9-T7`:** `merge_commit_sha == C` (3 retries + fallback, UTF-8, API exit `2`, `--ruleset-check skip` lockouts) + `W9-T7` unit replay (`5df0c001` 11/7, `811d5a2b` 9/3, `06v:230` departure, §6.2.1, §6.3, §11.2, §16.7).
+9. **D3 `O-32` & Rule 3 `acknowledged`:** `"w9-shared-surface-changes/2"` without commit SHA satisfies `require_change_list`/`acceptance.py:121-136` via `evidence.blob_at` (`evidence.py:179-218`); late entries need `independent_review`, non-empty `affected_registrations`/slice `"none derived"`, ack-only `null` (§6.5, `HR-2`, §16.5).
+10. **Ruleset `20822054`, gap ack, & U-3:** Pinning 16 fields (`integration_id: 15368`) fails closed >30d without `ruleset_gap_acknowledgements`; U-3 tests `GITHUB_TOKEN` on 3 endpoints (§4.1–§4.2).
+11. **Vault junctions:** Because `open_registered_root_anchor` (`anchor.py:1934-1950`) has `reject_reparse=False` and `LegacyReader.__init__` (`reader.py:241-248`) is lexical, `check_legacy_log_baseline.py` & `u4_dry_run.py` block symlinks/junctions/in-repo paths (§4.3.1–§4.3.3).
+12. **`CONVENTIONS.md` & L-0b:** Parity (`4620c716` 70 -> `dbd54fe3` 90, 0 blockers), first-byte `|` filter, `HR-6`, L-0b `ACCEPTED_CONVENTIONS_CLASSIFICATION` (`(anchor_text, unit_hash)`, N7) (§7.3–§7.6, §16.10).
+13. **Vault & CRLF:** Reads `ACCEPTED_CL_EXPORT[-1]["classified_list"]` (`1..N`), refuses `void == True`/live `blocker`, keeps `raw_row_sha256` across CRLF prepends (§8.2–§8.3, §16.10).
+14. **D-5 cadence:** Strict `bool(reader.accepted_cl_export)` at `LR-003`/`LR-015`/`LR-016`/`LR-020` + `"owner_cadence_reset"` (§8.4, §16.6).
+15. **Controls & dual roots:** Binding `git_blob_id`, `closure_blobs`, `CONTROL_GIT_ENV`, `-c` flags with required `--code-root` (no default; `baselines[-1]` tree in `admission-controls`) & `--repo-root` across `run_w9_detector_controls.py --verify-watched-to-fail` & `run_w9_pinned_detectors.py` (§9.2, §10.2–§10.3, §12.1).
+16. **Wiring, CODEOWNERS, wrapper, & K1:** `test_w9_detectors.py` (`yaml.BaseLoader`), `test_derived_closure_tools_and_accepted_w9_are_codeowned`, `test_pinned_wrapper_is_self_contained_stdlib_only`, `test_pinned_wrapper_is_ascii_only`, `L1_LIVE` top-level shape checks (unrowed closure edits stay green), I1 (`w9_segmentation.py` & `"3.13"` choices), K1 (no PR gate/`gh` call) (§2.3, §10.3, §16.1, §16.7, §16.11).
 
 ---
 
 ## 15. Stop rules for the code package
 
-### 15.1 Hard preconditions before WP9.5 code is dispatched (`P-089` item 3, `03-decisions-and-open-questions.md:6104-6115`)
+### 15.1 Hard preconditions before WP9.5 code is dispatched (`P-089` #3, `03-decisions-and-open-questions.md:6104-6115`)
 
-WP9.5 implementation code **must not** be dispatched until all four items below are complete (and item 5's unverified hosted wall time is acknowledged):
+WP9.5 code **must not** be dispatched until items 1 to 4 below are complete (and item 5's unverified hosted wall time is acknowledged):
 
-1. **U-3 recorded in §4.2.2 (§15.1 gate; `06v:159`):** Stephen authorizes the read-only U-3 throwaway draft-PR probe (§4.2.2); the reviewing session executes it, records HTTP statuses, `X-Accepted-GitHub-Permissions`, and pinned key presence for all 3 endpoints (`rulesets/20822054`, `rulesets/rule-suites`, `commits/dbd54fe3.../pulls`) in §4.2.2, and states whether D-8 applies to `rule-suites`.
-2. **U-4 handle-bound reader and segmenter dry run recorded in §4.3.3 (`06v:160`):** Using the already-recorded metadata (`833,453` bytes, SHA-256 `73fcbe83...`), the reviewing session runs scratch script `u4_dry_run.py` (§4.3.3 item 2) against `C:\Users\steph\Documents\TDA-Research\04-Methods\Computational-Log.md` with `PYTHONPATH=.` from repo root and records `root_checks`, `bytes`, `sha256`, `link_count`, `canonical_target`, `file_facts`, `row_counts`, and `blockers` in §4.3.3.
-3. **Remaining Owner Points I, C, A, B, D, E, F, G, H, J, K decided by Stephen (`P-090`):** Stephen has already decided the core pin design (**pin, no lockstep**, `2026-11-22`, to be entered in `P-090` with the other owner points). He records his disposition on the open choices across all 11 points (§16.1–§16.11, deciding **I** first) in `03-decisions-and-open-questions.md`, authorizing dated WP9.3 / `CONVENTIONS.md:713-729` / W9 §4.2 amendments as selected and verifying Actions variable write permissions (`UNVERIFIED-4`, §21.2) if Option I3 is chosen.
-4. **Unconditional pre-code single scratch-store test timing profile (`P-087` item 7, `03-decisions-and-open-questions.md:5919-5923`):** Profile one existing WP9.3/WP9.4 single scratch-store integration test alone on Stephen's machine (`UNVERIFIED-3`, §21.2) before adding `test_w9_wp9_5_detectors.py`.
-5. **Hosted `windows-latest` `1x` full-walk wall time (`UNVERIFIED-5`, §21.2):** Post-merge `1x` walk time with real rules and `gh api` PR mapping on hosted `windows-latest` (including ~60, ~178, and ~320-commit intervals) remains `UNVERIFIED-5` ahead of rehearsal and live activation, bounded by the `600s` pre-code walk stop rule below.
+1. **U-3 recorded in §4.2.2 (`06v:159`):** Stephen authorizes the throwaway draft-PR probe (§4.2.2); reviewing session records HTTP statuses, `X-Accepted-GitHub-Permissions`, and JSON keys for all 3 endpoints (`rulesets/20822054`, `rulesets/rule-suites`, `commits/dbd54fe3.../pulls`) and D-8 outcome.
+2. **U-4 dry run recorded in §4.3.3 (`06v:160`):** Run `u4_dry_run.py` (§4.3.3 #2, `833,453` B, `73fcbe83...`) against `C:\Users\steph\Documents\TDA-Research\04-Methods\Computational-Log.md` with `PYTHONPATH=.` and record `root_checks`, `bytes`, `sha256`, `link_count`, `canonical_target`, `file_facts`, `row_counts`, `blockers`.
+3. **Owner Points I, C, A, B, D, E, F, G, H, J, K decided (`P-090`):** Beyond the decided **pin, no lockstep** design (`2026-11-22`, for `P-090`), Stephen records choices across all 11 points (§16.1–§16.11, **I** first) in `03-decisions-and-open-questions.md`, authorizing WP9.3 / `CONVENTIONS.md:713-729` / W9 §4.2 amendments and verifying Actions variable permissions (`UNVERIFIED-4`, §21.2) for I3.
+4. **Unconditional pre-code single scratch-store profile (`P-087` #7, `03-decisions-and-open-questions.md:5919-5923`):** Profile one existing WP9.3/WP9.4 scratch-store test alone on Stephen's machine (`UNVERIFIED-3`, §21.2) before adding `test_w9_wp9_5_detectors.py`.
+5. **Hosted `windows-latest` `1x` full-walk wall time (`UNVERIFIED-5`, §21.2):** Post-merge `1x` time with real rules and `gh api` (~60/`178`/`320` commits) remains `UNVERIFIED-5` before rehearsal/activation, bounded by the `600s` walk stop rule.
 
-*(Pre-L-1 gate note: after WP9.5 code lands and before L-1 activation on `main`, execute a one-shot throwaway `pull_request` rehearsal using a separate throwaway workflow file differing from `.github/workflows/legacy-write-detector.yml` by running on `on: pull_request`, omitting the `refs/remotes/origin/main` fetch overwrite, and setting `MAIN_TIP="$GITHUB_SHA"` to read synthetic evidence from the PR head rather than `refs/remotes/origin/main` [closed without merging], followed after L-1 merge by a green `workflow_dispatch` run on the L-1 merge commit as an L-1 exit criterion, §10.2 item 5.)*
+*(Pre-L-1 gate: before L-1 on `main`, run one throwaway `on: pull_request` workflow [closed unmerged] reading synthetic evidence from `$GITHUB_SHA`, then after L-1 merge run green `workflow_dispatch` on the L-1 merge commit, §10.2 #5.)*
 
 ### 15.2 Stop rules during WP9.5 code implementation
 
-The WP9.5 code worker must stop immediately and return `PARTIAL` if:
-1. Any change would modify a protected identity listed in §2.2 (the 275-row runtime-binding census, `wp6_1_06h_current_append_manifest.yaml` blob `1066404a`, `test_wp6_1_06h_append_path_closure.py` blob `3b1eec6e`, `research_system/schema_registry.py` blob `e32cb408`, `research_system/authority.py` blob `9b56b322`, core/W9 schemas, T2 expectations/seal, `tools/w9_segmentation.py` blob `43e1454de09b61e274954c42b21d6ae533857a24`, or `IMPORTER_MODULES` in `research_system/legacy/reader.py:42`) (`06v:614,618-619`).
-2. Any change under `research_system/legacy/` would exceed the specific changes approved by Stephen under Owner Points A, D, E, and J.
-3. Any test or negative control needs live legacy, vault, or restricted bytes, or writes to / leaves any state in `REPO_ROOT`, any linked worktree, or `C:\Users\steph\Documents\TDA-Research` (`06v:616-617`).
-4. The new and changed WP9.5 test files (including `@pytest.mark.slow` tests) exceed the approved serial `--no-cov` test-time budget (Owner Point G, which excludes full-history walks) on Stephen's machine (`P-087` item 7, `03-decisions-and-open-questions.md:5919-5923`).
-5. **Pre-code / rehearsal `1x` walk stop rule (distinct from Owner Point G):** If one post-merge `1x` full walk with real rules and PR mapping exceeds **`600s` (10 minutes)** in rehearsal or pre-code smoke measurement, stop and return the question to Stephen for a **design amendment** (for example, hash-bound epoch advancement of `baselines[0]["baseline_commit"]` or Git/PR batching) rather than adding an unapproved runtime flag.
-6. *(WP9.5-specific stop rule added by this design note, not in `06v` §8):* Any detector negative control fails to fire on its designated violation case or fires on a clean positive control case, `test_recorded_detector_import_closure_covers_ast_walk` detects an unpinned `research_system` or `tools` import, `test_detector_closure_is_stdlib_only` detects any non-stdlib / non-closure import, or `test_pinned_wrapper_is_self_contained_stdlib_only` fails.
+The WP9.5 code worker must stop and return `PARTIAL` if:
+1. Any edit alters a §2.2 protected identity (275-row binding census, `wp6_1_06h_current_append_manifest.yaml` `1066404a`, `test_wp6_1_06h_append_path_closure.py` `3b1eec6e`, `schema_registry.py` `e32cb408`, `authority.py` `9b56b322`, core/W9 schemas, T2 seal, `w9_segmentation.py` `43e1454de09b61e274954c42b21d6ae533857a24`, or `IMPORTER_MODULES` `reader.py:42`) (`06v:614,618-619`).
+2. Any change in `research_system/legacy/` exceeds Stephen's approved Owner Points A, D, E, J.
+3. Any test reads live vault/restricted bytes or mutates `REPO_ROOT`, any worktree, or `C:\Users\steph\Documents\TDA-Research` (`06v:616-617`).
+4. New/changed WP9.5 tests (incl. `@pytest.mark.slow`) exceed Owner Point G's serial `--no-cov` budget (`P-087` #7 `03-decisions-and-open-questions.md:5919-5923`, excl. full walks).
+5. *(WP9.5-specific stop rule added by this design note, not in `06v` §8):* **Pre-code / rehearsal `1x` walk stop rule (distinct from Owner Point G):** A `1x` full walk with real rules & PR mapping exceeds **`600s`** in rehearsal/smoke -> stop for a **design amendment** (e.g. baseline-epoch advancement or Git/PR batching), never an unapproved runtime flag.
+6. *(WP9.5-specific stop rule added by this design note, not in `06v` §8):* Any negative control misfires, any positive control fires, `test_recorded_detector_import_closure_covers_ast_walk` finds an unpinned import, or `test_detector_closure_is_stdlib_only`, `test_pinned_wrapper_is_self_contained_stdlib_only`, or `test_pinned_wrapper_is_ascii_only` fails.
 
 ---
 
 ## 16. Owner points
 
-Stephen has already decided the core pin design (**pin, no lockstep**, `2026-11-22`, to be entered in `P-090` with the other owner points). His decision is requested on the remaining open choices across the eleven points below (**I** first—because **B**, **C**, and the L-1 guard depend on it—followed by **C, A, B, D, E, F, G, H, J, K**) before WP9.5 code is dispatched. Nothing in this note decides them for him.
+Stephen has decided **pin, no lockstep** (`2026-11-22`, for `P-090`); his decision is needed on open choices across all eleven points (**I** first, then **C, A, B, D, E, F, G, H, J, K**) before code dispatch. Nothing here decides for him.
 
 ### 16.1 Owner Point I *(decide first)* — Trust root protecting detector surface, closure, tripwire, and evidence directory
 
 *Pointers:* §2.3, §6.1, §6.2.3, §10.2, §10.3.
 
-- **Pin design — decided by Stephen, `2026-11-22` *(to be entered in `P-090` with the other owner points)*:** Keep 22-entry stdlib-only `python -S -P` content pin (`baselines[-1]["detector_closure_blobs"]`) + confinement + post-write `git hash-object --no-filters` verify + `main()` exit `2` (`ERROR`); **drop lockstep** (no Rule 0.3; unpinned closure edits are valid and runs use `baselines[-1]` until Stephen merges a pin advance); **remove PR-time pin-advance gates from `admission-controls`**; attach manual `(baselines[0]["baseline_commit"], candidate]` comparison diffs to pin-advance PRs; and walk `1x` post-merge. **What this gives up (§6.1, §13.2):** (a) pinned detectors can lag production code until advanced (exiting `2` loudly on incompatibility); (b) no machine gate checks tool changes—judged solely by Stephen's PR review + attached comparison diff.
-- **Open choices (`Options`):**
-  - **Option I1 (Rule 0 + `.github/CODEOWNERS` expansion — Recommended):** Enforce Rule 0 monotonicity (§6.5) and §6.2.3 confined `python -S -P` execution (`21` stdlib-only runtime modules + workflow; M-6 excluded -> `HR-7`), adding `@stephendor` CODEOWNERS for `/.github/workflows/legacy-write-detector.yml`, `/tools/check_legacy_writes.py`, `/tools/check_conventions_legacy_locks.py`, `/tools/check_legacy_log_baseline.py`, `/tools/run_w9_detector_controls.py`, `/tools/run_w9_pinned_detectors.py`, `/tools/export_w9_registration_manifest.py`, `/tools/_w9_detector_evidence.py`, `/tests/tools/test_w9_detectors.py`, `/research_system/legacy/accepted_w9.py` (plus `/tools/w9_segmentation.py` under `I1-include-seg`) and directory `/.research-system/evidence/w9/`, enforced by `test_derived_closure_tools_and_accepted_w9_are_codeowned`, `test_detector_closure_is_stdlib_only`, and `test_pinned_wrapper_is_self_contained_stdlib_only` (§12.1).
-    - *Cost:* Requires Stephen's `Bypass reason:` merge (`tools/check_bypass_merges.py:41,135`, `admin-bypass-guard.sh:13-18`) on per-batch, weekly vault, ruleset-read, baseline/pin-advance, or code-owned closure PRs (`7` W9 PRs / 4 wk; `14` of `178` commits / 90 d touched the `15` existing modules; pin advances re-record `detector-controls.json` + attach comparison diff).
-    - **`tools/w9_segmentation.py` sub-choice (`R5-m5`):** **`Option I1-include-seg` (Recommended):** add `/tools/w9_segmentation.py` (`11` file patterns + dir, `13` non-code-owned modules, `0` test exemption; `43e1454de09b61e274954c42b21d6ae533857a24` stays untouched). **`Option I1-exempt-seg`:** keep `10` file patterns (`14` non-code-owned) + explicit test exemption.
-    - **`python-version` sub-choice (`R5-i2`):** **`Option I1-py-minor` (Recommended):** `"3.13"` so hosted `3.13.x` patches don't churn controls/pins; **`Option I1-py-patch`:** exact `"3.13.5"`.
-  - **Option I2 (Rule 0 only; keep current 8 CODEOWNERS paths):** Leaves `L1_LIVE`, workflow, tools, `accepted_w9.py`, and evidence unprotected; insufficient for B1 and R1-B1 scenarios 4–5.
-  - **Option I3 (Optional out-of-tree anchor, combinable with I1):** Repo Actions variable `W9_DETECTOR_PIN` (`{"walk_baseline_commit", "closure_blobs_sha256"}`), `REQUIRE_I3_PIN: "true"` in §10.2, read via `gh api` in wrapper (§6.2.3). Pin advances merge first -> failing push run until variable updated; Actions variable write permissions remain **`UNVERIFIED-4`** (§21.2).
-- **Recommendation:** **Option I1** + **I1-include-seg** + **I1-py-minor** (+ optional **I3** after verifying `UNVERIFIED-4`).
-- **What it changes & records needed:** `.github/CODEOWNERS:1-24`, split `tests/tools/test_ci_platform_policy.py` (`W9_DETECTOR_CODEOWNED_FILES`, `W9_DETECTOR_CODEOWNED_DIRS`, `:364-374` without `.is_dir()` on dir, landing all 9 new files together), **amend `CONVENTIONS.md:713-729`** (`## ARS Foundation Governance`, `614-783`), and `P-090` (`I3` also sets `W9_DETECTOR_PIN` at L-1).
-
-### 16.2 Owner Point C — Committed `walk-baseline.json`, pre-baseline dispositions, `1x` post-merge walk, and post-merge Rule 0 recovery sub-choice
-
-*Pointers:* §6.2.1, §6.2.2, §6.5, §10.3.
-
-- **Fixed (`2026-11-22` decision, §6.2.2):** Post-merge runs walk **`1x`** from `baselines[0]["baseline_commit"]` using `baselines[-1]`; pin advances attach manual `(baselines[0]["baseline_commit"], candidate]` comparison diffs; `admission-controls` runs no PR pin-advance gate or `gh` call (§10.3).
+- **Pin design — decided by Stephen, `2026-11-22` *(for `P-090` with the other owner points)*:** Keep content pin of `21` stdlib runtime + `1` workflow review blob (`22` in `baselines[-1]["detector_closure_blobs"]`) under `python -S -P` + confinement + post-loop `git hash-object --no-filters` + `main()` exit `2` (`ERROR` on unparseable/unknown-`format`/uncaught errors, vs `1` for Rules 0–3); **drop lockstep** (`baselines[-1]` stays active across unpinned closure edits); **remove PR pin-advance gates from `admission-controls`**; attach `--assemble-only` `(baselines[0]["baseline_commit"], candidate]` diffs + `git diff <old_blob> <new_blob>` to pin-advance PRs; walk `1x` post-merge. **Gives up (§6.1–§6.2, §6.5, §13.2):** (a) lagging pin exits `2` on unparseable/unknown-`format`, **or `0` silently** on unread new evidence/rules (so L-0b pairs with a pin advance); (b) no machine gate checks tool edits or diff completeness—judged by Stephen's review + diffs; (c) Rule 0.2 (ii) snaps to the whole current tree (no pure rollback without code revert) & fails on out-of-order concurrent closure merges; (d) `"code-owned, so Stephen merges it himself"` for `walk-baseline.json` holds only under I1 (not I2).
 - **Options:**
-  - **Option C1 (Recommended):** Commit `.research-system/evidence/w9/walk-baseline.json` (`w9-walk-baseline/1`) from `baselines[0]["baseline_commit"]` (first-parent ancestor of L-1 on `main`, disposing `(4b143c92, baseline_commit]` via `P1` hash-bound `pre_baseline_dispositions_ref` refreshed at L-1), with 22-blob `detector_closure_blobs`, `acknowledged` (Rules 1–3; late `<head>:shared-surface-changes.json` + `independent_review` + ack-only `pr_number: null` when unmapped), and `ruleset_gap_acknowledgements`. Subject to `600s` pre-code `1x` walk stop rule (§15.2 item 5, `UNVERIFIED-5`; design amendment if exceeded).
-  - **Option C2:** Set `baselines[0]["baseline_commit"]` to `4b143c9225035cc29e37351445f1c3a4ab09ceb1` and carry dispositions for all 22 historic commits (§6.2.1).
-  - **Narrowed post-merge Rule 0 recovery sub-choice *(post-merge detector only, `R5-i1`)*:** On a rare post-merge Rule 0 violation on `main`: **`Option C-R0-exemption`** (narrow hash-bound exemption row `(commit, path, old_blob, new_blob)` + `P1` slice, **not specified or built in Revision 6**) vs **`Option C-R0-permanent`** (Rule 0 stays red across re-walks; `HR-3` §13.2).
-- **Recommendation:** **Option C1** (contingent on I1) + Stephen's choice between **C-R0-exemption** and **C-R0-permanent**.
-- **What it changes & records needed:** Dated row for `walk-baseline.json` in `docs/plans/agentic-research-system/implementation/06v-addendum-2026-11-10-w9-paths.md` and `P-090` (`P-09x` L-1 refresh); `research_system/legacy/` untouched.
+  - **Option I1 (Rule 0 + `.github/CODEOWNERS` — Recommended):** Enforces Rule 0 (§6.5) & §6.2.3 `python -S -P` (`21` runtime + workflow review blob; M-6 omitted -> `HR-7`), adding `@stephendor` CODEOWNERS for `/.github/workflows/legacy-write-detector.yml`, `/tools/check_legacy_writes.py`, `/tools/check_conventions_legacy_locks.py`, `/tools/check_legacy_log_baseline.py`, `/tools/run_w9_detector_controls.py`, `/tools/run_w9_pinned_detectors.py`, `/tools/export_w9_registration_manifest.py`, `/tools/_w9_detector_evidence.py`, `/tests/tools/test_w9_detectors.py`, `/research_system/legacy/accepted_w9.py` (+ `/tools/w9_segmentation.py` under `I1-include-seg`) and `/.research-system/evidence/w9/`, enforced by `test_derived_closure_tools_and_accepted_w9_are_codeowned`, `test_detector_closure_is_stdlib_only`, `test_pinned_wrapper_is_self_contained_stdlib_only`, & `test_pinned_wrapper_is_ascii_only` (§12.1). *Cost:* Stephen's `Bypass reason:` merge (`tools/check_bypass_merges.py:41,135`, `admin-bypass-guard.sh:13-18`) on batch/weekly/ruleset/baseline/code-owned PRs (`7` W9/4wk; `14`/`178` commits/90d touched 15 existing modules; pin advances re-record `detector-controls.json` + diffs).
+    - **`tools/w9_segmentation.py` (`R5-m5`):** **`Option I1-include-seg` (Recommended):** include `/tools/w9_segmentation.py` (11 files + dir, 13 non-owned, 0 exemption; `43e1454de09b61e274954c42b21d6ae533857a24` untouched). **`I1-exempt-seg`:** 10 files (14 non-owned) + exemption.
+    - **`python-version` (`R5-i2`):** **`Option I1-py-minor` (Recommended):** `"3.13"` vs **`I1-py-patch`:** `"3.13.5"`.
+  - **Option I2 (Rule 0 only; keep 8 CODEOWNERS paths):** Leaves `walk-baseline.json`, `L1_LIVE`, workflow, tools, `accepted_w9.py`, & evidence un-owned; fails B1 and R1-B1 scenarios 4–5.
+  - **Option I3 (Optional out-of-tree anchor, with I1):** Repo Actions variable `W9_DETECTOR_PIN` (`{"walk_baseline_commit", "closure_blobs_sha256"}`), `REQUIRE_I3_PIN: "true"` (§10.2), `gh api` in wrapper (§6.2.3). Variable write permissions are **`UNVERIFIED-4`** (§21.2).
+- **Recommendation:** **I1** + **I1-include-seg** + **I1-py-minor** (+ optional **I3** pending `UNVERIFIED-4`).
+- **Records:** `.github/CODEOWNERS:1-24`, split `tests/tools/test_ci_platform_policy.py` (`W9_DETECTOR_CODEOWNED_FILES`, `W9_DETECTOR_CODEOWNED_DIRS`, `:364-374` without `.is_dir()`, landing 9 new files together), **amend `CONVENTIONS.md:713-729`** (`## ARS Foundation Governance`, `614-783`), & `P-090`.
 
-### 16.3 Owner Point A — Registration manifest fields (`role`, `source_identity_kind`), `/2` format policy, and WP9.4 pass-count question
+### 16.2 Owner Point C — `walk-baseline.json`, pre-baseline dispositions, `1x` walk, and post-merge Rule 0 recovery
+
+*Pointers:* §6.2.1, §6.2.2, §6.5, §10.3. **Fixed (`2026-11-22`):** `1x` post-merge walk from `baselines[0]["baseline_commit"]` on `baselines[-1]`; pin advances attach manual diffs; no `admission-controls` pin-advance gate or `gh` call.
+
+- **Option C1 (Recommended):** Commit `.research-system/evidence/w9/walk-baseline.json` (`w9-walk-baseline/1`) at `baselines[0]["baseline_commit"]` (disposing `(4b143c92, baseline_commit]` via `P1` `pre_baseline_dispositions_ref`), 22-blob `detector_closure_blobs`, `acknowledged`, and `ruleset_gap_acknowledgements`. Subject to `600s` `1x` stop rule (§15.2 item 5, `UNVERIFIED-5`).
+- **Option C2:** Set `baselines[0]["baseline_commit"]` to `4b143c9225035cc29e37351445f1c3a4ab09ceb1` with all 22 historic rows (§6.2.1).
+- **Post-merge Rule 0 recovery sub-choice *(`R5-i1`, `R6-m7(c)`)*:** For rare post-merge Rule 0 failures (e.g. out-of-order concurrent closure merges hitting Rule 0.2 (ii), or slice typos): **`Option C-R0-exemption`** (hash-bound `(commit, path, old_blob, new_blob)` + `P1` slice, **not built in Revision 7**) vs **`Option C-R0-permanent`** (stays red across re-walks; `HR-3`).
+- **Recommendation:** **Option C1** (conditional on I1) + Stephen's choice (**C-R0-exemption** vs **C-R0-permanent**).
+- **Records:** Dated `06v-addendum-2026-11-10-w9-paths.md` row & `P-090` (`P-09x` L-1 refresh); `research_system/legacy/` untouched.
+
+### 16.3 Owner Point A — Registration manifest (`role`, `source_identity_kind`), `/2` format, & WP9.4 counts
 
 *Pointers:* §2.3, §5.3.
+- **Option A1 (`/2`, 5 keys — Recommended):** Bump `REGISTRATION_MANIFEST_FORMAT` (`"w9-registration-manifest/2"`: `{"root_kind", "root_id", "normalized_path", "role", "source_identity_kind"}`), update `require_registered` (`evidence.py:40,114-131`) & test builders (`test_w9_evidence.py`, `w9_runtime_harness.py:451-466`, `test_w9_wp9_4_1_runtime.py:95-109`, `test_w9_wp9_4_2_runtime.py:86-100`). **Stephen decides whether `wp9-4-1-record.md:114,130` (`13 passed in 688.11s (0:11:28)`) is re-recorded.**
+- **Option A2:** Keep `/1` + unvalidated companion file.
+- **Records:** Edits `evidence.py:40,114-131` + 4 test files; needs **WP9.3 amendment, independent review, & `P-090`** (`IMPORTER_MODULES` untouched).
 
-- **Options:**
-  - **Option A1 (5-key manifest, uniform `"w9-registration-manifest/2"`, closed entries — Recommended):** Bump `REGISTRATION_MANIFEST_FORMAT` to `"w9-registration-manifest/2"` projecting `{"root_kind", "root_id", "normalized_path", "role", "source_identity_kind"}` in `_legacy_projection`, update `require_registered` (`evidence.py:40,114-131`), and update fixture manifest builders in `test_w9_evidence.py`, `w9_runtime_harness.py:451-466`, `test_w9_wp9_4_1_runtime.py:95-109`, and `test_w9_wp9_4_2_runtime.py:86-100`. Because WP9.4 production code is untouched, this note treats WP9.4's acceptance review as not reopened; **Stephen must decide whether `wp9-4-1-record.md:114,130` pass counts (`13 passed in 688.11s (0:11:28)`) are re-recorded after updating the test builders** (re-running both WP9.4 integration files counts against Owner Point G).
-  - **Option A2:** Keep `/1` (3 keys, `evidence.py` and WP9.4 tests untouched) and add an unvalidated companion file.
-- **Recommendation:** **Option A1** (with Stephen's decision on re-recording `wp9-4-1-record.md:114,130` pass counts).
-- **What it changes & records needed:** Edits `evidence.py:40,114-131` and the 4 test files; needs a **dated WP9.3 amendment, independent review, and `P-090`** (`IMPORTER_MODULES` untouched).
-
-### 16.4 Owner Point B — W9 §4.2 write-allowance record format, `at C` evaluation, and `P1` age provenance
+### 16.4 Owner Point B — W9 §4.2 record, `at C` eval, & `P1` provenance
 
 *Pointers:* §6.4, `HR-1`.
+- **Option B1 (Recommended, conditional on I1):** `.research-system/evidence/w9/legacy-write-records.json` (`w9-legacy-write-records/1`) keyed by `(pr_number, normalized_path, old_blob, new_blob)` at `C`, with `P1`-ancestor `owner_note` & `independent_review` (`P1` proves age, not authorship). **B2:** same-PR refs under I1 CODEOWNERS. **B3:** `gh api` PR bodies (not offline-testable).
+- **Records:** `06v-addendum-2026-11-10-w9-paths.md:14-15` row + `P-090`; `research_system/legacy/` untouched.
 
-- **Options:**
-  - **Option B1 (Recommended, conditional on Option I1):** Commit `.research-system/evidence/w9/legacy-write-records.json` (`w9-legacy-write-records/1`) keyed by `(pr_number, normalized_path, old_blob, new_blob)` evaluated at `C`, with `P1`-ancestor `owner_note` (`### P-0xx` naming each tuple) and `independent_review` slices (`P1` ancestry proves pre-PR age rather than authorship because register/review directories are not code-owned).
-  - **Option B2:** Allow `owner_note`/`independent_review` inside `C` itself under Option I1 CODEOWNERS.
-  - **Option B3:** Parse PR bodies/comments via `gh api` (not offline-testable).
-- **Recommendation:** **Option B1 — conditional on Option I1**.
-- **What it changes & records needed:** Adds a dated row for `legacy-write-records.json` in `06v-addendum-2026-11-10-w9-paths.md:14-15` and `P-090`; `research_system/legacy/` untouched.
-
-### 16.5 Owner Point D — Resolving the `O-32` squash-merge SHA contradiction in `shared-surface-changes.json`
+### 16.5 Owner Point D — Resolving `O-32` in `shared-surface-changes.json`
 
 *Pointers:* §6.5 (Rule 3), `HR-2`.
+- **Option D3 (`"w9-shared-surface-changes/2"`, no commit field — Recommended):** Bump `SHARED_SURFACE_CHANGES_FORMAT` (`evidence.py:42`) closed on `{"pr_number", "surface", "old_blob", "new_blob", "affected_registrations"}` (ack-only `pr_number: null` on unmapped), require late `<head>` entries + `independent_review` on Rule 3 acks (`require_change_list` `evidence.py:190-218`), and check `evidence.blob_at(repository_root, obs_commit, surface)` in `acceptance.py:121-136` against `new_blob` or later (`A -> B -> A` in `HR-2`). **D1:** `base_commit` (queue race). **D2:** 2-PR red window.
+- **Records:** Edits `evidence.py:42,190-252`, `acceptance.py:121-136`, WP9.3 tests (`test_w9_evidence_acceptance.py`, `test_w9_wp9_3_2_runtime.py`), & `06v-addendum-2026-11-10-w9-paths.md:28`; needs **WP9.3 amendment (`wp9-3-design-note.md` §10.4), independent review, & `P-090`**.
 
-- **Options:**
-  - **Option D3 (Blob-keyed, tree-state equivalence, `"w9-shared-surface-changes/2"`, no commit field — Recommended):** Bump `SHARED_SURFACE_CHANGES_FORMAT` (`evidence.py:42`) to `"w9-shared-surface-changes/2"` closed on `{"pr_number", "surface", "old_blob", "new_blob", "affected_registrations"}` (with ack-only `pr_number: null` on unmapped commits), require late `<head>` entries + `independent_review` on Rule 3 acknowledgements (safely checked via `require_change_list` at `evidence.py:190-218`), and check `evidence.blob_at(repository_root, obs_commit, surface)` in `acceptance.py:121-136` against `new_blob` or a later entry (see `HR-2` on `A -> B -> A` reverts).
-  - **Option D1:** Add `base_commit` + blob check (queue race, redundant).
-  - **Option D2:** Two-PR protocol leaving a red window.
-- **Recommendation:** **Option D3**.
-- **What it changes & records needed:** Edits `evidence.py:42,190-252`, `acceptance.py:121-136`, WP9.3 tests (`test_w9_evidence_acceptance.py`, `test_w9_wp9_3_2_runtime.py`), and `06v-addendum-2026-11-10-w9-paths.md:28`; needs a **dated WP9.3 amendment (`wp9-3-design-note.md` §10.4), independent review, and `P-090`** (`IMPORTER_MODULES` untouched).
-
-### 16.6 Owner Point E — D-5 missed weekly vault-run gate placement and weekly PR + `advance-binding` cost
+### 16.6 Owner Point E — D-5 cadence gate placement
 
 *Pointers:* §8.4, `HR-4`.
+- **Option E1 (Recommended if weekly PR cost accepted):** Commit `vault-detector-runs.json` (`w9-vault-detector-runs/1`, `"run"`/`"owner_cadence_reset"`); enforce `require_vault_detector_cadence` when `bool(reader.accepted_cl_export)` is `True` at `LR-003`/`LR-015` (`preparers.py:686-690,1215-1218`) & `LR-016`/`LR-020` (`acceptance.py:147-152`) + `--check-cadence` (weekly PR + I1 bypass + `ars store advance-binding`). **E2:** CLI `--check-cadence` only.
+- **Records:** E1 edits `evidence.py`, `preparers.py`, `acceptance.py`, `06v-addendum-2026-11-10-w9-paths.md`; needs **WP9.3 amendment, independent review, & `P-090`**.
 
-- **Options:**
-  - **Option E1 (Store-preparer gate at `LR-003`/`LR-015` and `LR-016`/`LR-020` — Recommended):** Commit `vault-detector-runs.json` (`w9-vault-detector-runs/1`) with `"run"` / `"owner_cadence_reset"` entries and enforce `require_vault_detector_cadence` when `bool(reader.accepted_cl_export)` is `True` at `LR-003`/`LR-015` (`preparers.py:686-690,1215-1218`) and `LR-016`/`LR-020` (`acceptance.py:147-152`) plus `--check-cadence` (each weekly run needs a reviewed PR + I1 bypass merge + `ars store advance-binding`).
-  - **Option E2:** CLI `--check-cadence` only (`preparers.py` and `acceptance.py` untouched).
-- **Recommendation:** **Option E1** if weekly PR + `advance-binding` cost is accepted so D-5 is machine-enforced at batch start.
-- **What it changes & records needed:** E1 edits `evidence.py`, `preparers.py`, `acceptance.py`, and `06v-addendum-2026-11-10-w9-paths.md`, needing a **dated WP9.3 amendment, independent review, and `P-090`**.
-
-### 16.7 Owner Point F — Running `tests/tools/test_w9_detectors.py` (`L1_LIVE` & `W9-T7` unit lane) in `admission-controls`
+### 16.7 Owner Point F — Running `tests/tools/test_w9_detectors.py` in `admission-controls`
 
 *Pointers:* §2.3, §10.3, §11.2, §12.1.
+- **Option F1 (Recommended, paired with I1):** Wire `tests/tools/test_w9_detectors.py` into `ci.yml:166-216` (`admission-controls`, `:210`) & `ADMISSION_CONTROL_MODULES` (`test_ci_platform_policy.py:175-229`, `:226`). Covers `L1_LIVE`, unit tests + top-level shape checks on the 3 JSONs + `--verify-watched-to-fail` with `--code-root` assembled from `HEAD`'s `baselines[-1]` via `§10.2` (`--code-root` has no default; unrowed non-code-owned closure edits stay green), optional 1-sentence advisory Rule 0.2 summary (`HEAD` vs `HEAD^1`, exit `0`), and **`W9-T7` as `unit` — explicit departure from `06v:230,503`** (`test_w9_wp9_5_detectors.py` stays `integration, @pytest.mark.slow`, `affected_research_tests.py:120-147`, nightly `research-system-suite.yml:8-9,15,17`). **Zero `gh`, `GH_TOKEN`, `pull-requests: read`, PR pin-advance gate, or `ci.yml` permissions/timeout changes.** **F2:** `legacy-write-detector.yml` only.
+- **Records:** Edits `.github/workflows/ci.yml:212` (`.github/CODEOWNERS:18`), `tests/tools/test_ci_platform_policy.py:228`, `06v-addendum-2026-11-10-w9-paths.md` (`06v:230` departure), & `P-090`.
 
-- **Options:**
-  - **Option F1 (Wire into `.github/workflows/ci.yml` `admission-controls` — Recommended):** Add `tests/tools/test_w9_detectors.py` to `ci.yml:166-216` (`admission-controls`, precedent `:210`) and `ADMISSION_CONTROL_MODULES` (`test_ci_platform_policy.py:175-229`, precedent `:226`). Covers the `L1_LIVE` tripwire, unit tests + `--verify-watched-to-fail`, optional advisory-only Rule 0.2 row report, and **`W9-T7` as a `unit` test on every PR — an explicit departure from `06v:230,503` ("`W9-T7` ... `integration, slow`")** while `test_w9_wp9_5_detectors.py` remains `integration, @pytest.mark.slow` (`affected_research_tests.py:120-147`; nightly `research-system-suite.yml:8-9,15,17`). **Nothing in `admission-controls` calls `gh`, requires `GH_TOKEN`, adds `pull-requests: read`, runs a PR-time pin-advance gate, or changes `ci.yml`'s `permissions: contents: read` or `timeout-minutes: 20`.**
-  - **Option F2:** `legacy-write-detector.yml` only (no pre-L-1 PR tripwire).
-- **Recommendation:** **Option F1** paired with **Option I1** (so `L1_LIVE` is code-owner protected).
-- **What it changes & records needed:** Edits `.github/workflows/ci.yml:212` (`.github/CODEOWNERS:18`, Stephen merges), `tests/tools/test_ci_platform_policy.py:228`, a **dated addendum row in `06v-addendum-2026-11-10-w9-paths.md` (or `06v` addendum)** recording the `W9-T7` unit-lane departure from `06v:230`, and `P-090`.
+### 16.8 Owner Point G — Test-time budget
 
-### 16.8 Owner Point G — Test-time budget for WP9.5 (including `@pytest.mark.slow`)
+*Pointers:* §12.3, §15.1 item 4. **Option G1 (`300s`, Recommended pending `UNVERIFIED-3`):** serial `--no-cov` incl. `@pytest.mark.slow` (`P-087` item 7 `03-decisions-and-open-questions.md:5919-5923`; distinct from §15.2's `600s` walk stop rule; note WP9.4 integration runs ~5–11 min under A1). **Option G2:** `120s` after `UNVERIFIED-3`. Records in `P-090`.
 
-*Pointers:* §12.3, §15.1 item 4.
+### 16.9 Owner Point H — Routine `.apm/tracker.md` Working-Note appends
 
-- **Options:**
-  - **Option G1 (Recommended pending profile):** Apply the **300-second (5-minute)** serial `--no-cov` budget from `P-087` item 7 (`03-decisions-and-open-questions.md:5919-5923`), counting all new/changed WP9.5 tests including `@pytest.mark.slow` (excluding full-history walks, which are governed separately by the `600s` pre-code walk stop rule in §15.2 item 5; over-budget returns `PARTIAL`; note WP9.4 integration files run ~5–11 minutes if re-run under A1).
-  - **Option G2:** Tighten to **120 seconds (2 minutes)** once the unconditional pre-code single scratch-store profile (`UNVERIFIED-3`) is measured.
-- **Recommendation:** **Option G1 (`300s`)** until `UNVERIFIED-3` is measured on Stephen's machine.
-- **What it changes & records needed:** Recorded in `P-090`; changes no code.
-
-### 16.9 Owner Point H — Routine `.apm/tracker.md` Working-Note appends after registration
-
-*Pointers:* §6.2.1, §6.5 (Rule 1).
-
-- **Options:**
-  - **Option H1 (Mechanically verified Working-Note append allowance — Recommended):** Permit `.apm/tracker.md` changes without a §4.2(b) record iff `segment(raw, "tracker_task_row")` and `segment(raw, "working_note_entry")` (`segmentation.py:470-473`) verify every task row, byte outside `## Working Notes`, and prior note stays byte-identical in order with 0 blockers and gaps matching `[ \t]*\n` (`#368`, `#388`, `#433` verified in `wp9-5-note-r2-review-2026-11-21.md:219`; open `O-33` windows still wait).
-  - **Option H2:** Require a full §4.2(b) record in `legacy-write-records.json` per append.
-  - **Option H3:** Freeze `.apm/tracker.md` at L-1 and write successor notes elsewhere.
-- **Recommendation:** **Option H1** (or **Option H3** if Stephen prefers freezing `.apm/tracker.md`).
-- **What it changes & records needed:** H1 requires a **dated W9 §4.2 amendment** (`09-migration-compatibility-and-pilot.md` §4.2 and `P-090`), implemented in `tools/check_legacy_writes.py`; `H2`/`H3` need no W9 amendment.
+*Pointers:* §6.2.1, §6.5 (Rule 1). **Option H1 (Recommended):** Allow without §4.2(b) iff `segment(raw, "tracker_task_row")` & `"working_note_entry"` (`segmentation.py:470-473`) preserve bytes outside `## Working Notes`, task rows, and prior notes verbatim with 0 blockers & `[ \t]*\n` gaps (`#368`, `#388`, `#433`, `wp9-5-note-r2-review-2026-11-21.md:219`; `O-33` waits). **H2:** full §4.2 record per append. **H3:** freeze `.apm/tracker.md`. H1 needs dated W9 §4.2 amendment (`09-migration-compatibility-and-pilot.md` §4.2, `P-090`).
 
 ### 16.10 Owner Point J — Source, format, and L-0b pinning of vault and `CONVENTIONS.md` classifications
 
@@ -1545,7 +1495,7 @@ Stephen has already decided the core pin design (**pin, no lockstep**, `2026-11-
   - **Option J1 (`w9-cl-classified-list/1` + pinned `ACCEPTED_CONVENTIONS_CLASSIFICATION` — Recommended):** Validate `ACCEPTED_CL_EXPORT[-1]["classified_list"]` (`accepted_w9.py:86-88`) against `"w9-cl-classified-list/1"` with 1-based `row_ordinal` (`evidence.py:347-358`, `segmentation.py:408`), and add empty `ACCEPTED_CONVENTIONS_CLASSIFICATION = ()` to `accepted_w9.py` (defaulting to the 9-section 68-unit baseline until L-0b pins `"w9-conventions-classified-locks/1"` by `(anchor_text, unit_hash)` `segmentation.py:391-402` at its pinned commit).
   - **Option J2:** Carry final labels inside `w9-cl-export/1` at L-0b and keep 9 `CONVENTIONS.md` sections permanent.
 - **Recommendation:** **Option J1** (preserving D-4 and `IMPORTER_MODULES`, CODEOWNED under Option I1).
-- **What it changes & records needed:** Adds `ACCEPTED_CONVENTIONS_CLASSIFICATION` to `research_system/legacy/accepted_w9.py` and populates both constants + `06v-addendum-2026-11-10-w9-paths.md` at L-0b; recorded in `P-090`.
+- **What it changes & records needed:** Adds `ACCEPTED_CONVENTIONS_CLASSIFICATION` to `research_system/legacy/accepted_w9.py` and populates both constants + `06v-addendum-2026-11-10-w9-paths.md` at L-0b (any L-0b PR adding new evidence keys/files or new constants must be **paired with a `walk-baseline.json` pin advance** in `baselines[-1]` per §6.1 & §8.3, otherwise an older pinned copy exits `0` silently on unread keys or `2` on format changes); recorded in `P-090`.
 
 ### 16.11 Owner Point K — Running `tools/check_conventions_legacy_locks.py` on PRs in `ci.yml` `admission-controls` (`06v:491-492`)
 
@@ -1568,17 +1518,18 @@ Stephen has already decided the core pin design (**pin, no lockstep**, `2026-11-
 | Revision 3 | 2026-11-21 | Gemini agent (under `P-089`) | Revision addressing all 27 findings (`R2-M1`–`R2-M5`, `R2-m1`–`R2-m16`, `R2-i1`–`R2-i6`) from `docs/plans/agentic-research-system/reviews/wp9-5-note-r2-review-2026-11-21.md` (`3cf35bec`). |
 | Revision 4 | 2026-11-22 | Gemini agent (under `P-089`) | Narrow rework addressing all 20 findings (`R3-M1`–`R3-M3`, `R3-m1`–`R3-m13`, `R3-i1`–`R3-i4`) from `docs/plans/agentic-research-system/reviews/wp9-5-note-r3-review-2026-11-21.md` (`1bd4ecff`). |
 | Revision 5 | 2026-11-22 | Gemini agent (under `P-089`) | Narrow rework & structural cut addressing all 21 findings (`R4-M1`–`R4-M2`, `R4-m1`–`R4-m11`, `R4-i1`–`R4-i8`) from `docs/plans/agentic-research-system/reviews/wp9-5-note-r4-review-2026-11-22.md` (`0e6d23e4`). |
-| Revision 6 | 2026-11-22 | Gemini agent (under `P-089`) | Implemented Stephen's `2026-11-22` **pin, no lockstep** decision and resolved all 20 findings (`R5-M1`–`R5-M3`, `R5-m1`–`R5-m11`, `R5-i1`–`R5-i6`) from `docs/plans/agentic-research-system/reviews/wp9-5-note-r5-review-2026-11-22.md` (`d6938710`): deleted Rule 0.3 & PR-time pin-advance gates from `admission-controls` (no `gh`/`GH_TOKEN`/`pull-requests: read`), documented manual `(baselines[0]["baseline_commit"], candidate]` comparison review evidence (Rule 0 included, `V[:8] \| rule \| path`, `--verdict-json` `"error"`), aligned `w9_segmentation.py` & `"3.13"` Owner Point I sub-choices, added `main()` exit `2`, UTF-8 subprocess decoding, Windows device/trailing-dot/post-write hash checks, parent+child `-S -P` probe, wrapper pipe test, labelled extrapolated `2 × 1x` timings, compacted `§18`–`§20`, and updated `§21`. |
+| Revision 6 | 2026-11-22 | Gemini agent (under `P-089`) | Applied Stephen's `2026-11-22` **pin, no lockstep** decision and resolved all 20 findings (`R5-M1`–`R5-M3`, `R5-m1`–`R5-m11`, `R5-i1`–`R5-i6`) from `wp9-5-note-r5-review-2026-11-22.md` (`d6938710`): deleted lockstep & PR pin-advance gates from `admission-controls`, moved comparison to manual review evidence, added `main()` exit `2`, confinement/UTF-8/`python -S -P` checks, extrapolated `2 × 1x` labels, and updated `§18`–`§21`. |
+| Revision 7 | 2026-11-23 | Gemini agent (under `P-089`) | Addressed all 18 findings (`R6-M1`–`R6-M3`, `R6-m1`–`R6-m9`, `R6-i1`–`R6-i6`) from `wp9-5-note-r6-review-2026-11-22.md` (`d47a8e72`), adopting R6's proposed text for `R6-M1`–`R6-M3` (exit `2` on unparseable/unknown-`format`; runnable `--assemble-only` comparison & grammar-only Rule 0.2 (iv); required assembled `--code-root` & schema-only checks in `admission-controls`), hardened `§10.2` (`isreserved`/`~`/`casefold`/re-hash), added `test_pinned_wrapper_is_ascii_only`, labelled `§12.3` estimates, rolled `R4`/`R5` into `§18`/`§19`, and added `27`-case `§21.1` item 11. |
 
 ---
 
-## 18. Compact disposition index: revisions 1 to 4
+## 18. Compact disposition index: revisions 1 to 5
 
-Full historical details for revisions 1–4 live in Git history and the archived review reports (`wp9-5-note-r1-review-2026-11-21.md` `edb9acc6`, `wp9-5-note-r2-review-2026-11-21.md` `3cf35bec`, `wp9-5-note-r3-review-2026-11-21.md` `1bd4ecff`). Compact disposition of all 81 findings (34 revision-1, 27 revision-2, 20 revision-3):
+Archived history lives in Git & review reports (`r1` `edb9acc6`, `r2` `3cf35bec`, `r3` `1bd4ecff`, `r4` `0e6d23e4`). All 102 findings (34 R1, 27 R2, 20 R3, 21 R4):
 
 | Finding ID | Section(s) | Status |
 |---|---|---|
-| `R1-B1` | `§6.1, §6.2.2, §6.4, §6.5, §10.2, §12.1, §16.1–§16.2, §16.4` *(pinning iterated in §18 `R3-M1`, §19 `R4-M1`/`R4-M2`, & §20)* | resolved |
+| `R1-B1` | `§6.1–§6.5, §10.2, §12.1, §16.1–§16.4` *(iterated in `R3-M1`, `R4-M1`/`R4-M2`, §19)* | resolved |
 | `R1-M1` | `§4.3.1, §4.3.3, §8.2` | resolved |
 | `R1-M2` | `§2.1–§2.3, §4.3.1–§4.3.2, §5.3, §7.2, §8.2–§8.3, §9.2` | resolved |
 | `R1-M3` | `§6.2.1, §6.5, §7.3, §7.5, §11.2, §12.1, §16.2, §21.1` | resolved |
@@ -1612,8 +1563,8 @@ Full historical details for revisions 1–4 live in Git history and the archived
 | `R1-i5` | `§6.3` | resolved |
 | `R1-i6` | `§6.4, §6.6` | resolved |
 | `Review §2 (R1)` | `Repo-wide citations (corrected across R2 & R3 -> R2-m2/R2-m4)` | resolved |
-| `R2-M1` | `§6.1, §6.2.2, §6.3, §6.5, §10.2` *(`tool_pin_commit` & detached worktree superseded in `R3-M1` & §19 `R4-m7`)* | superseded |
-| `R2-M2` | `§6.2.2, §6.5, §12.1, §16.2` *(`checkpoints`, `--record-checkpoint`, `--full-rewalk`, `verdict_digest` superseded in `R3-M2`, §19 `R4-M1`, & §20)* | superseded |
+| `R2-M1` | `§6.1–§6.5, §10.2` *(`tool_pin_commit`/worktree superseded in `R3-M1`/`R4-m7`)* | superseded |
+| `R2-M2` | `§6.2.2, §6.5, §12.1, §16.2` *(checkpoints superseded in `R3-M2`, `R4-M1`, §19)* | superseded |
 | `R2-M3` | `§2.3, §6.2.3, §6.5, §10.2, §12.1, §15.2, §16.1, §21.1` | resolved |
 | `R2-M4` | `§2.3, §6.5, §7.3, §7.6, §12.1, §16.10` | resolved |
 | `R2-M5` | `§2.3, §10.3, §13.2 HR-1, §16.1` | resolved |
@@ -1639,8 +1590,8 @@ Full historical details for revisions 1–4 live in Git history and the archived
 | `R2-i4` | `§8.2` | resolved |
 | `R2-i5` | `§4.2.2, §14, §21.1` | resolved |
 | `R2-i6` | `§12.3, §21.1` | resolved |
-| `R3-M1` | `Header, §1, §2.3, §6.1, §6.2.2–§6.2.3, §6.5, §10.2, §12.1, §13.1, §14, §16.1–§16.2, §21.1` *(`uv sync`/`pyproject.toml`/`uv.lock` superseded in §19 `R4-M2`/`R4-m7`)* | superseded |
-| `R3-M2` | `§1, §2.1, §6.2.2, §6.5, §12.1, §12.3, §14, §16.2, §21.1` *(Rule 0.2 (v) & dual-tool post-merge walk superseded in §19 `R4-M1` & §20)* | superseded |
+| `R3-M1` | `Header, §1–§2.3, §6, §10.2, §12–§14, §16, §21` *(`uv sync` superseded in `R4-M2`/`R4-m7`)* | superseded |
+| `R3-M2` | `§1–§2.1, §6, §12, §14, §16.2, §21` *(Rule 0.2 (v)/dual walk superseded in `R4-M1`/§19)* | superseded |
 | `R3-M3` | `§1, §6.2.2, §6.5, §12.1, §13.1, §14, §16.2, §16.5` | resolved |
 | `R3-m1` | `Header, §10.2, §15.1, §16.1, §21.2` | resolved |
 | `R3-m2` | `§1, §2.1, §2.3, §6.2.3, §7.5, §8.4, §9.2, §10.2, §12.1, §16.1, §16.10` | resolved |
@@ -1659,17 +1610,8 @@ Full historical details for revisions 1–4 live in Git history and the archived
 | `R3-i2` | `§1, §7.5, §15.1, §16.11` | resolved |
 | `R3-i3` | `§10.2` | resolved |
 | `R3-i4` | `§4.2.2, §21.1` | resolved |
-
----
-
-## 19. Change log: revision 4 to revision 5
-
-Archived review details for revision 4 (`48b5e935`) live in `docs/plans/agentic-research-system/reviews/wp9-5-note-r4-review-2026-11-22.md` (`0e6d23e4`). Compact disposition of all 21 revision-4 findings (with `R4-M1` and `R4-M2` superseded by Stephen's `2026-11-22` **pin, no lockstep** decision in `§20`):
-
-| Finding ID | Section(s) | Status |
-|---|---|---|
-| `R4-M1` | `§1, §6.2.2, §6.5, §10.3, §12.1, §12.3, §13.1, §14, §15.1, §15.2, §16.2, §21.1, §21.2` *(PR-time verdict comparison superseded in §20 `R5-M1`–`R5-M3` by manual review diff + `1x` post-merge walk)* | superseded |
-| `R4-M2` | `§1, §6.2.2–§6.2.3, §6.5, §10.3, §12.1, §13.1–§13.2, §14, §16.2` *(PR-lane `HEAD:<path>` equality / row checks & Rule 0.3 lockstep superseded in §20 `R5-M1`–`R5-M3`)* | superseded |
+| `R4-M1` | `§1, §6, §10.3, §12–§16, §21` *(PR verdict diff superseded in §19 `R5-M1`–`R5-M3`)* | superseded |
+| `R4-M2` | `§1, §6, §10.3, §12–§14, §16.2` *(PR `HEAD` equality & lockstep superseded in §19 `R5-M1`–`R5-M3`)* | superseded |
 | `R4-m1` | `§1, §6.2.2, §6.5, §12.1, §13.1, §14, §16.2, §16.5` | resolved |
 | `R4-m2` | `§12.1` | resolved |
 | `R4-m3` | `§6.2.3, §10.2, §12.1` | resolved |
@@ -1680,7 +1622,7 @@ Archived review details for revision 4 (`48b5e935`) live in `docs/plans/agentic-
 | `R4-m8` | `§10.2, §15.1` | resolved |
 | `R4-m9` | `§11.3, §12.1` | resolved |
 | `R4-m10` | `§3, §6.1, §6.2.3, §11.2, §12.1, §16.1, §16.7, §18, §19` | resolved |
-| `R4-m11` | `§6.2.3` *(Option I1-narrow deleted in R6 §20 `R5-M1`)* | resolved |
+| `R4-m11` | `§6.2.3` *(Option I1-narrow deleted in R6 §19 `R5-M1`)* | resolved |
 | `R4-i1` | `§6.2.2, §6.5, §10.3, §12.1` | resolved |
 | `R4-i2` | `§7.5, §14, §16.11` | resolved |
 | `R4-i3` | `§2.3, §5.3, §14, §16.3, §16.8` | resolved |
@@ -1692,32 +1634,59 @@ Archived review details for revision 4 (`48b5e935`) live in `docs/plans/agentic-
 
 ---
 
-## 20. Change log: revision 5 to revision 6
+## 19. Change log: revision 5 to revision 6
 
-Disposes of all 20 findings in `docs/plans/agentic-research-system/reviews/wp9-5-note-r5-review-2026-11-22.md` (`d6938710`, reviewing revision 5 `83b4ae6f`) alongside Stephen's `2026-11-22` **pin, no lockstep** decision (*to be entered in `P-090` with the other owner points*):
+Archived review details for revision 5 (`83b4ae6f`) and Stephen's `2026-11-22` **pin, no lockstep** decision (*entered in `P-090` with the other owner points*) live in `docs/plans/agentic-research-system/reviews/wp9-5-note-r5-review-2026-11-22.md` (`d6938710`). Compact disposition of all 20 revision-5 findings:
 
-| Finding ID | Section(s) | Status | Change in revision 6 |
+| Finding ID | Section(s) | Status |
+|---|---|---|
+| `R5-M1` | `Header, §1, §2.1, §6.1, §6.2.2–§6.2.3, §6.5, §10.3, §12.1, §13.1, §13.2 HR-3, §14, §16.1–§16.2` | resolved |
+| `R5-M2` | `§6.2.2, §6.5, §12.1, §13.2 HR-3, §16.2` | resolved |
+| `R5-M3` | `§1, §2.1, §10.3, §12.3, §13.1, §16.7` | resolved |
+| `R5-m1` | `§2.1, §6.2.2, §6.3, §9.2, §12.1, §13.1` | resolved |
+| `R5-m2` | `§6.2.2, §6.5, §12.1` | resolved |
+| `R5-m3` | `§6.2.2, §12.3, §15.1–§15.2, §16.2, §16.8` | resolved |
+| `R5-m4` | `§6.2.2, §12.1` | resolved |
+| `R5-m5` | `§2.3, §6.1, §6.2.3, §12.1, §14, §16.1` | resolved |
+| `R5-m6` | `§2.1, §6.2.3, §12.1, §14, §15.2, §16.1, §21.1` | resolved |
+| `R5-m7` | `§6.2.3, §10.2, §12.1, §13.1` | resolved |
+| `R5-m8` | `§6.2.3, §9.2, §12.1, §21.1` | resolved |
+| `R5-m9` | `§2.1, §6.3, §9.2, §12.1` | resolved |
+| `R5-m10` | `Header, §1, §2.1, §6.2.2, §12.3, §13.1, §14, §21.1` | resolved |
+| `R5-m11` | `§6.2.1, §12.1, §13.1, §14, §18–§20` | resolved |
+| `R5-i1` | `§13.2 HR-3, §16.2` | resolved |
+| `R5-i2` | `§10.2, §14, §16.1` | resolved |
+| `R5-i3` | `§11.3, §12.3` | resolved |
+| `R5-i4` | `§21.1` | resolved |
+| `R5-i5` | `§4.2.2, §21.1` | resolved |
+| `R5-i6` | `§6.2.3, §21.1` | resolved |
+
+---
+
+## 20. Change log: revision 6 to revision 7
+
+Disposes of all 18 findings in `docs/plans/agentic-research-system/reviews/wp9-5-note-r6-review-2026-11-22.md` (`d47a8e72`, reviewing revision 6 `95dfefe7`), adopting R6's proposed text for `R6-M1`–`R6-M3`:
+
+| Finding ID | Section(s) | Status | Change in revision 7 |
 |---|---|---|---|
-| `R5-M1` | `Header, §1, §2.1, §6.1, §6.2.2–§6.2.3, §6.5, §10.3, §12.1, §13.1, §13.2 HR-3, §14, §16.1–§16.2` | resolved | Applied Stephen's `2026-11-22` **pin, no lockstep** decision: removed Rule 0.3, `I1-narrow`, & all PR pin-advance gates from `admission-controls` (no bypassable PR gate); moved `(baselines[0]["baseline_commit"], candidate]` comparison to manual PR review evidence; `1x` post-merge walk on `baselines[-1]`; stated trade-offs in `§6.1`, `HR-3`, `§16.1`. |
-| `R5-M2` | `§6.2.2, §6.5, §12.1, §13.2 HR-3, §16.2` | resolved | Included Rule 0 (`Rule 0.1`/`Rule 0.2`) inside `--verdict-json` comparison verdicts (no Rule 0.3 or Rule 0.2 (v) nesting); Rule 0 changes refused in review (`acknowledged` is Rules 1–3 only); `HR-3`/§16.2 permanence scoped to post-merge Rule 0 violations. |
-| `R5-M3` | `§1, §2.1, §10.3, §12.3, §13.1, §16.7` | resolved | Removed PR `HEAD:<path>` blob checks, gating row checks, & verdict comparison from `admission-controls` per Follow-up 5 §1.6: zero `gh` calls, `GH_TOKEN`, `pull-requests: read`, or `timeout-minutes: 20` changes needed; completed Owner Point F (`F1`). |
-| `R5-m1` | `§2.1, §6.2.2, §6.3, §9.2, §12.1, §13.1` | resolved | Wrapped `main()` to exit `2` (`ERROR`) across all WP9.5 tools; `--verdict-json` always emits JSON with `"error"` on fail; any `ERROR` (incl. both tools failing identically) fails comparison; tests in §12.1. |
-| `R5-m2` | `§6.2.2, §6.5, §12.1` | resolved | Enforced line-by-line `V[:8] \| <rule> \| <path>` slice matching; required same-PR `acknowledged` row for Rules 1–3 green-to-red differences needing post-merge clearing. |
-| `R5-m3` | `§6.2.2, §12.3, §15.1–§15.2, §16.2, §16.8` | resolved | Scoped `600s` strictly as pre-code/rehearsal `1x` walk stop rule (distinct from G1 `300s` suite budget, which excludes full walks); remedy = design amendment, never mutating `baselines[0]`. |
-| `R5-m4` | `§6.2.2, §12.1` | resolved | Clarified L-1 row `0` creation skips prior-vs-new comparison and checks Rule 0.2 (i)–(iv) only; test added in §12.1. |
-| `R5-m5` | `§2.3, §6.1, §6.2.3, §12.1, §14, §16.1` | resolved | Added `Option I1-include-seg` (Recommended: 11 files, 0 exemption) vs `I1-exempt-seg` (10 files + exemption) for `/tools/w9_segmentation.py` across §2.3, §6, §12.1, §14, §16.1. |
-| `R5-m6` | `§2.1, §6.2.3, §12.1, §14, §15.2, §16.1, §21.1` | resolved | Specified `run_w9_pinned_detectors.py` as self-contained stdlib-only (`test_pinned_wrapper_is_self_contained_stdlib_only`), invoked via `git fetch ... && git show ... \| python -S -P - --repo-root .` (§21.1 tested). |
-| `R5-m7` | `§6.2.3, §10.2, §12.1, §13.1` | resolved | Rejected trailing dot/space & Windows device names (`CON`..`LPT9`), added `dest.is_file()` + `git hash-object --no-filters` post-write check in §10.2 heredoc, and added §12.1 tests. |
-| `R5-m8` | `§6.2.3, §9.2, §12.1, §21.1` | resolved | Required explicit child spawn `[sys.executable, "-S", "-P", ...]` and extended §21.1 item 9 probe with parent+child `-S -P` checks. |
-| `R5-m9` | `§2.1, §6.3, §9.2, §12.1` | resolved | Required explicit `encoding="utf-8"` on all `git`/`gh` subprocesses and added non-ASCII PR UTF-8 test in §12.1. |
-| `R5-m10` | `Header, §1, §2.1, §6.2.2, §12.3, §13.1, §14, §21.1` | resolved | Labelled `68.92s`/`125.68s` as **extrapolated (`2 × 1x`)**, recorded R5 stand-ins & `~11.3s` live `gh api` timing in §21.1, and replaced stale `walk_start` outside §18–§20. |
-| `R5-m11` | `§6.2.1, §12.1, §13.1, §14, §18–§20` | resolved | Compacted `§6.2.1`, split §12.1's 4,348-char row into 8 group rows, trimmed `MC-2`, claim 2, §18–§20, & restatements strictly below `258,423` bytes. |
-| `R5-i1` | `§13.2 HR-3, §16.2` | resolved | Clarified post-merge Rule 0 permanence and Owner Point C recovery sub-choice apply to the post-merge detector only. |
-| `R5-i2` | `§10.2, §14, §16.1` | resolved | Added `Option I1-py-minor` (`"3.13"` Recommended) vs `Option I1-py-patch` (`"3.13.5"`) for `actions/setup-python`. |
-| `R5-i3` | `§11.3, §12.3` | resolved | Scoped CI-only `--git-common-dir` snapshot strictly to `config` & `hooks/` (removed `objects/` & `refs/`) and budgeted `--verify-watched-to-fail` + snapshot in §12.3. |
-| `R5-i4` | `§21.1` | resolved | Cited R5's `404` citation / `497` range count accurately with zero hardcoded fabricated counts. |
-| `R5-i5` | `§4.2.2, §21.1` | resolved | Recorded R5's live ruleset re-check (`16/16` pins, `56`/`32`, `4ca375a3`, `check_response_timeout_minutes: 20`) in §21.1 item 8. |
-| `R5-i6` | `§6.2.3, §21.1` | resolved | Documented `-P` parent vs `PYTHONSAFEPATH=1` child propagation alongside `[sys.executable, "-S", "-P", ...]`. |
+| `R6-M1` | `§1, §2.1, §6, §8.2, §12–§14, §16.1` | resolved | Adopted R6 proposed text in `§6.6` item 1 (exit `2` `ERROR` + `--verdict-json` `"error"` on unparseable/unknown-`format`; exit `1` reserved for Rules 0–3), `§8.2` (`1` pre-L-0b), `§12.1` tests, & `HR-3` (a); applied across all WP9.5 tools. |
+| `R6-M2` | `§2.1, §6, §12–§14, §16.1` | resolved | Adopted R6 proposed text in `§6.2.2` (6-step Git Bash/`cmd` procedure, `pull/<N>/merge`/`commit-tree`, `PYTHONPATH`+`PYTHONSAFEPATH=1` `python -S -P`, sorted `w9-verdict/1`), `§6.5` Rule 0.2 (iv), & `§12.1` row tests. *Departures:* chose `--assemble-only --rev <rev> --out <dir>` on `run_w9_pinned_detectors.py`, included `candidate \| rule \| path` in (iv) grammar, and added `git diff`/re-record (`R6-m7`). |
+| `R6-M3` | `§9.2, §10.3, §12–§14, §16.7` | resolved | Adopted R6 proposed text in `§9.2` item 3 (repaired garbled line) & `§10.3`: `--code-root` has no default & in `admission-controls` uses `HEAD`'s `baselines[-1]` tree assembled by `§10.2`, never checkout; schema checks = top-level shape only; added `L1_LIVE` unrowed-edit test (`§12.1`). |
+| `R6-m1` | `§6.2.3, §10.2, §12.1, §21.1` | resolved | Moved hash verify post-loop across all written keys; rejected `casefold()` collisions & `~` segments; added tests (`§12.1`, `§21.1`). |
+| `R6-m2` | `§1–§2.1, §6, §12–§16, §21` | resolved | Specified Git Bash (`cmd /c` option) on wrapper command, added `test_pinned_wrapper_is_ascii_only`, & added Bash wrapper in `§21.1` item 9. |
+| `R6-m3` | `§6.1–§6.5, §13.1` | resolved | Labelled `Rule 0.1`–`Rule 0.3` in `§6.5` (verdict includes `Rule 0.3`); dropped "Rule 0.3" from deleted-lockstep sentences (`R6-i2`). |
+| `R6-m4` | `§6.3` | resolved | Fixed `tools/check_bypass_merges.py:160` -> `:140-144` (`_gh` `encoding="utf-8"`). |
+| `R6-m5` | `§6.2.2, §12.3, §21.1` | resolved | Labelled §12.3 unwritten timings `(estimate, unwritten code)`, reconciled R6 pin/clone times, recorded R6 stand-ins & `~28%` spread. |
+| `R6-m6` | `Header, §21.1` | resolved | Added `27`-case pin-heredoc script (`§21.1` item 11, matching Header) & full wrapper script + `1 True` explanation in item 9. |
+| `R6-m7` | `§6.2–§6.5, §13.2, §16.1–§16.2` | resolved | Added `git diff`/re-record to `§6.2.2`; removed "rollback" from Rule 0.2 (iv); added Rule 0.2 (ii) snap/merge-race notes in `HR-3`, `§16.1`–`§16.2`. |
+| `R6-m8` | `§6.1, §6.2.3, §8.3, §13.2, §16` | resolved | Noted silent `exit 0` lag on unread additions & required L-0b to pair with a pin advance (`§8.3`, `§16.10`). |
+| `R6-m9` | `§6.1, §13.2 HR-3, §16.1` | resolved | Scoped `walk-baseline.json` code-ownership strictly to `Option I1` (un-owned under `Option I2`). |
+| `R6-i1` | `§1, §6.1, §6.2.3, §13–§16` | resolved | Distinguished `21` stdlib runtime blobs + `1` workflow review-record blob (`22` recorded, workflow never executed). |
+| `R6-i2` | `§1, §6.1, §13–§16` | resolved | Kept deleted-lockstep prose once in `§6.1` (+ §20); aligned `§1` table to 17 Handover `§3` items; tagged `§15.2` item 5. |
+| `R6-i3` | `§6.2.3, §10.2, §12.1, §21.1` | resolved | Used `os.path.isreserved` (`part` & `rel_path`), caught `CalledProcessError`/JSON/`KeyError` with `ERROR:`, & tested superscript/space names. |
+| `R6-i4` | `§6.2.2, §10.3, §12–§13, §16.7` | resolved | Specified optional advisory Rule 0.2 report in 1 sentence (`HEAD` vs `HEAD^1`, `$GITHUB_STEP_SUMMARY`, exit `0`); dropped test row. |
+| `R6-i5` | `§2.1, §6.2–§6.3, §10.2` | resolved | Wrapper propagates child exit `2`; scoped `"never 1"` to WP9.5 tools; replaced heredoc tracebacks with `ERROR:` exit. |
+| `R6-i6` | `§21.1` | resolved | Recorded R6 live ruleset/eval re-check (`16/16`, `56`/`32`, `4ca375a3`, `#446`/`#448`) in `§21.1` item 8. |
 
 ---
 
@@ -1725,7 +1694,7 @@ Disposes of all 20 findings in `docs/plans/agentic-research-system/reviews/wp9-5
 
 ### 21.1 Reproducible verification commands and script outputs
 
-Checks below are read-only against `C:\Users\steph\TDL\.apm\worktrees\wp9-5-note` (`dbd54fe382e7b2849d3f2038393cbdb4d709477b` / branch `HEAD`) and read-only `gh api` `GET`s (no vault prose read; `git status --short` clean before edits). Prior independent reviews reproduced: R2 (`wp9-5-note-r2-review-2026-11-21.md` §2, §5, `:218`, `0c9a90ed`) walk/counts/ruleset/clone timings; R3 (`wp9-5-note-r3-review-2026-11-21.md` §2, §6, `R3-i4`, `092db1f1`) 22 rows, 15-module closure, counts, live ruleset, YAML/`bash -n`, synthetic U-4; R4 (`wp9-5-note-r4-review-2026-11-22.md` §0, §2, §6, `R4-i7`, `48b5e935`) §21.1 checks, isolation, pin heredoc, citations; R5 (`wp9-5-note-r5-review-2026-11-22.md` §0, §2, §6, `R5-i5`, `83b4ae6f`) 22 guarded commits/walk, 70/90 units, 15 closure blobs, 16/16 pins (`56`/`32`), bare clone, `11.79s`/`34.85s`/`61.58s` stand-ins + `~11.3s` live `gh api`, YAML/`bash -n`, parent `-S -P` isolation, pin confinement, and `404` citations (`497` ranges). *(Revision 6 itself has not yet undergone a sixth independent review.)*
+Read-only checks against `C:\Users\steph\TDL\.apm\worktrees\wp9-5-note` (`dbd54fe382e7b2849d3f2038393cbdb4d709477b` / `HEAD`) & `gh api` `GET`s (no vault prose read; tree clean before edits). Prior reviews reproduced: R2 (`wp9-5-note-r2-review-2026-11-21.md` §2, §5, `:218`, `0c9a90ed`) walk/counts/ruleset/clone timings; R3 (`wp9-5-note-r3-review-2026-11-21.md` §2, §6, `R3-i4`, `092db1f1`) 22 rows, 15 blobs, counts, ruleset, YAML/`bash -n`, synthetic U-4; R4 (`wp9-5-note-r4-review-2026-11-22.md` §0, §2, §6, `R4-i7`, `48b5e935`) §21.1, isolation, pin heredoc, citations; R5 (`wp9-5-note-r5-review-2026-11-22.md` §0, §2, §6, `R5-i5`, `83b4ae6f`) 22/320 walk, 70/90 units, 15 blobs, `16/16` (`56`/`32`), clone, stand-ins (`11.79s`/`34.85s`/`61.58s` + `~11.3s` `gh api`), YAML/`bash -n`, parent `-S -P`, confinement, `404` citations; R6 (`wp9-5-note-r6-review-2026-11-22.md` §0, §2, §6, `R6-i6`, `95dfefe7`) 22/320 walk, 70/90 units, 15 blobs, `16/16` (`56`/`32`, `4ca375a3`, `#446`/`#448`), `1.99–2.07s` clone, `12.97s`/`44.03s`/`77.7s` (`26.35s` 2x) stand-ins, parent+child `-S -P` + wrapper pipe, 32 pin runs (`0.32s`/run), YAML/`bash -n`, `231` pairs (`0` out-of-range). *(Revision 7 itself has not yet undergone a seventh independent review.)*
 
 **1. Worktree branch, base commit, and clean tree check:**
 
@@ -1866,7 +1835,7 @@ gh api repos/ZK-Theory/TDL/rulesets/20822054
 gh api --paginate --slurp "repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=month&per_page=100"
 ```
 
-`rulesets/20822054` returned HTTP 200 (`id: 20822054`, `name: "P-049 Gate 6 main merge admission"`, `enforcement: "active"`, `conditions.ref_name.include: ["refs/heads/main"]`, `pull_request` `required_approving_review_count: 0`, `require_code_owner_review: true`, `required_review_thread_resolution: true`, `allowed_merge_methods: ["squash"]`, `required_status_checks` `strict_required_status_checks_policy: true` with all 4 contexts carrying `integration_id: 15368`, `merge_queue` `SQUASH` 1-by-1 `ALLGREEN` `check_response_timeout_minutes: 20`, `non_fast_forward`, `bypass_actors: [{"actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request"}]`). `rule-suites?time_period=month` is a sliding 30-day window (`57` / `33` bypass initially; `58` / `34` after `#448` `4ca375a3`; `56` / `32` at `2026-11-21T23:03Z` once `bb9d91d4` aged out, re-verified by R3 `wp9-5-note-r3-review-2026-11-21.md:99`, R4 `wp9-5-note-r4-review-2026-11-22.md:108`, and R5 `wp9-5-note-r5-review-2026-11-22.md:19,112` `R5-i5`, where `commits/dbd54fe3/pulls` -> `#446` and `commits/4ca375a3/pulls` -> `#448`).
+`rulesets/20822054` returned HTTP 200 (`id: 20822054`, `P-049 Gate 6 main merge admission`, `enforcement: "active"`, `refs/heads/main`, `required_approving_review_count: 0`, `require_code_owner_review: true`, `required_review_thread_resolution: true`, `squash`, strict status checks `integration_id: 15368`, `merge_queue` `SQUASH` 1-by-1 `ALLGREEN` `check_response_timeout_minutes: 20`, `non_fast_forward`, `bypass_actors: [{actor_id: 5, RepositoryRole, pull_request}]`). `rule-suites?time_period=month`: 30-day sliding window (`57`/`33` initially; `58`/`34` after `#448` `4ca375a3`; `56`/`32` at `2026-11-21T23:03Z`, re-verified R3 `:99`, R4 `:108`, R5 `:19,112`, R6 `wp9-5-note-r6-review-2026-11-22.md:19,113,117` `R6-i6`: `dbd54fe3`->`#446`, `4ca375a3`->`#448`).
 
 **9. Stdlib-only AST check across the 15 existing closure modules + parent/child `python -S -P` scratch isolation test (`R4-m7`, `R5-m8`, `R5-i6`, base Python `3.13.5`):**
 
@@ -1952,7 +1921,26 @@ with tempfile.TemporaryDirectory() as td:
 '@ | & "C:\Users\steph\AppData\Local\Programs\Python\Python313\python.exe" -
 ```
 
-Confirmed `Non-stdlib imports in 15 existing closure modules: []`; both `script` (`python -S -P .../probe_iso.py`) and `module` (`python -S -P -m tools.probe_iso`) invocations from `cwd=wt` exited `0`, and BOTH `role: "parent"` and the child launched via `[sys.executable, "-S", "-P", __file__, "--child"]` printed `no_site: 1`, `safe_path: True`, `site_in_path: False`, `wt_in_path: False`, resolved `research_system.__path__` and `tools.__path__` solely inside `<td_path>`, and blocked `research_system.cli`, `tools.check_merge_admission`, `yaml`, and `pytest` with `ModuleNotFoundError` (`R5-m8`, `R5-i6`). Separately verified the stdin pipe wrapper invocation (`git show HEAD:wrap.py | python -S -P - --repo-root .`) in a temporary Git repository, printing `WRAP_OK ['--repo-root', '.'] 1 True` (`R5-m6`).
+Confirmed `Non-stdlib imports in 15 existing closure modules: []`; both `script` and `-m tools.probe_iso` runs from `cwd=wt` exited `0`, and parent + child (`[sys.executable, "-S", "-P", ...]`) printed `no_site: 1`, `safe_path: True`, `site_in_path: False`, `wt_in_path: False`, `<td_path>` paths, and blocked non-closure/third-party imports with `ModuleNotFoundError` (`R5-m8`, `R5-i6`). Git Bash wrapper pipe test (PowerShell 5.1 re-encodes non-ASCII stdin, motivating `test_pinned_wrapper_is_ascii_only`; `1 True` = `no_site=1, safe_path=True`):
+
+```bash
+set -euo pipefail
+py="/c/Users/steph/AppData/Local/Programs/Python/Python313/python.exe"
+td=$(cygpath -m "$(mktemp -d)"); trap 'rm -rf "$td"' EXIT
+git init -q "$td"; git -C "$td" config core.autocrlf false; git -C "$td" config user.email t@t; git -C "$td" config user.name t
+cat > "$td/child.py" <<'EOF'
+import sys; print("CHILD", sys.flags.no_site, sys.flags.safe_path, sys.argv[1:])
+EOF
+cat > "$td/wrap.py" <<'EOF'
+import os, subprocess, sys
+print("WRAP_OK", sys.argv[1:], sys.flags.no_site, sys.flags.safe_path, flush=True)
+subprocess.run([sys.executable, "-S", "-P", os.path.join(os.getcwd(), "child.py"), *sys.argv[1:]], check=True)
+EOF
+git -C "$td" add child.py wrap.py && git -C "$td" commit -q -m init
+(cd "$td" && git --no-replace-objects show HEAD:wrap.py | "$py" -S -P - --repo-root .)
+```
+
+Printed `WRAP_OK ['--repo-root', '.'] 1 True` before `CHILD 1 True ['--repo-root', '.']` (`R5-m6`, `R6-m2`, `R6-m6`).
 
 **10. Representative 6-call Option C1 `1x` post-merge walk stand-in timings (~1 mo `60`, ~3 mo `178`, ~5.5 mo `320` first-parent commits backward from `dbd54fe3`, excluding live `gh api` PR lookups; `R4-M1`, `R5-m10`):**
 
@@ -1992,21 +1980,60 @@ for label, n in [("1_month_60", 60), ("3_months_178", 178), ("5.5_months_320", 3
 '@ | & "C:\Users\steph\TDL\.apm\worktrees\wp9-5-note\.venv\Scripts\python.exe" -
 ```
 
-Local 6-call `1x` stand-in timings (without real Rules 0–3 Python evaluation or `gh api` calls):
-- `1_month_60` (`60` commits, `6` guarded): **`14.05s`** (`1x`, measured; R5 independent run **`11.79s`**; ~15% run-to-run noise; R5 historical 2x separate run `24.04s`).
-- `3_months_178` (`178` commits, `12` guarded): **`34.46s`** (`1x`, measured; R5 **`34.85s`**; extrapolated `2 × 1x`: `68.92s`).
-- `5.5_months_320` (`320` commits, `22` guarded): **`62.84s`** (`1x`, measured; R5 **`61.58s`**, plus R5 **`~11.3s`** across `22` live `commits/<sha>/pulls` GETs, or ~14s per unmapped commit under 3-try back-off; extrapolated `2 × 1x`: `125.68s`).
-*(Post-merge runs walk `1x` only; the extrapolated `2 × 1x` values apply solely when Stephen runs the manual `k-1`-vs-`k` comparison offline for a pin-advance PR, §6.2.2.)*
+`1x` stand-in timings (without Rules 0–3 eval/`gh api`): `1_month_60` (`60`/`6`): **`14.05s`** (R5 **`11.79s`**, R6 **`12.97s`**; 2x: R5 `24.04s`, R6 **`26.35s`**); `3_months_178` (`178`/`12`): **`34.46s`** (R5 **`34.85s`**, R6 **`44.03s`**; extrapolated `2 × 1x`: `68.92s`); `5.5_months_320` (`320`/`22`): **`62.84s`** (R5 **`61.58s`**, R6 **`77.7s`**; up to ~28% spread across 3 runs, plus R5 **`~11.3s`** for `22` live `pulls` GETs or ~14s/unmapped under 3-try back-off; extrapolated `2 × 1x`: `125.68s`). *(Post-merge runs walk `1x` only; extrapolated `2 × 1x` applies solely to manual offline comparison, §6.2.2.)*
+
+**11. `§10.2` pin-heredoc confinement, alias/Windows reserved names, post-loop re-hash, and Option I3 checks (`27` cases under Git Bash, `R6-m1`, `R6-m6`, `R6-i3`, `R6-i5`):**
+
+```powershell
+@'
+import hashlib, json, os, pathlib, re, subprocess, tempfile, textwrap, yaml
+wt = pathlib.Path(r"C:\Users\steph\TDL\.apm\worktrees\wp9-5-note")
+note = (wt / "docs/plans/agentic-research-system/transition/w9/wp9-5-design-note.md").read_text("utf-8")
+wf = next(textwrap.dedent(m.group(1)) for m in re.finditer(r"^[ \t]*```yaml\n(.*?)\n[ \t]*```", note, re.M | re.S) if "w9-detector" in m.group(1))
+pin_step = next(st["run"] for st in yaml.safe_load(wf)["jobs"]["detect-legacy-writes"]["steps"] if "detector_closure_blobs" in st.get("run", ""))
+bash_exe, base_py_dir = r"C:\Program Files\Git\bin\bash.exe", r"C:\Users\steph\AppData\Local\Programs\Python\Python313"
+def git(cwd, *a, inp=None):
+    out = subprocess.check_output(["git", "-C", str(cwd), *a], input=inp, text=inp is None)
+    return (out.decode() if isinstance(out, bytes) else out).strip()
+def run_case(name, expect_ok, cmap, off_chain=False, wb_raw=None, i3=None):
+    with tempfile.TemporaryDirectory() as td:
+        rt = pathlib.Path(td); repo = rt / "repo"; repo.mkdir(); rtmp = rt / "tmp"; rtmp.mkdir(); genv = rt / "genv.txt"; genv.write_text("", "utf-8")
+        for args in [("init", "-b", "main"), ("config", "user.email", "t@t"), ("config", "user.name", "t"), ("config", "core.autocrlf", "false")]:
+            subprocess.run(["git", "-C", str(repo), *args], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (repo / "seed.txt").write_text("0\n", "utf-8"); git(repo, "add", "."); git(repo, "commit", "-q", "-m", "c0")
+        c0 = git(repo, "rev-parse", "HEAD")
+        if off_chain:
+            git(repo, "checkout", "-q", "-b", "side"); (repo / "s.txt").write_text("s\n", "utf-8"); git(repo, "add", "."); git(repo, "commit", "-q", "-m", "side")
+            b_ref = git(repo, "rev-parse", "HEAD"); git(repo, "checkout", "-q", "main")
+        else: b_ref = c0
+        blobs = {k: (git(repo, "rev-parse", "HEAD^{tree}") if v == "TREE" else v if len(v) == 40 else git(repo, "hash-object", "-w", "--stdin", inp=v.encode())) for k, v in cmap.items()}
+        ev = repo / ".research-system/evidence/w9"; ev.mkdir(parents=True, exist_ok=True)
+        wb = {"schema_version": "w9-walk-baseline/1", "baselines": [{"baseline_commit": b_ref, "detector_closure_blobs": blobs}]}
+        (ev / "walk-baseline.json").write_text(wb_raw if wb_raw is not None else json.dumps(wb), "utf-8")
+        (ev / "detector-controls.json").write_text("{}", "utf-8"); git(repo, "add", "."); git(repo, "commit", "-q", "-m", "ev")
+        git(repo, "update-ref", "refs/remotes/origin/main", git(repo, "rev-parse", "HEAD"))
+        dig = hashlib.sha256(json.dumps(blobs, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
+        env = {**os.environ, "PATH": f"{base_py_dir}{os.pathsep}{os.environ.get('PATH', '')}", "RUNNER_TEMP": str(rtmp), "GITHUB_ENV": str(genv), "REQUIRE_I3_PIN": "true" if i3 else "false", "W9_DETECTOR_PIN_VAR": {"EMPTY": "", "WRONG_DIGEST": json.dumps({"walk_baseline_commit": b_ref, "closure_blobs_sha256": "f"*64}), "WRONG_BASELINE": json.dumps({"walk_baseline_commit": "0"*40, "closure_blobs_sha256": dig}), "VALID": json.dumps({"walk_baseline_commit": b_ref, "closure_blobs_sha256": dig})}.get(i3, "")}
+        r = subprocess.run([bash_exe, "-c", pin_step], cwd=str(repo), env=env, capture_output=True, text=True)
+        out = r.stdout + r.stderr
+        assert "Traceback (most recent call last)" not in out and not list(rt.glob("escaped*")), f"{name}: raw traceback or escape:\n{out}"
+        if expect_ok: assert r.returncode == 0, f"{name}: expected 0 got {r.returncode}\n{out}"
+        else: assert r.returncode != 0 and "ERROR:" in out, f"{name}: expected named ERROR got {r.returncode}\n{out}"
+bad_keys = [("traversal", "../escaped.txt"), ("abs_posix", "/escaped_abs.txt"), ("abs_drive", "C:/escaped_drive.txt"), ("backslash", "tools\\a.py"), ("dot_prefix", "./tools/a.py"), ("double_slash", "tools//a.py"), ("colon_ads", "tools/a.py:evil"), ("trailing_dot", "tools/a.py."), ("trailing_space", "tools/a.py "), ("shortname_tilde", "tools/CHECK_~1.PY"), ("win_nul", "tools/nul"), ("win_con_py", "tools/CON.py"), ("win_con_space", "tools/CON .py"), ("win_nul_space", "tools/NUL .txt"), ("win_conin", "tools/CONIN$"), ("win_com_sup", "tools/COM\u00b9"), ("win_lpt_sup", "tools/LPT\u00b3.txt")]
+cases = [("valid_happy", True, {"tools/a.py": "print(1)\n", "research_system/__init__.py": "\n"}, {}), *[(lbl, False, {k: "x\n"}, {}) for lbl, k in bad_keys], ("case_collision", False, {"tools/Dup.py": "1\n", "tools/dup.py": "2\n"}, {}), ("absent_obj", False, {"tools/a.py": "0"*40}, {}), ("tree_obj", False, {"tools/a.py": "TREE"}, {}), ("off_chain_baseline", False, {"tools/a.py": "x\n"}, {"off_chain": True}), ("malformed_wb", False, {"tools/a.py": "x\n"}, {"wb_raw": "{}"}), ("i3_empty", False, {"tools/a.py": "x\n"}, {"i3": "EMPTY"}), ("i3_wrong_digest", False, {"tools/a.py": "x\n"}, {"i3": "WRONG_DIGEST"}), ("i3_wrong_baseline", False, {"tools/a.py": "x\n"}, {"i3": "WRONG_BASELINE"}), ("i3_valid", True, {"tools/a.py": "x\n"}, {"i3": "VALID"})]
+for n, ok, cm, kw in cases: run_case(n, ok, cm, **kw)
+print(f"PIN_CASES_OK: {len(cases)}")
+'@ | & "C:\Users\steph\TDL\.apm\worktrees\wp9-5-note\.venv\Scripts\python.exe" -
+```
+
+Reproduced `PIN_CASES_OK: 27` under Git Bash against the extracted `§10.2` heredoc with zero raw tracebacks (`R6-m1`, `R6-m6`, `R6-i3`, `R6-i5`).
 
 ### 21.2 Statements marked `UNVERIFIED` (pre-code gates for the reviewing session)
 
-Every statement in this design note that cannot be verified without running a GitHub Actions workflow under `GITHUB_TOKEN`, reading the live vault `Computational-Log.md` bytes, running an isolated scratch-store test on Stephen's machine, checking GitHub repository variable write permissions, or running the `1x` full walk on hosted `windows-latest` is listed here and gated in §15.1:
+Statements gated in §15.1 pending live `GITHUB_TOKEN`, vault bytes, scratch-store test timing, Actions variable permissions, or hosted walk runs:
 
-1. **`UNVERIFIED-1` (U-3 probe, §4.2.2, §15.1 item 1):** The HTTP status codes, `X-Accepted-GitHub-Permissions` headers, and pinned JSON body key presence returned to a GitHub Actions `GITHUB_TOKEN` (under `permissions: contents: read` and under `permissions: contents: read, pull-requests: read`) for:
-   - `GET repos/ZK-Theory/TDL/rulesets/20822054`
-   - `GET repos/ZK-Theory/TDL/rulesets/rule-suites?ref=refs/heads/main&time_period=day&per_page=5` (expected HTTP 403/404 per `tools/check_bypass_merges.py:20-21`, which decides D-8)
-   - `GET repos/ZK-Theory/TDL/commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls`
-2. **`UNVERIFIED-2` (U-4 handle-bound reader and segmenter dry run on the live `833,453`-byte vault file, §4.3.3 item 2, §15.1 item 2):** The output of running standalone scratch script `u4_dry_run.py` (`root_checks` booleans from §4.3.2, `handle_bound_read(resolved_vault, "04-Methods/Computational-Log.md")`, and both `segment(raw, "computational_log_entry")` functions) on the current `833,453`-byte live file (`link_count == 1`, `file_facts`, `row_counts`, and `blockers == []`).
-3. **`UNVERIFIED-3` (Unconditional pre-code single scratch-store test timing profile and operator-machine weekly D-5 run, §12.3, §15.1 item 4):** The wall-clock timing of a single existing WP9.3/WP9.4 scratch-store integration test run alone on Stephen's machine (`P-087` item 7, **unconditionally required before WP9.5 code dispatch**, §15.1 item 4), and end-to-end execution of the weekly operator-machine D-5 workflow against the live vault and control store via `tools/run_w9_pinned_detectors.py` after L-0b/L-1.
-4. **`UNVERIFIED-4` (Option I3 `W9_DETECTOR_PIN` GitHub repository Actions variable write permissions, §10.2, §15.1 item 3, §16.1):** Which repository roles on `ZK-Theory/TDL` (`admin` vs `maintain`/`write`) can create, edit, or delete repository Actions variables (`vars.W9_DETECTOR_PIN`) was not verified against live repository settings or documentation permitted here; Stephen must confirm variable write permissions before relying on Option I3 as an out-of-tree trust anchor.
-5. **`UNVERIFIED-5` (Hosted `windows-latest` `1x` full-walk wall time + unwritten `tools/` stdlib compliance, §6.2.2, §12.3, §15.1 item 5):** Actual hosted `windows-latest` wall-clock time running real Rules 0–3, `.apm/tracker.md` H1 segmentation checks, and live `gh api` PR lookups for the `1x` post-merge walk (over representative ~60, ~178, and ~320-commit intervals), bounded by the `600s` pre-code walk stop rule (§15.2 item 5), together with verifying stdlib-only imports across the unwritten runtime `tools/` modules (`test_detector_closure_is_stdlib_only` and `test_pinned_wrapper_is_self_contained_stdlib_only` once written).
+1. **`UNVERIFIED-1` (U-3 probe, §4.2.2, §15.1 item 1):** HTTP statuses, `X-Accepted-GitHub-Permissions`, and JSON keys returned to GitHub Actions `GITHUB_TOKEN` (`contents: read` vs `contents: read, pull-requests: read`) for `rulesets/20822054`, `rulesets/rule-suites?ref=refs/heads/main&time_period=day&per_page=5` (expected HTTP 403/404, `tools/check_bypass_merges.py:20-21`, deciding D-8), and `commits/dbd54fe382e7b2849d3f2038393cbdb4d709477b/pulls`.
+2. **`UNVERIFIED-2` (U-4 vault dry run, §4.3.3 item 2, §15.1 item 2):** Output of `u4_dry_run.py` (`root_checks` §4.3.2, `handle_bound_read`, and both `segment(..., "computational_log_entry")` functions) on the live `833,453`-byte `04-Methods/Computational-Log.md` (`link_count == 1`, `file_facts`, `row_counts`, `blockers == []`).
+3. **`UNVERIFIED-3` (Single scratch-store timing & weekly D-5 run, §12.3, §15.1 item 4):** Standalone timing of one existing WP9.3/WP9.4 scratch-store integration test on Stephen's machine (`P-087` item 7, pre-code gate §15.1 item 4), and live weekly `tools/run_w9_pinned_detectors.py` D-5 execution after L-0b/L-1.
+4. **`UNVERIFIED-4` (Option I3 `vars.W9_DETECTOR_PIN` permissions, §10.2, §15.1 item 3, §16.1):** Which `ZK-Theory/TDL` roles (`admin` vs `maintain`/`write`) can write Actions repository variables (`vars.W9_DETECTOR_PIN`).
+5. **`UNVERIFIED-5` (Hosted `windows-latest` `1x` walk wall time & unwritten `tools/` checks, §6.2.2, §12.3, §15.1 item 5):** Hosted `windows-latest` `1x` post-merge walk time with Rules 0–3, `.apm/tracker.md` H1 segmentation, and live `gh api` PR lookups (~60/`178`/`320`-commit intervals, `600s` stop rule §15.2 item 5), plus unwritten `tools/` tests `test_detector_closure_is_stdlib_only`, `test_pinned_wrapper_is_self_contained_stdlib_only`, and `test_pinned_wrapper_is_ascii_only`.
