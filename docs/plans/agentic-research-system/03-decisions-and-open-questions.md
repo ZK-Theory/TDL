@@ -6144,6 +6144,117 @@ and the note names it.<br>
 **Affected specifications:** 06v WP9.5 (started); P-088 item 5 (deadline corrected).<br>
 **Migration consequence:** None. Nothing runs live until L-1.
 
+### P-090 - WP9.5 design note: the pin decision and owner points A to K
+
+**Date:** 2026-11-23<br>
+**Status:** Accepted by Stephen (in chat, 2026-11-22 and 2026-11-23). The design note is not yet accepted as a basis
+for code; item 4 lists what remains first.<br>
+**Authority:** Stephen, in chat:
+- 2026-11-22, on the pin-advance design after the revision 5 review, choosing among the options set out: "Pin, no
+  lockstep" (item 1);
+- 2026-11-23, after the revision 8 focused review, "Owner points first", then one answer per owner point (item 2);
+- 2026-11-23, "Draft P-090" for this entry, drafted by the reviewing Claude session.<br>
+**Evidence:** The note is
+`docs/plans/agentic-research-system/transition/w9/wp9-5-design-note.md` at revision 8, `526334c8` (blob `4d235950`),
+on branch `docs/w9-wp9-5-design-note` (base `dbd54fe3`). P-089 item 6's process ran as follows:
+- a Gemini agent wrote revisions 1 to 8;
+- a fresh Claude subagent reviewed each revision; the reports are in `docs/plans/agentic-research-system/reviews/`,
+  `wp9-5-note-r1-review-2026-11-21.md` to `wp9-5-note-r8-review-2026-11-23.md`;
+- r1 to r7 returned REWORK REQUIRED;
+- r8, a focused review of revision 8's changes, returned CONFIRM WITH FINDINGS (0 Blocking, 0 Major, 2 Minor,
+  6 Info), and said the note is ready for these decisions.
+
+The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-research-system/handoffs/`
+(`wp9-5-gemini-note-r2-followup-2026-11-21.md` to `wp9-5-gemini-note-r8-followup-2026-11-23.md`).<br>
+**Decision:**
+1. **The detector's pin: pin, no lockstep** (note §6.1, §6.2).
+   - The detector runs from a copy assembled from the blobs recorded in `walk-baseline.json`'s last `baselines` row,
+     under `python -S -P`, standard library only, with path confinement.
+   - An edit to a module in the detector's import closure without a new row is not a violation. The lockstep rule is
+     deleted.
+   - A pin advance is a code-owned PR that Stephen merges. Rule 0.2 (i) to (iv) judge its row.
+   - A pinned copy that cannot read evidence it finds exits 2, never 0 or 1.
+   - The old-versus-new comparison is a documented procedure whose output is evidence on the pin-advance PR, not a
+     gate.
+   - There is no PR-time pin gate in `admission-controls`. Post-merge runs make one walk.
+
+   Stephen accepted what this gives up (note HR-3, §16.1):
+   - the detector can lag production code until he advances the pin, and the lag is silent for files, rules and
+     constants it does not read;
+   - a pin advance takes in the whole current tree, including earlier edits that the PR's own diff does not show;
+   - no machine compares the old and new tools.
+2. **Owner points** (note §16):
+   - **I:** Option I1. Rule 0, plus `@stephendor` CODEOWNERS on the detector tools, the workflow, the tripwire test,
+     `research_system/legacy/accepted_w9.py`, `tools/w9_segmentation.py` (I1-include-seg) and
+     `.research-system/evidence/w9/`. This reverses the 2026-09-11 rule that CODEOWNERS covers only the
+     merge-admission gate; the `CONVENTIONS.md` bullet at 713 to 729 is amended with it. The workflow and wrapper pin
+     Python `3.13` (I1-py-minor). Option I3 (the Actions-variable pin) is not taken.
+   - **C:** Option C1. The walk starts at a first-parent ancestor of the L-1 commit. A hash-bound register entry
+     disposes of the guarded commits before it (22 from `4b143c92` to `dbd54fe3`, plus any after `dbd54fe3`).
+     A Rule 0 violation on the post-merge walk is cleared by an **exemption row**: append-only, hash-bound, keyed on
+     the exact violation, and backed by a register entry. Its design is not yet written (item 4). After L-1, an
+     evidence format changes by a new file path or by an exemption row, never in place.
+   - **A:** Option A1. The registration manifest moves to `w9-registration-manifest/2`, with five closed keys;
+     `require_registered` matches on the three identity keys. **The WP9.4 runtime test pass counts are re-recorded**
+     after the change, by re-running both WP9.4 integration files and updating the WP9.4 records.
+   - **B:** Option B1. A committed `legacy-write-records.json` is read at the judged commit. Its owner note and
+     independent review are entries that already exist on `main` before the PR. This proves their age, not their
+     authorship; I1 is what protects the file.
+   - **D:** Option D3. `w9-shared-surface-changes/2` is blob-keyed with no commit field, and `check_change_list`
+     tests freshness by tree state. A Rule 3 acknowledgement needs the late entry, an independent review and a
+     non-empty `affected_registrations`.
+   - **E:** Option E1. A committed `vault-detector-runs.json` records the weekly runs. The WP9.3 batch gates (LR-003,
+     LR-015, LR-016, LR-020) refuse when the last run is more than 7 days old, once the CL export is accepted. An
+     `owner_cadence_reset` entry exists. Stephen accepts the weekly PR and ARS advance-binding this costs.
+   - **F:** Option F1. `tests/tools/test_w9_detectors.py` runs in `ci.yml` `admission-controls` and
+     `ADMISSION_CONTROL_MODULES`. The closure tests run on the pinned tree, never the checkout. W9-T7 moves from 06v's
+     "integration, slow" lane to the unit lane, as a recorded departure from `06v:230`.
+   - **G:** Option G1. 300 s serial, without coverage, slow tests included, until the scratch-store profile is
+     measured.
+   - **H:** Option H1. A `.apm/tracker.md` Working-Note append needs no W9 §4.2(b) record when the segmenter shows the
+     task rows, every byte outside `## Working Notes` and every earlier note unchanged.
+   - **J:** Option J1. `ACCEPTED_CL_EXPORT`'s `classified_list` is validated as `w9-cl-classified-list/1`.
+     `ACCEPTED_CONVENTIONS_CLASSIFICATION` is added to `accepted_w9.py`, empty until L-0b and read only at its
+     pinned commit. The L-0b PR is paired with a pin advance.
+   - **K:** Option K1. `tools/check_conventions_legacy_locks.py` runs on every PR in `admission-controls`. At PR time it
+     judges itself if a non-code-owned closure module changes in the same PR; the pinned post-merge run is the
+     independent check.
+3. **Amendments these need.** Each lands before or with the code that relies on it, with its own independent review:
+   - a dated WP9.3 amendment for A1, D3 and E1, which edit accepted WP9.3 gate code (`research_system/legacy/
+     evidence.py`, `acceptance.py`, `preparers.py`);
+   - a dated W9 §4.2 amendment for H1;
+   - the `CONVENTIONS.md` amendment for I1;
+   - rows in `06v-addendum-2026-11-10-w9-paths.md` for each new evidence file, and for F1's W9-T7 lane change.
+4. **Before WP9.5 code is dispatched:**
+   - a short addendum to the note designing the item 2 C exemption row: its format, validity rule, Rule 0 standing
+     and controls. It gets an independent review;
+   - the pre-code gates in note §15.1: the U-3 token probe, the U-4 read-only dry run through the real reader and
+     segmenter, and the single scratch-store timing profile (P-087 item 7). The reviewing session runs U-3 and U-4 on
+     Stephen's authorization and records the results in the note;
+   - the code brief carries the r7 and r8 reviews' remaining items as named obligations: note §15.3, plus r8's R8-m1,
+     R8-m2, R8-i1, R8-i3 and R8-i5(a).
+
+**Not authorized:**
+- WP9.5's code, until item 4 is done and its dispatch is decided;
+- WP9.6 and WP9.7;
+- any live operation L-0 to L-5, L-1 included;
+- creating a real store, running genesis on one, or issuing a grant on one;
+- any write to a legacy file, to `main` by a detector, or to the vault;
+- any paper-root transition.<br>
+**Not decided here:**
+- who writes WP9.5's code;
+- the exemption row's design (item 4);
+- the open items P-084 lists.<br>
+**Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
+**Boundary:** P-089's boundary is widened for A1, D3, E1 and J1. WP9.5 may change `research_system/legacy/
+evidence.py`, `acceptance.py`, `preparers.py` and `accepted_w9.py` as those options say, each under item 3's
+amendments. It may also change the WP9.3 and WP9.4 test builders A1 names. Nothing else under `research_system/`
+changes.<br>
+**Affected specifications:** the WP9.5 design note (owner points decided); P-089's boundary (widened); WP9.3's accepted
+gates (amendments to come); W9 §4.2 (amendment to come); `CONVENTIONS.md` (amendment to come); the WP9.4 records (pass
+counts to be re-recorded).<br>
+**Migration consequence:** None now. Nothing runs live until L-1.
+
 ## Decision protocol
 
 Each future decision entry must record:
