@@ -6230,7 +6230,12 @@ The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-r
      and controls. It gets an independent review;
    - the pre-code gates in note §15.1: the U-3 token probe, the U-4 read-only dry run through the real reader and
      segmenter, and the single scratch-store timing profile (P-087 item 7). The reviewing session runs U-3 and U-4 on
-     Stephen's authorization and records the results in the note;
+     Stephen's authorization and records the results in the note. **All three ran on 2026-11-23**, and the results are
+     in note §15.1:
+     - U-3: the CI token reads the ruleset but without `bypass_actors`, gets HTTP 403 on rule-suites (so D-8 applies),
+       and reads `commits/<sha>/pulls`;
+     - U-4: 0 blockers, and both segmenters agree;
+     - the scratch-store profile: about 34 s per flow, so G1 holds;
    - the code brief carries the r7 and r8 reviews' remaining items as named obligations: note §15.3, plus r8's R8-m1,
      R8-m2, R8-i1, R8-i3 and R8-i5(a).
 

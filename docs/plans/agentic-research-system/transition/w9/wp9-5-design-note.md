@@ -1409,6 +1409,23 @@ WP9.5 code **must not** be dispatched until items 1 to 4 below are complete (and
 4. **Unconditional pre-code single scratch-store profile (`P-087` #7, `03-decisions-and-open-questions.md:5919-5923`):** Profile one existing WP9.3/WP9.4 scratch-store test alone on Stephen's machine (`UNVERIFIED-3`, §21.2) before adding `test_w9_wp9_5_detectors.py`.
 5. **Hosted `windows-latest` `1x` full-walk wall time (`UNVERIFIED-5`, §21.2):** Post-merge `1x` time with real rules and `gh api` (~60/`178`/`320` commits) remains `UNVERIFIED-5` before rehearsal/activation, bounded by the `600s` walk stop rule.
 
+**Results recorded 2026-11-23 by the reviewing session, on Stephen's authorization:**
+- **Item 1, U-3** (draft PR #450 on branch `probe/w9-u3-token-read`, commit `52488192`, run `45282369275`; the PR was closed unmerged, its branch deleted, and the other triggered runs cancelled):
+  - `GET rulesets/20822054` under `contents: read`: HTTP 200, `X-Accepted-GitHub-Permissions: metadata=read`. The keys returned were `id`, `name`, `enforcement`, `conditions` and `rules`, with parameters on `merge_queue`, `pull_request` and `required_status_checks`. **`bypass_actors` is absent.** So CI can check the ruleset's rules and conditions but not its bypass list: the `bypass_actors` pin is checked only by the owner-`gh` read (§4.1). The code task must make the CI check tolerate that key's absence explicitly, not treat it as a pass.
+  - `GET rulesets/rule-suites?ref=refs/heads/main&time_period=day&per_page=5` under `contents: read`: **HTTP 403**, `X-Accepted-GitHub-Permissions: administration=read`. **D-8 applies to rule-suites** (§4.2.3).
+  - `GET commits/dbd54fe3.../pulls`: HTTP 200 under both `contents: read` and `contents: read, pull-requests: read`, accepted permission `pull_requests=read`. It returned one PR, with `number`, `merged_at` and `merge_commit_sha`.
+- **Item 2, U-4** (run at 2026-11-23T22:41:48Z from this worktree with the §4.3.3 script verbatim):
+  - all four `root_checks` true;
+  - `bytes` 835,645, `sha256` `27f756492035bdffc030742e9befc07c6c7fbe8d83d8c65313d592560df7180f`;
+  - `link_count` 1, `canonical_target` `C:/Users/steph/Documents/TDA-Research/04-Methods/Computational-Log.md`;
+  - `file_facts`: LF, ends with a terminator, no BOM, 6,993 lines;
+  - `row_counts`: 324 `item`, 1 `structural`; `blockers` empty;
+  - both segmenters agree.
+
+  The file has grown since the 2026-11-21 metadata read (833,453 bytes) because successor entries are added at the top.
+- **Item 4, scratch-store profile:** `test_w9_wp9_3_2_runtime.py::test_an_accepted_batch_through_submit_closes_its_whole_file_registration`, run alone, serially, `--no-cov`, on Stephen's machine. It passed in 39.65 s: 21.75 s setup (the scratch store) and 12.25 s call. So each scratch-store flow costs about 34 s. G1's 300 s leaves room for about eight; G2's 120 s would hold about three.
+- Item 3 is P-090. Item 5 stays `UNVERIFIED-5`.
+
 *(Pre-L-1 gate: before L-1 on `main`, run one throwaway `on: pull_request` workflow [closed unmerged] reading synthetic evidence from `$GITHUB_SHA`, then after L-1 merge run green `workflow_dispatch` on the L-1 merge commit, §10.2 #5.)*
 
 ### 15.2 Stop rules during WP9.5 code implementation
