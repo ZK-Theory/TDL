@@ -455,8 +455,8 @@ def _is_canonical_relpath(value: Any) -> bool:
     )
 
 
-# The citation scanner's single-character delimiters (``citations._SINGLE_DELIMITERS``; a unit test pins the two
-# equal). Kept here because ``citations`` imports this module.
+# The citation scanner's single-character delimiters, defined once here; ``citations._SINGLE_DELIMITERS`` is this
+# object (``citations`` imports this module, so it cannot be the other way round).
 SCANNER_DELIMITERS = frozenset("`'\"()[]{}<>,;|*")
 
 
@@ -464,15 +464,21 @@ def _is_scanner_token(token: str) -> bool:
     """Return whether ``token`` is already in the form the scanner emits (``citations.tokenize_text``).
 
     The scanner splits on whitespace and :data:`SCANNER_DELIMITERS`, turns ``\\`` into ``/``, collapses repeated
-    ``/`` and strips trailing ``.`` and ``:``. A disambiguation key in any other spelling could never match a token.
+    ``/`` and strips trailing ``.`` and ``:``, and never emits an empty token. A disambiguation key in any other
+    spelling could never match a token.
     """
 
     return (
-        not any(ch.isspace() or ch in SCANNER_DELIMITERS for ch in token)
+        bool(token)
+        and not any(ch.isspace() or ch in SCANNER_DELIMITERS for ch in token)
         and "\\" not in token
         and "//" not in token
         and token == token.rstrip(".:")
     )
+
+
+def _has_surrogate(text: str) -> bool:
+    return any(0xD800 <= ord(ch) <= 0xDFFF for ch in text)
 
 
 def _disambiguation_entries(
@@ -493,6 +499,10 @@ def _disambiguation_entries(
             raise EvidenceRefused("W9 citation disambiguation entry has invalid citing_path or token")
         if not _is_scanner_token(token):
             raise EvidenceRefused("W9 citation disambiguation token is not in the scanner's normalised form")
+        strings = [citing_path, token, *(resolution if isinstance(resolution, list) else ())]
+        if any(isinstance(text, str) and _has_surrogate(text) for text in strings):
+            # The extractor hashes these paths as UTF-8, which a lone surrogate cannot be encoded as.
+            raise EvidenceRefused("W9 citation disambiguation entry holds an unpaired surrogate")
         key = (citing_path, token)
         if key in mapping:
             raise EvidenceRefused("W9 citation disambiguation names a (citing_path, token) twice")
