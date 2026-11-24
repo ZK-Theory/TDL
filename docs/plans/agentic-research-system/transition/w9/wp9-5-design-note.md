@@ -1517,6 +1517,27 @@ Named implementation and test obligations from `wp9-5-note-r7-review-2026-11-23.
 - **`X-i5` (`--acknowledged-from` CLI documentation):** Update §6.3 item 4's flag text in code so `--acknowledged-from <sha>` documents loading both `acknowledged` and `rule0_exemptions`.
 - **`X-i7` (`### P-0xx` slice boundary & commit read alignment):** Define one shared slice-extraction rule (start `^### <id>\b`, end next `^### `/`^## `/EOF) and reconcile §4.2.3 (`source_commit`) vs §6.2.2/§6.4/§6.5.1 (`P1`) in `tools/_w9_detector_evidence.py`.
 
+**Carried from the exemption-addendum re-review** (`reviews/wp9-5-note-exemption-addendum-re-review-2026-11-24.md`,
+CONFIRM WITH FINDINGS, on PR #451), by Stephen's choice of 2026-11-24. Each is for the code brief, in the re-review's
+own wording. None is redesigned here.
+- **XR-m1:** scope "no row clears it" in the malformed-intermediate rule to the unexemptable invariants, so a record
+  dropped behind a parse gap stays exemptable. Say whether the raw-read rule also applies to Rules 0.1 and 0.3.
+- **XR-m2:** qualify the nine remaining "exit 2 on unparseable or unknown-format evidence" statements, including the
+  §12.1 test row, with "at `<head>`", and classify anything earlier as a `Rule 0.2` fault.
+- **XR-m3:** add a control for the two-point slice hash (`source_commit` and `P1`). Apply one rule across the whole
+  `disposition_ref` family: `baselines` rows, `ruleset_gap_acknowledgements`, §6.4 and the D-8 reference. Update the
+  `X-i7` item above to match.
+- **XR-m4:** rebuild the ordering and exact-tuple controls so each isolates its own guard, on fixtures that pass every
+  earlier check.
+- **XR-m5:** give a fault inside an exemption row one classification, the item 3 validity fault, so no implementer
+  reads it as a `"$"` schema fault that a later row could clear. Stephen ruled out later-row recovery (P-090 item 5).
+- **XR-i1 to XR-i5:**
+  - XR-i1: the pre-merge run's exact trigger, the assembled tree for L-1, and what "no new fault" means;
+  - XR-i2: the stale §20.3 claims;
+  - XR-i3: the D-8 example value;
+  - XR-i4: control gaps, including a pin advance carrying exemption rows for an earlier violation;
+  - XR-i5: the X-m2 (b) dependency of control (ii).
+
 ---
 
 ## 16. Owner points
