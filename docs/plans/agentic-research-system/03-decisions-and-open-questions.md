@@ -6238,6 +6238,34 @@ The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-r
      - the scratch-store profile: about 34 s per flow, so G1 holds;
    - the code brief carries the r7 and r8 reviews' remaining items as named obligations: note §15.3, plus r8's R8-m1,
      R8-m2, R8-i1, R8-i3 and R8-i5(a).
+5. **Further decisions, 2026-11-24** (Stephen, in chat, after the exemption-row addendum's review,
+   `reviews/wp9-5-note-exemption-addendum-review-2026-11-24.md`, and the amendments' review,
+   `reviews/wp9-5-amendments-review-2026-11-24.md`):
+   - **A pre-merge run for exemption rows.** Any PR that appends a `rule0_exemptions` row carries a run of the pinned
+     tool against its candidate (`--head <candidate>`), attached to the PR, showing that the row validates. A later
+     row cannot clear a validity fault in an earlier one.
+   - **`walk-baseline.json` changes format only by a new file path,** never in place or by an exemption row. This
+     narrows item 2 C's "or by an exemption row" for that one file, which holds the pin, the walk start and the
+     exemption list.
+   - **`d8_rule_suites_limit_decision_ref` stays unexemptable,** its first transition included. It is set in row 0 at
+     L-1, and the L-1 PR gets a pre-merge `--head <candidate>` run.
+   - **H1's carve-out ends at the writer revocation** (W9 §13.3 item 4). The revocation record ends W9 §4.2 (d), by a
+     code constant flipped in a pin advance. The revocation and that pin advance land in the same PR, so the pinned
+     detector never keeps granting (d) after the revocation is recorded.
+6. **The amendments are accepted, 2026-11-24** (Stephen, in chat: "Amendments are accepted"). The accepted document
+   is `transition/w9/wp9-5-owner-decision-amendments-2026-11-24.md` on PR #451:
+   - §1, the WP9.3 gates (A1, D3, E1, J1);
+   - §2, W9 §4.2 (d) for H1;
+   - §3, the `CONVENTIONS.md` text for I1;
+   - §4, the paths-addendum rows.
+
+   Its reviews are `reviews/wp9-5-amendments-review-2026-11-24.md` (REWORK REQUIRED, fixed) and
+   `reviews/wp9-5-amendments-re-review-2026-11-24.md` (CONFIRM WITH FINDINGS, fixed). The acceptance includes the
+   document's reading of the boundary: D3's and E1's test changes are covered by P-089's "its tests" and by this
+   entry. None of the amendments takes effect until the WP9.5 code PR implements it: that PR makes §1's changes,
+   applies §2's and §3's text, and adds §4's rows.
+7. **Who writes WP9.5's code:** a Claude agent, probably, not immediately (Stephen, in chat, 2026-11-24). The code
+   brief is written next, and dispatch waits on his word.
 
 **Not authorized:**
 - WP9.5's code, until item 4 is done and its dispatch is decided;
@@ -6247,9 +6275,10 @@ The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-r
 - any write to a legacy file, to `main` by a detector, or to the vault;
 - any paper-root transition.<br>
 **Not decided here:**
-- who writes WP9.5's code;
-- the exemption row's design (item 4);
-- the open items P-084 lists.<br>
+- when WP9.5's code is dispatched (item 7);
+- the open items P-084 lists.
+
+The exemption row's design is now the note's §6.5.1, after its review and re-review (on PR #451).<br>
 **Capability status:** Gate 7 is OPEN, INCOMPLETE.<br>
 **Boundary:** P-089's boundary is widened for A1, D3, E1 and J1. WP9.5 may change `research_system/legacy/
 evidence.py`, `acceptance.py`, `preparers.py` and `accepted_w9.py` as those options say, each under item 3's
