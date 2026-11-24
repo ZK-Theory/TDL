@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Date | 2026-11-24 |
-| Status | **Proposed.** Each amendment needs an independent review and Stephen's acceptance. It then takes effect when the WP9.5 code PR that implements it merges. |
+| Status | **Accepted by Stephen, 2026-11-24** (P-090 item 6), after an independent review and a re-review (`reviews/wp9-5-amendments-review-2026-11-24.md`, `reviews/wp9-5-amendments-re-review-2026-11-24.md`). Each amendment takes effect when the WP9.5 code PR that implements it merges. |
 | Amends | §1: the WP9.3 gates (the WP9.3 design note §10.4 and §11.1, and the formats in `research_system/legacy/evidence.py`). §2: W9 §4.2 (`design/09-migration-compatibility-and-pilot.md`). §3: two paragraphs of the `CONVENTIONS.md` bullet at lines 713 to 758, and one sentence of the next. §4: `implementation/06v-addendum-2026-11-10-w9-paths.md`. |
 | Authority | P-090 items 2 and 3 (Stephen's owner-point decisions on the WP9.5 design note, 2026-11-23), and P-090's widened boundary. |
 | Design source | `transition/w9/wp9-5-design-note.md` at revision 8, with the gate results recorded at `79d8a684`: §5.3, §6.5 (Rule 3), §8.4, §16.1, §16.3, §16.5, §16.6, §16.9, §16.10. |
