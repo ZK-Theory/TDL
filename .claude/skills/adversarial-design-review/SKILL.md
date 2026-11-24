@@ -2,7 +2,7 @@
 name: adversarial-design-review
 description: Use when conducting an independent adversarial review of a design document, specification, plan, or proposal — to attack it for material errors, unsupported or circular evidence, missing controls, untestable interfaces, and cross-spec inconsistencies, and to produce a severity-graded findings report with a complete decision disposition. Trigger on a review gate, design sign-off, or "attack this plan / spec / design."
 metadata:
-  version: "1.6.0"
+  version: "1.7.0"
   tier: domain
   lanes: []
   roles:
@@ -166,10 +166,10 @@ reviewer prescribed. Check each one against the bytes or code that will decide
 it, never against prose that describes them.
 
 Work through `references/claims-checklist.md`. It has one entry per claim type
-(reuse, shared-store tenants, precedents, restated rules, catalogue IDs,
-selectors, "in the shape of", verifiers, negative controls, prescribed
-corrections, probes, absence, enforcement and wiring claims, owner points on
-rules, carried obligations, shared locations). Apply each entry's **Reviewer**
+(reuse, shared-store tenants, precedents, restated rules, elided quotations,
+catalogue IDs, selectors, "in the shape of", verifiers, negative controls,
+prescribed corrections, probes, absence, enforcement and wiring claims, owner
+points on rules, carried obligations, shared locations). Apply each entry's **Reviewer**
 line to every claim of that type, and record a finding with `path:line` where
 the check fails. `writing-plans-extras` uses the same file's **Author** lines,
 so a new lesson of this kind goes there, once, not into either skill.
