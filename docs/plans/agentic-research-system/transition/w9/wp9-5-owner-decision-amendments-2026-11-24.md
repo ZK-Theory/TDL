@@ -234,7 +234,10 @@ W9 schema changes and there is no D-4 consequence.
 below.** W9 §13.3 item 4 plans a Stephen-recorded writer revocation,
 after which sessions stop writing Working Notes to `.apm/tracker.md` and the §4.4 detector watches the path. After
 that revocation, (d) would still pass a qualifying append, and the detector would be blind on the path. P-090 H set no
-end. The revocation record ends (d), by a code constant that a pin advance flips.
+end. The revocation record ends (d), by a code constant that a pin advance flips. **The revocation and that pin
+advance land in the same PR**, so there is no window in which the revocation is recorded but the pinned detector still
+grants (d). A revocation record that arrives without the pin advance does not end (d) (CodeRabbit on #449, comment
+`4674677014`).
 
 **Evidence.** The rule was tested on the three real tracker commits after the freeze (#368 `452352ff`, #388
 `e3519ba7`, #433 `a6a98966`): each added one note entry, with zero blockers and every task row identical
