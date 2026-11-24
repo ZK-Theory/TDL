@@ -6250,7 +6250,8 @@ The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-r
    - **`d8_rule_suites_limit_decision_ref` stays unexemptable,** its first transition included. It is set in row 0 at
      L-1, and the L-1 PR gets a pre-merge `--head <candidate>` run.
    - **H1's carve-out ends at the writer revocation** (W9 §13.3 item 4). The revocation record ends W9 §4.2 (d), by a
-     code constant flipped in a pin advance.
+     code constant flipped in a pin advance. The revocation and that pin advance land in the same PR, so the pinned
+     detector never keeps granting (d) after the revocation is recorded.
 
 **Not authorized:**
 - WP9.5's code, until item 4 is done and its dispatch is decided;
