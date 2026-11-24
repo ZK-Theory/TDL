@@ -87,7 +87,8 @@ def _iter_json_strings(value: Any) -> list[str]:
 
 def _object_values(pairs: list[tuple[str, Any]]) -> list[Any]:
     # Keep every value, a duplicated key's earlier ones included, so a value shadowed by a later key is still scanned.
-    # Keys are not values (note §11.1 item 1 scans "every decoded string value") and are not scanned.
+    # Decoded keys are not values (note §11.1 item 1 scans "every decoded string value"), so they are not scanned here;
+    # a literal path in a key is still seen through the raw-text scan.
     return [value for _key, value in pairs]
 
 
