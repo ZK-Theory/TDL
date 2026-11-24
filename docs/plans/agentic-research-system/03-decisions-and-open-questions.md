@@ -6238,6 +6238,19 @@ The follow-up briefs that drove revisions 2 to 8 are under `docs/plans/agentic-r
      - the scratch-store profile: about 34 s per flow, so G1 holds;
    - the code brief carries the r7 and r8 reviews' remaining items as named obligations: note §15.3, plus r8's R8-m1,
      R8-m2, R8-i1, R8-i3 and R8-i5(a).
+5. **Further decisions, 2026-11-24** (Stephen, in chat, after the exemption-row addendum's review,
+   `reviews/wp9-5-note-exemption-addendum-review-2026-11-24.md`, and the amendments' review,
+   `reviews/wp9-5-amendments-review-2026-11-24.md`):
+   - **A pre-merge run for exemption rows.** Any PR that appends a `rule0_exemptions` row carries a run of the pinned
+     tool against its candidate (`--head <candidate>`), attached to the PR, showing that the row validates. A later
+     row cannot clear a validity fault in an earlier one.
+   - **`walk-baseline.json` changes format only by a new file path,** never in place or by an exemption row. This
+     narrows item 2 C's "or by an exemption row" for that one file, which holds the pin, the walk start and the
+     exemption list.
+   - **`d8_rule_suites_limit_decision_ref` stays unexemptable,** its first transition included. It is set in row 0 at
+     L-1, and the L-1 PR gets a pre-merge `--head <candidate>` run.
+   - **H1's carve-out ends at the writer revocation** (W9 §13.3 item 4). The revocation record ends W9 §4.2 (d), by a
+     code constant flipped in a pin advance.
 
 **Not authorized:**
 - WP9.5's code, until item 4 is done and its dispatch is decided;
