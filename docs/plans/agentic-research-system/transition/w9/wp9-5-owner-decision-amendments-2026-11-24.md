@@ -230,10 +230,11 @@ waives the authorization record, not the re-observation. (d) is a detector-side 
 to the registration schema's closed `writer_classes` enum (`tools/w9_schema_gen.py:327,452`; W9 §5.2), so no pinned
 W9 schema changes and there is no D-4 consequence.
 
-**Open: when (d) ends (review A-m8, owner decision).** W9 §13.3 item 4 plans a Stephen-recorded writer revocation,
+**When (d) ends (review A-m8). Decided by Stephen, 2026-11-24 (P-090 item 5): it ends at the writer revocation, as
+below.** W9 §13.3 item 4 plans a Stephen-recorded writer revocation,
 after which sessions stop writing Working Notes to `.apm/tracker.md` and the §4.4 detector watches the path. After
 that revocation, (d) would still pass a qualifying append, and the detector would be blind on the path. P-090 H set no
-end. Unless Stephen decides otherwise, the revocation record ends (d), by a code constant that a pin advance flips.
+end. The revocation record ends (d), by a code constant that a pin advance flips.
 
 **Evidence.** The rule was tested on the three real tracker commits after the freeze (#368 `452352ff`, #388
 `e3519ba7`, #433 `a6a98966`): each added one note entry, with zero blockers and every task row identical
