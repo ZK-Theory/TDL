@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.5.0"
+  version: "1.6.0"
   tier: domain
   lanes: []
   roles:
@@ -36,11 +36,16 @@ Before defining tasks:
    the governing master gate checklist with its source cited. A precondition
    that remains only in child prose has no forcing function for the acceptance
    runner.
-7. Run `grep -n "<package>" docs/plans/agentic-research-system/03-decisions-and-open-questions.md`
-   and enter every register sentence that names the package ("Carried to
-   <package>", "<package> validates …") in the obligation register, each with a
-   keep or depart disposition. A forward obligation in the owner register is part
-   of the next package's specification.
+7. Search every list that routes work to a package, not only the register.
+   With `D=docs/plans/agentic-research-system`, run
+   `git grep -n -F "<package>" -- $D/03-decisions-and-open-questions.md $D/implementation/gate7-intake-deferrals.md "$D/implementation/06v-addendum-*.md"`.
+   Enter every hit that names the package in the obligation register, each with
+   a keep or depart disposition: a register sentence ("Carried to <package>",
+   "<package> validates …"), a Gate 7+ intake row in §2, or an addendum row the
+   package owns. A forward obligation lives where its recorder put it, and each
+   one is part of the next package's specification. (The WP9.3-2 plan's register
+   grep missed two intake rows and an addendum row: obs
+   2026-11-11-plan-step-7-misses-intake-and-paths-rows-naming-the-package.)
 
 ## Plan Integration
 
