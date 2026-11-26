@@ -59,6 +59,20 @@ A document summarises another accepted document's precondition matrix.
   and restates only the delta.
 - **Source:** `2026-10-22-gate-definition-restates-owning-matrix-narrowly`.
 
+## Elided quotations
+
+A document or a prescribed fix quotes a governing rule with an ellipsis.
+
+- **Author:** an ellipsis inside a quoted requirement is a scoping decision. Re-read the elided words in the source
+  and show that the design meets each qualifier they hold, or say why it does not apply. When the design compares
+  paths on Windows, probe it with a case-variant path.
+- **Reviewer:** restore every ellipsis in a quoted rule from its source, with `file:line`, and check the design or
+  your prescribed fix against the full sentence, not the quotation. A path comparison on Windows gets a case-variant
+  probe.
+- **Source:** `2026-11-20-ellipsis-quote-dropped-the-qualifier-the-fix-needed`. R5-M1's fix quoted W11 §7.2 as
+  "registration rejects … resolved-prefix collisions"; the ellipsis held "case-folded, Unicode-normalized, 8.3-name".
+  The fix used a string prefix with no case-folding, and a case-variant member path passed LR-003 on Windows (R6-M1).
+
 ## Catalogue IDs
 
 An ID is re-specified, renamed or deferred.
@@ -116,11 +130,18 @@ A fix a reviewer prescribed, carried into the next draft.
 
 - **Author:** a reviewer is not an owner source. Before copying a prescribed identifier or row range into the plan,
   quote it from its owner source with `file:line`, and trace the prescribed mechanism through the code it relies on.
+  When two corrections change one rule, apply both, then run the combined rule on every worked example and fixture
+  the document states, and check that each clause can still fire.
 - **Reviewer:** your own required corrections need the same source check as your findings. Quote every identifier
   from its owner source with `file:line`, and trace a prescribed mechanism through the code path it relies on before
-  prescribing it. A reviewer is not an owner source.
+  prescribing it. A reviewer is not an owner source. Corrections compose: when two of yours touch one rule (a
+  tokenizer and a class test, a key and a filter), run the combined rule on the document's examples and fixtures
+  before prescribing both. A clause a sibling fix makes unreachable never errors.
 - **Source:** `2026-10-22-reviewer-prescribed-identifiers-copied-unverified`. It happened twice: the OR-109 to OR-115
   range, wrong by one and copied verbatim into the next draft, then `load_store_manifest`.
+  `2026-11-19-fix-to-one-rule-made-another-clause-unreachable`: once braces split tokens (R4-m3), no token held a
+  brace, so the per-component brace test (R4-m4) could not fire, and the note's worked example classified differently
+  than stated.
 
 ## Probes
 

@@ -2,7 +2,7 @@
 name: writing-plans-extras
 description: Complement superpowers:writing-plans when planning from accepted specifications that may contain deferred obligations, later-gate requirements, approval boundaries, or requirements outside implementation summaries. Use before task decomposition for ARS/TDL plans or any multi-document specification with forward-looking commitments.
 metadata:
-  version: "1.6.0"
+  version: "1.7.0"
   tier: domain
   lanes: []
   roles:
@@ -112,11 +112,12 @@ and cite it. The checks live in one file shared with `adversarial-design-review`
 skill's directory in whichever skills tree loaded it. Apply the **Author** line of
 each entry that matches a claim in the plan: reuse, shared-store tenants (the
 whole-ledger reader inventory for a new command or event family), precedents and
-"handled by existing X", restated preconditions, catalogue IDs, selector
-contracts, "in the shape of", verifiers, negative controls, prescribed
-corrections, probes, absence, enforcement and wiring claims, rules the owner may
-already have fixed, carried obligations, and shared locations. A new lesson of
-this kind goes into that file, once, with both an author and a reviewer line.
+"handled by existing X", restated preconditions, elided quotations of a
+governing rule, catalogue IDs, selector contracts, "in the shape of", verifiers,
+negative controls, prescribed corrections (and how two of them compose), probes,
+absence, enforcement and wiring claims, rules the owner may already have fixed,
+carried obligations, and shared locations. A new lesson of this kind goes into
+that file, once, with both an author and a reviewer line.
 
 ## Currency Addenda
 

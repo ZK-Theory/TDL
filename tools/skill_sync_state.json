@@ -1,7 +1,7 @@
 {
   "adversarial-design-review": {
-    "SKILL.md": "1077ade3438be005a09a6f544d40bb17e14fdba4d83658c45a8baf92a727cddb",
-    "references/claims-checklist.md": "ae227287586e91480dec0a7a563e970dc9d11c8880a566fecbf905ac05329efa"
+    "SKILL.md": "bdcc6cb86d1c29b073f0f1a26d5af52ac2d7be158ef2bbafd7fe16fa25acb7d8",
+    "references/claims-checklist.md": "a9690cb033aaeb02dc5edfd1d2c675d105158587626400fcc82b7193fba56b42"
   },
   "assay": {
     "SKILL.md": "952be58bf4ea1782077c63c45b4cf6de819a91e5915e545dcbe3c3c747c6e664"
@@ -191,7 +191,7 @@
     "SKILL.md": "80c9b3179d16aee0311250d328e5f5b914d026c63574bd132471d7411d7531a5"
   },
   "writing-plans-extras": {
-    "SKILL.md": "f5417b2487c85069ee00c39445a96d38a287ba818e0387b124cd383e90b537a5",
+    "SKILL.md": "571d9d1d606629aa9b96232a0206758a930e64945d0a1f2ef32f57fe865bf99c",
     "agents/openai.yaml": "2869fe664b3fbb07e1a7d97e5af8a12f50fc1905d695364f3c6ee4e87660d88f"
   }
 }
